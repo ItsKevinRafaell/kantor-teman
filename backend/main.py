@@ -80,68 +80,68 @@ class Base(DeclarativeBase):
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    email = Column(String, unique=True, nullable=False, index=True)
-    hashed_password = Column(String, nullable=False)
+    name = Column(String(255), nullable=False)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
 
 
 class SystemSettings(Base):
     __tablename__ = "system_settings"
     id = Column(Integer, primary_key=True)
-    key = Column(String, unique=True, nullable=False)
+    key = Column(String(255), unique=True, nullable=False)
     value = Column(Text, nullable=True)
 
 
 class Lead(Base):
     __tablename__ = "leads"
     id = Column(Integer, primary_key=True, index=True)
-    business_name = Column(String, nullable=False)
-    phone_number = Column(String, unique=True, nullable=False)
-    address = Column(String, nullable=True)
-    original_url = Column(String, nullable=True)
-    status = Column(String, default="Scraped", nullable=False)
-    product_interest = Column(String, nullable=True)
-    batch_name = Column(String, nullable=True)
+    business_name = Column(String(255), nullable=False)
+    phone_number = Column(String(255), unique=True, nullable=False)
+    address = Column(String(255), nullable=True)
+    original_url = Column(String(255), nullable=True)
+    status = Column(String(255), default="Scraped", nullable=False)
+    product_interest = Column(String(255), nullable=True)
+    batch_name = Column(String(255), nullable=True)
     rating = Column(Integer, default=0)
     is_archived = Column(Boolean, default=False)
-    deleted_at = Column(String, nullable=True)
+    deleted_at = Column(String(255), nullable=True)
     lead_score = Column(Integer, default=0)
 
 
 class Contact(Base):
     __tablename__ = "contacts"
     id = Column(Integer, primary_key=True, index=True)
-    business_name = Column(String, nullable=False)
-    owner_name = Column(String, nullable=True)
-    phone_number = Column(String, unique=True, nullable=False)
-    purchased_product = Column(String, nullable=True)
+    business_name = Column(String(255), nullable=False)
+    owner_name = Column(String(255), nullable=True)
+    phone_number = Column(String(255), unique=True, nullable=False)
+    purchased_product = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
 
 
 class MessageTemplate(Base):
     __tablename__ = "message_templates"
     id = Column(Integer, primary_key=True, index=True)
-    product_category = Column(String, nullable=False)
-    variant_name = Column(String, nullable=False)
+    product_category = Column(String(255), nullable=False)
+    variant_name = Column(String(255), nullable=False)
     content = Column(Text, nullable=False)
 
 
 class Proposal(Base):
     __tablename__ = "proposals"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False)
     services_detail = Column(Text, nullable=False)
     total_price = Column(Float, nullable=False, default=0)
     additional_options = Column(Text, nullable=True)
-    status = Column(String, default="Sent", nullable=False)
-    created_at = Column(String, nullable=True)
+    status = Column(String(255), default="Sent", nullable=False)
+    created_at = Column(String(255), nullable=True)
     is_archived = Column(Boolean, default=False)
-    deleted_at = Column(String, nullable=True)
-    slug = Column(String, unique=True, nullable=True)
+    deleted_at = Column(String(255), nullable=True)
+    slug = Column(String(255), unique=True, nullable=True)
     base_price = Column(Float, nullable=True)
     discount_price = Column(Float, nullable=True)
-    discount_expires_at = Column(String, nullable=True)
-    first_viewed_at = Column(String, nullable=True)
+    discount_expires_at = Column(String(255), nullable=True)
+    first_viewed_at = Column(String(255), nullable=True)
     faqs = Column(Text, nullable=True)
     selected_addons = Column(Text, nullable=True, default="[]")
     timeline_data = Column(Text, nullable=True)
@@ -151,16 +151,16 @@ class Proposal(Base):
 
 class ServiceItem(Base):
     __tablename__ = "service_items"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    name = Column(String, nullable=False)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(255), nullable=False)
     default_price = Column(Float, nullable=False)
     default_features = Column(Text, nullable=False)
 
 
 class Category(Base):
     __tablename__ = "categories"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    name = Column(String, unique=True, nullable=False)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(255), unique=True, nullable=False)
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     products = relationship("Product", back_populates="category_rel")
@@ -168,13 +168,13 @@ class Category(Base):
 
 class Product(Base):
     __tablename__ = "products"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    name = Column(String, nullable=False)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     base_price = Column(Float, nullable=False)
     features = Column(Text, nullable=False, default="[]")
-    category = Column(String, nullable=True)
-    category_id = Column(String, ForeignKey("categories.id"), nullable=True)
+    category = Column(String(255), nullable=True)
+    category_id = Column(String(36), ForeignKey("categories.id"), nullable=True)
     is_active = Column(Boolean, default=True)
     is_retainer = Column(Boolean, default=False)
     monthly_ads_cost = Column(Float, nullable=True, default=5000000)
@@ -186,21 +186,21 @@ class Product(Base):
 
 class DynamicTemplate(Base):
     __tablename__ = "dynamic_templates"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    name = Column(String, nullable=False)
-    type = Column(String, nullable=False)  # WA_BLAST, PROPOSAL_TEXT, PROPOSAL_INTRO, PROPOSAL_OUTRO, FOLLOW_UP, GENERAL, TIMELINE_TEMPLATE
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(255), nullable=False)
+    type = Column(String(255), nullable=False)  # WA_BLAST, PROPOSAL_TEXT, PROPOSAL_INTRO, PROPOSAL_OUTRO, FOLLOW_UP, GENERAL, TIMELINE_TEMPLATE
     content = Column(Text, nullable=False)
     is_active = Column(Boolean, default=True)
-    category_id = Column(String, ForeignKey("categories.id"), nullable=True)
+    category_id = Column(String(36), ForeignKey("categories.id"), nullable=True)
     category_rel = relationship("Category")
 
 
 class ProposalAnalytics(Base):
     __tablename__ = "proposal_analytics"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    proposal_id = Column(String, ForeignKey("proposals.id"), nullable=False)
-    opened_at = Column(String, nullable=False)
-    last_ping = Column(String, nullable=True)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    proposal_id = Column(String(36), ForeignKey("proposals.id"), nullable=False)
+    opened_at = Column(String(255), nullable=False)
+    last_ping = Column(String(255), nullable=True)
     total_time_seconds = Column(Integer, default=0)
     sections_viewed = Column(Text, default="[]")
 
@@ -212,10 +212,10 @@ class ProposalAnalytics(Base):
 class Wallet(Base):
     __tablename__ = "wallets"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)
+    name = Column(String(255), nullable=False)
     balance = Column(Float, nullable=False, default=0)
-    icon = Column(String, nullable=True)
-    color = Column(String, nullable=True)
+    icon = Column(String(255), nullable=True)
+    color = Column(String(255), nullable=True)
     transactions = relationship("Transaction", back_populates="wallet")
     subscriptions = relationship("Subscription", back_populates="wallet")
 
@@ -224,15 +224,15 @@ class Transaction(Base):
     __tablename__ = "transactions"
     id = Column(Integer, primary_key=True, index=True)
     wallet_id = Column(Integer, ForeignKey("wallets.id"), nullable=False)
-    type = Column(String, nullable=False)  # income / expense
+    type = Column(String(255), nullable=False)  # income / expense
     amount = Column(Float, nullable=False)
-    category = Column(String, nullable=True)
-    date = Column(String, nullable=False)
+    category = Column(String(255), nullable=True)
+    date = Column(String(255), nullable=False)
     notes = Column(Text, nullable=True)
     lead_id = Column(Integer, ForeignKey("leads.id"), nullable=True)
     is_billed = Column(Boolean, default=False)
     is_archived = Column(Boolean, default=False)
-    deleted_at = Column(String, nullable=True)
+    deleted_at = Column(String(255), nullable=True)
     wallet = relationship("Wallet", back_populates="transactions")
     lead = relationship("Lead", foreign_keys=[lead_id])
 
@@ -241,10 +241,10 @@ class Subscription(Base):
     __tablename__ = "subscriptions"
     id = Column(Integer, primary_key=True, index=True)
     wallet_id = Column(Integer, ForeignKey("wallets.id"), nullable=False)
-    name = Column(String, nullable=False)
+    name = Column(String(255), nullable=False)
     amount = Column(Float, nullable=False)
-    billing_cycle = Column(String, nullable=False, default="monthly")  # monthly / yearly
-    next_billing_date = Column(String, nullable=False)
+    billing_cycle = Column(String(255), nullable=False, default="monthly")  # monthly / yearly
+    next_billing_date = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True)
     wallet = relationship("Wallet", back_populates="subscriptions")
 
@@ -256,30 +256,30 @@ class Subscription(Base):
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(String, nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
-    actor = Column(String, nullable=False)
-    action = Column(String, nullable=False)  # CREATE, UPDATE, DELETE, RESTORE
-    table_name = Column(String, nullable=False)
-    record_id = Column(String, nullable=False)
+    timestamp = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    actor = Column(String(255), nullable=False)
+    action = Column(String(255), nullable=False)  # CREATE, UPDATE, DELETE, RESTORE
+    table_name = Column(String(255), nullable=False)
+    record_id = Column(String(255), nullable=False)
     details = Column(Text, nullable=True)  # JSON string
 
 
 class ScrapeHistory(Base):
     __tablename__ = "scrape_history"
     id = Column(Integer, primary_key=True, index=True)
-    category = Column(String, nullable=False)
-    location = Column(String, nullable=False)
-    product_interest = Column(String, nullable=True)
+    category = Column(String(255), nullable=False)
+    location = Column(String(255), nullable=False)
+    product_interest = Column(String(255), nullable=True)
     results_count = Column(Integer, default=0)
-    scraped_at = Column(String, nullable=False)
+    scraped_at = Column(String(255), nullable=False)
 
 
 class LeadActivityLog(Base):
     __tablename__ = "lead_activity_logs"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False)
-    activity_type = Column(String, nullable=False)
-    created_at = Column(String, nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    activity_type = Column(String(255), nullable=False)
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class LeadAnalysis(Base):
@@ -288,110 +288,110 @@ class LeadAnalysis(Base):
     lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False)
     analysis = Column(Text, nullable=False)
     pain_points = Column(Text, nullable=True)
-    suggested_product = Column(String, nullable=True)
-    analyzed_at = Column(String, nullable=False)
+    suggested_product = Column(String(255), nullable=True)
+    analyzed_at = Column(String(255), nullable=False)
     lead = relationship("Lead", foreign_keys=[lead_id])
 
 
 class Project(Base):
     __tablename__ = "projects"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False)
-    name = Column(String, nullable=False)
-    type = Column(String, nullable=False)  # FIXED / RETAINER
-    status = Column(String, default="ACTIVE", nullable=False)  # ACTIVE / COMPLETED / HOLD
+    name = Column(String(255), nullable=False)
+    type = Column(String(255), nullable=False)  # FIXED / RETAINER
+    status = Column(String(255), default="ACTIVE", nullable=False)  # ACTIVE / COMPLETED / HOLD
     nominal = Column(Float, nullable=False, default=0)
-    start_date = Column(String, nullable=True)
-    end_date = Column(String, nullable=True)
+    start_date = Column(String(255), nullable=True)
+    end_date = Column(String(255), nullable=True)
     lead = relationship("Lead", foreign_keys=[lead_id])
 
 
 class ClientNote(Base):
     __tablename__ = "client_notes"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False)
-    timestamp = Column(String, nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
-    actor = Column(String, nullable=False)
-    category = Column(String, nullable=False)  # BISNIS / TEKNIS / PENTING
+    timestamp = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    actor = Column(String(255), nullable=False)
+    category = Column(String(255), nullable=False)  # BISNIS / TEKNIS / PENTING
     content = Column(Text, nullable=False)
     lead = relationship("Lead", foreign_keys=[lead_id])
 
 
 class ClientCredential(Base):
     __tablename__ = "client_credentials"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     lead_id = Column(Integer, ForeignKey("leads.id"), nullable=True)
-    category = Column(String, nullable=False)
-    title = Column(String, nullable=False)
+    category = Column(String(255), nullable=False)
+    title = Column(String(255), nullable=False)
     fields = Column(Text, nullable=False, default="[]")
-    created_at = Column(String, nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
     lead = relationship("Lead", foreign_keys=[lead_id])
 
 
 class ClientDocument(Base):
     __tablename__ = "client_documents"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     lead_id = Column(Integer, ForeignKey("leads.id"), nullable=True)
-    title = Column(String, nullable=False)
-    cloud_url = Column(String, nullable=False)
-    created_at = Column(String, nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    title = Column(String(255), nullable=False)
+    cloud_url = Column(String(255), nullable=False)
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
     lead = relationship("Lead", foreign_keys=[lead_id])
 
 
 class AdsCampaign(Base):
     __tablename__ = "ads_campaigns"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    name = Column(String, nullable=False)
-    target_audience = Column(String, nullable=False)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(255), nullable=False)
+    target_audience = Column(String(255), nullable=False)
     budget = Column(Float, nullable=False, default=0)
-    drive_link = Column(String, nullable=True)
+    drive_link = Column(String(255), nullable=True)
     leads_count = Column(Integer, default=0)
     conversions_count = Column(Integer, default=0)
-    status = Column(String, nullable=False, default="PLANNING")
-    created_at = Column(String, nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    status = Column(String(255), nullable=False, default="PLANNING")
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class BlastCampaign(Base):
     __tablename__ = "blast_campaigns"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    name = Column(String, nullable=False)
-    template_id = Column(String, ForeignKey("dynamic_templates.id"), nullable=True)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(255), nullable=False)
+    template_id = Column(String(36), ForeignKey("dynamic_templates.id"), nullable=True)
     filter_criteria = Column(Text, nullable=False, default="{}")
-    scheduled_for = Column(String, nullable=False)
-    status = Column(String, nullable=False, default="PENDING")
+    scheduled_for = Column(String(255), nullable=False)
+    status = Column(String(255), nullable=False, default="PENDING")
     sent_count = Column(Integer, default=0)
     failed_count = Column(Integer, default=0)
     total_operational_cost_idr = Column(Float, default=0)
     converted_clients_count = Column(Integer, default=0)
-    created_at = Column(String, nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class FollowUpSequence(Base):
     __tablename__ = "followup_sequences"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False)
     template_ids = Column(Text, nullable=False, default="[]")
     delays = Column(Text, nullable=False, default="[1,3,7]")
     current_step = Column(Integer, default=0)
-    status = Column(String, default="ACTIVE")
-    started_at = Column(String, nullable=False)
-    next_send_at = Column(String, nullable=True)
-    stopped_reason = Column(String, nullable=True)
+    status = Column(String(255), default="ACTIVE")
+    started_at = Column(String(255), nullable=False)
+    next_send_at = Column(String(255), nullable=True)
+    stopped_reason = Column(String(255), nullable=True)
 
 
 class ReengagementAlert(Base):
     __tablename__ = "reengagement_alerts"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False)
-    proposal_id = Column(String, ForeignKey("proposals.id"), nullable=False)
-    triggered_at = Column(String, nullable=False)
+    proposal_id = Column(String(36), ForeignKey("proposals.id"), nullable=False)
+    triggered_at = Column(String(255), nullable=False)
     is_read = Column(Boolean, default=False)
 
 
 class ProviderConfig(Base):
     __tablename__ = "provider_configs"
-    id = Column(String, primary_key=True)
-    provider_name = Column(String, nullable=False)
+    id = Column(String(36), primary_key=True)
+    provider_name = Column(String(255), nullable=False)
     remaining_quota = Column(Float, default=0)
     price_per_unit_idr = Column(Float, default=0)
     price_input_token_usd = Column(Float, default=0)
@@ -400,13 +400,13 @@ class ProviderConfig(Base):
 
 class ContentSchedule(Base):
     __tablename__ = "content_schedules"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    title = Column(String, nullable=False)
-    type = Column(String, nullable=False)
-    schedule_date = Column(String, nullable=False)
-    google_event_id = Column(String, nullable=True)
-    status = Column(String, nullable=False, default="DRAFT")
-    created_at = Column(String, nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    title = Column(String(255), nullable=False)
+    type = Column(String(255), nullable=False)
+    schedule_date = Column(String(255), nullable=False)
+    google_event_id = Column(String(255), nullable=True)
+    status = Column(String(255), nullable=False, default="DRAFT")
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
 
 
 Base.metadata.create_all(bind=engine)
