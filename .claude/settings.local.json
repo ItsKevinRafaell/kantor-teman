@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(venv/bin/pip install *)",
+      "Bash(venv/bin/python *)",
+      "Bash(npm install *)",
+      "Bash(npx tailwindcss *)",
+      "Bash(node_modules/.bin/tailwindcss init *)",
+      "Bash(node_modules/.bin/tsc *)",
+      "Bash(npm run *)",
+      "Bash(python migrate.py)",
+      "Bash(npx tsc *)",
+      "Bash(sqlite3 *)",
+      "Bash(npx next *)"
+    ]
+  }
+}

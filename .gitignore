@@ -1,0 +1,13 @@
+node_modules/
+frontend/node_modules/
+.next/
+frontend/.next/
+__pycache__/
+backend/__pycache__/
+*.pyc
+*.db
+backend/leads.db
+frontend/leads.db
+backend/venv/
+.env
+*.env.local
