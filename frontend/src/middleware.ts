@@ -6,8 +6,9 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isLoginPage = pathname === "/login";
   const isPublicProposal = pathname.startsWith("/proposal/");
+  const isPublicReport = pathname.startsWith("/report/");
 
-  if (isPublicProposal) {
+  if (isPublicProposal || isPublicReport) {
     return NextResponse.next();
   }
 
