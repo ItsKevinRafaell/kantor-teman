@@ -67,8 +67,9 @@ def verify_password(plain: str, hashed: str) -> bool:
 # Database
 # ---------------------------------------------------------------------------
 
-DATABASE_URL = "sqlite:///./leads.db"
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./leads.db")
+_connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+engine = create_engine(DATABASE_URL, connect_args=_connect_args)
 SessionLocal = sessionmaker(bind=engine)
 
 
@@ -1215,7 +1216,8 @@ async def send_fonnte_message(phone: str, message: str, token: str) -> bool:
 async def run_blast(batch_name: str, product_category: str, min_rating: int, db_url: str, jwt_secret: str, template_id: str = None):
     from sqlalchemy import create_engine as ce
     from sqlalchemy.orm import sessionmaker as sm
-    _engine = ce(db_url, connect_args={"check_same_thread": False})
+    _ca = {"check_same_thread": False} if "sqlite" in db_url else {}
+    _engine = ce(db_url, connect_args=_ca)
     _Session = sm(bind=_engine)
     db = _Session()
     try:
@@ -3767,7 +3769,8 @@ async def analyze_batch(
     async def run_analysis():
         from sqlalchemy import create_engine as _ce
         from sqlalchemy.orm import sessionmaker as _sm
-        _engine = _ce(str(engine.url), connect_args={"check_same_thread": False})
+        _ca = {"check_same_thread": False} if "sqlite" in str(engine.url) else {}
+        _engine = _ce(str(engine.url), connect_args=_ca)
         _Session = _sm(bind=_engine)
         _db = _Session()
         try:
