@@ -9,46 +9,17 @@ import uuid
 import json
 import sys
 
-sys.path.insert(0, os.path.dirname(__file__))
-from dotenv import load_dotenv
-load_dotenv()
-
-from main import (
-    engine, SessionLocal, Base,
-    Category, Product, DynamicTemplate,
-)
-
-Base.metadata.create_all(engine)
-db = SessionLocal()
-
 # ============================================================================
-# CLEAN existing data
-# ============================================================================
-db.query(Product).delete()
-db.query(Category).delete()
-db.query(DynamicTemplate).filter(DynamicTemplate.type.in_(["WA_BLAST", "FOLLOW_UP"])).delete()
-db.commit()
-print("Cleaned: products, categories, templates")
-
-# ============================================================================
-# CATEGORIES
+# DATA (importable by main.py endpoint)
 # ============================================================================
 categories = {
-    "web_dev": Category(id=str(uuid.uuid4()), name="Web Development", description="Jasa pembuatan website responsif, cepat, dan dioptimalkan untuk meningkatkan konversi penjualan.", is_active=True),
-    "seo": Category(id=str(uuid.uuid4()), name="SEO & Google Maps", description="Optimasi keberadaan bisnis online agar mudah ditemukan calon pelanggan melalui Google dan Google Maps.", is_active=True),
-    "socmed": Category(id=str(uuid.uuid4()), name="Kelola Sosial Media", description="Tingkatkan engagement audiens dan bangun brand awareness yang konsisten di berbagai platform media sosial.", is_active=True),
-    "maintenance": Category(id=str(uuid.uuid4()), name="Maintenance Website", description="Jaga website tetap aman, selalu di-backup, dan berkinerja optimal.", is_active=True),
-    "logo": Category(id=str(uuid.uuid4()), name="Desain Logo & Identitas Visual", description="Desain logo profesional yang merepresentasikan nilai dan visi bisnis, siap untuk cetak maupun digital.", is_active=True),
+    "web_dev": {"name": "Web Development", "description": "Jasa pembuatan website responsif, cepat, dan dioptimalkan untuk meningkatkan konversi penjualan."},
+    "seo": {"name": "SEO & Google Maps", "description": "Optimasi keberadaan bisnis online agar mudah ditemukan calon pelanggan melalui Google dan Google Maps."},
+    "socmed": {"name": "Kelola Sosial Media", "description": "Tingkatkan engagement audiens dan bangun brand awareness yang konsisten di berbagai platform media sosial."},
+    "maintenance": {"name": "Maintenance Website", "description": "Jaga website tetap aman, selalu di-backup, dan berkinerja optimal."},
+    "logo": {"name": "Desain Logo & Identitas Visual", "description": "Desain logo profesional yang merepresentasikan nilai dan visi bisnis, siap untuk cetak maupun digital."},
 }
 
-for cat in categories.values():
-    db.add(cat)
-db.commit()
-print(f"Seeded: {len(categories)} categories")
-
-# ============================================================================
-# PRODUCTS
-# ============================================================================
 products_data = [
     ("Landing Page (Tahunan)", "1 Halaman (Sales Focus). Domain & Hosting termasuk tahun ke-1.", 1000000, ["1 Halaman (Sales Focus)", "Domain & Hosting Termasuk (Tahun ke-1)", "WhatsApp Chat", "SSL", "Mobile Friendly"], "web_dev", False),
     ("Standard Biz (Tahunan)", "Max. 5 Halaman. Domain & Hosting termasuk tahun ke-1.", 2250000, ["Max. 5 Halaman", "Domain & Hosting Termasuk (Tahun ke-1)", "Maps Embed", "SEO Dasar", "Google Analytics"], "web_dev", False),
@@ -70,23 +41,6 @@ products_data = [
     ("Logo Corporate", "Paket identitas visual lengkap: logo, kartu nama, kop surat, stempel.", 1500000, ["4 Opsi Desain", "Format: Full Vector & Identity Assets", "Kartu Nama, Kop Surat, Stempel", "Pengerjaan Maks. 3 Hari"], "logo", False),
 ]
 
-for name, desc, price, features, cat_key, is_retainer in products_data:
-    db.add(Product(
-        id=str(uuid.uuid4()),
-        name=name,
-        description=desc,
-        base_price=price,
-        features=json.dumps(features),
-        category_id=categories[cat_key].id,
-        is_active=True,
-        is_retainer=is_retainer,
-    ))
-db.commit()
-print(f"Seeded: {len(products_data)} products")
-
-# ============================================================================
-# DYNAMIC TEMPLATES (WA_BLAST & FOLLOW_UP per category)
-# ============================================================================
 templates_data = [
     ("WA Blast - Web Development (Audit)", "WA_BLAST", "web_dev", "Halo {{business_name}}, saya baru saja cek website bisnis Anda dan menemukan beberapa hal yang bisa diperbaiki agar lebih banyak pelanggan datang dari Google.\n\nSaya sudah buatkan laporan gratisnya di sini:\n{{proposal_link}}\n\nLaporan ini hanya berlaku 24 jam. Boleh saya jelaskan lebih detail?"),
     ("WA Blast - Web Development (No Website)", "WA_BLAST", "web_dev", "Halo {{business_name}}, saya perhatikan bisnis Anda belum punya website. Di era digital ini, 80% calon pelanggan mencari bisnis lewat Google sebelum membeli.\n\nKami punya solusi website profesional mulai dari Rp 120rb/bulan:\n{{proposal_link}}\n\nMau saya jelaskan lebih lanjut?"),
@@ -103,17 +57,52 @@ templates_data = [
     ("Follow Up - Logo", "FOLLOW_UP", "logo", "Halo {{business_name}}, follow up dari penawaran desain logo kemarin. Apakah sudah ada gambaran konsep yang diinginkan?\n\nKalau mau diskusi soal warna, style, atau referensi, saya siap bantu kapan saja."),
 ]
 
-for name, ttype, cat_key, content in templates_data:
-    db.add(DynamicTemplate(
-        id=str(uuid.uuid4()),
-        name=name,
-        type=ttype,
-        content=content,
-        is_active=True,
-        category_id=categories[cat_key].id,
-    ))
-db.commit()
-print(f"Seeded: {len(templates_data)} dynamic templates")
+# ============================================================================
+# MAIN EXECUTION (only when run directly)
+# ============================================================================
+if __name__ == "__main__":
+    sys.path.insert(0, os.path.dirname(__file__))
+    from dotenv import load_dotenv
+    load_dotenv()
 
-db.close()
-print("\nSeeder selesai!")
+    from main import (
+        engine, SessionLocal, Base,
+        Category, Product, DynamicTemplate,
+    )
+
+    Base.metadata.create_all(engine)
+    db = SessionLocal()
+
+    db.query(Product).delete()
+    db.query(Category).delete()
+    db.query(DynamicTemplate).filter(DynamicTemplate.type.in_(["WA_BLAST", "FOLLOW_UP"])).delete()
+    db.commit()
+    print("Cleaned: products, categories, templates")
+
+    cat_objects = {}
+    for key, cat in categories.items():
+        c = Category(id=str(uuid.uuid4()), name=cat["name"], description=cat["description"], is_active=True)
+        db.add(c)
+        cat_objects[key] = c
+    db.commit()
+    print(f"Seeded: {len(categories)} categories")
+
+    for name, desc, price, features, cat_key, is_retainer in products_data:
+        db.add(Product(
+            id=str(uuid.uuid4()), name=name, description=desc, base_price=price,
+            features=json.dumps(features), category_id=cat_objects[cat_key].id,
+            is_active=True, is_retainer=is_retainer,
+        ))
+    db.commit()
+    print(f"Seeded: {len(products_data)} products")
+
+    for name, ttype, cat_key, content in templates_data:
+        db.add(DynamicTemplate(
+            id=str(uuid.uuid4()), name=name, type=ttype, content=content,
+            is_active=True, category_id=cat_objects[cat_key].id,
+        ))
+    db.commit()
+    print(f"Seeded: {len(templates_data)} dynamic templates")
+
+    db.close()
+    print("\nSeeder selesai!")

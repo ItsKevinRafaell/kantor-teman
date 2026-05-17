@@ -1367,6 +1367,43 @@ def update_settings(body: SettingsUpdate, current_user: User = Depends(get_curre
     return {"ok": True}
 
 
+@app.post("/api/admin/seed")
+def run_seed_endpoint(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Run seeder via HTTP — use once after first deploy."""
+    from seed import categories, products_data, templates_data
+    import uuid as _uuid
+
+    db.query(Product).delete()
+    db.query(Category).delete()
+    db.query(DynamicTemplate).filter(DynamicTemplate.type.in_(["WA_BLAST", "FOLLOW_UP"])).delete()
+    db.commit()
+
+    cat_objects = {}
+    for key, cat in categories.items():
+        c = Category(id=str(_uuid.uuid4()), name=cat["name"], description=cat["description"], is_active=True)
+        db.add(c)
+        cat_objects[key] = c
+    db.commit()
+
+    for name, desc, price, features, cat_key, is_retainer in products_data:
+        db.add(Product(
+            id=str(_uuid.uuid4()), name=name, description=desc, base_price=price,
+            features=json.dumps(features), category_id=cat_objects[cat_key].id,
+            is_active=True, is_retainer=is_retainer,
+        ))
+    db.commit()
+
+    for name, ttype, cat_key, content in templates_data:
+        db.add(DynamicTemplate(
+            id=str(_uuid.uuid4()), name=name, type=ttype, content=content,
+            is_active=True, category_id=cat_objects[cat_key].id,
+        ))
+    db.commit()
+
+    seed_data(db)
+    return {"ok": True, "message": "Seed berhasil: categories, products, templates"}
+
+
 @app.post("/api/settings/test-api")
 async def test_api_connection(
     provider: str = Query(...),
