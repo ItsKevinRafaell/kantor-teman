@@ -69,7 +69,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./leads.db")
 _connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
-engine = create_engine(DATABASE_URL, connect_args=_connect_args)
+engine = create_engine(DATABASE_URL, connect_args=_connect_args, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine)
 
 
