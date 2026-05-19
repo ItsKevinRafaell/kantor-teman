@@ -75,7 +75,8 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./leads.db")
 _connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
-engine = create_engine(DATABASE_URL, connect_args=_connect_args, pool_pre_ping=True, pool_recycle=280)
+from sqlalchemy.pool import NullPool
+engine = create_engine(DATABASE_URL, connect_args=_connect_args, poolclass=NullPool)
 SessionLocal = sessionmaker(bind=engine)
 
 
@@ -633,27 +634,49 @@ def _generate_fallback_analysis(lead) -> dict:
     }
 
 
-def generate_report_for_lead(lead, db: Session) -> str:
-    existing = db.query(Proposal).filter(
+def generate_report_for_lead(lead, db: Session, product_category: str = None) -> str:
+    category = product_category or lead.product_interest or ""
+
+    # Check existing report for same lead + same product category
+    existing_reports = db.query(Proposal).filter(
         Proposal.lead_id == lead.id,
         Proposal.status == "Report",
-    ).order_by(Proposal.created_at.desc()).first()
-    if existing:
-        return existing.slug
+    ).order_by(Proposal.created_at.desc()).all()
+    for r in existing_reports:
+        try:
+            services = json.loads(r.services_detail) if r.services_detail else []
+            report_products = " ".join(s.get("name", "") for s in services).lower()
+            if category.lower() in report_products:
+                return r.slug
+        except Exception:
+            pass
+    # If no category match but has existing report and no specific category requested
+    if existing_reports and not product_category:
+        return existing_reports[0].slug
 
-    fallback = _generate_fallback_analysis(lead)
-    analysis = LeadAnalysis(
-        lead_id=lead.id,
-        analysis=fallback["analysis"],
-        pain_points=json.dumps(fallback["pain_points"]),
-        suggested_product=fallback["suggested_product"],
-        analyzed_at=datetime.now(timezone.utc).isoformat(),
-    )
-    db.add(analysis)
-    db.commit()
+    # Use existing AI analysis if available, otherwise fallback
+    existing_analysis = db.query(LeadAnalysis).filter(LeadAnalysis.lead_id == lead.id).order_by(LeadAnalysis.id.desc()).first()
+    if existing_analysis:
+        analysis = existing_analysis
+    else:
+        fallback = _generate_fallback_analysis(lead)
+        analysis = LeadAnalysis(
+            lead_id=lead.id,
+            analysis=fallback["analysis"],
+            pain_points=json.dumps(fallback["pain_points"]),
+            suggested_product=fallback["suggested_product"],
+            analyzed_at=datetime.now(timezone.utc).isoformat(),
+        )
+        db.add(analysis)
+        db.commit()
 
+    # Pick products matching category
     products = db.query(Product).filter(Product.is_active == True).all()
-    services = [{"name": p.name, "price": p.base_price, "features": (p.description or "").split("\n")} for p in products[:3]] if products else [{"name": "SEO & Google Maps", "price": 0, "features": ["Optimasi ranking Google", "Setup Google Business Profile"]}]
+    cat_lower = category.lower()
+    matched_products = [p for p in products if cat_lower and cat_lower in (p.name or "").lower()] if cat_lower else []
+    if not matched_products:
+        matched_products = products[:3] if products else []
+    services = [{"name": p.name, "price": p.base_price, "features": (p.description or "").split("\n")} for p in matched_products[:3]] if matched_products else [{"name": "SEO & Google Maps", "price": 0, "features": ["Optimasi ranking Google", "Setup Google Business Profile"]}]
 
     slug = generate_unique_slug(db, lead.business_name)
     report = Proposal(
@@ -1223,14 +1246,17 @@ def _send_fonnte_sync(phone: str, message: str, token: str, _httpx) -> bool:
     if not token:
         return False
     try:
+        print(f"[FONNTE MSG] target={phone} msg_length={len(message)} first100={message[:100]}", flush=True)
         with _httpx.Client(timeout=15) as client:
             resp = client.post(
                 "https://api.fonnte.com/send",
                 headers={"Authorization": token},
                 data={"target": phone, "message": message, "delay": "5"},
             )
-            return resp.status_code == 200
-    except Exception:
+            print(f"[FONNTE] status={resp.status_code} body={resp.text[:200]}", flush=True)
+            return resp.status_code == 200 and resp.json().get("status") != False
+    except Exception as e:
+        print(f"[FONNTE ERROR] {e}", flush=True)
         return False
 
 
@@ -1280,20 +1306,49 @@ def run_blast_sync(batch_name: str, product_category: str, min_rating: int, db_u
 
         for lead in leads:
             db = _Session()
+            # Auto-analyze with AI if not yet analyzed
+            existing_analysis = db.query(LeadAnalysis).filter(LeadAnalysis.lead_id == lead.id).first()
+            if not existing_analysis:
+                try:
+                    _products = db.query(Product).filter(Product.is_active == True).all()
+                    _product_list = "\n".join([f"- {p.name}: {p.description or ''}" for p in _products]) if _products else "- SEO\n- Web Development"
+                    _config = get_ai_config(db)
+                    prompt = build_analysis_prompt(lead, _product_list)
+                    db.close()
+                    text = _call_ai_sync(prompt, _config, _httpx)
+                    parsed = parse_ai_response(text)
+                    db = _Session()
+                    db.add(LeadAnalysis(
+                        lead_id=lead.id,
+                        analysis=text,
+                        pain_points=json.dumps(parsed.get("pain_points", [])),
+                        suggested_product=parsed.get("suggested_product", ""),
+                        analyzed_at=datetime.now(timezone.utc).isoformat(),
+                    ))
+                    db.commit()
+                    print(f"[BLAST] AI analyzed lead={lead.id} {lead.business_name}", flush=True)
+                except Exception as e:
+                    print(f"[BLAST] AI analyze failed lead={lead.id}: {e}", flush=True)
+                    try:
+                        db.close()
+                    except Exception:
+                        pass
+                    db = _Session()
+
             frontend_url = _get_setting("frontend_url", os.getenv("FRONTEND_URL", "http://localhost:3000"))
             report_slug = generate_report_for_lead(lead, db)
-            report_link = f"{frontend_url}/report/{report_slug}"
+            report_link = f"https://api.kantorteman.my.id/r/{report_slug}"
 
             if dynamic_templates:
                 tmpl = random.choice(dynamic_templates)
                 message = tmpl.content.replace("{{client_name}}", lead.business_name).replace("{{business_name}}", lead.business_name).replace("{{product_name}}", product_category)
-                message = message.replace("{{proposal_link}}", report_link)
+                message = message.replace("{{proposal_link}}", f"\n{report_link}\n")
             elif old_templates:
                 tmpl = random.choice(old_templates)
                 message = tmpl.content.replace("{{business_name}}", lead.business_name)
-                message = message.replace("{{proposal_link}}", report_link)
+                message = message.replace("{{proposal_link}}", f"\n{report_link}\n")
             else:
-                message = f"Halo {lead.business_name}, kami dari Kantor Teman ingin menawarkan layanan {product_category}. Apakah ada waktu untuk berdiskusi?\n\nLihat laporan audit digital Anda di sini: {report_link}"
+                message = f"Halo {lead.business_name}, kami dari Kantor Teman ingin menawarkan layanan {product_category}. Apakah ada waktu untuk berdiskusi?\n\nLihat laporan audit digital Anda di sini:\n{report_link}"
 
             success = _send_fonnte_sync(lead.phone_number, message, token, _httpx)
             if success:
@@ -1700,6 +1755,9 @@ class LeadEdit(BaseModel):
 
 @app.post("/api/leads", response_model=LeadOut, status_code=201)
 def create_lead_manual(body: LeadCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    existing = db.query(Lead).filter(Lead.phone_number == body.phone_number).first()
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Nomor {body.phone_number} sudah ada di database ({existing.business_name}).")
     lead = Lead(
         business_name=body.business_name,
         phone_number=body.phone_number,
@@ -1715,6 +1773,33 @@ def create_lead_manual(body: LeadCreate, current_user: User = Depends(get_curren
     db.refresh(lead)
     log_audit(db, current_user.name, "CREATE", "leads", lead.id, {"source": "manual"})
     return lead
+
+
+class WaSendIn(BaseModel):
+    lead_id: int
+    message: str
+
+
+@app.post("/api/wa/send")
+def send_wa_manual(body: WaSendIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    print(f"[WA SEND] lead_id={body.lead_id}", flush=True)
+    lead = db.query(Lead).filter(Lead.id == body.lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
+    token = get_fonnte_token(db)
+    print(f"[WA SEND] phone={lead.phone_number} token={token[:10] if token else 'EMPTY'}...", flush=True)
+    if not token:
+        raise HTTPException(status_code=400, detail="Fonnte token belum dikonfigurasi.")
+    import httpx as _httpx
+    success = _send_fonnte_sync(lead.phone_number, body.message, token, _httpx)
+    print(f"[WA SEND] success={success}", flush=True)
+    if success:
+        if lead.status == "Scraped":
+            lead.status = "Contacted"
+            db.commit()
+        log_audit(db, current_user.name, "SEND_WA", "leads", lead.id, {"type": "manual"})
+        return {"success": True, "message": "Pesan terkirim via Fonnte."}
+    raise HTTPException(status_code=502, detail="Gagal mengirim pesan via Fonnte.")
 
 
 @app.put("/api/leads/{lead_id}", response_model=LeadOut)
@@ -2126,6 +2211,70 @@ def redirect_proposal_by_slug(slug: str, db: Session = Depends(get_db)):
     log_audit(db, "visitor", "VIEW", "proposals", proposal.id, {"slug": slug, "via": "short_link"})
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
     return RedirectResponse(url=f"{frontend_url}/proposal/{proposal.id}", status_code=307)
+
+
+@app.get("/r/{slug}")
+def report_og_redirect(slug: str, request: Request, db: Session = Depends(get_db)):
+    frontend_url = _get_setting("frontend_url", os.getenv("FRONTEND_URL", "http://localhost:3000"))
+    report_url = f"{frontend_url}/report/{slug}"
+
+    proposal = db.query(Proposal).filter(Proposal.slug == slug, Proposal.status == "Report").first()
+    if not proposal:
+        return RedirectResponse(url=report_url, status_code=307)
+
+    lead = db.query(Lead).filter(Lead.id == proposal.lead_id).first()
+    business_name = lead.business_name if lead else "Bisnis Anda"
+    category = lead.product_interest if lead else ""
+
+    title = f"Hasil Audit Digital: {business_name}"
+    description = f"Kami menemukan masalah kritis pada {business_name} yang membuat calon pelanggan lari ke kompetitor. Lihat laporan lengkap dan solusi yang kami rekomendasikan."
+    og_image = f"https://api.kantorteman.my.id/api/og-image/{slug}"
+
+    ua = (request.headers.get("user-agent") or "").lower()
+    is_bot = any(b in ua for b in ["whatsapp", "facebookexternalhit", "telegrambot", "twitterbot", "linkedinbot", "slackbot", "bot", "crawler", "spider"])
+
+    if not is_bot:
+        return RedirectResponse(url=report_url, status_code=307)
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{title}</title>
+<meta property="og:title" content="{title}">
+<meta property="og:description" content="{description}">
+<meta property="og:image" content="{og_image}">
+<meta property="og:url" content="https://api.kantorteman.my.id/r/{slug}">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Kantor Teman">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{title}">
+<meta name="twitter:description" content="{description}">
+<meta name="twitter:image" content="{og_image}">
+<meta http-equiv="refresh" content="0;url={report_url}">
+</head>
+<body><p>Redirecting to <a href="{report_url}">{report_url}</a>...</p></body>
+</html>"""
+    return HTMLResponse(content=html, status_code=200)
+
+
+@app.get("/api/og-image/{slug}")
+def og_image_simple(slug: str, db: Session = Depends(get_db)):
+    proposal = db.query(Proposal).filter(Proposal.slug == slug, Proposal.status == "Report").first()
+    lead = db.query(Lead).filter(Lead.id == proposal.lead_id).first() if proposal else None
+    business_name = lead.business_name if lead else "Bisnis Anda"
+    category = lead.product_interest if lead else ""
+
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+<rect width="1200" height="630" fill="#09090b"/>
+<rect width="1200" height="4" fill="#f59e0b"/>
+<rect y="626" width="1200" height="4" fill="#10b981"/>
+<text x="600" y="200" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" fill="#a1a1aa" letter-spacing="2">LAPORAN HASIL AUDIT DIGITAL</text>
+<text x="600" y="320" text-anchor="middle" font-family="Arial,sans-serif" font-size="52" font-weight="bold" fill="#fafafa">{business_name[:40]}</text>
+<text x="600" y="380" text-anchor="middle" font-family="Arial,sans-serif" font-size="22" fill="#71717a">{category}</text>
+<text x="600" y="520" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" fill="#52525b">Diterbitkan oleh Teman UMKM Kita Agensi</text>
+</svg>"""
+    return HTMLResponse(content=svg, status_code=200, media_type="image/svg+xml")
 
 
 @app.get("/api/proposals/public/by-slug/{slug}")
@@ -3816,7 +3965,7 @@ def generate_report_endpoint(lead_id: int, current_user: User = Depends(get_curr
         raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
     slug = generate_report_for_lead(lead, db)
     frontend_url = _get_setting("frontend_url", os.getenv("FRONTEND_URL", "http://localhost:3000"))
-    return {"slug": slug, "report_url": f"{frontend_url}/report/{slug}"}
+    return {"slug": slug, "report_url": f"https://api.kantorteman.my.id/r/{slug}"}
 
 
 @app.post("/api/leads/{lead_id}/analyze")
@@ -4842,14 +4991,14 @@ async def process_pending_blasts():
                 for lead in leads:
                     frontend_url = _get_setting("frontend_url", os.getenv("FRONTEND_URL", "http://localhost:3000"))
                     report_slug = generate_report_for_lead(lead, db)
-                    report_link = f"{frontend_url}/report/{report_slug}"
+                    report_link = f"https://api.kantorteman.my.id/r/{report_slug}"
 
                     if template:
                         message = template.content.replace("{{client_name}}", lead.business_name).replace("{{business_name}}", lead.business_name)
                     else:
                         message = f"Halo {lead.business_name}, kami dari Kantor Teman ingin menawarkan layanan kami.\n\nLihat laporan audit digital Anda di sini: {report_link}"
 
-                    message = message.replace("{{proposal_link}}", report_link)
+                    message = message.replace("{{proposal_link}}", f"\n{report_link}\n")
 
                     success = await send_fonnte_message(lead.phone_number, message, token)
                     if success:

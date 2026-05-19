@@ -143,7 +143,7 @@ export default function LeadsTable() {
   useEffect(() => { fetchBatches(); }, [fetchBatches]);
   useEffect(() => {
     fetchLeads();
-    intervalRef.current = setInterval(fetchLeads, 5000);
+    intervalRef.current = setInterval(fetchLeads, 30000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchLeads]);
 
@@ -163,10 +163,25 @@ export default function LeadsTable() {
     setWaPreview({ open: true, lead, message: defaultMsg, reportLink });
   }
 
-  function sendWaPreview() {
+  async function sendWaPreview() {
     if (!waPreview.lead) return;
-    window.open(`https://wa.me/${waPreview.lead.phone_number}?text=${encodeURIComponent(waPreview.message)}`, "_blank", "noopener,noreferrer");
-    if (waPreview.lead.status === "Scraped") updateStatus(waPreview.lead.id, "Contacted");
+    try {
+      const res = await apiFetch("/api/wa/send", {
+        method: "POST",
+        body: JSON.stringify({ lead_id: waPreview.lead.id, message: waPreview.message }),
+      });
+      if (res.ok) {
+        showToast("Pesan terkirim via Fonnte!", "success");
+        if (waPreview.lead.status === "Scraped") {
+          setLeads(prev => prev.map(l => l.id === waPreview.lead!.id ? { ...l, status: "Contacted" } : l));
+        }
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.detail || "Gagal mengirim pesan.", "error");
+      }
+    } catch {
+      showToast("Gagal mengirim pesan.", "error");
+    }
     setWaPreview({ open: false, lead: null, message: "", reportLink: "" });
   }
 
@@ -187,9 +202,22 @@ export default function LeadsTable() {
     setFollowUpPreview({ open: true, lead, message, templates: followUpTemplates });
   }
 
-  function sendFollowUp() {
+  async function sendFollowUp() {
     if (!followUpPreview.lead) return;
-    window.open(`https://wa.me/${followUpPreview.lead.phone_number}?text=${encodeURIComponent(followUpPreview.message)}`, "_blank", "noopener,noreferrer");
+    try {
+      const res = await apiFetch("/api/wa/send", {
+        method: "POST",
+        body: JSON.stringify({ lead_id: followUpPreview.lead.id, message: followUpPreview.message }),
+      });
+      if (res.ok) {
+        showToast("Follow up terkirim via Fonnte!", "success");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.detail || "Gagal mengirim follow up.", "error");
+      }
+    } catch {
+      showToast("Gagal mengirim follow up.", "error");
+    }
     setFollowUpPreview({ open: false, lead: null, message: "", templates: [] });
   }
 
@@ -382,6 +410,7 @@ export default function LeadsTable() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         setBlastOpen(false);
         localStorage.setItem("blast_batch", blastBatch);
+        window.dispatchEvent(new StorageEvent("storage", { key: "blast_batch", newValue: blastBatch }));
         showToast("Campaign WA Blast berjalan di background!", "info");
       }
     } catch (err: unknown) {
@@ -456,7 +485,7 @@ export default function LeadsTable() {
                   if (t && waPreview.lead) {
                     const msg = t.content
                       .replace(/\{\{business_name\}\}/g, waPreview.lead.business_name)
-                      .replace(/\{\{proposal_link\}\}/g, waPreview.reportLink)
+                      .replace(/\{\{proposal_link\}\}/g, `\n${waPreview.reportLink}\n`)
                       .replace(/\{\{product_name\}\}/g, waPreview.lead.product_interest || "layanan kami");
                     setWaPreview(prev => ({ ...prev, message: msg }));
                   }

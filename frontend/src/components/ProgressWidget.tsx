@@ -59,7 +59,7 @@ export default function ProgressWidget() {
           }
         }
       } catch { /* silent */ }
-    }, 3000);
+    }, 10000);
   }
 
   function pollBlast(batchName: string) {
@@ -76,7 +76,7 @@ export default function ProgressWidget() {
           }
         }
       } catch { /* silent */ }
-    }, 3000);
+    }, 10000);
   }
 
   function pollScrape(batchName: string) {
@@ -93,7 +93,7 @@ export default function ProgressWidget() {
           }
         }
       } catch { /* silent */ }
-    }, 3000);
+    }, 10000);
   }
 
   useEffect(() => {
@@ -117,7 +117,7 @@ export default function ProgressWidget() {
       if (bb && !blastInterval.current) pollBlast(bb);
       const sb = localStorage.getItem("scrape_batch");
       if (sb && !scrapeInterval.current) pollScrape(sb);
-    }, 2000);
+    }, 10000);
 
     return () => {
       window.removeEventListener("storage", handleStorage);

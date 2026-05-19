@@ -105,6 +105,7 @@ export default function ScraperPage() {
         const data = await res.json();
         if (data.status === "running") {
           localStorage.setItem("analyze_batch", batchName);
+          window.dispatchEvent(new StorageEvent("storage", { key: "analyze_batch", newValue: batchName }));
           setToast({ message: `Analisa dimulai untuk ${data.total} leads...`, type: "success" });
           pollAnalysisStatus(batchName);
         } else {

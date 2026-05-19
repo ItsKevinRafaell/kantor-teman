@@ -60,7 +60,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchAnalytics();
-    intervalRef.current = setInterval(fetchAnalytics, 5000);
+    intervalRef.current = setInterval(fetchAnalytics, 60000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchAnalytics]);
 
