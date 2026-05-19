@@ -36,7 +36,7 @@ interface Lead {
 }
 
 const DEFAULT_TEMPLATE =
-  "Halo {{business_name}}, saya baru saja menjalankan audit digital gratis untuk bisnis Anda dan hasilnya cukup mengkhawatirkan — ada beberapa masalah kritis yang membuat calon pelanggan Anda lari ke kompetitor setiap harinya.\n\nSaya sudah buatkan laporan lengkapnya di sini:\n{{proposal_link}}\n\n⚠️ Laporan ini hanya berlaku 24 jam karena slot optimasi wilayah Anda terbatas. Setelah itu harga kembali normal.\n\nBisa saya jelaskan lebih detail, Pak?";
+  "Halo {{business_name}}, saya baru saja menjalankan audit digital gratis untuk bisnis Anda dan hasilnya cukup mengkhawatirkan — ada beberapa masalah kritis yang membuat calon pelanggan Anda lari ke kompetitor setiap harinya.\n\nSaya sudah buatkan laporan lengkapnya di sini:\n{{proposal_link}}\n\nLaporan ini hanya berlaku 24 jam karena slot optimasi wilayah Anda terbatas. Setelah itu harga kembali normal.\n\nBisa saya jelaskan lebih detail, Pak?";
 
 export default function LeadsTable() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -64,7 +64,7 @@ export default function LeadsTable() {
   const [blasting, setBlasting] = useState(false);
   const [blastTemplateMode, setBlastTemplateMode] = useState<"rotate" | "specific">("rotate");
   const [blastTemplateId, setBlastTemplateId] = useState("");
-  const [blastTemplates, setBlastTemplates] = useState<{ id: string; name: string; category_id: string | null }[]>([]);
+  const [blastTemplates, setBlastTemplates] = useState<{ id: string; name: string; content: string; category_id: string | null }[]>([]);
   const [blastCategories, setBlastCategories] = useState<{ id: string; name: string }[]>([]);
   const [blastSendMode, setBlastSendMode] = useState<"instant" | "scheduled">("instant");
   const [blastScheduledFor, setBlastScheduledFor] = useState("");
@@ -74,6 +74,9 @@ export default function LeadsTable() {
 
   // Follow-up preview modal
   const [followUpPreview, setFollowUpPreview] = useState<{ open: boolean; lead: Lead | null; message: string; templates: { id: string; name: string; content: string }[] }>({ open: false, lead: null, message: "", templates: [] });
+
+  // WA manual preview modal
+  const [waPreview, setWaPreview] = useState<{ open: boolean; lead: Lead | null; message: string; reportLink: string }>({ open: false, lead: null, message: "", reportLink: "" });
 
   // Rating filter
   const [filterRating, setFilterRating] = useState(0);
@@ -125,7 +128,7 @@ export default function LeadsTable() {
       .catch(() => {});
     apiFetch("/api/dynamic-templates?type=WA_BLAST")
       .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data)) setBlastTemplates(data.map((t: { id: string; name: string; category_id: string | null }) => ({ id: t.id, name: t.name, category_id: t.category_id }))); })
+      .then((data) => { if (Array.isArray(data)) setBlastTemplates(data.map((t: { id: string; name: string; content: string; category_id: string | null }) => ({ id: t.id, name: t.name, content: t.content, category_id: t.category_id }))); })
       .catch(() => {});
     apiFetch("/api/categories?active_only=true")
       .then((r) => r.json())
@@ -144,43 +147,27 @@ export default function LeadsTable() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchLeads]);
 
-  async function buildWaUrl(lead: Lead): Promise<string> {
-    const product = lead.product_interest ?? "Lainnya";
-
-    // Generate report for this lead and get the link
+  async function handleChatWA(lead: Lead) {
     let reportLink = "";
     try {
       const reportRes = await apiFetch(`/api/leads/${lead.id}/generate-report`, { method: "POST" });
       if (reportRes.ok) {
         const data = await reportRes.json();
-        if (data.report_url) {
-          reportLink = data.report_url;
-        }
+        if (data.report_url) reportLink = data.report_url;
       }
     } catch { /* report generation failed */ }
 
-    try {
-      const params = new URLSearchParams({ product_category: product, business_name: lead.business_name });
-      const res = await apiFetch(`/api/templates/random?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.message) {
-          let msg = data.message.replace(/\{\{proposal_link\}\}/g, reportLink);
-          msg = msg.replace(/\{\{business_name\}\}/g, lead.business_name);
-          return `https://wa.me/${lead.phone_number}?text=${encodeURIComponent(msg)}`;
-        }
-      }
-    } catch { /* fallback */ }
-    const message = DEFAULT_TEMPLATE
+    const defaultMsg = DEFAULT_TEMPLATE
       .replace(/\{\{business_name\}\}/g, lead.business_name)
       .replace(/\{\{proposal_link\}\}/g, reportLink);
-    return `https://wa.me/${lead.phone_number}?text=${encodeURIComponent(message)}`;
+    setWaPreview({ open: true, lead, message: defaultMsg, reportLink });
   }
 
-  async function handleChatWA(lead: Lead) {
-    const url = await buildWaUrl(lead);
-    window.open(url, "_blank", "noopener,noreferrer");
-    if (lead.status === "Scraped") await updateStatus(lead.id, "Contacted");
+  function sendWaPreview() {
+    if (!waPreview.lead) return;
+    window.open(`https://wa.me/${waPreview.lead.phone_number}?text=${encodeURIComponent(waPreview.message)}`, "_blank", "noopener,noreferrer");
+    if (waPreview.lead.status === "Scraped") updateStatus(waPreview.lead.id, "Contacted");
+    setWaPreview({ open: false, lead: null, message: "", reportLink: "" });
   }
 
   function handleFollowUp(lead: Lead) {
@@ -455,6 +442,43 @@ export default function LeadsTable() {
         </div>
       )}
 
+      {/* WA Manual Preview Modal */}
+      {waPreview.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setWaPreview({ open: false, lead: null, message: "", reportLink: "" })} />
+          <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 w-full max-w-md p-6 space-y-4">
+            <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Chat WA: {waPreview.lead?.business_name}</h3>
+            {blastTemplates.length > 0 && (
+              <div>
+                <label className="block text-[10px] text-zinc-500 font-semibold mb-1 uppercase">Pilih Template</label>
+                <select onChange={(e) => {
+                  const t = blastTemplates.find(t => t.id === e.target.value);
+                  if (t && waPreview.lead) {
+                    const msg = t.content
+                      .replace(/\{\{business_name\}\}/g, waPreview.lead.business_name)
+                      .replace(/\{\{proposal_link\}\}/g, waPreview.reportLink)
+                      .replace(/\{\{product_name\}\}/g, waPreview.lead.product_interest || "layanan kami");
+                    setWaPreview(prev => ({ ...prev, message: msg }));
+                  }
+                }} className="w-full text-xs px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-200 outline-none focus:ring-1 focus:ring-green-300">
+                  <option value="">— Pilih template lain —</option>
+                  {blastTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+            )}
+            <div>
+              <label className="block text-[10px] text-zinc-500 font-semibold mb-1 uppercase">Pesan</label>
+              <textarea value={waPreview.message} onChange={(e) => setWaPreview(prev => ({ ...prev, message: e.target.value }))}
+                rows={7} className="w-full text-xs px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-200 outline-none focus:ring-1 focus:ring-green-300 resize-none" />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setWaPreview({ open: false, lead: null, message: "", reportLink: "" })} className="px-4 py-2 text-xs font-semibold text-gray-600 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl transition-colors">Batal</button>
+              <button onClick={sendWaPreview} className="px-4 py-2 text-xs font-bold bg-green-500 hover:bg-green-600 text-white rounded-xl transition-colors">Kirim via WA</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Blast Modal */}
       {blastOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -556,8 +580,8 @@ export default function LeadsTable() {
       )}
 
       {/* Search & Actions bar */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 max-w-xs">
+      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[150px] max-w-xs">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Cari nama, alamat, atau nomor..."
@@ -565,32 +589,32 @@ export default function LeadsTable() {
         </div>
         <button onClick={() => { setLeadForm({ business_name: "", phone_number: "", address: "", product_interest: "" }); setAddLeadModal(true); }}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-lg transition-colors">
-          <Plus size={12} /> Tambah Lead
+          <Plus size={12} /> <span className="hidden sm:inline">Tambah Lead</span><span className="sm:hidden">Tambah</span>
         </button>
         <button onClick={exportCSV}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold rounded-lg transition-colors">
-          <Download size={12} /> Export CSV
+          <Download size={12} /> <span className="hidden sm:inline">Export CSV</span><span className="sm:hidden">Export</span>
         </button>
       </div>
 
       {/* Filter bar */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
         <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Status:</span>
         <button onClick={() => setFilterStatus("")}
-          className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${filterStatus === "" ? "bg-amber-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"}`}>
+          className={`px-2.5 sm:px-3 py-1 rounded-full text-xs font-semibold transition-colors ${filterStatus === "" ? "bg-amber-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"}`}>
           Semua
         </button>
         {STATUSES.map((s) => (
           <button key={s} onClick={() => setFilterStatus(s)}
-            className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${filterStatus === s ? "bg-amber-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"}`}>
+            className={`px-2.5 sm:px-3 py-1 rounded-full text-xs font-semibold transition-colors ${filterStatus === s ? "bg-amber-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"}`}>
             {s}
           </button>
         ))}
 
-        <div className="flex items-center gap-2 ml-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-2">
           <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Batch:</span>
           <select value={filterBatch} onChange={(e) => setFilterBatch(e.target.value)}
-            className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-[#2a2a29] text-gray-700 dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition max-w-[200px]">
+            className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-[#2a2a29] text-gray-700 dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition max-w-[200px] flex-1 sm:flex-none">
             <option value="">Semua Batch</option>
             {batches.map((b) => <option key={b} value={b}>{b}</option>)}
           </select>
@@ -614,7 +638,7 @@ export default function LeadsTable() {
           WA Blast
         </button>
 
-        <div className="flex items-center gap-2 ml-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Rating:</span>
           <select value={filterRating} onChange={(e) => setFilterRating(Number(e.target.value))}
             className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-[#2a2a29] text-gray-700 dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
@@ -628,7 +652,7 @@ export default function LeadsTable() {
         </div>
 
         <button onClick={() => { fetchLeads(); fetchBatches(); }}
-          className="ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-[#2a2a29] border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+          className="sm:ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-[#2a2a29] border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
           ↻ Refresh
         </button>
 

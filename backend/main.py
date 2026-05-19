@@ -42,7 +42,13 @@ app = FastAPI(title="Kantor Teman API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://kantorteman.my.id",
+        "https://kantorteman.my.id",
+        "https://www.kantorteman.my.id",
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -69,7 +75,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./leads.db")
 _connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
-engine = create_engine(DATABASE_URL, connect_args=_connect_args, pool_pre_ping=True)
+engine = create_engine(DATABASE_URL, connect_args=_connect_args, pool_pre_ping=True, pool_recycle=280)
 SessionLocal = sessionmaker(bind=engine)
 
 
@@ -1213,11 +1219,28 @@ async def send_fonnte_message(phone: str, message: str, token: str) -> bool:
         return False
 
 
-async def run_blast(batch_name: str, product_category: str, min_rating: int, db_url: str, jwt_secret: str, template_id: str = None):
+def _send_fonnte_sync(phone: str, message: str, token: str, _httpx) -> bool:
+    if not token:
+        return False
+    try:
+        with _httpx.Client(timeout=15) as client:
+            resp = client.post(
+                "https://api.fonnte.com/send",
+                headers={"Authorization": token},
+                data={"target": phone, "message": message, "delay": "5"},
+            )
+            return resp.status_code == 200
+    except Exception:
+        return False
+
+
+def run_blast_sync(batch_name: str, product_category: str, min_rating: int, db_url: str, jwt_secret: str, template_id: str = None):
+    import httpx as _httpx
+    import time as _time
     from sqlalchemy import create_engine as ce
     from sqlalchemy.orm import sessionmaker as sm
     _ca = {"check_same_thread": False} if "sqlite" in db_url else {}
-    _engine = ce(db_url, connect_args=_ca)
+    _engine = ce(db_url, connect_args=_ca, pool_recycle=60, pool_pre_ping=True, pool_size=1, max_overflow=0)
     _Session = sm(bind=_engine)
     db = _Session()
     try:
@@ -1230,10 +1253,8 @@ async def run_blast(batch_name: str, product_category: str, min_rating: int, db_
             query = query.filter(Lead.rating >= min_rating)
         leads = query.all()
 
-        # Init job tracker
         _blast_jobs[batch_name] = {"status": "running", "total": len(leads), "sent": 0, "failed": 0, "batch_name": batch_name}
 
-        # Use specific template if provided
         dynamic_templates = []
         if template_id:
             specific = db.query(DynamicTemplate).filter(DynamicTemplate.id == template_id).first()
@@ -1245,7 +1266,6 @@ async def run_blast(batch_name: str, product_category: str, min_rating: int, db_
                 DynamicTemplate.is_active == True,
             ).all()
 
-        # Fallback to old MessageTemplate if no dynamic templates
         old_templates = []
         if not dynamic_templates:
             old_templates = db.query(MessageTemplate).filter(
@@ -1256,7 +1276,10 @@ async def run_blast(batch_name: str, product_category: str, min_rating: int, db_
                     MessageTemplate.product_category == "Lainnya"
                 ).all()
 
+        db.close()
+
         for lead in leads:
+            db = _Session()
             frontend_url = _get_setting("frontend_url", os.getenv("FRONTEND_URL", "http://localhost:3000"))
             report_slug = generate_report_for_lead(lead, db)
             report_link = f"{frontend_url}/report/{report_slug}"
@@ -1272,21 +1295,30 @@ async def run_blast(batch_name: str, product_category: str, min_rating: int, db_
             else:
                 message = f"Halo {lead.business_name}, kami dari Kantor Teman ingin menawarkan layanan {product_category}. Apakah ada waktu untuk berdiskusi?\n\nLihat laporan audit digital Anda di sini: {report_link}"
 
-            success = await send_fonnte_message(lead.phone_number, message, token)
+            success = _send_fonnte_sync(lead.phone_number, message, token, _httpx)
             if success:
                 lead.status = "Contacted"
                 db.commit()
                 _blast_jobs[batch_name]["sent"] += 1
             else:
                 _blast_jobs[batch_name]["failed"] += 1
-            await asyncio.sleep(5)
+            db.close()
+            _time.sleep(5)
 
         _blast_jobs[batch_name]["status"] = "done"
+        print(f"[BLAST DONE] sent={_blast_jobs[batch_name]['sent']}/{len(leads)}", flush=True)
     except Exception as e:
+        import traceback
+        print(f"[BLAST ERROR] {e}", flush=True)
+        traceback.print_exc()
         _blast_jobs[batch_name]["status"] = "error"
         _blast_jobs[batch_name]["error"] = str(e)
     finally:
-        db.close()
+        try:
+            db.close()
+        except Exception:
+            pass
+        _engine.dispose()
 
 
 # ---------------------------------------------------------------------------
@@ -1718,6 +1750,15 @@ def delete_lead(lead_id: int, current_user: User = Depends(get_current_user), db
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
+    db.query(Proposal).filter(Proposal.lead_id == lead_id).delete()
+    db.query(LeadActivityLog).filter(LeadActivityLog.lead_id == lead_id).delete()
+    db.query(LeadAnalysis).filter(LeadAnalysis.lead_id == lead_id).delete()
+    db.query(Project).filter(Project.lead_id == lead_id).delete()
+    db.query(ClientNote).filter(ClientNote.lead_id == lead_id).delete()
+    db.query(FollowUpSequence).filter(FollowUpSequence.lead_id == lead_id).delete()
+    db.query(ReengagementAlert).filter(ReengagementAlert.lead_id == lead_id).delete()
+    db.query(ClientCredential).filter(ClientCredential.lead_id == lead_id).delete()
+    db.query(ClientDocument).filter(ClientDocument.lead_id == lead_id).delete()
     db.delete(lead)
     db.commit()
     log_audit(db, current_user.name, "DELETE", "leads", lead_id, {"business_name": lead.business_name})
@@ -1787,15 +1828,6 @@ def convert_lead(lead_id: int, current_user: User = Depends(get_current_user), d
     return contact
 
 
-@app.delete("/api/leads/{lead_id}", status_code=204)
-def delete_lead(lead_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    lead = db.query(Lead).filter(Lead.id == lead_id).first()
-    if not lead:
-        raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
-    lead.is_archived = True
-    lead.deleted_at = datetime.now(timezone.utc).isoformat()
-    db.commit()
-    log_audit(db, current_user.name, "DELETE", "leads", lead_id, {"business_name": lead.business_name})
 
 
 @app.post("/api/leads/restore/{lead_id}", response_model=LeadOut)
@@ -1946,7 +1978,8 @@ async def start_blast(
     body: BlastIn,
     current_user: User = Depends(get_current_user),
 ):
-    asyncio.ensure_future(run_blast(body.batch_name, body.product_category, body.min_rating, DATABASE_URL, JWT_SECRET, body.template_id))
+    import threading
+    threading.Thread(target=run_blast_sync, args=(body.batch_name, body.product_category, body.min_rating, DATABASE_URL, JWT_SECRET, body.template_id), daemon=True).start()
     return {"message": "Campaign berjalan di background!", "batch_name": body.batch_name}
 
 
@@ -3641,9 +3674,69 @@ Berikan output dalam format JSON berikut (Bahasa Indonesia, gaya bicara santai t
 PENTING: Pain points harus spesifik ke bisnis ini, bukan generik. Pesan pendekatan harus terasa personal."""
 
 
+def _call_ai_sync(prompt: str, config: dict, _httpx) -> str:
+    provider = config["provider"]
+    with _httpx.Client(timeout=120) as client:
+        if provider == "gemini":
+            if not config["gemini_key"]:
+                raise Exception("Gemini API Key belum dikonfigurasi.")
+            resp = client.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={config['gemini_key']}",
+                json={"contents": [{"parts": [{"text": prompt}]}]},
+            )
+            if resp.status_code != 200:
+                raise Exception(f"Gemini API error: {resp.status_code} - {resp.text[:200]}")
+            return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+        elif provider == "claude":
+            if not config["claude_key"]:
+                raise Exception("Claude API Key belum dikonfigurasi.")
+            base_url = config.get("base_url") or "https://api.openai.com/v1"
+            model = config.get("model") or "claude-haiku-4-5-20251001"
+            url = f"{base_url.rstrip('/')}/chat/completions"
+            print(f"[AI CALL SYNC] url={url} model={model}", flush=True)
+            resp = client.post(
+                url,
+                headers={
+                    "Authorization": f"Bearer {config['claude_key']}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "max_tokens": 1024,
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+            )
+            print(f"[AI RESPONSE SYNC] status={resp.status_code} length={len(resp.text)}", flush=True)
+            if resp.status_code != 200:
+                raise Exception(f"Claude API error: {resp.status_code} - {resp.text[:200]}")
+            return resp.json()["choices"][0]["message"]["content"]
+        elif provider == "openai":
+            if not config["openai_key"]:
+                raise Exception("OpenAI API Key belum dikonfigurasi.")
+            base_url = config.get("base_url") or "https://api.openai.com/v1"
+            model = config.get("model") or "gpt-4o-mini"
+            resp = client.post(
+                f"{base_url.rstrip('/')}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {config['openai_key']}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 1024,
+                },
+            )
+            if resp.status_code != 200:
+                raise Exception(f"OpenAI API error: {resp.status_code} - {resp.text[:200]}")
+            return resp.json()["choices"][0]["message"]["content"]
+        else:
+            raise Exception(f"Provider '{provider}' tidak dikenali.")
+
+
 async def call_ai_provider(prompt: str, config: dict) -> str:
     provider = config["provider"]
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(timeout=60) as client:
         if provider == "gemini":
             if not config["gemini_key"]:
                 raise HTTPException(status_code=400, detail="Gemini API Key belum dikonfigurasi.")
@@ -3660,8 +3753,10 @@ async def call_ai_provider(prompt: str, config: dict) -> str:
                 raise HTTPException(status_code=400, detail="Claude API Key belum dikonfigurasi.")
             base_url = config.get("base_url") or "https://api.openai.com/v1"
             model = config.get("model") or "claude-haiku-4-5-20251001"
+            url = f"{base_url.rstrip('/')}/chat/completions"
+            print(f"[AI CALL] provider=claude url={url} model={model} key={config['claude_key'][:10]}...", flush=True)
             resp = await client.post(
-                f"{base_url.rstrip('/')}/chat/completions",
+                url,
                 headers={
                     "Authorization": f"Bearer {config['claude_key']}",
                     "Content-Type": "application/json",
@@ -3672,8 +3767,10 @@ async def call_ai_provider(prompt: str, config: dict) -> str:
                     "messages": [{"role": "user", "content": prompt}],
                 },
             )
+            print(f"[AI RESPONSE] status={resp.status_code} length={len(resp.text)}", flush=True)
             if resp.status_code != 200:
-                raise HTTPException(status_code=502, detail=f"Claude API error: {resp.status_code}")
+                print(f"[AI CALL ERROR] status={resp.status_code} body={resp.text[:500]}", flush=True)
+                raise HTTPException(status_code=502, detail=f"Claude API error: {resp.status_code} - {resp.text[:200]}")
             return resp.json()["choices"][0]["message"]["content"]
 
         elif provider == "openai":
@@ -3802,24 +3899,28 @@ async def analyze_batch(
     job_id = batch_name
     _analysis_jobs[job_id] = {"status": "running", "total": len(to_analyze), "analyzed": 0, "batch_name": batch_name}
 
-    # Run in background
-    async def run_analysis():
+    # Run in background thread (WSGI kills event loop after response)
+    def run_analysis_sync():
+        import httpx as _httpx
+        import time as _time
         from sqlalchemy import create_engine as _ce
         from sqlalchemy.orm import sessionmaker as _sm
-        _ca = {"check_same_thread": False} if "sqlite" in str(engine.url) else {}
-        _engine = _ce(str(engine.url), connect_args=_ca)
+        _ca = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+        _engine = _ce(DATABASE_URL, connect_args=_ca, pool_recycle=60, pool_pre_ping=True, pool_size=1, max_overflow=0)
         _Session = _sm(bind=_engine)
-        _db = _Session()
         try:
+            _db = _Session()
             _config = get_ai_config(_db)
             _products = _db.query(Product).filter(Product.is_active == True).all()
             _product_list = "\n".join([f"- {p.name}: {p.description or ''}" for p in _products]) if _products else "- SEO\n- Web Development"
+            _db.close()
             analyzed = 0
             for lead in to_analyze[:20]:
                 prompt = build_analysis_prompt(lead, _product_list)
                 try:
-                    text = await call_ai_provider(prompt, _config)
+                    text = _call_ai_sync(prompt, _config, _httpx)
                     parsed = parse_ai_response(text)
+                    _db = _Session()
                     _db.add(LeadAnalysis(
                         lead_id=lead.id,
                         analysis=text,
@@ -3828,16 +3929,33 @@ async def analyze_batch(
                         analyzed_at=datetime.now(timezone.utc).isoformat(),
                     ))
                     _db.commit()
+                    _db.close()
                     analyzed += 1
                     _analysis_jobs[job_id]["analyzed"] = analyzed
-                    await asyncio.sleep(1)
-                except Exception:
+                    _time.sleep(1)
+                except Exception as e:
+                    import traceback
+                    print(f"[AI ANALYZE ERROR] lead={lead.id} error={e}", flush=True)
+                    traceback.print_exc()
+                    _analysis_jobs[job_id]["error"] = str(e)
+                    try:
+                        _db.close()
+                    except Exception:
+                        pass
                     continue
             _analysis_jobs[job_id]["status"] = "done"
+            print(f"[AI ANALYZE DONE] analyzed={analyzed}/{len(to_analyze)}", flush=True)
+        except Exception as e:
+            import traceback
+            print(f"[AI ANALYZE FATAL] error={e}", flush=True)
+            traceback.print_exc()
+            _analysis_jobs[job_id]["status"] = "error"
+            _analysis_jobs[job_id]["error"] = str(e)
         finally:
-            _db.close()
+            _engine.dispose()
 
-    asyncio.ensure_future(run_analysis())
+    import threading
+    threading.Thread(target=run_analysis_sync, daemon=True).start()
     return {"message": f"Analisa dimulai untuk {len(to_analyze)} leads.", "analyzed": 0, "total": len(to_analyze), "status": "running", "job_id": job_id}
 
 
@@ -3866,6 +3984,16 @@ def get_blast_status(
     if not job:
         return {"status": "idle", "sent": 0, "total": 0}
     return job
+
+
+@app.get("/api/background-jobs")
+def get_all_background_jobs(current_user: User = Depends(get_current_user)):
+    jobs = []
+    for name, job in _analysis_jobs.items():
+        jobs.append({**job, "type": "analysis", "batch_name": name})
+    for name, job in _blast_jobs.items():
+        jobs.append({**job, "type": "blast", "batch_name": name})
+    return jobs
 
 
 # ---------------------------------------------------------------------------

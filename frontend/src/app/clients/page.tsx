@@ -255,8 +255,7 @@ export default function ClientsPage() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-      const url = data.slug ? `${apiBase}/p/${data.slug}` : `${window.location.origin}/proposal/${data.id}`;
+      const url = `${window.location.origin}/proposal/${data.id}`;
       setProposalModal({ open: false, contact: null });
       setSelectedServices([]);
       setAdditionalOptions("");
@@ -288,8 +287,7 @@ export default function ClientsPage() {
   }
 
   function copyProposalLink(id: string, slug?: string | null) {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-    const link = slug ? `${apiBase}/p/${slug}` : `${window.location.origin}/proposal/${id}`;
+    const link = `${window.location.origin}/proposal/${id}`;
     navigator.clipboard.writeText(link);
     setToast({ message: "Link proposal tersalin!", type: "info" });
   }

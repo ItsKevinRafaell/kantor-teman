@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -52,6 +53,11 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/scraper",
         label: "Maps Scraper",
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>,
+      },
+      {
+        href: "/tasks",
+        label: "Background Tasks",
+        icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>,
       },
       {
         href: "/marketing/ads",
@@ -122,46 +128,56 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
 
   return (
-    <aside className="w-60 shrink-0 bg-[var(--bg-surface)] dark:bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] flex flex-col h-full">
-      <div className="px-6 py-5 border-b border-[var(--border-subtle)]">
-        <span className="text-lg font-bold text-brand-yellow tracking-tight">
-          Teman UMKM Kita
-        </span>
-        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 font-medium uppercase tracking-widest">CRM Internal</p>
-      </div>
-
-      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
-        {NAV_GROUPS.map((group) => (
-          <div key={group.title}>
-            <p className="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-neutral-400/70 dark:text-neutral-600">
-              {group.title}
-            </p>
-            <div className="space-y-0.5">
-              {group.items.map((item) => {
-                const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href) && !NAV_GROUPS.some(g => g.items.some(i => i.href !== item.href && i.href.startsWith(item.href) && pathname.startsWith(i.href))));
-                return (
-                  <Link key={item.href} href={item.href}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-200 group ${active ? "bg-brand-yellow/10 text-brand-yellow shadow-sm" : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100/80 dark:hover:bg-neutral-800/60 hover:text-neutral-800 dark:hover:text-neutral-200"}`}>
-                    <span className={`transition-colors duration-200 ${active ? "text-brand-yellow" : "text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300"}`}>
-                      {item.icon}
-                    </span>
-                    <span className="truncate">{item.label}</span>
-                    {active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-brand-yellow animate-pulse" />}
-                  </Link>
-                );
-              })}
-            </div>
+    <>
+      {open && (
+        <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={onClose} />
+      )}
+      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-60 shrink-0 bg-[var(--bg-surface)] dark:bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] flex flex-col h-full transform transition-transform duration-200 ease-in-out ${open ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}>
+        <div className="px-6 py-5 border-b border-[var(--border-subtle)] flex items-center justify-between">
+          <div>
+            <span className="text-lg font-bold text-brand-yellow tracking-tight">
+              Teman UMKM Kita
+            </span>
+            <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 font-medium uppercase tracking-widest">CRM Internal</p>
           </div>
-        ))}
-      </nav>
+          <button onClick={onClose} className="lg:hidden p-1 text-neutral-400 hover:text-neutral-600">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+          </button>
+        </div>
 
-      <div className="px-5 py-4 border-t border-[var(--border-subtle)]">
-        <p className="text-[11px] text-neutral-400 dark:text-neutral-600 font-medium">v3.0 · Kantor Teman</p>
-      </div>
-    </aside>
+        <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.title}>
+              <p className="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-neutral-400/70 dark:text-neutral-600">
+                {group.title}
+              </p>
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const active = pathname === item.href || pathname === item.href + "/" || (item.href !== "/dashboard" && pathname.startsWith(item.href) && !NAV_GROUPS.some(g => g.items.some(i => i.href !== item.href && i.href.startsWith(item.href) && pathname.startsWith(i.href))));
+                  return (
+                    <Link key={item.href} href={item.href} onClick={onClose}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-200 group ${active ? "bg-brand-yellow/10 text-brand-yellow shadow-sm" : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100/80 dark:hover:bg-neutral-800/60 hover:text-neutral-800 dark:hover:text-neutral-200"}`}>
+                      <span className={`transition-colors duration-200 ${active ? "text-brand-yellow" : "text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300"}`}>
+                        {item.icon}
+                      </span>
+                      <span className="truncate">{item.label}</span>
+                      {active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-brand-yellow animate-pulse" />}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        <div className="px-5 py-4 border-t border-[var(--border-subtle)]">
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-600 font-medium">v3.0 · Kantor Teman</p>
+        </div>
+      </aside>
+    </>
   );
 }

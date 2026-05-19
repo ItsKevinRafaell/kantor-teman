@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { Sun, Moon } from "lucide-react";
+import { Sun, Moon, Menu } from "lucide-react";
 import { getUserInfo } from "../lib/api";
 
-export default function TopBar() {
+export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
   const [name, setName] = useState("Admin");
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -16,10 +16,15 @@ export default function TopBar() {
   }, []);
 
   return (
-    <header className="h-14 shrink-0 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)] flex items-center px-6 justify-between">
-      <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">
-        Halo, {name}!
-      </p>
+    <header className="h-14 shrink-0 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)] flex items-center px-4 sm:px-6 justify-between">
+      <div className="flex items-center gap-3">
+        <button onClick={onMenuClick} className="lg:hidden p-2 -ml-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all" aria-label="Open menu">
+          <Menu size={20} className="text-neutral-600 dark:text-neutral-300" />
+        </button>
+        <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">
+          Halo, {name}!
+        </p>
+      </div>
       {mounted && (
         <button
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}

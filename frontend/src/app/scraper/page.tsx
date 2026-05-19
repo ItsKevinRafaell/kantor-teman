@@ -128,11 +128,9 @@ export default function ScraperPage() {
         const res = await apiFetch(`/api/leads/analyze-status?batch_name=${encodeURIComponent(batchName)}`);
         if (res.ok) {
           const data = await res.json();
-          if (data.status === "done") {
+          if (data.status === "done" || data.status === "idle") {
             clearInterval(interval);
             setAnalyzing(false);
-            localStorage.removeItem("analyze_batch");
-            setToast({ message: `AI Analysis selesai: ${data.analyzed}/${data.total} leads berhasil dianalisa.`, type: "success" });
           }
         }
       } catch { /* silent */ }
