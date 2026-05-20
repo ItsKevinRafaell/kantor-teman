@@ -102,7 +102,9 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [showMemoryPanel, setShowMemoryPanel] = useState(false);
+  const [showProjectSettings, setShowProjectSettings] = useState(false);
   const [newMemory, setNewMemory] = useState("");
+  const [editingProject, setEditingProject] = useState<ChatProject | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -270,6 +272,40 @@ export default function ChatPage() {
     }
   };
 
+  const updateProject = async (updates: Partial<ChatProject>) => {
+    if (!selectedProject) return;
+    try {
+      const updated = await apiFetch<ChatProject>(`/api/chat/projects/${selectedProject.id}`, {
+        method: "PUT",
+        body: JSON.stringify(updates),
+      });
+      setProjects(projects.map((p) => (p.id === updated.id ? updated : p)));
+      setSelectedProject(updated);
+      setEditingProject(null);
+    } catch (e) {
+      alert("Gagal update project");
+    }
+  };
+
+  const deleteProject = async () => {
+    if (!selectedProject || !confirm("Hapus project dan semua conversation di dalamnya?")) return;
+    try {
+      await apiFetch(`/api/chat/projects/${selectedProject.id}`, { method: "DELETE" });
+      const remaining = projects.filter((p) => p.id !== selectedProject.id);
+      setProjects(remaining);
+      if (remaining.length > 0) {
+        selectProject(remaining[0]);
+      } else {
+        setSelectedProject(null);
+        setConversations([]);
+        setSelectedConversation(null);
+        setMessages([]);
+      }
+    } catch (e) {
+      alert("Gagal menghapus project");
+    }
+  };
+
   return (
     <div className="flex h-[calc(100vh-64px)] bg-[var(--bg-main)]">
       {/* Sidebar - Projects & Conversations */}
@@ -363,7 +399,89 @@ export default function ChatPage() {
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z" /><path d="M12 6v6l4 2" /></svg>
           </button>
+
+          {/* Project Settings Button */}
+          <button
+            onClick={() => setShowProjectSettings(!showProjectSettings)}
+            className={`p-2 rounded-lg ${showProjectSettings ? "bg-brand-yellow/10 text-brand-yellow" : "text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
+            title="Project Settings"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+          </button>
         </div>
+
+        {/* Context Indicator */}
+        {selectedProject && messages.length > 0 && (
+          <div className="px-4 py-2 bg-neutral-50 dark:bg-neutral-900 border-b border-[var(--border-subtle)] flex items-center gap-4 text-xs text-neutral-500">
+            <span>Context: {Math.min(messages.length, selectedProject.context_window_size)} messages</span>
+            {memories.length > 0 && <span>Memories: {memories.length}</span>}
+            {selectedProject.system_prompt && <span className="text-brand-yellow">System prompt aktif</span>}
+          </div>
+        )}
+
+        {/* Project Settings Panel */}
+        {showProjectSettings && selectedProject && (
+          <div className="absolute right-0 top-[60px] w-96 bg-white dark:bg-neutral-900 border border-[var(--border-subtle)] rounded-lg shadow-lg z-40 m-4">
+            <div className="p-3 border-b border-[var(--border-subtle)] flex items-center justify-between">
+              <h3 className="font-medium text-sm">Project Settings</h3>
+              <button onClick={() => setShowProjectSettings(false)} className="text-neutral-400 hover:text-neutral-600">×</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="text-xs text-neutral-500 block mb-1">Nama Project</label>
+                <input
+                  type="text"
+                  value={editingProject?.name || selectedProject.name}
+                  onChange={(e) => setEditingProject({ ...selectedProject, name: e.target.value })}
+                  onBlur={() => editingProject && updateProject({ name: editingProject.name })}
+                  className="w-full text-sm border border-[var(--border-subtle)] rounded px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-neutral-500 block mb-1">Deskripsi</label>
+                <input
+                  type="text"
+                  value={editingProject?.description || selectedProject.description || ""}
+                  onChange={(e) => setEditingProject({ ...selectedProject, description: e.target.value })}
+                  onBlur={() => editingProject && updateProject({ description: editingProject.description })}
+                  placeholder="Opsional"
+                  className="w-full text-sm border border-[var(--border-subtle)] rounded px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-neutral-500 block mb-1">System Prompt</label>
+                <textarea
+                  value={editingProject?.system_prompt || selectedProject.system_prompt || ""}
+                  onChange={(e) => setEditingProject({ ...selectedProject, system_prompt: e.target.value })}
+                  onBlur={() => editingProject && updateProject({ system_prompt: editingProject.system_prompt })}
+                  placeholder="Instruksi khusus untuk AI (opsional)"
+                  rows={4}
+                  className="w-full text-sm border border-[var(--border-subtle)] rounded px-3 py-2 resize-none"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-neutral-500 block mb-1">Context Window (pesan terakhir)</label>
+                <input
+                  type="number"
+                  value={editingProject?.context_window_size || selectedProject.context_window_size}
+                  onChange={(e) => setEditingProject({ ...selectedProject, context_window_size: parseInt(e.target.value) || 20 })}
+                  onBlur={() => editingProject && updateProject({ context_window_size: editingProject.context_window_size })}
+                  min={5}
+                  max={100}
+                  className="w-full text-sm border border-[var(--border-subtle)] rounded px-3 py-2"
+                />
+              </div>
+              <div className="pt-2 border-t border-[var(--border-subtle)]">
+                <button
+                  onClick={deleteProject}
+                  className="text-xs text-red-500 hover:text-red-700"
+                >
+                  Hapus Project
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Memory Panel */}
         {showMemoryPanel && selectedProject && (
