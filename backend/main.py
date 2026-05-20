@@ -114,6 +114,11 @@ class Lead(Base):
     is_archived = Column(Boolean, default=False)
     deleted_at = Column(String(255), nullable=True)
     lead_score = Column(Integer, default=0)
+    website_url = Column(String(500), nullable=True)
+    google_rating = Column(Float, nullable=True)
+    review_count = Column(Integer, nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
 
 
 class Contact(Base):
@@ -1674,7 +1679,7 @@ async def search_businesses(
     headers = {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": api_key,
-        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,nextPageToken",
+        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.location,nextPageToken",
     }
 
     async with httpx.AsyncClient(timeout=15) as client:
@@ -1700,6 +1705,9 @@ async def search_businesses(
                 website = place.get("websiteUri")
                 google_rating = place.get("rating")
                 user_ratings_total = place.get("userRatingCount")
+                location_data = place.get("location", {})
+                latitude = location_data.get("latitude") if location_data else None
+                longitude = location_data.get("longitude") if location_data else None
                 if phone_digits and not db.query(Lead).filter(Lead.phone_number == phone_digits).first():
                     score = calculate_lead_score(
                         has_website=bool(website),
@@ -1709,7 +1717,8 @@ async def search_businesses(
                     )
                     db.add(Lead(business_name=name, phone_number=phone_digits, address=address,
                                 original_url=wa_url, product_interest=product_interest, batch_name=batch,
-                                rating=score))
+                                rating=score, website_url=website, google_rating=google_rating,
+                                review_count=user_ratings_total, latitude=latitude, longitude=longitude))
                     db.commit()
                 results.append(Business(name=name, address=address, phone=raw_phone, whatsapp_url=wa_url))
 
@@ -1800,6 +1809,39 @@ def get_leads(
         }
         results.append(lead_dict)
     return results
+
+
+@app.get("/api/leads/map")
+def get_leads_map(
+    status: Optional[str] = Query(None),
+    batch_name: Optional[str] = Query(None),
+    product_interest: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Lead).filter(Lead.latitude.isnot(None), Lead.longitude.isnot(None), Lead.is_archived == False)
+    if status:
+        query = query.filter(Lead.status == status)
+    if batch_name:
+        query = query.filter(Lead.batch_name == batch_name)
+    if product_interest:
+        query = query.filter(Lead.product_interest == product_interest)
+    leads = query.all()
+    return [{
+        "id": lead.id,
+        "business_name": lead.business_name,
+        "phone_number": lead.phone_number,
+        "address": lead.address,
+        "status": lead.status,
+        "product_interest": lead.product_interest,
+        "batch_name": lead.batch_name,
+        "website_url": lead.website_url,
+        "google_rating": lead.google_rating,
+        "review_count": lead.review_count,
+        "latitude": lead.latitude,
+        "longitude": lead.longitude,
+        "lead_score": lead.lead_score or 0,
+    } for lead in leads]
 
 
 class LeadCreate(BaseModel):

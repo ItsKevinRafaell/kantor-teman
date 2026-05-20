@@ -33,6 +33,9 @@ interface Lead {
   deleted_at: string | null;
   lead_score: number;
   is_ghost_viewer: boolean;
+  website_url?: string | null;
+  google_rating?: number | null;
+  review_count?: number | null;
 }
 
 const DEFAULT_TEMPLATE =
@@ -715,7 +718,7 @@ export default function LeadsTable() {
           <table className="w-full bg-white dark:bg-[#242423] text-sm">
             <thead className="bg-gray-50 dark:bg-[#2a2a29] border-b border-gray-100 dark:border-gray-700">
               <tr>
-                {["#", "Nama Bisnis", "Alamat", "Nomor WA", "Layanan", "Rating", "Status", "Aksi"].map((h) => (
+                {["#", "Nama Bisnis", "Alamat", "Nomor WA", "Layanan", "Website", "Google Rating", "Status", "Aksi"].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -743,8 +746,21 @@ export default function LeadsTable() {
                       {blastCategories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
                     </select>
                   </td>
-                  <td className="px-4 py-3">
-                    <StarRating leadId={lead.id} value={lead.rating} onChange={(r) => setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, rating: r } : l))} />
+                  <td className="px-4 py-3 text-xs">
+                    {lead.website_url ? (
+                      <a href={lead.website_url} target="_blank" rel="noopener" className="text-blue-600 hover:underline truncate block max-w-[120px]" title={lead.website_url}>
+                        {lead.website_url.replace(/^https?:\/\//, "").replace(/\/$/, "").slice(0, 20)}...
+                      </a>
+                    ) : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {lead.google_rating ? (
+                      <div className="flex items-center gap-1">
+                        <span className="text-yellow-500">★</span>
+                        <span className="font-medium">{lead.google_rating.toFixed(1)}</span>
+                        {lead.review_count && <span className="text-gray-400">({lead.review_count})</span>}
+                      </div>
+                    ) : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[lead.status]}`}>
