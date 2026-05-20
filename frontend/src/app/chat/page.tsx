@@ -37,16 +37,19 @@ interface ChatMemory {
   created_at: string;
 }
 
-interface Model {
-  id: string;
-  name: string;
-  description: string;
-}
-
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://api.kantorteman.my.id";
+
+// Hardcoded models sebagai fallback
+const DEFAULT_MODELS = [
+  { id: "glm-5", name: "GLM-5", description: "Model cepat dan efisien" },
+  { id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Model ringan OpenAI" },
+  { id: "claude-haiku-4-5-20251001", name: "Claude Haiku", description: "Model cepat Anthropic" },
+];
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const token = localStorage.getItem("token");
+  if (!token) throw new Error("No token");
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
@@ -57,9 +60,26 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Request failed" }));
-    throw new Error(err.detail || "Request failed");
+    throw new Error(err.detail || `HTTP ${res.status}`);
   }
   return res.json();
+}
+
+// Modal Component
+function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-white dark:bg-neutral-900 rounded-xl shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="p-4 border-b border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
+          <h3 className="font-semibold">{title}</h3>
+          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600 text-xl leading-none">&times;</button>
+        </div>
+        <div className="p-4">{children}</div>
+      </div>
+    </div>
+  );
 }
 
 // Simple markdown renderer
@@ -93,7 +113,7 @@ export default function ChatPage() {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [memories, setMemories] = useState<ChatMemory[]>([]);
-  const [models, setModels] = useState<Model[]>([]);
+  const [models, setModels] = useState(DEFAULT_MODELS);
   const [selectedProject, setSelectedProject] = useState<ChatProject | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<ChatConversation | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>("glm-5");
@@ -104,8 +124,20 @@ export default function ChatPage() {
   const [showMemoryPanel, setShowMemoryPanel] = useState(false);
   const [showProjectSettings, setShowProjectSettings] = useState(false);
   const [newMemory, setNewMemory] = useState("");
-  const [editingProject, setEditingProject] = useState<ChatProject | null>(null);
+
+  // Modal states
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false);
+  const [showDeleteProjectModal, setShowDeleteProjectModal] = useState(false);
+  const [showDeleteConversationModal, setShowDeleteConversationModal] = useState<string | null>(null);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [toast, setToast] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -130,17 +162,20 @@ export default function ChatPage() {
       if (data.length > 0 && !selectedProject) {
         selectProject(data[0]);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to load projects:", e);
+      showToast("Gagal memuat projects: " + e.message);
     }
   };
 
   const loadModels = async () => {
     try {
-      const data = await apiFetch<{ models: Model[] }>("/api/chat/models");
-      setModels(data.models);
+      const data = await apiFetch<{ models: { id: string; name: string; description: string }[] }>("/api/chat/models");
+      if (data.models && data.models.length > 0) {
+        setModels(data.models);
+      }
     } catch (e) {
-      console.error("Failed to load models:", e);
+      console.error("Failed to load models, using defaults");
     }
   };
 
@@ -181,17 +216,22 @@ export default function ChatPage() {
   };
 
   const createProject = async () => {
-    const name = prompt("Nama project baru:");
-    if (!name) return;
+    if (!newProjectName.trim()) {
+      showToast("Nama project tidak boleh kosong");
+      return;
+    }
     try {
       const project = await apiFetch<ChatProject>("/api/chat/projects", {
         method: "POST",
-        body: JSON.stringify({ name, default_model: selectedModel }),
+        body: JSON.stringify({ name: newProjectName.trim(), default_model: selectedModel }),
       });
       setProjects([project, ...projects]);
       selectProject(project);
-    } catch (e) {
-      alert("Gagal membuat project");
+      setNewProjectName("");
+      setShowNewProjectModal(false);
+      showToast("Project berhasil dibuat");
+    } catch (e: any) {
+      showToast("Gagal membuat project: " + e.message);
     }
   };
 
@@ -204,25 +244,28 @@ export default function ChatPage() {
       });
       setConversations([conv, ...conversations]);
       selectConversation(conv);
-    } catch (e) {
-      alert("Gagal membuat conversation");
+      showToast("Conversation berhasil dibuat");
+    } catch (e: any) {
+      showToast("Gagal membuat conversation: " + e.message);
     }
   };
 
   const deleteConversation = async (convId: string) => {
-    if (!confirm("Hapus conversation ini?")) return;
     try {
       await apiFetch(`/api/chat/conversations/${convId}`, { method: "DELETE" });
-      setConversations(conversations.filter((c) => c.id !== convId));
+      const remaining = conversations.filter((c) => c.id !== convId);
+      setConversations(remaining);
       if (selectedConversation?.id === convId) {
         setSelectedConversation(null);
         setMessages([]);
-        if (conversations.filter((c) => c.id !== convId).length > 0) {
-          selectConversation(conversations.filter((c) => c.id !== convId)[0]);
+        if (remaining.length > 0) {
+          selectConversation(remaining[0]);
         }
       }
-    } catch (e) {
-      alert("Gagal menghapus conversation");
+      setShowDeleteConversationModal(null);
+      showToast("Conversation dihapus");
+    } catch (e: any) {
+      showToast("Gagal menghapus: " + e.message);
     }
   };
 
@@ -242,7 +285,7 @@ export default function ChatPage() {
       });
       setMessages((prev) => [...prev.filter((m) => m.id !== "temp"), res.message]);
     } catch (e: any) {
-      alert(e.message || "Gagal mengirim pesan");
+      showToast("Gagal mengirim: " + e.message);
       setMessages((prev) => prev.filter((m) => m.id !== "temp"));
     } finally {
       setLoading(false);
@@ -258,8 +301,9 @@ export default function ChatPage() {
       });
       setMemories([memory, ...memories]);
       setNewMemory("");
-    } catch (e) {
-      alert("Gagal menambah memory");
+      showToast("Memory ditambahkan");
+    } catch (e: any) {
+      showToast("Gagal menambah memory: " + e.message);
     }
   };
 
@@ -267,8 +311,9 @@ export default function ChatPage() {
     try {
       await apiFetch(`/api/chat/memories/${memoryId}`, { method: "DELETE" });
       setMemories(memories.filter((m) => m.id !== memoryId));
-    } catch (e) {
-      alert("Gagal menghapus memory");
+      showToast("Memory dihapus");
+    } catch (e: any) {
+      showToast("Gagal menghapus memory: " + e.message);
     }
   };
 
@@ -281,14 +326,14 @@ export default function ChatPage() {
       });
       setProjects(projects.map((p) => (p.id === updated.id ? updated : p)));
       setSelectedProject(updated);
-      setEditingProject(null);
-    } catch (e) {
-      alert("Gagal update project");
+      showToast("Project diupdate");
+    } catch (e: any) {
+      showToast("Gagal update: " + e.message);
     }
   };
 
   const deleteProject = async () => {
-    if (!selectedProject || !confirm("Hapus project dan semua conversation di dalamnya?")) return;
+    if (!selectedProject) return;
     try {
       await apiFetch(`/api/chat/projects/${selectedProject.id}`, { method: "DELETE" });
       const remaining = projects.filter((p) => p.id !== selectedProject.id);
@@ -301,8 +346,10 @@ export default function ChatPage() {
         setSelectedConversation(null);
         setMessages([]);
       }
-    } catch (e) {
-      alert("Gagal menghapus project");
+      setShowDeleteProjectModal(false);
+      showToast("Project dihapus");
+    } catch (e: any) {
+      showToast("Gagal menghapus project: " + e.message);
     }
   };
 
@@ -316,19 +363,32 @@ export default function ChatPage() {
     a.download = `${selectedConversation.title.replace(/[^a-z0-9]/gi, "_")}_${new Date().toISOString().split("T")[0]}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+    showToast("Chat diexport");
   };
 
   const totalTokens = messages.reduce((sum, m) => sum + (m.tokens_used || 0), 0);
 
   return (
     <div className="flex h-[calc(100vh-64px)] bg-[var(--bg-main)]">
-      {/* Sidebar - Projects & Conversations */}
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] bg-neutral-900 text-white px-4 py-2 rounded-lg text-sm shadow-lg animate-fade-in">
+          {toast}
+        </div>
+      )}
+
+      {/* Sidebar */}
       <aside className={`${sidebarOpen ? "w-64" : "w-0"} bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] flex flex-col transition-all duration-200 overflow-hidden`}>
         <div className="p-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
           <h2 className="font-semibold text-sm text-neutral-700 dark:text-neutral-200">Projects</h2>
-          <button onClick={createProject} className="text-xs text-brand-yellow hover:underline">+ New</button>
+          <button onClick={() => setShowNewProjectModal(true)} className="text-xs text-brand-yellow hover:underline">+ New</button>
         </div>
         <div className="flex-1 overflow-y-auto">
+          {projects.length === 0 && (
+            <div className="p-4 text-xs text-neutral-400 text-center">
+              Belum ada project. Klik + New untuk membuat.
+            </div>
+          )}
           {projects.map((p) => (
             <div key={p.id}>
               <button
@@ -340,7 +400,7 @@ export default function ChatPage() {
               {selectedProject?.id === p.id && (
                 <div className="ml-4 border-l border-[var(--border-subtle)]">
                   <div className="p-2 flex items-center justify-between">
-                    <span className="text-xs text-neutral-400">Chats</span>
+                    <span className="text-xs text-neutral-400">Chats ({conversations.length})</span>
                     <button onClick={createConversation} className="text-xs text-brand-yellow hover:underline">+</button>
                   </div>
                   {conversations.map((c) => (
@@ -352,7 +412,7 @@ export default function ChatPage() {
                         {c.title}
                       </button>
                       <button
-                        onClick={() => deleteConversation(c.id)}
+                        onClick={() => setShowDeleteConversationModal(c.id)}
                         className="opacity-0 group-hover:opacity-100 px-2 text-red-400 hover:text-red-600"
                       >
                         ×
@@ -387,21 +447,24 @@ export default function ChatPage() {
               {models.find((m) => m.id === selectedModel)?.name || selectedModel}
             </button>
             {showModelSelector && (
-              <div className="absolute right-0 top-full mt-1 bg-white dark:bg-neutral-900 border border-[var(--border-subtle)] rounded-lg shadow-lg z-50 min-w-[200px]">
-                {models.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => {
-                      setSelectedModel(m.id);
-                      setShowModelSelector(false);
-                    }}
-                    className={`w-full text-left px-3 py-2 text-xs ${selectedModel === m.id ? "bg-brand-yellow/10 text-brand-yellow" : "hover:bg-neutral-50 dark:hover:bg-neutral-800"}`}
-                  >
-                    <div className="font-medium">{m.name}</div>
-                    <div className="text-neutral-400 text-[10px]">{m.description}</div>
-                  </button>
-                ))}
-              </div>
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowModelSelector(false)} />
+                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-neutral-900 border border-[var(--border-subtle)] rounded-lg shadow-lg z-50 min-w-[200px]">
+                  {models.map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => {
+                        setSelectedModel(m.id);
+                        setShowModelSelector(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-xs ${selectedModel === m.id ? "bg-brand-yellow/10 text-brand-yellow" : "hover:bg-neutral-50 dark:hover:bg-neutral-800"}`}
+                    >
+                      <div className="font-medium">{m.name}</div>
+                      <div className="text-neutral-400 text-[10px]">{m.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
           </div>
 
@@ -446,106 +509,110 @@ export default function ChatPage() {
 
         {/* Project Settings Panel */}
         {showProjectSettings && selectedProject && (
-          <div className="absolute right-0 top-[60px] w-96 bg-white dark:bg-neutral-900 border border-[var(--border-subtle)] rounded-lg shadow-lg z-40 m-4">
-            <div className="p-3 border-b border-[var(--border-subtle)] flex items-center justify-between">
-              <h3 className="font-medium text-sm">Project Settings</h3>
-              <button onClick={() => setShowProjectSettings(false)} className="text-neutral-400 hover:text-neutral-600">×</button>
-            </div>
-            <div className="p-4 space-y-4">
-              <div>
-                <label className="text-xs text-neutral-500 block mb-1">Nama Project</label>
-                <input
-                  type="text"
-                  value={editingProject?.name || selectedProject.name}
-                  onChange={(e) => setEditingProject({ ...selectedProject, name: e.target.value })}
-                  onBlur={() => editingProject && updateProject({ name: editingProject.name })}
-                  className="w-full text-sm border border-[var(--border-subtle)] rounded px-3 py-2"
-                />
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setShowProjectSettings(false)} />
+            <div className="absolute right-4 top-[60px] w-80 bg-white dark:bg-neutral-900 border border-[var(--border-subtle)] rounded-lg shadow-lg z-40">
+              <div className="p-3 border-b border-[var(--border-subtle)] flex items-center justify-between">
+                <h3 className="font-medium text-sm">Project Settings</h3>
+                <button onClick={() => setShowProjectSettings(false)} className="text-neutral-400 hover:text-neutral-600">×</button>
               </div>
-              <div>
-                <label className="text-xs text-neutral-500 block mb-1">Deskripsi</label>
-                <input
-                  type="text"
-                  value={editingProject?.description || selectedProject.description || ""}
-                  onChange={(e) => setEditingProject({ ...selectedProject, description: e.target.value })}
-                  onBlur={() => editingProject && updateProject({ description: editingProject.description })}
-                  placeholder="Opsional"
-                  className="w-full text-sm border border-[var(--border-subtle)] rounded px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-neutral-500 block mb-1">System Prompt</label>
-                <textarea
-                  value={editingProject?.system_prompt || selectedProject.system_prompt || ""}
-                  onChange={(e) => setEditingProject({ ...selectedProject, system_prompt: e.target.value })}
-                  onBlur={() => editingProject && updateProject({ system_prompt: editingProject.system_prompt })}
-                  placeholder="Instruksi khusus untuk AI (opsional)"
-                  rows={4}
-                  className="w-full text-sm border border-[var(--border-subtle)] rounded px-3 py-2 resize-none"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-neutral-500 block mb-1">Context Window (pesan terakhir)</label>
-                <input
-                  type="number"
-                  value={editingProject?.context_window_size || selectedProject.context_window_size}
-                  onChange={(e) => setEditingProject({ ...selectedProject, context_window_size: parseInt(e.target.value) || 20 })}
-                  onBlur={() => editingProject && updateProject({ context_window_size: editingProject.context_window_size })}
-                  min={5}
-                  max={100}
-                  className="w-full text-sm border border-[var(--border-subtle)] rounded px-3 py-2"
-                />
-              </div>
-              <div className="pt-2 border-t border-[var(--border-subtle)]">
-                <button
-                  onClick={deleteProject}
-                  className="text-xs text-red-500 hover:text-red-700"
-                >
-                  Hapus Project
-                </button>
+              <div className="p-4 space-y-3">
+                <div>
+                  <label className="text-xs text-neutral-500 block mb-1">Nama Project</label>
+                  <input
+                    type="text"
+                    defaultValue={selectedProject.name}
+                    onBlur={(e) => updateProject({ name: e.target.value })}
+                    className="w-full text-sm border border-[var(--border-subtle)] rounded px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-neutral-500 block mb-1">System Prompt</label>
+                  <textarea
+                    defaultValue={selectedProject.system_prompt || ""}
+                    onBlur={(e) => updateProject({ system_prompt: e.target.value })}
+                    placeholder="Instruksi khusus untuk AI"
+                    rows={3}
+                    className="w-full text-sm border border-[var(--border-subtle)] rounded px-3 py-2 resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-neutral-500 block mb-1">Context Window</label>
+                  <input
+                    type="number"
+                    defaultValue={selectedProject.context_window_size}
+                    onBlur={(e) => updateProject({ context_window_size: parseInt(e.target.value) || 20 })}
+                    min={5}
+                    max={100}
+                    className="w-full text-sm border border-[var(--border-subtle)] rounded px-3 py-2"
+                  />
+                </div>
+                <div className="pt-2 border-t border-[var(--border-subtle)]">
+                  <button onClick={() => setShowDeleteProjectModal(true)} className="text-xs text-red-500 hover:text-red-700">
+                    Hapus Project
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          </>
         )}
 
         {/* Memory Panel */}
         {showMemoryPanel && selectedProject && (
-          <div className="absolute right-0 top-[60px] w-80 bg-white dark:bg-neutral-900 border border-[var(--border-subtle)] rounded-lg shadow-lg z-40 m-4">
-            <div className="p-3 border-b border-[var(--border-subtle)]">
-              <h3 className="font-medium text-sm">Memory Bank</h3>
-              <p className="text-[10px] text-neutral-400">Info yang selalu diingat AI dalam project ini</p>
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setShowMemoryPanel(false)} />
+            <div className="absolute right-4 top-[60px] w-80 bg-white dark:bg-neutral-900 border border-[var(--border-subtle)] rounded-lg shadow-lg z-40">
+              <div className="p-3 border-b border-[var(--border-subtle)]">
+                <h3 className="font-medium text-sm">Memory Bank</h3>
+                <p className="text-[10px] text-neutral-400">Info yang diingat AI dalam project ini</p>
+              </div>
+              <div className="max-h-48 overflow-y-auto p-2 space-y-2">
+                {memories.length === 0 && (
+                  <p className="text-xs text-neutral-400 text-center py-4">Belum ada memory</p>
+                )}
+                {memories.map((m) => (
+                  <div key={m.id} className="group flex items-start gap-2 bg-neutral-50 dark:bg-neutral-800 p-2 rounded text-xs">
+                    <span className="flex-1">{m.content}</span>
+                    <button onClick={() => deleteMemory(m.id)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600">×</button>
+                  </div>
+                ))}
+              </div>
+              <div className="p-3 border-t border-[var(--border-subtle)] flex gap-2">
+                <input
+                  type="text"
+                  value={newMemory}
+                  onChange={(e) => setNewMemory(e.target.value)}
+                  placeholder="Tambah memory..."
+                  className="flex-1 text-xs border border-[var(--border-subtle)] rounded px-2 py-1"
+                  onKeyDown={(e) => e.key === "Enter" && addMemory()}
+                />
+                <button onClick={addMemory} className="text-xs bg-brand-yellow text-neutral-900 px-2 py-1 rounded font-medium">Add</button>
+              </div>
             </div>
-            <div className="max-h-60 overflow-y-auto p-2 space-y-2">
-              {memories.length === 0 && (
-                <p className="text-xs text-neutral-400 text-center py-4">Belum ada memory</p>
-              )}
-              {memories.map((m) => (
-                <div key={m.id} className="group flex items-start gap-2 bg-neutral-50 dark:bg-neutral-800 p-2 rounded text-xs">
-                  <span className="flex-1">{m.content}</span>
-                  <button onClick={() => deleteMemory(m.id)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600">×</button>
-                </div>
-              ))}
-            </div>
-            <div className="p-3 border-t border-[var(--border-subtle)] flex gap-2">
-              <input
-                type="text"
-                value={newMemory}
-                onChange={(e) => setNewMemory(e.target.value)}
-                placeholder="Tambah memory..."
-                className="flex-1 text-xs border border-[var(--border-subtle)] rounded px-2 py-1"
-                onKeyDown={(e) => e.key === "Enter" && addMemory()}
-              />
-              <button onClick={addMemory} className="text-xs bg-brand-yellow text-neutral-900 px-2 py-1 rounded font-medium">Add</button>
-            </div>
-          </div>
+          </>
         )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.length === 0 && !loading && (
+          {!selectedProject && (
             <div className="text-center text-neutral-400 text-sm mt-20">
               <div className="text-4xl mb-4">💬</div>
-              <p>Mulai percakapan baru dengan AI Assistant</p>
+              <p>Buat project baru untuk mulai chat</p>
+            </div>
+          )}
+          {selectedProject && !selectedConversation && (
+            <div className="text-center text-neutral-400 text-sm mt-20">
+              <div className="text-4xl mb-4">💬</div>
+              <p>Buat conversation baru untuk mulai chat</p>
+              <button onClick={createConversation} className="mt-4 text-brand-yellow hover:underline text-sm">
+                + Buat Conversation
+              </button>
+            </div>
+          )}
+          {selectedConversation && messages.length === 0 && !loading && (
+            <div className="text-center text-neutral-400 text-sm mt-20">
+              <div className="text-4xl mb-4">💬</div>
+              <p>Mulai percakapan dengan AI</p>
               <p className="text-xs mt-2 text-neutral-500">Model: {models.find((m) => m.id === selectedModel)?.name}</p>
             </div>
           )}
@@ -583,7 +650,7 @@ export default function ChatPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-              placeholder={selectedConversation ? "Ketik pesan..." : "Pilih atau buat conversation dulu"}
+              placeholder={selectedConversation ? "Ketik pesan..." : "Pilih conversation dulu"}
               disabled={!selectedConversation || loading}
               className="flex-1 rounded-xl border border-[var(--border-subtle)] bg-white dark:bg-neutral-900 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-yellow/30 disabled:opacity-50"
             />
@@ -597,6 +664,66 @@ export default function ChatPage() {
           </div>
         </div>
       </div>
+
+      {/* New Project Modal */}
+      <Modal open={showNewProjectModal} onClose={() => setShowNewProjectModal(false)} title="Buat Project Baru">
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs text-neutral-500 block mb-1">Nama Project</label>
+            <input
+              type="text"
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              placeholder="Contoh: Customer Support Bot"
+              className="w-full text-sm border border-[var(--border-subtle)] rounded px-3 py-2"
+              autoFocus
+              onKeyDown={(e) => e.key === "Enter" && createProject()}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setShowNewProjectModal(false)} className="text-sm text-neutral-500 hover:text-neutral-700 px-3 py-1.5">
+              Batal
+            </button>
+            <button onClick={createProject} className="text-sm bg-brand-yellow text-neutral-900 px-4 py-1.5 rounded font-medium">
+              Buat
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Project Modal */}
+      <Modal open={showDeleteProjectModal} onClose={() => setShowDeleteProjectModal(false)} title="Hapus Project">
+        <div className="space-y-4">
+          <p className="text-sm text-neutral-600 dark:text-neutral-300">
+            Yakin hapus project "{selectedProject?.name}" dan semua conversation di dalamnya?
+          </p>
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setShowDeleteProjectModal(false)} className="text-sm text-neutral-500 hover:text-neutral-700 px-3 py-1.5">
+              Batal
+            </button>
+            <button onClick={deleteProject} className="text-sm bg-red-500 text-white px-4 py-1.5 rounded font-medium">
+              Hapus
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Conversation Modal */}
+      <Modal open={!!showDeleteConversationModal} onClose={() => setShowDeleteConversationModal(null)} title="Hapus Conversation">
+        <div className="space-y-4">
+          <p className="text-sm text-neutral-600 dark:text-neutral-300">
+            Yakin hapus conversation ini?
+          </p>
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setShowDeleteConversationModal(null)} className="text-sm text-neutral-500 hover:text-neutral-700 px-3 py-1.5">
+              Batal
+            </button>
+            <button onClick={() => showDeleteConversationModal && deleteConversation(showDeleteConversationModal)} className="text-sm bg-red-500 text-white px-4 py-1.5 rounded font-medium">
+              Hapus
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
