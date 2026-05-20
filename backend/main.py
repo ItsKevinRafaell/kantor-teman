@@ -416,6 +416,59 @@ class ContentSchedule(Base):
     created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
 
 
+# ---------------------------------------------------------------------------
+# AI Chat Models (Semuts.sh Integration)
+# ---------------------------------------------------------------------------
+
+class ChatProject(Base):
+    __tablename__ = "chat_projects"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    system_prompt = Column(Text, nullable=True)
+    default_model = Column(String(255), default="glm-5")
+    context_window_size = Column(Integer, default=20)  # N pesan terakhir sebagai context
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at = Column(String(255), nullable=True)
+    user = relationship("User", backref="chat_projects")
+
+
+class ChatConversation(Base):
+    __tablename__ = "chat_conversations"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_id = Column(String(36), ForeignKey("chat_projects.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    title = Column(String(255), nullable=False, default="New Chat")
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at = Column(String(255), nullable=True)
+    project = relationship("ChatProject", backref="conversations")
+    user = relationship("User", backref="chat_conversations")
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    conversation_id = Column(String(36), ForeignKey("chat_conversations.id"), nullable=False)
+    role = Column(String(50), nullable=False)  # user / assistant
+    content = Column(Text, nullable=False)
+    tokens_used = Column(Integer, default=0)
+    model_used = Column(String(255), nullable=True)
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    conversation = relationship("ChatConversation", backref="messages")
+
+
+class ChatMemory(Base):
+    __tablename__ = "chat_memories"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_id = Column(String(36), ForeignKey("chat_projects.id"), nullable=False)
+    content = Column(Text, nullable=False)
+    pinned_by = Column(Integer, ForeignKey("users.id"), nullable=False)  # user yang pin memory
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    project = relationship("ChatProject", backref="memories")
+    user = relationship("User", backref="chat_memories")
+
+
 Base.metadata.create_all(bind=engine)
 
 
@@ -5090,6 +5143,357 @@ async def scheduled_followup_processor():
             db.commit()
     finally:
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# AI Chat Schemas (Semuts.sh Integration)
+# ---------------------------------------------------------------------------
+
+class ChatProjectCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    system_prompt: Optional[str] = None
+    default_model: Optional[str] = "glm-5"
+    context_window_size: Optional[int] = 20
+
+
+class ChatProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    system_prompt: Optional[str] = None
+    default_model: Optional[str] = None
+    context_window_size: Optional[int] = None
+
+
+class ChatProjectOut(BaseModel):
+    id: str
+    name: str
+    description: Optional[str]
+    system_prompt: Optional[str]
+    default_model: str
+    context_window_size: int
+    created_at: str
+    updated_at: Optional[str]
+    model_config = {"from_attributes": True}
+
+
+class ChatConversationCreate(BaseModel):
+    project_id: str
+    title: Optional[str] = "New Chat"
+
+
+class ChatConversationUpdate(BaseModel):
+    title: Optional[str] = None
+
+
+class ChatConversationOut(BaseModel):
+    id: str
+    project_id: str
+    title: str
+    created_at: str
+    updated_at: Optional[str]
+    model_config = {"from_attributes": True}
+
+
+class ChatMessageCreate(BaseModel):
+    content: str
+
+
+class ChatMessageOut(BaseModel):
+    id: str
+    conversation_id: str
+    role: str
+    content: str
+    tokens_used: int
+    model_used: Optional[str]
+    created_at: str
+    model_config = {"from_attributes": True}
+
+
+class ChatRequest(BaseModel):
+    message: str
+    model: Optional[str] = None
+
+
+class ChatMemoryCreate(BaseModel):
+    content: str
+
+
+class ChatMemoryOut(BaseModel):
+    id: str
+    project_id: str
+    content: str
+    pinned_by: int
+    created_at: str
+    model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# AI Chat Endpoints (Semuts.sh Integration)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/chat/projects", response_model=List[ChatProjectOut])
+def list_chat_projects(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    projects = db.query(ChatProject).filter(ChatProject.user_id == current_user.id).order_by(ChatProject.updated_at.desc()).all()
+    return projects
+
+
+@app.post("/api/chat/projects", response_model=ChatProjectOut)
+def create_chat_project(body: ChatProjectCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    project = ChatProject(
+        user_id=current_user.id,
+        name=body.name,
+        description=body.description,
+        system_prompt=body.system_prompt,
+        default_model=body.default_model or "glm-5",
+        context_window_size=body.context_window_size or 20,
+    )
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+@app.get("/api/chat/projects/{project_id}", response_model=ChatProjectOut)
+def get_chat_project(project_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    project = db.query(ChatProject).filter(ChatProject.id == project_id, ChatProject.user_id == current_user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    return project
+
+
+@app.put("/api/chat/projects/{project_id}", response_model=ChatProjectOut)
+def update_chat_project(project_id: str, body: ChatProjectUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    project = db.query(ChatProject).filter(ChatProject.id == project_id, ChatProject.user_id == current_user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    if body.name is not None:
+        project.name = body.name
+    if body.description is not None:
+        project.description = body.description
+    if body.system_prompt is not None:
+        project.system_prompt = body.system_prompt
+    if body.default_model is not None:
+        project.default_model = body.default_model
+    if body.context_window_size is not None:
+        project.context_window_size = body.context_window_size
+    project.updated_at = datetime.now(timezone.utc).isoformat()
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+@app.delete("/api/chat/projects/{project_id}")
+def delete_chat_project(project_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    project = db.query(ChatProject).filter(ChatProject.id == project_id, ChatProject.user_id == current_user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    db.delete(project)
+    db.commit()
+    return {"success": True, "message": "Project dihapus"}
+
+
+@app.get("/api/chat/projects/{project_id}/conversations", response_model=List[ChatConversationOut])
+def list_conversations(project_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    project = db.query(ChatProject).filter(ChatProject.id == project_id, ChatProject.user_id == current_user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    conversations = db.query(ChatConversation).filter(ChatConversation.project_id == project_id).order_by(ChatConversation.updated_at.desc()).all()
+    return conversations
+
+
+@app.post("/api/chat/projects/{project_id}/conversations", response_model=ChatConversationOut)
+def create_conversation(project_id: str, body: ChatConversationCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    project = db.query(ChatProject).filter(ChatProject.id == project_id, ChatProject.user_id == current_user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    conversation = ChatConversation(
+        project_id=project_id,
+        user_id=current_user.id,
+        title=body.title or "New Chat",
+    )
+    db.add(conversation)
+    db.commit()
+    db.refresh(conversation)
+    return conversation
+
+
+@app.get("/api/chat/conversations/{conversation_id}", response_model=ChatConversationOut)
+def get_conversation(conversation_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    conversation = db.query(ChatConversation).filter(ChatConversation.id == conversation_id, ChatConversation.user_id == current_user.id).first()
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation tidak ditemukan")
+    return conversation
+
+
+@app.delete("/api/chat/conversations/{conversation_id}")
+def delete_conversation(conversation_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    conversation = db.query(ChatConversation).filter(ChatConversation.id == conversation_id, ChatConversation.user_id == current_user.id).first()
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation tidak ditemukan")
+    db.delete(conversation)
+    db.commit()
+    return {"success": True, "message": "Conversation dihapus"}
+
+
+@app.get("/api/chat/conversations/{conversation_id}/messages", response_model=List[ChatMessageOut])
+def list_messages(conversation_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    conversation = db.query(ChatConversation).filter(ChatConversation.id == conversation_id, ChatConversation.user_id == current_user.id).first()
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation tidak ditemukan")
+    messages = db.query(ChatMessage).filter(ChatMessage.conversation_id == conversation_id).order_by(ChatMessage.created_at.asc()).all()
+    return messages
+
+
+@app.post("/api/chat/conversations/{conversation_id}/chat")
+async def chat(conversation_id: str, body: ChatRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    conversation = db.query(ChatConversation).filter(ChatConversation.id == conversation_id, ChatConversation.user_id == current_user.id).first()
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation tidak ditemukan")
+
+    project = db.query(ChatProject).filter(ChatProject.id == conversation.project_id).first()
+
+    # Get API config
+    openai_key = db.query(SystemSettings).filter_by(key="openai_api_key").first()
+    base_url = db.query(SystemSettings).filter_by(key="ai_base_url").first()
+
+    if not openai_key or not openai_key.value:
+        raise HTTPException(status_code=400, detail="API Key belum dikonfigurasi")
+
+    api_key = openai_key.value
+    api_base = base_url.value if base_url else "https://api.aimurah.com/v1"
+    model = body.model or project.default_model or "glm-5"
+
+    # Build context from recent messages
+    context_window = project.context_window_size if project else 20
+    recent_messages = db.query(ChatMessage).filter(
+        ChatMessage.conversation_id == conversation_id
+    ).order_by(ChatMessage.created_at.desc()).limit(context_window).all()
+    recent_messages.reverse()
+
+    messages = []
+    if project and project.system_prompt:
+        messages.append({"role": "system", "content": project.system_prompt})
+
+    # Add memories as context
+    memories = db.query(ChatMemory).filter(ChatMemory.project_id == conversation.project_id).all()
+    if memories:
+        memory_text = "\n".join([f"- {m.content}" for m in memories])
+        messages.append({"role": "system", "content": f"Context/Memory:\n{memory_text}"})
+
+    for msg in recent_messages:
+        messages.append({"role": msg.role, "content": msg.content})
+
+    # Add user message
+    messages.append({"role": "user", "content": body.message})
+
+    # Save user message
+    user_msg = ChatMessage(
+        conversation_id=conversation_id,
+        role="user",
+        content=body.message,
+    )
+    db.add(user_msg)
+
+    # Call AI API
+    async with httpx.AsyncClient(timeout=60) as client:
+        resp = await client.post(
+            f"{api_base.rstrip('/')}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model,
+                "messages": messages,
+                "max_tokens": 2048,
+            },
+        )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=502, detail=f"AI API error: {resp.status_code} - {resp.text[:200]}")
+
+        result = resp.json()
+        assistant_content = result["choices"][0]["message"]["content"]
+        tokens_used = result.get("usage", {}).get("total_tokens", 0)
+
+    # Save assistant message
+    assistant_msg = ChatMessage(
+        conversation_id=conversation_id,
+        role="assistant",
+        content=assistant_content,
+        tokens_used=tokens_used,
+        model_used=model,
+    )
+    db.add(assistant_msg)
+
+    # Update conversation timestamp
+    conversation.updated_at = datetime.now(timezone.utc).isoformat()
+    if project:
+        project.updated_at = datetime.now(timezone.utc).isoformat()
+
+    db.commit()
+
+    return {
+        "message": {
+            "id": assistant_msg.id,
+            "role": "assistant",
+            "content": assistant_content,
+            "tokens_used": tokens_used,
+            "model_used": model,
+            "created_at": assistant_msg.created_at,
+        }
+    }
+
+
+@app.get("/api/chat/projects/{project_id}/memories", response_model=List[ChatMemoryOut])
+def list_memories(project_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    project = db.query(ChatProject).filter(ChatProject.id == project_id, ChatProject.user_id == current_user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    memories = db.query(ChatMemory).filter(ChatMemory.project_id == project_id).order_by(ChatMemory.created_at.desc()).all()
+    return memories
+
+
+@app.post("/api/chat/projects/{project_id}/memories", response_model=ChatMemoryOut)
+def create_memory(project_id: str, body: ChatMemoryCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    project = db.query(ChatProject).filter(ChatProject.id == project_id, ChatProject.user_id == current_user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    memory = ChatMemory(
+        project_id=project_id,
+        content=body.content,
+        pinned_by=current_user.id,
+    )
+    db.add(memory)
+    db.commit()
+    db.refresh(memory)
+    return memory
+
+
+@app.delete("/api/chat/memories/{memory_id}")
+def delete_memory(memory_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    memory = db.query(ChatMemory).filter(ChatMemory.id == memory_id).first()
+    if not memory:
+        raise HTTPException(status_code=404, detail="Memory tidak ditemukan")
+    # Check ownership via project
+    project = db.query(ChatProject).filter(ChatProject.id == memory.project_id, ChatProject.user_id == current_user.id).first()
+    if not project:
+        raise HTTPException(status_code=403, detail="Tidak ada akses ke memory ini")
+    db.delete(memory)
+    db.commit()
+    return {"success": True, "message": "Memory dihapus"}
+
+
+@app.get("/api/chat/models")
+def list_chat_models(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Available models from AIMurah/Semuts
+    return {
+        "models": [
+            {"id": "glm-5", "name": "GLM-5", "description": "Model cepat dan efisien untuk chat umum"},
+            {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "description": "Model ringan OpenAI"},
+            {"id": "claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5", "description": "Model cepat dari Anthropic"},
+        ]
+    }
 
 
 scheduler = AsyncIOScheduler()
