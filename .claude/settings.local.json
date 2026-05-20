@@ -11,7 +11,9 @@
       "Bash(python migrate.py)",
       "Bash(npx tsc *)",
       "Bash(sqlite3 *)",
-      "Bash(npx next *)"
+      "Bash(npx next *)",
+      "Bash(curl -v --max-time 10 https://api.kantorteman.my.id/api/auth/login)",
+      "WebSearch"
     ]
   }
 }
