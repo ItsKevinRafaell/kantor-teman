@@ -7,6 +7,7 @@ interface ChatProject {
   id: string;
   name: string;
   description?: string;
+  system_prompt?: string;
   default_model: string;
   context_window_size: number;
   created_at: string;
@@ -29,6 +30,19 @@ interface ChatMessage {
   created_at: string;
 }
 
+interface ChatMemory {
+  id: string;
+  project_id: string;
+  content: string;
+  created_at: string;
+}
+
+interface Model {
+  id: string;
+  name: string;
+  description: string;
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://api.kantorteman.my.id";
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
@@ -48,16 +62,47 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+// Simple markdown renderer
+function renderMarkdown(text: string): React.ReactNode {
+  const parts = text.split(/(```[\s\S]*?```|`[^`]+`|\*\*[^*]+\*\*|\n)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("```")) {
+      const code = part.replace(/```(\w*)\n?/g, "").replace(/```$/g, "");
+      return (
+        <pre key={i} className="bg-neutral-900 text-neutral-100 rounded-lg p-3 my-2 overflow-x-auto text-xs">
+          <code>{code}</code>
+        </pre>
+      );
+    }
+    if (part.startsWith("`") && part.endsWith("`")) {
+      return <code key={i} className="bg-neutral-200 dark:bg-neutral-700 px-1 rounded text-xs">{part.slice(1, -1)}</code>;
+    }
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    if (part === "\n") {
+      return <br key={i} />;
+    }
+    return part;
+  });
+}
+
 export default function ChatPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<ChatProject[]>([]);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [memories, setMemories] = useState<ChatMemory[]>([]);
+  const [models, setModels] = useState<Model[]>([]);
   const [selectedProject, setSelectedProject] = useState<ChatProject | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<ChatConversation | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string>("glm-5");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showModelSelector, setShowModelSelector] = useState(false);
+  const [showMemoryPanel, setShowMemoryPanel] = useState(false);
+  const [newMemory, setNewMemory] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -67,6 +112,7 @@ export default function ChatPage() {
       return;
     }
     loadProjects();
+    loadModels();
   }, [router]);
 
   useEffect(() => {
@@ -87,10 +133,30 @@ export default function ChatPage() {
     }
   };
 
+  const loadModels = async () => {
+    try {
+      const data = await apiFetch<{ models: Model[] }>("/api/chat/models");
+      setModels(data.models);
+    } catch (e) {
+      console.error("Failed to load models:", e);
+    }
+  };
+
+  const loadMemories = async (projectId: string) => {
+    try {
+      const data = await apiFetch<ChatMemory[]>(`/api/chat/projects/${projectId}/memories`);
+      setMemories(data);
+    } catch (e) {
+      console.error("Failed to load memories:", e);
+    }
+  };
+
   const selectProject = async (project: ChatProject) => {
     setSelectedProject(project);
     setSelectedConversation(null);
     setMessages([]);
+    setSelectedModel(project.default_model || "glm-5");
+    loadMemories(project.id);
     try {
       const data = await apiFetch<ChatConversation[]>(`/api/chat/projects/${project.id}/conversations`);
       setConversations(data);
@@ -118,7 +184,7 @@ export default function ChatPage() {
     try {
       const project = await apiFetch<ChatProject>("/api/chat/projects", {
         method: "POST",
-        body: JSON.stringify({ name, default_model: "glm-5" }),
+        body: JSON.stringify({ name, default_model: selectedModel }),
       });
       setProjects([project, ...projects]);
       selectProject(project);
@@ -141,6 +207,23 @@ export default function ChatPage() {
     }
   };
 
+  const deleteConversation = async (convId: string) => {
+    if (!confirm("Hapus conversation ini?")) return;
+    try {
+      await apiFetch(`/api/chat/conversations/${convId}`, { method: "DELETE" });
+      setConversations(conversations.filter((c) => c.id !== convId));
+      if (selectedConversation?.id === convId) {
+        setSelectedConversation(null);
+        setMessages([]);
+        if (conversations.filter((c) => c.id !== convId).length > 0) {
+          selectConversation(conversations.filter((c) => c.id !== convId)[0]);
+        }
+      }
+    } catch (e) {
+      alert("Gagal menghapus conversation");
+    }
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || !selectedConversation || loading) return;
     const userMessage = input.trim();
@@ -153,7 +236,7 @@ export default function ChatPage() {
     try {
       const res = await apiFetch<{ message: ChatMessage }>(`/api/chat/conversations/${selectedConversation.id}/chat`, {
         method: "POST",
-        body: JSON.stringify({ message: userMessage }),
+        body: JSON.stringify({ message: userMessage, model: selectedModel }),
       });
       setMessages((prev) => [...prev.filter((m) => m.id !== "temp"), res.message]);
     } catch (e: any) {
@@ -161,6 +244,29 @@ export default function ChatPage() {
       setMessages((prev) => prev.filter((m) => m.id !== "temp"));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const addMemory = async () => {
+    if (!newMemory.trim() || !selectedProject) return;
+    try {
+      const memory = await apiFetch<ChatMemory>(`/api/chat/projects/${selectedProject.id}/memories`, {
+        method: "POST",
+        body: JSON.stringify({ content: newMemory.trim() }),
+      });
+      setMemories([memory, ...memories]);
+      setNewMemory("");
+    } catch (e) {
+      alert("Gagal menambah memory");
+    }
+  };
+
+  const deleteMemory = async (memoryId: string) => {
+    try {
+      await apiFetch(`/api/chat/memories/${memoryId}`, { method: "DELETE" });
+      setMemories(memories.filter((m) => m.id !== memoryId));
+    } catch (e) {
+      alert("Gagal menghapus memory");
     }
   };
 
@@ -188,13 +294,20 @@ export default function ChatPage() {
                     <button onClick={createConversation} className="text-xs text-brand-yellow hover:underline">+</button>
                   </div>
                   {conversations.map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => selectConversation(c)}
-                      className={`w-full text-left px-3 py-1.5 text-xs truncate ${selectedConversation?.id === c.id ? "bg-brand-yellow/5 text-brand-yellow" : "text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-900"}`}
-                    >
-                      {c.title}
-                    </button>
+                    <div key={c.id} className="group flex items-center">
+                      <button
+                        onClick={() => selectConversation(c)}
+                        className={`flex-1 text-left px-3 py-1.5 text-xs truncate ${selectedConversation?.id === c.id ? "bg-brand-yellow/5 text-brand-yellow" : "text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-900"}`}
+                      >
+                        {c.title}
+                      </button>
+                      <button
+                        onClick={() => deleteConversation(c.id)}
+                        className="opacity-0 group-hover:opacity-100 px-2 text-red-400 hover:text-red-600"
+                      >
+                        ×
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}
@@ -204,38 +317,108 @@ export default function ChatPage() {
       </aside>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col relative">
+        {/* Header */}
         <div className="p-4 border-b border-[var(--border-subtle)] flex items-center gap-3 bg-[var(--bg-surface)]">
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-neutral-400 hover:text-neutral-600">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
           </button>
-          <h1 className="font-semibold text-neutral-800 dark:text-neutral-100">
+          <h1 className="font-semibold text-neutral-800 dark:text-neutral-100 flex-1 truncate">
             {selectedConversation?.title || "AI Chat"}
           </h1>
-          {selectedProject && (
-            <span className="text-xs text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">
-              {selectedProject.default_model}
-            </span>
-          )}
+
+          {/* Model Selector */}
+          <div className="relative">
+            <button
+              onClick={() => setShowModelSelector(!showModelSelector)}
+              className="flex items-center gap-2 text-xs bg-neutral-100 dark:bg-neutral-800 px-3 py-1.5 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M12 1v6m0 6v10M4.22 4.22l4.24 4.24m7.07 7.07l4.24 4.24M1 12h6m6 0h10M4.22 19.78l4.24-4.24m7.07-7.07l4.24-4.24" /></svg>
+              {models.find((m) => m.id === selectedModel)?.name || selectedModel}
+            </button>
+            {showModelSelector && (
+              <div className="absolute right-0 top-full mt-1 bg-white dark:bg-neutral-900 border border-[var(--border-subtle)] rounded-lg shadow-lg z-50 min-w-[200px]">
+                {models.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => {
+                      setSelectedModel(m.id);
+                      setShowModelSelector(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 text-xs ${selectedModel === m.id ? "bg-brand-yellow/10 text-brand-yellow" : "hover:bg-neutral-50 dark:hover:bg-neutral-800"}`}
+                  >
+                    <div className="font-medium">{m.name}</div>
+                    <div className="text-neutral-400 text-[10px]">{m.description}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Memory Button */}
+          <button
+            onClick={() => setShowMemoryPanel(!showMemoryPanel)}
+            className={`p-2 rounded-lg ${showMemoryPanel ? "bg-brand-yellow/10 text-brand-yellow" : "text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
+            title="Memory Bank"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z" /><path d="M12 6v6l4 2" /></svg>
+          </button>
         </div>
+
+        {/* Memory Panel */}
+        {showMemoryPanel && selectedProject && (
+          <div className="absolute right-0 top-[60px] w-80 bg-white dark:bg-neutral-900 border border-[var(--border-subtle)] rounded-lg shadow-lg z-40 m-4">
+            <div className="p-3 border-b border-[var(--border-subtle)]">
+              <h3 className="font-medium text-sm">Memory Bank</h3>
+              <p className="text-[10px] text-neutral-400">Info yang selalu diingat AI dalam project ini</p>
+            </div>
+            <div className="max-h-60 overflow-y-auto p-2 space-y-2">
+              {memories.length === 0 && (
+                <p className="text-xs text-neutral-400 text-center py-4">Belum ada memory</p>
+              )}
+              {memories.map((m) => (
+                <div key={m.id} className="group flex items-start gap-2 bg-neutral-50 dark:bg-neutral-800 p-2 rounded text-xs">
+                  <span className="flex-1">{m.content}</span>
+                  <button onClick={() => deleteMemory(m.id)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600">×</button>
+                </div>
+              ))}
+            </div>
+            <div className="p-3 border-t border-[var(--border-subtle)] flex gap-2">
+              <input
+                type="text"
+                value={newMemory}
+                onChange={(e) => setNewMemory(e.target.value)}
+                placeholder="Tambah memory..."
+                className="flex-1 text-xs border border-[var(--border-subtle)] rounded px-2 py-1"
+                onKeyDown={(e) => e.key === "Enter" && addMemory()}
+              />
+              <button onClick={addMemory} className="text-xs bg-brand-yellow text-neutral-900 px-2 py-1 rounded font-medium">Add</button>
+            </div>
+          </div>
+        )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 && !loading && (
             <div className="text-center text-neutral-400 text-sm mt-20">
-              Mulai percakapan baru dengan AI Assistant
+              <div className="text-4xl mb-4">💬</div>
+              <p>Mulai percakapan baru dengan AI Assistant</p>
+              <p className="text-xs mt-2 text-neutral-500">Model: {models.find((m) => m.id === selectedModel)?.name}</p>
             </div>
           )}
           {messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
-                className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap ${
+                className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
                   msg.role === "user"
                     ? "bg-brand-yellow text-neutral-900"
                     : "bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200"
                 }`}
               >
-                {msg.content}
+                <div className="whitespace-pre-wrap">{msg.role === "assistant" ? renderMarkdown(msg.content) : msg.content}</div>
+                {msg.model_used && (
+                  <div className="text-[10px] text-neutral-400 mt-1">{msg.model_used} • {msg.tokens_used} tokens</div>
+                )}
               </div>
             </div>
           ))}
@@ -257,7 +440,7 @@ export default function ChatPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-              placeholder="Ketik pesan..."
+              placeholder={selectedConversation ? "Ketik pesan..." : "Pilih atau buat conversation dulu"}
               disabled={!selectedConversation || loading}
               className="flex-1 rounded-xl border border-[var(--border-subtle)] bg-white dark:bg-neutral-900 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-yellow/30 disabled:opacity-50"
             />
