@@ -306,6 +306,20 @@ export default function ChatPage() {
     }
   };
 
+  const exportChat = () => {
+    if (!selectedConversation || messages.length === 0) return;
+    const content = messages.map((m) => `[${m.role.toUpperCase()}]\n${m.content}`).join("\n\n---\n\n");
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${selectedConversation.title.replace(/[^a-z0-9]/gi, "_")}_${new Date().toISOString().split("T")[0]}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const totalTokens = messages.reduce((sum, m) => sum + (m.tokens_used || 0), 0);
+
   return (
     <div className="flex h-[calc(100vh-64px)] bg-[var(--bg-main)]">
       {/* Sidebar - Projects & Conversations */}
@@ -408,6 +422,16 @@ export default function ChatPage() {
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
           </button>
+
+          {/* Export Button */}
+          <button
+            onClick={exportChat}
+            disabled={messages.length === 0}
+            className="p-2 rounded-lg text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50"
+            title="Export Chat"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+          </button>
         </div>
 
         {/* Context Indicator */}
@@ -416,6 +440,7 @@ export default function ChatPage() {
             <span>Context: {Math.min(messages.length, selectedProject.context_window_size)} messages</span>
             {memories.length > 0 && <span>Memories: {memories.length}</span>}
             {selectedProject.system_prompt && <span className="text-brand-yellow">System prompt aktif</span>}
+            {totalTokens > 0 && <span className="ml-auto">Tokens: {totalTokens.toLocaleString()}</span>}
           </div>
         )}
 
