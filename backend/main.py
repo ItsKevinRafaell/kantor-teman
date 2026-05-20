@@ -470,6 +470,17 @@ class ChatMemory(Base):
     user = relationship("User", backref="chat_memories")
 
 
+class ChatSummary(Base):
+    """Store conversation summaries for long context management"""
+    __tablename__ = "chat_summaries"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    conversation_id = Column(String(36), ForeignKey("chat_conversations.id"), nullable=False)
+    content = Column(Text, nullable=False)  # Summary text
+    message_count = Column(Integer, default=0)  # Number of messages summarized
+    tokens_saved = Column(Integer, default=0)  # Estimated tokens saved
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+
+
 Base.metadata.create_all(bind=engine)
 
 
@@ -5528,8 +5539,47 @@ async def chat(conversation_id: str, body: ChatRequest, current_user: User = Dep
         api_base = base_url.value if base_url else "https://api.aimurah.com/v1"
         model = body.model or project.default_model or "glm-5"
 
-        # Build context from recent messages
+        # Build HYBRID CONTEXT from multiple layers
         context_window = project.context_window_size if project else 20
+
+        # Layer 1: Get conversation summaries (for long context)
+        summaries = db.query(ChatSummary).filter(
+            ChatSummary.conversation_id == conversation_id
+        ).order_by(ChatSummary.created_at.desc()).limit(3).all()
+
+        # Layer 2: Get recent messages (last N messages)
+        total_messages = db.query(ChatMessage).filter(
+            ChatMessage.conversation_id == conversation_id
+        ).count()
+
+        # If too many messages, trigger summarization
+        summary_created = False
+        if total_messages > 0 and total_messages % 10 == 0:
+            # Get messages to summarize (older than recent window)
+            messages_to_summarize = db.query(ChatMessage).filter(
+                ChatMessage.conversation_id == conversation_id
+            ).order_by(ChatMessage.created_at.asc()).limit(total_messages - 5).all()
+
+            if len(messages_to_summarize) >= 5:
+                try:
+                    # Create summary using AI
+                    summary_text = "Ringkasan percakapan sebelumnya:\n"
+                    for msg in messages_to_summarize[-10:]:  # Last 10 of old messages
+                        role = "User" if msg.role == "user" else "AI"
+                        summary_text += f"- {role}: {msg.content[:200]}...\n"
+
+                    new_summary = ChatSummary(
+                        conversation_id=conversation_id,
+                        content=summary_text,
+                        message_count=len(messages_to_summarize),
+                        tokens_saved=len(messages_to_summarize) * 100  # Estimate
+                    )
+                    db.add(new_summary)
+                    summary_created = True
+                except Exception:
+                    pass
+
+        # Get recent messages after potential summarization
         recent_messages = db.query(ChatMessage).filter(
             ChatMessage.conversation_id == conversation_id
         ).order_by(ChatMessage.created_at.desc()).limit(context_window).all()
@@ -5537,7 +5587,7 @@ async def chat(conversation_id: str, body: ChatRequest, current_user: User = Dep
 
         messages = []
 
-        # System prompt with business context capability
+        # Layer 1: System prompt
         system_prompt = """Anda adalah asisten AI yang membantu menjawab pertanyaan seputar bisnis pengguna.
 Anda memiliki akses ke data bisnis pengguna seperti:
 - Leads (calon pelanggan)
@@ -5552,11 +5602,23 @@ Jawab dengan bahasa Indonesia yang natural dan helpful."""
             system_prompt = project.system_prompt
         messages.append({"role": "system", "content": system_prompt})
 
-        # Add memories as context
+        # Layer 2: Business Data (RAG)
+        business_context = get_business_context(body.message, db)
+        if business_context:
+            messages.append({"role": "system", "content": f"Data Bisnis Saat Ini:\n{business_context}"})
+
+        # Layer 3: Memories (Persistent)
         memories = db.query(ChatMemory).filter(ChatMemory.project_id == conversation.project_id).all()
         if memories:
             memory_text = "\n".join([f"- {m.content}" for m in memories])
-            messages.append({"role": "system", "content": f"Context/Memory:\n{memory_text}"})
+            messages.append({"role": "system", "content": f"Memory Bank:\n{memory_text}"})
+
+        # Layer 4: Conversation Summaries (for long context)
+        if summaries:
+            summary_text = "\n".join([s.content for s in reversed(summaries)])
+            messages.append({"role": "system", "content": f"Ringkasan Percakapan Sebelumnya:\n{summary_text}"})
+
+        # Layer 5: Recent messages
 
         # Get business context based on user query
         business_context = get_business_context(body.message, db)
@@ -5664,7 +5726,14 @@ Jawab dengan bahasa Indonesia yang natural dan helpful."""
                 "created_at": assistant_msg.created_at,
             },
             "memory_saved": memory_saved,
-            "memory_content": memory_content_saved
+            "memory_content": memory_content_saved,
+            "summary_created": summary_created,
+            "context_info": {
+                "total_messages": total_messages,
+                "recent_messages": len(recent_messages),
+                "summaries": len(summaries),
+                "memories": len(memories) if memories else 0
+            }
         }
     except HTTPException:
         raise

@@ -357,7 +357,19 @@ export default function ChatPage() {
     setLoading(true);
 
     try {
-      const res = await apiFetch<{ user_message: ChatMessage; message: ChatMessage; memory_saved?: boolean; memory_content?: string }>(`/api/chat/conversations/${selectedConversation.id}/chat`, {
+      const res = await apiFetch<{
+        user_message: ChatMessage;
+        message: ChatMessage;
+        memory_saved?: boolean;
+        memory_content?: string;
+        summary_created?: boolean;
+        context_info?: {
+          total_messages: number;
+          recent_messages: number;
+          summaries: number;
+          memories: number;
+        };
+      }>(`/api/chat/conversations/${selectedConversation.id}/chat`, {
         method: "POST",
         body: JSON.stringify({ message: userMessage, model: selectedModel }),
       });
@@ -375,6 +387,11 @@ export default function ChatPage() {
             loadMemories(selectedProject.id);
           }
         }, 1000);
+      }
+
+      // Show summary created indicator
+      if (res.summary_created) {
+        showToast("📝 Ringkasan percakapan dibuat untuk konteks panjang");
       }
     } catch (e: any) {
       // Remove temp message on error
