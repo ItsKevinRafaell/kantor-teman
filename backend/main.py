@@ -44,6 +44,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
+        "http://localhost:3001",
         "http://kantorteman.my.id",
         "https://kantorteman.my.id",
         "https://www.kantorteman.my.id",
@@ -5288,6 +5289,19 @@ def delete_chat_project(project_id: str, current_user: User = Depends(get_curren
     project = db.query(ChatProject).filter(ChatProject.id == project_id, ChatProject.user_id == current_user.id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+
+    # Delete all messages in all conversations
+    conversations = db.query(ChatConversation).filter(ChatConversation.project_id == project_id).all()
+    for conv in conversations:
+        db.query(ChatMessage).filter(ChatMessage.conversation_id == conv.id).delete()
+
+    # Delete all conversations
+    db.query(ChatConversation).filter(ChatConversation.project_id == project_id).delete()
+
+    # Delete all memories
+    db.query(ChatMemory).filter(ChatMemory.project_id == project_id).delete()
+
+    # Delete project
     db.delete(project)
     db.commit()
     return {"success": True, "message": "Project dihapus"}
@@ -5345,104 +5359,319 @@ def list_messages(conversation_id: str, current_user: User = Depends(get_current
     return messages
 
 
+# RAG Tools - Functions for AI to query business data
+def get_business_context(query: str, db: Session) -> str:
+    """
+    Fleksibel RAG - Automatically query all database tables based on keywords.
+    No hardcoding needed - will adapt to any table structure.
+    """
+    from sqlalchemy import inspect, text as sql_text
+
+    context_parts = []
+    query_lower = query.lower()
+
+    # Get all model classes from Base
+    model_map = {
+        "leads": Lead,
+        "contacts": Contact,
+        "products": Product,
+        "categories": Category,
+        "proposals": Proposal,
+        "wallets": Wallet,
+        "transactions": Transaction,
+        "subscriptions": Subscription,
+        "ads_campaigns": AdsCampaign,
+        "blast_campaigns": BlastCampaign,
+        "projects": Project,
+        "client_notes": ClientNote,
+        "follow_up_sequences": FollowUpSequence,
+        "content_schedules": ContentSchedule,
+        "scrape_histories": ScrapeHistory,
+        "lead_activity_logs": LeadActivityLog,
+        "reengagement_alerts": ReengagementAlert,
+        "message_templates": MessageTemplate,
+        "dynamic_templates": DynamicTemplate,
+        "service_items": ServiceItem,
+        "provider_configs": ProviderConfig,
+    }
+
+    # Keywords mapping to tables
+    keyword_table_map = {
+        # Leads & Customers
+        "lead": ["leads"], "leads": ["leads"], "prospek": ["leads"], "calon": ["leads"],
+        # Finance
+        "uang": ["transactions", "wallets"], "duit": ["transactions", "wallets"],
+        "keuangan": ["transactions", "wallets"], "finance": ["transactions", "wallets"],
+        "pendapatan": ["transactions"], "revenue": ["transactions"], "omzet": ["transactions"],
+        "pengeluaran": ["transactions"], "expense": ["transactions"],
+        "saldo": ["wallets"], "wallet": ["wallets"], "dompet": ["wallets"],
+        # Contacts & Clients
+        "kontak": ["contacts"], "contact": ["contacts"], "klien": ["contacts", "projects", "client_notes"],
+        "client": ["contacts", "projects", "client_notes"], "nasabah": ["contacts"],
+        # Products & Services
+        "produk": ["products", "categories"], "product": ["products", "categories"],
+        "layanan": ["products", "categories"], "service": ["products", "categories"],
+        "kategori": ["categories"], "category": ["categories"],
+        # Proposals
+        "proposal": ["proposals"], "penawaran": ["proposals"], "quote": ["proposals"],
+        # Marketing & Ads
+        "ads": ["ads_campaigns"], "iklan": ["ads_campaigns"], "campaign": ["ads_campaigns"],
+        "advertising": ["ads_campaigns"], "promosi": ["ads_campaigns", "blast_campaigns"],
+        "blast": ["blast_campaigns"], "whatsapp blast": ["blast_campaigns"],
+        # Subscriptions
+        "langganan": ["subscriptions"], "subscription": ["subscriptions"],
+        "retainer": ["subscriptions"],
+        # Projects
+        "project": ["projects"], "proyek": ["projects"],
+        # Schedules & Follow-ups
+        "jadwal": ["content_schedules", "follow_up_sequences"],
+        "schedule": ["content_schedules"], "follow up": ["follow_up_sequences"],
+        "konten": ["content_schedules"], "content": ["content_schedules"],
+        # Scraping
+        "scrape": ["scrape_histories"], "scraping": ["scrape_histories"],
+        # Alerts
+        "alert": ["reengagement_alerts"], "reengagement": ["reengagement_alerts"],
+        # Templates
+        "template": ["message_templates", "dynamic_templates"],
+        # General business
+        "bisnis": ["leads", "transactions", "ads_campaigns", "subscriptions"],
+        "usaha": ["leads", "transactions", "ads_campaigns", "subscriptions"],
+        "overview": ["leads", "transactions", "ads_campaigns", "subscriptions", "contacts"],
+    }
+
+    # Find which tables to query based on keywords
+    tables_to_query = set()
+    for keyword, tables in keyword_table_map.items():
+        if keyword in query_lower:
+            tables_to_query.update(tables)
+
+    # If no specific keywords found, give business overview
+    if not tables_to_query:
+        tables_to_query = {"leads", "transactions", "contacts", "ads_campaigns"}
+
+    # Query each relevant table
+    for table_name in tables_to_query:
+        if table_name not in model_map:
+            continue
+
+        model = model_map[table_name]
+
+        try:
+            # Get table data
+            records = db.query(model).limit(50).all()
+
+            if not records:
+                continue
+
+            # Get column names
+            inspector = inspect(model)
+            columns = [c.key for c in inspector.mapper.column_attrs]
+
+            # Build context for this table
+            table_context = f"\n[DATA {table_name.upper()}]\n"
+            table_context += f"Total: {db.query(model).count()} records\n\n"
+
+            # Format records
+            for i, record in enumerate(records[:10]):  # Limit to 10 records
+                record_data = []
+                for col in columns:
+                    val = getattr(record, col, None)
+                    if val is not None and col not in ["id", "created_at", "updated_at", "deleted_at"]:
+                        # Format value
+                        if isinstance(val, float):
+                            val = f"Rp {val:,.0f}" if "price" in col or "amount" in col or "budget" in col or "balance" in col else f"{val:,.2f}"
+                        elif isinstance(val, str) and len(val) > 100:
+                            val = val[:100] + "..."
+                        record_data.append(f"{col}: {val}")
+
+                if record_data:
+                    table_context += f"  - {', '.join(record_data[:5])}\n"
+
+            context_parts.append(table_context)
+
+        except Exception as e:
+            # Skip tables that can't be queried
+            continue
+
+    # Add summary statistics for key tables
+    if "transactions" in tables_to_query:
+        total_income = db.query(func.sum(Transaction.amount)).filter(Transaction.type == "income").scalar() or 0
+        total_expense = db.query(func.sum(Transaction.amount)).filter(Transaction.type == "expense").scalar() or 0
+        context_parts.append(f"\n[RINGKASAN KEUANGAN]\nPemasukan: Rp {total_income:,.0f}\nPengeluaran: Rp {total_expense:,.0f}\nSaldo: Rp {(total_income or 0) - (total_expense or 0):,.0f}")
+
+    if "ads_campaigns" in tables_to_query:
+        active = db.query(AdsCampaign).filter(AdsCampaign.status == "ACTIVE").all()
+        if active:
+            total_budget = sum(c.budget or 0 for c in active)
+            context_parts.append(f"\n[RINGKASAN ADS]\nCampaign Aktif: {len(active)}\nTotal Budget: Rp {total_budget:,.0f}")
+
+    return "\n".join(context_parts) if context_parts else "Tidak ada data relevan ditemukan."
+
+
 @app.post("/api/chat/conversations/{conversation_id}/chat")
 async def chat(conversation_id: str, body: ChatRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    conversation = db.query(ChatConversation).filter(ChatConversation.id == conversation_id, ChatConversation.user_id == current_user.id).first()
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation tidak ditemukan")
+    try:
+        conversation = db.query(ChatConversation).filter(ChatConversation.id == conversation_id, ChatConversation.user_id == current_user.id).first()
+        if not conversation:
+            raise HTTPException(status_code=404, detail="Conversation tidak ditemukan")
 
-    project = db.query(ChatProject).filter(ChatProject.id == conversation.project_id).first()
+        project = db.query(ChatProject).filter(ChatProject.id == conversation.project_id).first()
 
-    # Get API config
-    openai_key = db.query(SystemSettings).filter_by(key="openai_api_key").first()
-    base_url = db.query(SystemSettings).filter_by(key="ai_base_url").first()
+        # Get API config
+        openai_key = db.query(SystemSettings).filter_by(key="openai_api_key").first()
+        base_url = db.query(SystemSettings).filter_by(key="ai_base_url").first()
 
-    if not openai_key or not openai_key.value:
-        raise HTTPException(status_code=400, detail="API Key belum dikonfigurasi")
+        if not openai_key or not openai_key.value:
+            raise HTTPException(status_code=400, detail="API Key belum dikonfigurasi")
 
-    api_key = openai_key.value
-    api_base = base_url.value if base_url else "https://api.aimurah.com/v1"
-    model = body.model or project.default_model or "glm-5"
+        api_key = openai_key.value
+        api_base = base_url.value if base_url else "https://api.aimurah.com/v1"
+        model = body.model or project.default_model or "glm-5"
 
-    # Build context from recent messages
-    context_window = project.context_window_size if project else 20
-    recent_messages = db.query(ChatMessage).filter(
-        ChatMessage.conversation_id == conversation_id
-    ).order_by(ChatMessage.created_at.desc()).limit(context_window).all()
-    recent_messages.reverse()
+        # Build context from recent messages
+        context_window = project.context_window_size if project else 20
+        recent_messages = db.query(ChatMessage).filter(
+            ChatMessage.conversation_id == conversation_id
+        ).order_by(ChatMessage.created_at.desc()).limit(context_window).all()
+        recent_messages.reverse()
 
-    messages = []
-    if project and project.system_prompt:
-        messages.append({"role": "system", "content": project.system_prompt})
+        messages = []
 
-    # Add memories as context
-    memories = db.query(ChatMemory).filter(ChatMemory.project_id == conversation.project_id).all()
-    if memories:
-        memory_text = "\n".join([f"- {m.content}" for m in memories])
-        messages.append({"role": "system", "content": f"Context/Memory:\n{memory_text}"})
+        # System prompt with business context capability
+        system_prompt = """Anda adalah asisten AI yang membantu menjawab pertanyaan seputar bisnis pengguna.
+Anda memiliki akses ke data bisnis pengguna seperti:
+- Leads (calon pelanggan)
+- Keuangan (pendapatan, pengeluaran)
+- Klien
+- Proposal
+- Produk/Layanan
 
-    for msg in recent_messages:
-        messages.append({"role": msg.role, "content": msg.content})
+Ketika pengguna bertanya tentang data bisnis, gunakan informasi yang diberikan dalam konteks.
+Jawab dengan bahasa Indonesia yang natural dan helpful."""
+        if project and project.system_prompt:
+            system_prompt = project.system_prompt
+        messages.append({"role": "system", "content": system_prompt})
 
-    # Add user message
-    messages.append({"role": "user", "content": body.message})
+        # Add memories as context
+        memories = db.query(ChatMemory).filter(ChatMemory.project_id == conversation.project_id).all()
+        if memories:
+            memory_text = "\n".join([f"- {m.content}" for m in memories])
+            messages.append({"role": "system", "content": f"Context/Memory:\n{memory_text}"})
 
-    # Save user message
-    user_msg = ChatMessage(
-        conversation_id=conversation_id,
-        role="user",
-        content=body.message,
-    )
-    db.add(user_msg)
+        # Get business context based on user query
+        business_context = get_business_context(body.message, db)
+        if business_context:
+            messages.append({"role": "system", "content": f"Data Bisnis Saat Ini:\n{business_context}"})
 
-    # Call AI API
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(
-            f"{api_base.rstrip('/')}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": model,
-                "messages": messages,
-                "max_tokens": 2048,
-            },
+        for msg in recent_messages:
+            messages.append({"role": msg.role, "content": msg.content})
+
+        # Add user message
+        messages.append({"role": "user", "content": body.message})
+
+        # Save user message
+        user_msg = ChatMessage(
+            conversation_id=conversation_id,
+            role="user",
+            content=body.message,
         )
-        if resp.status_code != 200:
-            raise HTTPException(status_code=502, detail=f"AI API error: {resp.status_code} - {resp.text[:200]}")
+        db.add(user_msg)
 
-        result = resp.json()
-        assistant_content = result["choices"][0]["message"]["content"]
-        tokens_used = result.get("usage", {}).get("total_tokens", 0)
+        # Call AI API
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(
+                f"{api_base.rstrip('/')}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "messages": messages,
+                    "max_tokens": 2048,
+                    "stream": False,
+                },
+            )
+            if resp.status_code != 200:
+                raise HTTPException(status_code=502, detail=f"AI API error: {resp.status_code} - {resp.text[:200]}")
 
-    # Save assistant message
-    assistant_msg = ChatMessage(
-        conversation_id=conversation_id,
-        role="assistant",
-        content=assistant_content,
-        tokens_used=tokens_used,
-        model_used=model,
-    )
-    db.add(assistant_msg)
+            result = resp.json()
+            assistant_content = result["choices"][0]["message"]["content"]
+            tokens_used = result.get("usage", {}).get("total_tokens", 0)
 
-    # Update conversation timestamp
-    conversation.updated_at = datetime.now(timezone.utc).isoformat()
-    if project:
-        project.updated_at = datetime.now(timezone.utc).isoformat()
+        # Save assistant message
+        assistant_msg = ChatMessage(
+            conversation_id=conversation_id,
+            role="assistant",
+            content=assistant_content,
+            tokens_used=tokens_used,
+            model_used=model,
+        )
+        db.add(assistant_msg)
 
-    db.commit()
+        # Auto-memory: Extract important info from conversation
+        # Check if there's important info to remember (every 5 messages)
+        memory_saved = False
+        memory_content_saved = None
+        total_messages = db.query(ChatMessage).filter(ChatMessage.conversation_id == conversation_id).count()
+        if total_messages > 0 and total_messages % 5 == 0:
+            try:
+                memory_prompt = messages + [
+                    {"role": "system", "content": "Analyze the conversation and extract ONE important fact to remember about the user (preferences, name, context, etc). Reply with ONLY the fact, nothing else. If nothing important, reply with 'SKIP'."},
+                ]
+                async with httpx.AsyncClient(timeout=30) as mem_client:
+                    mem_resp = await mem_client.post(
+                        f"{api_base.rstrip('/')}/chat/completions",
+                        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                        json={"model": model, "messages": memory_prompt, "max_tokens": 200, "stream": False},
+                    )
+                    if mem_resp.status_code == 200:
+                        memory_content = mem_resp.json()["choices"][0]["message"]["content"].strip()
+                        if memory_content and memory_content.upper() != "SKIP" and len(memory_content) > 5:
+                            # Save to memory bank
+                            new_memory = ChatMemory(
+                                project_id=conversation.project_id,
+                                content=memory_content,
+                                pinned_by=current_user.id,
+                            )
+                            db.add(new_memory)
+                            memory_saved = True
+                            memory_content_saved = memory_content
+            except Exception:
+                pass  # Don't fail chat if memory extraction fails
 
-    return {
-        "message": {
-            "id": assistant_msg.id,
-            "role": "assistant",
-            "content": assistant_content,
-            "tokens_used": tokens_used,
-            "model_used": model,
-            "created_at": assistant_msg.created_at,
+        # Update conversation timestamp
+        conversation.updated_at = datetime.now(timezone.utc).isoformat()
+        if project:
+            project.updated_at = datetime.now(timezone.utc).isoformat()
+
+        db.commit()
+
+        return {
+            "user_message": {
+                "id": user_msg.id,
+                "role": "user",
+                "content": body.message,
+                "tokens_used": 0,
+                "created_at": user_msg.created_at,
+            },
+            "message": {
+                "id": assistant_msg.id,
+                "role": "assistant",
+                "content": assistant_content,
+                "tokens_used": tokens_used,
+                "model_used": model,
+                "created_at": assistant_msg.created_at,
+            },
+            "memory_saved": memory_saved,
+            "memory_content": memory_content_saved
         }
-    }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
 
 
 @app.get("/api/chat/projects/{project_id}/memories", response_model=List[ChatMemoryOut])
@@ -5516,3 +5745,15 @@ def start_scheduler():
 @app.on_event("shutdown")
 def stop_scheduler():
     scheduler.shutdown()
+
+@app.patch("/api/chat/conversations/{conversation_id}", response_model=ChatConversationOut)
+def update_conversation(conversation_id: str, body: ChatConversationUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    conversation = db.query(ChatConversation).filter(ChatConversation.id == conversation_id, ChatConversation.user_id == current_user.id).first()
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation tidak ditemukan")
+    if body.title:
+        conversation.title = body.title
+        conversation.updated_at = datetime.now(timezone.utc).isoformat()
+        db.commit()
+        db.refresh(conversation)
+    return conversation

@@ -46,8 +46,14 @@ const DEFAULT_MODELS = [
   { id: "claude-haiku-4-5-20251001", name: "Claude Haiku", description: "Model cepat Anthropic" },
 ];
 
+function getToken(): string {
+  if (typeof document === "undefined") return "";
+  const match = document.cookie.match(/(?:^|;\s*)kt_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = localStorage.getItem("token");
+  const token = getToken();
   if (!token) throw new Error("No token");
 
   const res = await fetch(`${API_BASE}${path}`, {
@@ -60,6 +66,13 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Request failed" }));
+    // Check for authentication errors
+    if (res.status === 401 || err.detail?.includes("Token") || err.detail?.includes("token")) {
+      // Clear invalid cookie and redirect to login
+      document.cookie = "kt_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+      window.location.href = "/login";
+      throw new Error("Session expired");
+    }
     throw new Error(err.detail || `HTTP ${res.status}`);
   }
   return res.json();
@@ -119,16 +132,25 @@ export default function ChatPage() {
   const [selectedModel, setSelectedModel] = useState<string>("glm-5");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [savingMemory, setSavingMemory] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [showMemoryPanel, setShowMemoryPanel] = useState(false);
   const [showProjectSettings, setShowProjectSettings] = useState(false);
+  const [showApiSettings, setShowApiSettings] = useState(false);
   const [newMemory, setNewMemory] = useState("");
+
+  // API Settings states
+  const [apiKey, setApiKey] = useState("");
+  const [apiBaseUrl, setApiBaseUrl] = useState("");
+  const [savingApiSettings, setSavingApiSettings] = useState(false);
 
   // Modal states
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showDeleteProjectModal, setShowDeleteProjectModal] = useState(false);
   const [showDeleteConversationModal, setShowDeleteConversationModal] = useState<string | null>(null);
+  const [showRenameConversationModal, setShowRenameConversationModal] = useState<string | null>(null);
+  const [renameConversationTitle, setRenameConversationTitle] = useState("");
   const [newProjectName, setNewProjectName] = useState("");
   const [toast, setToast] = useState<string | null>(null);
 
@@ -140,13 +162,14 @@ export default function ChatPage() {
   };
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = getToken();
     if (!token) {
       router.push("/login");
       return;
     }
     loadProjects();
     loadModels();
+    loadApiSettings();
   }, [router]);
 
   useEffect(() => {
@@ -176,6 +199,32 @@ export default function ChatPage() {
       }
     } catch (e) {
       console.error("Failed to load models, using defaults");
+    }
+  };
+
+  const loadApiSettings = async () => {
+    try {
+      const data = await apiFetch<{ openai_api_key: string; ai_base_url: string }>("/api/settings");
+      setApiKey(data.openai_api_key || "");
+      setApiBaseUrl(data.ai_base_url || "https://api.aimurah.com/v1");
+    } catch (e) {
+      console.error("Failed to load API settings:", e);
+    }
+  };
+
+  const saveApiSettings = async () => {
+    setSavingApiSettings(true);
+    try {
+      await apiFetch("/api/settings", {
+        method: "PUT",
+        body: JSON.stringify({ openai_api_key: apiKey, ai_base_url: apiBaseUrl }),
+      });
+      showToast("API settings berhasil disimpan");
+      setShowApiSettings(false);
+    } catch (e: any) {
+      showToast("Gagal menyimpan API settings: " + e.message);
+    } finally {
+      setSavingApiSettings(false);
     }
   };
 
@@ -240,7 +289,7 @@ export default function ChatPage() {
     try {
       const conv = await apiFetch<ChatConversation>(`/api/chat/projects/${selectedProject.id}/conversations`, {
         method: "POST",
-        body: JSON.stringify({ title: "New Chat" }),
+        body: JSON.stringify({ project_id: selectedProject.id, title: "New Chat" }),
       });
       setConversations([conv, ...conversations]);
       selectConversation(conv);
@@ -269,24 +318,68 @@ export default function ChatPage() {
     }
   };
 
+  const renameConversation = async (convId: string, newTitle: string) => {
+    if (!newTitle.trim()) {
+      showToast("Nama tidak boleh kosong");
+      return;
+    }
+    try {
+      const updated = await apiFetch<ChatConversation>(`/api/chat/conversations/${convId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title: newTitle.trim() }),
+      });
+      setConversations(conversations.map((c) => (c.id === updated.id ? updated : c)));
+      if (selectedConversation?.id === convId) {
+        setSelectedConversation(updated);
+      }
+      setShowRenameConversationModal(null);
+      showToast("Nama conversation diubah");
+    } catch (e: any) {
+      showToast("Gagal mengubah nama: " + e.message);
+    }
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || !selectedConversation || loading) return;
     const userMessage = input.trim();
     setInput("");
-    setMessages((prev) => [
-      ...prev,
-      { id: "temp", conversation_id: selectedConversation.id, role: "user", content: userMessage, tokens_used: 0, created_at: new Date().toISOString() },
-    ]);
+
+    // Show user message immediately
+    const tempUserMsg: ChatMessage = {
+      id: "temp-user",
+      conversation_id: selectedConversation.id,
+      role: "user",
+      content: userMessage,
+      tokens_used: 0,
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, tempUserMsg]);
     setLoading(true);
+
     try {
-      const res = await apiFetch<{ message: ChatMessage }>(`/api/chat/conversations/${selectedConversation.id}/chat`, {
+      const res = await apiFetch<{ user_message: ChatMessage; message: ChatMessage; memory_saved?: boolean; memory_content?: string }>(`/api/chat/conversations/${selectedConversation.id}/chat`, {
         method: "POST",
         body: JSON.stringify({ message: userMessage, model: selectedModel }),
       });
-      setMessages((prev) => [...prev.filter((m) => m.id !== "temp"), res.message]);
+      // Replace temp message with actual messages from server
+      setMessages((prev) => [...prev.filter((m) => m.id !== "temp-user"), res.user_message, res.message]);
+
+      // Show memory saved indicator
+      if (res.memory_saved && res.memory_content) {
+        setSavingMemory(true);
+        setTimeout(() => {
+          setSavingMemory(false);
+          showToast("💾 Memory disimpan: " + res.memory_content?.substring(0, 50) + "...");
+          // Reload memories
+          if (selectedProject) {
+            loadMemories(selectedProject.id);
+          }
+        }, 1000);
+      }
     } catch (e: any) {
+      // Remove temp message on error
+      setMessages((prev) => prev.filter((m) => m.id !== "temp-user"));
       showToast("Gagal mengirim: " + e.message);
-      setMessages((prev) => prev.filter((m) => m.id !== "temp"));
     } finally {
       setLoading(false);
     }
@@ -412,8 +505,19 @@ export default function ChatPage() {
                         {c.title}
                       </button>
                       <button
+                        onClick={() => {
+                          setRenameConversationTitle(c.title);
+                          setShowRenameConversationModal(c.id);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 px-1 text-neutral-400 hover:text-neutral-600"
+                        title="Rename"
+                      >
+                        ✎
+                      </button>
+                      <button
                         onClick={() => setShowDeleteConversationModal(c.id)}
-                        className="opacity-0 group-hover:opacity-100 px-2 text-red-400 hover:text-red-600"
+                        className="opacity-0 group-hover:opacity-100 px-1 text-red-400 hover:text-red-600"
+                        title="Delete"
                       >
                         ×
                       </button>
@@ -484,6 +588,15 @@ export default function ChatPage() {
             title="Project Settings"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+          </button>
+
+          {/* API Settings Button */}
+          <button
+            onClick={() => setShowApiSettings(!showApiSettings)}
+            className={`p-2 rounded-lg ${showApiSettings ? "bg-brand-yellow/10 text-brand-yellow" : "text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
+            title="API Settings"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>
           </button>
 
           {/* Export Button */}
@@ -592,6 +705,53 @@ export default function ChatPage() {
           </>
         )}
 
+        {/* API Settings Panel */}
+        {showApiSettings && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setShowApiSettings(false)} />
+            <div className="absolute right-4 top-[60px] w-80 bg-white dark:bg-neutral-900 border border-[var(--border-subtle)] rounded-lg shadow-lg z-40">
+              <div className="p-3 border-b border-[var(--border-subtle)] flex items-center justify-between">
+                <h3 className="font-medium text-sm">API Settings</h3>
+                <button onClick={() => setShowApiSettings(false)} className="text-neutral-400 hover:text-neutral-600">×</button>
+              </div>
+              <div className="p-4 space-y-3">
+                <div>
+                  <label className="text-xs text-neutral-500 block mb-1">API Key</label>
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="sk-..."
+                    className="w-full text-sm border border-[var(--border-subtle)] rounded px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-neutral-500 block mb-1">API Base URL</label>
+                  <input
+                    type="text"
+                    value={apiBaseUrl}
+                    onChange={(e) => setApiBaseUrl(e.target.value)}
+                    placeholder="https://api.aimurah.com/v1"
+                    className="w-full text-sm border border-[var(--border-subtle)] rounded px-3 py-2"
+                  />
+                </div>
+                <div className="pt-2 flex justify-end gap-2">
+                  <button onClick={() => setShowApiSettings(false)} className="text-sm text-neutral-500 hover:text-neutral-700 px-3 py-1.5">
+                    Batal
+                  </button>
+                  <button
+                    onClick={saveApiSettings}
+                    disabled={savingApiSettings}
+                    className="text-sm bg-brand-yellow text-neutral-900 px-4 py-1.5 rounded font-medium disabled:opacity-50"
+                  >
+                    {savingApiSettings ? "Menyimpan..." : "Simpan"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {!selectedProject && (
@@ -636,6 +796,14 @@ export default function ChatPage() {
             <div className="flex justify-start">
               <div className="bg-neutral-100 dark:bg-neutral-800 rounded-2xl px-4 py-2.5 text-sm">
                 <span className="animate-pulse">Thinking...</span>
+              </div>
+            </div>
+          )}
+          {savingMemory && (
+            <div className="flex justify-center">
+              <div className="bg-brand-yellow/10 text-brand-yellow rounded-full px-4 py-1.5 text-xs flex items-center gap-2">
+                <span className="animate-spin">💾</span>
+                <span>Menyimpan memory...</span>
               </div>
             </div>
           )}
@@ -720,6 +888,35 @@ export default function ChatPage() {
             </button>
             <button onClick={() => showDeleteConversationModal && deleteConversation(showDeleteConversationModal)} className="text-sm bg-red-500 text-white px-4 py-1.5 rounded font-medium">
               Hapus
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Rename Conversation Modal */}
+      <Modal open={!!showRenameConversationModal} onClose={() => setShowRenameConversationModal(null)} title="Ubah Nama Chat">
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs text-neutral-500 block mb-1">Nama Chat</label>
+            <input
+              type="text"
+              value={renameConversationTitle}
+              onChange={(e) => setRenameConversationTitle(e.target.value)}
+              placeholder="Nama chat"
+              className="w-full text-sm border border-[var(--border-subtle)] rounded px-3 py-2"
+              autoFocus
+              onKeyDown={(e) => e.key === "Enter" && showRenameConversationModal && renameConversation(showRenameConversationModal, renameConversationTitle)}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setShowRenameConversationModal(null)} className="text-sm text-neutral-500 hover:text-neutral-700 px-3 py-1.5">
+              Batal
+            </button>
+            <button
+              onClick={() => showRenameConversationModal && renameConversation(showRenameConversationModal, renameConversationTitle)}
+              className="text-sm bg-brand-yellow text-neutral-900 px-4 py-1.5 rounded font-medium"
+            >
+              Simpan
             </button>
           </div>
         </div>
