@@ -35,3 +35,12 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
   if (token) headers["Authorization"] = `Bearer ${token}`;
   return fetch(`${API_BASE}${path}`, { ...options, headers });
 }
+
+export async function apiFetchJson<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await apiFetch(path, options);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Request failed" }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}

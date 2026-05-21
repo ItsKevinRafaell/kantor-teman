@@ -4188,19 +4188,22 @@ async def analyze_batch(
                     _db.close()
                     analyzed += 1
                     _analysis_jobs[job_id]["analyzed"] = analyzed
+                    print(f"[AI ANALYZE PROGRESS] {analyzed}/{len(to_analyze)} lead_id={lead.id}", flush=True)
                     _time.sleep(1)
                 except Exception as e:
                     import traceback
                     print(f"[AI ANALYZE ERROR] lead={lead.id} error={e}", flush=True)
                     traceback.print_exc()
                     _analysis_jobs[job_id]["error"] = str(e)
+                    _analysis_jobs[job_id]["failed"] = _analysis_jobs[job_id].get("failed", 0) + 1
                     try:
                         _db.close()
                     except Exception:
                         pass
                     continue
             _analysis_jobs[job_id]["status"] = "done"
-            print(f"[AI ANALYZE DONE] analyzed={analyzed}/{len(to_analyze)}", flush=True)
+            _analysis_jobs[job_id]["analyzed"] = analyzed
+            print(f"[AI ANALYZE DONE] analyzed={analyzed}/{len(to_analyze)} failed={_analysis_jobs[job_id].get('failed', 0)}", flush=True)
         except Exception as e:
             import traceback
             print(f"[AI ANALYZE FATAL] error={e}", flush=True)
@@ -5267,6 +5270,7 @@ class ChatMessageOut(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     model: Optional[str] = None
+    agent_mode: Optional[bool] = False  # Enable tool use
 
 
 class ChatMemoryCreate(BaseModel):
@@ -5280,6 +5284,438 @@ class ChatMemoryOut(BaseModel):
     pinned_by: int
     created_at: str
     model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# Agent Tools - Functions AI can execute
+# ---------------------------------------------------------------------------
+
+AGENT_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "create_lead",
+            "description": "Buat lead baru. WAJIB panggil untuk menambah klien/prospek baru.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "business_name": {"type": "string", "description": "Nama bisnis/klien"},
+                    "phone_number": {"type": "string", "description": "Nomor telepon/WhatsApp"},
+                    "address": {"type": "string", "description": "Alamat (opsional)"},
+                    "product_interest": {"type": "string", "description": "Produk yang diminati (opsional)"}
+                },
+                "required": ["business_name", "phone_number"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_leads",
+            "description": "Cari leads/klien. WAJIB panggil tool ini untuk query data.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "business_name": {"type": "string", "description": "Filter by business name (partial match)"},
+                    "status": {"type": "string", "description": "Filter by status", "enum": ["Scraped", "Contacted", "Replied", "Closed", "Closed/Client"]},
+                    "product_interest": {"type": "string", "description": "Filter by product interest"},
+                    "limit": {"type": "integer", "description": "Max results", "default": 10}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_lead_details",
+            "description": "Ambil detail lead termasuk proyeknya. WAJIB panggil untuk lihat detail klien.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "lead_id": {"type": "integer", "description": "ID lead"},
+                    "business_name": {"type": "string", "description": "Nama bisnis untuk konfirmasi"}
+                },
+                "required": ["lead_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_client_projects",
+            "description": "List proyek klien. WAJIB panggil untuk lihat proyek berjalan.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "lead_id": {"type": "integer", "description": "ID lead/klien"}
+                },
+                "required": ["lead_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_project",
+            "description": "Update proyek (harga, status). WAJIB panggil untuk update proyek klien.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project_id": {"type": "string", "description": "ID proyek"},
+                    "business_name": {"type": "string", "description": "Nama bisnis untuk konfirmasi"},
+                    "nominal": {"type": "number", "description": "Nominal baru (harga bulanan/total)"},
+                    "status": {"type": "string", "description": "Status: ACTIVE, COMPLETED, HOLD"}
+                },
+                "required": ["project_id", "business_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_lead_status",
+            "description": "Update status lead. WAJIB panggil untuk ubah status.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "lead_id": {"type": "integer", "description": "ID lead"},
+                    "business_name": {"type": "string", "description": "Nama bisnis untuk konfirmasi"},
+                    "status": {"type": "string", "description": "Status baru", "enum": ["Scraped", "Contacted", "Replied", "Closed", "Closed/Client"]}
+                },
+                "required": ["lead_id", "business_name", "status"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "send_whatsapp",
+            "description": "Kirim WA ke lead. PANGGIL SETELAH create_proposal untuk dapat proposal_link. WAJIB sertakan proposal_link di replacements jika pakai template dengan placeholder {{proposal_link}}.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "lead_id": {"type": "integer", "description": "ID lead"},
+                    "business_name": {"type": "string", "description": "Nama bisnis untuk konfirmasi"},
+                    "message": {"type": "string", "description": "Isi pesan (opsional jika pakai template_id)"},
+                    "template_id": {"type": "string", "description": "ID template WA_BLAST dari database"},
+                    "replacements": {"type": "object", "description": "WAJIB isi proposal_link dari hasil create_proposal. Contoh: {\"proposal_link\": \"https://...\"}"}
+                },
+                "required": ["lead_id", "business_name", "template_id", "replacements"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_wa_templates",
+            "description": "List semua template WA_BLAST yang aktif. WAJIB panggil sebelum send_whatsapp untuk lihat template tersedia.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_products",
+            "description": "List semua produk dengan info retainer/one-time. WAJIB panggil sebelum create_proposal.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_business_summary",
+            "description": "Ringkasan bisnis. WAJIB panggil untuk overview.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_proposal",
+            "description": "Buat proposal. WAJIB panggil untuk buat penawaran baru.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "lead_id": {"type": "integer", "description": "ID lead"},
+                    "business_name": {"type": "string", "description": "Nama bisnis untuk konfirmasi"},
+                    "services": {"type": "string", "description": "JSON array: [{\"name\": \"...\", \"price\": 0, \"is_retainer\": false, \"features\": []}]"}
+                },
+                "required": ["lead_id", "business_name", "services"]
+            }
+        }
+    }
+]
+
+
+def execute_tool_call(tool_name: str, tool_args: dict, db: Session, current_user: User) -> dict:
+    """Execute a tool call and return the result."""
+    try:
+        if tool_name == "create_lead":
+            # Check if lead with same phone already exists
+            existing = db.query(Lead).filter(Lead.phone_number == tool_args["phone_number"]).first()
+            if existing:
+                return {"success": False, "error": f"Lead dengan nomor {tool_args['phone_number']} sudah ada: {existing.business_name} (ID: {existing.id})"}
+            lead = Lead(
+                business_name=tool_args["business_name"],
+                phone_number=tool_args["phone_number"],
+                address=tool_args.get("address", ""),
+                product_interest=tool_args.get("product_interest"),
+                status="Scraped",
+                lead_score=50,
+            )
+            db.add(lead)
+            db.commit()
+            db.refresh(lead)
+            log_audit(db, current_user.name, "CREATE", "leads", lead.id, {"business_name": lead.business_name, "phone": lead.phone_number})
+            return {"success": True, "result": {"lead_id": lead.id, "business_name": lead.business_name, "phone_number": lead.phone_number, "status": lead.status}}
+
+        elif tool_name == "search_leads":
+            query = db.query(Lead).filter(Lead.is_archived == False)
+            if tool_args.get("business_name"):
+                query = query.filter(Lead.business_name.ilike(f"%{tool_args['business_name']}%"))
+            if tool_args.get("status"):
+                query = query.filter(Lead.status == tool_args["status"])
+            if tool_args.get("product_interest"):
+                query = query.filter(Lead.product_interest.ilike(f"%{tool_args['product_interest']}%"))
+            limit = tool_args.get("limit", 10)
+            leads = query.order_by(Lead.lead_score.desc()).limit(limit).all()
+            return {
+                "success": True,
+                "result": [{
+                    "id": l.id,
+                    "business_name": l.business_name,
+                    "phone_number": l.phone_number,
+                    "status": l.status,
+                    "product_interest": l.product_interest,
+                    "lead_score": l.lead_score,
+                } for l in leads],
+                "count": len(leads)
+            }
+
+        elif tool_name == "update_lead_status":
+            lead = db.query(Lead).filter(Lead.id == tool_args["lead_id"]).first()
+            if not lead:
+                return {"success": False, "error": f"Lead ID {tool_args.get('lead_id')} tidak ditemukan"}
+            # Validate business_name if provided
+            if tool_args.get("business_name") and tool_args["business_name"].lower() not in lead.business_name.lower():
+                return {"success": False, "error": f"Konfirmasi gagal: lead ID {lead.id} adalah '{lead.business_name}', bukan '{tool_args['business_name']}'"}
+            old_status = lead.status
+            lead.status = tool_args["status"]
+            db.commit()
+            log_audit(db, current_user.name, "UPDATE", "leads", lead.id, {"field": "status", "old": old_status, "new": tool_args["status"]})
+            return {"success": True, "result": {"lead_id": lead.id, "business_name": lead.business_name, "status": tool_args["status"]}}
+
+        elif tool_name == "send_whatsapp":
+            lead = db.query(Lead).filter(Lead.id == tool_args["lead_id"]).first()
+            if not lead:
+                return {"success": False, "error": f"Lead ID {tool_args.get('lead_id')} tidak ditemukan"}
+            # Validate business_name if provided
+            if tool_args.get("business_name") and tool_args["business_name"].lower() not in lead.business_name.lower():
+                return {"success": False, "error": f"Konfirmasi gagal: lead ID {lead.id} adalah '{lead.business_name}', bukan '{tool_args['business_name']}'"}
+            token = get_fonnte_token(db)
+            if not token:
+                return {"success": False, "error": "Fonnte token belum dikonfigurasi. Tambahkan token di Settings."}
+            # Get template from database if template_id provided, else use message
+            message_text = tool_args.get("message", "")
+            template_id = tool_args.get("template_id")
+            if template_id:
+                tmpl = db.query(DynamicTemplate).filter(DynamicTemplate.id == template_id, DynamicTemplate.type == "WA_BLAST", DynamicTemplate.is_active == True).first()
+                if tmpl:
+                    # Replace placeholders in template (support both {{var}} and {var} formats)
+                    message_text = tmpl.content
+                    message_text = message_text.replace("{{business_name}}", lead.business_name or "").replace("{business_name}", lead.business_name or "")
+                    message_text = message_text.replace("{{phone}}", lead.phone_number or "").replace("{phone}", lead.phone_number or "")
+                    # Also support custom replacements from args
+                    if tool_args.get("replacements"):
+                        for key, val in tool_args["replacements"].items():
+                            message_text = message_text.replace("{{" + key + "}}", str(val)).replace("{" + key + "}", str(val))
+                            message_text = message_text.replace(f"{{{key}}}", str(val))
+            import httpx as _httpx
+            success = _send_fonnte_sync(lead.phone_number, message_text, token, _httpx)
+            if success:
+                if lead.status == "Scraped":
+                    lead.status = "Contacted"
+                    db.commit()
+                log_audit(db, current_user.name, "SEND_WA", "leads", lead.id, {"type": "agent", "template_id": template_id})
+                return {"success": True, "result": {"lead_id": lead.id, "business_name": lead.business_name, "phone": lead.phone_number, "template_used": bool(template_id)}}
+            return {"success": False, "error": "Gagal kirim WA via Fonnte"}
+
+        elif tool_name == "get_lead_details":
+            lead = db.query(Lead).filter(Lead.id == tool_args["lead_id"]).first()
+            if not lead:
+                return {"success": False, "error": f"Lead ID {tool_args.get('lead_id')} tidak ditemukan"}
+            # Get projects for this lead
+            projects = db.query(Project).filter(Project.lead_id == lead.id).all()
+            return {
+                "success": True,
+                "result": {
+                    "id": lead.id,
+                    "business_name": lead.business_name,
+                    "phone_number": lead.phone_number,
+                    "address": lead.address,
+                    "status": lead.status,
+                    "product_interest": lead.product_interest,
+                    "lead_score": lead.lead_score,
+                    "google_rating": lead.google_rating,
+                    "review_count": lead.review_count,
+                    "website_url": lead.website_url,
+                    "projects": [{
+                        "id": p.id,
+                        "name": p.name,
+                        "type": p.type,
+                        "status": p.status,
+                        "nominal": p.nominal,
+                        "start_date": p.start_date,
+                        "end_date": p.end_date,
+                    } for p in projects]
+                }
+            }
+
+        elif tool_name == "get_client_projects":
+            projects = db.query(Project).filter(Project.lead_id == tool_args["lead_id"]).all()
+            if not projects:
+                return {"success": True, "result": [], "count": 0}
+            lead = db.query(Lead).filter(Lead.id == tool_args["lead_id"]).first()
+            return {
+                "success": True,
+                "result": [{
+                    "id": p.id,
+                    "lead_id": p.lead_id,
+                    "business_name": lead.business_name if lead else None,
+                    "name": p.name,
+                    "type": p.type,
+                    "status": p.status,
+                    "nominal": p.nominal,
+                    "start_date": p.start_date,
+                    "end_date": p.end_date,
+                } for p in projects],
+                "count": len(projects)
+            }
+
+        elif tool_name == "update_project":
+            project = db.query(Project).filter(Project.id == tool_args["project_id"]).first()
+            if not project:
+                return {"success": False, "error": f"Project ID {tool_args.get('project_id')} tidak ditemukan"}
+            lead = db.query(Lead).filter(Lead.id == project.lead_id).first()
+            # Validate business_name if provided
+            if tool_args.get("business_name") and lead:
+                if tool_args["business_name"].lower() not in lead.business_name.lower():
+                    return {"success": False, "error": f"Konfirmasi gagal: project ini milik '{lead.business_name}', bukan '{tool_args['business_name']}'"}
+            old_values = {"nominal": project.nominal, "status": project.status}
+            if tool_args.get("nominal"):
+                project.nominal = tool_args["nominal"]
+            if tool_args.get("status"):
+                project.status = tool_args["status"]
+            db.commit()
+            log_audit(db, current_user.name, "UPDATE", "projects", project.id, {"old": old_values, "new": {"nominal": project.nominal, "status": project.status}})
+            return {
+                "success": True,
+                "result": {
+                    "project_id": project.id,
+                    "business_name": lead.business_name if lead else None,
+                    "name": project.name,
+                    "nominal": project.nominal,
+                    "status": project.status,
+                }
+            }
+
+        elif tool_name == "get_products":
+            products = db.query(Product).filter(Product.is_active == True).all()
+            return {
+                "success": True,
+                "result": [{
+                    "id": p.id,
+                    "name": p.name,
+                    "base_price": p.base_price,
+                    "is_retainer": p.is_retainer,
+                    "category": p.category,
+                } for p in products]
+            }
+
+        elif tool_name == "get_wa_templates":
+            templates = db.query(DynamicTemplate).filter(
+                DynamicTemplate.type == "WA_BLAST",
+                DynamicTemplate.is_active == True
+            ).all()
+            return {
+                "success": True,
+                "result": [{
+                    "id": t.id,
+                    "name": t.name,
+                    "content": t.content[:500] + "..." if len(t.content) > 500 else t.content,
+                } for t in templates],
+                "count": len(templates)
+            }
+
+        elif tool_name == "get_business_summary":
+            total_leads = db.query(Lead).filter(Lead.is_archived == False).count()
+            by_status = db.query(Lead.status, func.count(Lead.id)).filter(Lead.is_archived == False).group_by(Lead.status).all()
+            total_revenue = db.query(func.sum(Transaction.amount)).filter(Transaction.type == "income").scalar() or 0
+            total_expense = db.query(func.sum(Transaction.amount)).filter(Transaction.type == "expense").scalar() or 0
+            active_projects = db.query(Project).filter(Project.status == "ACTIVE").count()
+            return {
+                "success": True,
+                "result": {
+                    "total_leads": total_leads,
+                    "by_status": dict(by_status),
+                    "revenue": total_revenue,
+                    "expense": total_expense,
+                    "profit": total_revenue - total_expense,
+                    "active_projects": active_projects,
+                }
+            }
+
+        elif tool_name == "create_proposal":
+            lead = db.query(Lead).filter(Lead.id == tool_args["lead_id"]).first()
+            if not lead:
+                return {"success": False, "error": f"Lead ID {tool_args.get('lead_id')} tidak ditemukan"}
+            # Validate business_name if provided
+            if tool_args.get("business_name") and tool_args["business_name"].lower() not in lead.business_name.lower():
+                return {"success": False, "error": f"Konfirmasi gagal: lead ID {lead.id} adalah '{lead.business_name}', bukan '{tool_args['business_name']}'"}
+            services = json.loads(tool_args["services"]) if isinstance(tool_args["services"], str) else tool_args["services"]
+            slug = generate_unique_slug(db, lead.business_name)
+            proposal = Proposal(
+                lead_id=lead.id,
+                services_detail=json.dumps(services),
+                total_price=sum(s.get("price", 0) for s in services),
+                base_price=sum(s.get("price", 0) for s in services),
+                status="Sent",
+                created_at=datetime.now(timezone.utc).isoformat(),
+                slug=slug,
+            )
+            db.add(proposal)
+            db.commit()
+            log_audit(db, current_user.name, "CREATE", "proposals", proposal.id, {"lead_id": lead.id})
+            return {
+                "success": True,
+                "result": {
+                    "proposal_id": proposal.id,
+                    "slug": slug,
+                    "url": f"https://api.kantorteman.my.id/r/{slug}",
+                    "lead_id": lead.id,
+                    "business_name": lead.business_name,
+                    "services": services,
+                }
+            }
+
+        else:
+            return {"success": False, "error": f"Unknown tool: {tool_name}"}
+
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 # ---------------------------------------------------------------------------
@@ -5630,24 +6066,48 @@ async def chat(conversation_id: str, body: ChatRequest, current_user: User = Dep
         messages = []
 
         # Layer 1: System prompt
-        system_prompt = """Anda adalah asisten AI yang membantu menjawab pertanyaan seputar bisnis pengguna.
-Anda memiliki akses ke data bisnis pengguna seperti:
-- Leads (calon pelanggan)
-- Keuangan (pendapatan, pengeluaran)
-- Klien
-- Proposal
-- Produk/Layanan
+        agent_system_prompt = """Asisten bisnis yang MENGEKSEKUSI aksi via tools. BUKAN asisten yang cuma ngomong.
 
-Ketika pengguna bertanya tentang data bisnis, gunakan informasi yang diberikan dalam konteks.
-Jawab dengan bahasa Indonesia yang natural dan helpful."""
-        if project and project.system_prompt:
-            system_prompt = project.system_prompt
-        messages.append({"role": "system", "content": system_prompt})
+ATURAN UTAMA:
+1. Setiap permintaan user WAJIB panggil tool yang sesuai
+2. JANGAN pernah jawab dengan teori/menjelaskan - LANGSUNG EKSEKUSI
+3. Setelah eksekusi, berikan hasil singkat
 
-        # Layer 2: Business Data (RAG)
-        business_context = get_business_context(body.message, db)
-        if business_context:
-            messages.append({"role": "system", "content": f"Data Bisnis Saat Ini:\n{business_context}"})
+Tools:
+- create_lead: buat lead/klien baru
+- search_leads: cari klien/leads
+- get_lead_details: detail klien + proyeknya
+- get_client_projects: list proyek klien
+- update_project: update harga/status proyek
+- create_proposal: buat proposal baru
+- update_lead_status: ubah status lead
+- send_whatsapp: kirim WA
+- get_products: list produk
+- get_wa_templates: list template WA
+- get_business_summary: ringkasan bisnis
+
+WORKFLOW KHUSUS:
+- Untuk tawarkan produk ke klien baru:
+  1. create_lead (buat klien)
+  2. get_products (pilih produk cocok)
+  3. create_proposal (buat proposal, akan return URL)
+  4. get_wa_templates (pilih template yang cocok)
+  5. send_whatsapp dengan template_id + replacements (termasuk proposal_link dari step 3)
+
+Contoh benar:
+User: "Update proyek SEO jadi 1.5jt"
+AI: [panggil get_client_projects] -> [panggil update_project dengan nominal 1500000]
+Output: "Proyek SEO PT Wijaya diupdate jadi Rp 1.500.000/bulan"
+
+Contoh SALAH (JANGAN):
+User: "Update proyek SEO jadi 1.5jt"
+AI: "Baik saya akan update proyeknya. Proyek berhasil diupdate..." (tanpa panggil tool)"""
+
+        # Layer 2: Business Data (RAG) - skip for agent mode to force tool usage
+        if not body.agent_mode:
+            business_context = get_business_context(body.message, db)
+            if business_context:
+                messages.append({"role": "system", "content": f"Data Bisnis Saat Ini:\n{business_context}"})
 
         # Layer 3: Memories (Persistent)
         memories = db.query(ChatMemory).filter(ChatMemory.project_id == conversation.project_id).all()
@@ -5661,12 +6121,6 @@ Jawab dengan bahasa Indonesia yang natural dan helpful."""
             messages.append({"role": "system", "content": f"Ringkasan Percakapan Sebelumnya:\n{summary_text}"})
 
         # Layer 5: Recent messages
-
-        # Get business context based on user query
-        business_context = get_business_context(body.message, db)
-        if business_context:
-            messages.append({"role": "system", "content": f"Data Bisnis Saat Ini:\n{business_context}"})
-
         for msg in recent_messages:
             messages.append({"role": msg.role, "content": msg.content})
 
@@ -5680,28 +6134,110 @@ Jawab dengan bahasa Indonesia yang natural dan helpful."""
             content=body.message,
         )
         db.add(user_msg)
+        db.commit()
 
-        # Call AI API
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(
-                f"{api_base.rstrip('/')}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
+        # Agent Mode: Tool execution loop
+        tool_calls_executed = []
+        max_iterations = 5
+        iteration = 0
+
+        while iteration < max_iterations:
+            iteration += 1
+
+            # Call AI API
+            async with httpx.AsyncClient(timeout=60) as client:
+                # Token efficiency: set max_tokens based on task type
+                max_tokens = 500  # default for simple queries
+                if body.agent_mode and iteration == 1:
+                    max_tokens = 300  # for tool calling, response can be short
+                elif body.agent_mode and iteration > 1:
+                    max_tokens = 500  # for final response after tool execution
+
+                request_body = {
                     "model": model,
                     "messages": messages,
-                    "max_tokens": 2048,
+                    "max_tokens": max_tokens,
                     "stream": False,
-                },
-            )
-            if resp.status_code != 200:
-                raise HTTPException(status_code=502, detail=f"AI API error: {resp.status_code} - {resp.text[:200]}")
+                }
+                # Add tools if agent mode enabled
+                if body.agent_mode:
+                    request_body["tools"] = AGENT_TOOLS
+                    # Force tool usage in agent mode - AI must call a tool
+                    request_body["tool_choice"] = "required"
 
-            result = resp.json()
-            assistant_content = result["choices"][0]["message"]["content"]
-            tokens_used = result.get("usage", {}).get("total_tokens", 0)
+                resp = await client.post(
+                    f"{api_base.rstrip('/')}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=request_body,
+                )
+                if resp.status_code != 200:
+                    raise HTTPException(status_code=502, detail=f"AI API error: {resp.status_code} - {resp.text[:200]}")
+
+                result = resp.json()
+                choice = result["choices"][0]
+                message = choice["message"]
+                tokens_used = result.get("usage", {}).get("total_tokens", 0)
+
+            # Check if AI wants to call tools
+            if message.get("tool_calls"):
+                # Add assistant message with tool calls to history
+                messages.append(message)
+
+                for tool_call in message["tool_calls"]:
+                    tool_name = tool_call["function"]["name"]
+                    tool_args_str = tool_call["function"]["arguments"]
+                    tool_call_id = tool_call["id"]
+
+                    try:
+                        tool_args = json.loads(tool_args_str)
+                    except:
+                        tool_args = {}
+
+                    # Execute the tool
+                    tool_result = execute_tool_call(tool_name, tool_args, db, current_user)
+
+                    tool_calls_executed.append({
+                        "name": tool_name,
+                        "args": tool_args,
+                        "result": tool_result
+                    })
+
+                    # Add tool result to messages
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call_id,
+                        "content": json.dumps(tool_result)
+                    })
+
+                # Continue loop to get final response
+                continue
+
+            # No tool calls - we have final response
+            assistant_content = message.get("content", "")
+
+            # Post-process: strip decorative elements for token efficiency
+            import re
+            # Remove emojis
+            assistant_content = re.sub(r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002700-\U000027BF\U0001F900-\U0001F9FF\U0001FA00-\U0001FA6F\U0001FA70-\U0001FAFF]', '', assistant_content)
+            # Remove markdown tables
+            assistant_content = re.sub(r'\|.*\|', '', assistant_content)
+            assistant_content = re.sub(r'^[-:|]+$', '', assistant_content, flags=re.MULTILINE)
+            # Remove headers
+            assistant_content = re.sub(r'^#{1,6}\s*', '', assistant_content, flags=re.MULTILINE)
+            # Remove horizontal rules
+            assistant_content = re.sub(r'^---+$', '', assistant_content, flags=re.MULTILINE)
+            # Remove excessive bold
+            assistant_content = re.sub(r'\*\*([^*]+)\*\*', r'\1', assistant_content)
+            # Clean up extra whitespace
+            assistant_content = re.sub(r'\n{3,}', '\n\n', assistant_content)
+            assistant_content = assistant_content.strip()
+            break
+        else:
+            # Max iterations reached
+            assistant_content = "Maaf, saya tidak dapat menyelesaikan permintaan dalam jumlah langkah yang wakin. Silakan coba permintaan yang lebih spesifik."
 
         # Save assistant message
         assistant_msg = ChatMessage(
@@ -5714,7 +6250,6 @@ Jawab dengan bahasa Indonesia yang natural dan helpful."""
         db.add(assistant_msg)
 
         # Auto-memory: Extract important info from conversation
-        # Check if there's important info to remember (every 5 messages)
         memory_saved = False
         memory_content_saved = None
         total_messages = db.query(ChatMessage).filter(ChatMessage.conversation_id == conversation_id).count()
@@ -5767,6 +6302,7 @@ Jawab dengan bahasa Indonesia yang natural dan helpful."""
                 "model_used": model,
                 "created_at": assistant_msg.created_at,
             },
+            "tool_calls": tool_calls_executed if tool_calls_executed else None,
             "memory_saved": memory_saved,
             "memory_content": memory_content_saved,
             "summary_created": summary_created,

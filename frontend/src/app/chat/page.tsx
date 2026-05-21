@@ -139,6 +139,12 @@ export default function ChatPage() {
   const [showProjectSettings, setShowProjectSettings] = useState(false);
   const [showApiSettings, setShowApiSettings] = useState(false);
   const [newMemory, setNewMemory] = useState("");
+  const [agentMode, setAgentMode] = useState(false);
+  const [lastToolCalls, setLastToolCalls] = useState<any[] | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // API Settings states
   const [apiKey, setApiKey] = useState("");
@@ -177,6 +183,14 @@ export default function ChatPage() {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 150) + "px";
+    }
+  }, [input]);
 
   const loadProjects = async () => {
     try {
@@ -355,11 +369,16 @@ export default function ChatPage() {
     };
     setMessages((prev) => [...prev, tempUserMsg]);
     setLoading(true);
+    setLastToolCalls(null);
+
+    // Create abort controller for cancel functionality
+    abortControllerRef.current = new AbortController();
 
     try {
       const res = await apiFetch<{
         user_message: ChatMessage;
         message: ChatMessage;
+        tool_calls?: any[];
         memory_saved?: boolean;
         memory_content?: string;
         summary_created?: boolean;
@@ -371,10 +390,18 @@ export default function ChatPage() {
         };
       }>(`/api/chat/conversations/${selectedConversation.id}/chat`, {
         method: "POST",
-        body: JSON.stringify({ message: userMessage, model: selectedModel }),
+        body: JSON.stringify({ message: userMessage, model: selectedModel, agent_mode: agentMode }),
+        signal: abortControllerRef.current.signal,
       });
       // Replace temp message with actual messages from server
       setMessages((prev) => [...prev.filter((m) => m.id !== "temp-user"), res.user_message, res.message]);
+
+      // Show tool calls if any
+      if (res.tool_calls && res.tool_calls.length > 0) {
+        setLastToolCalls(res.tool_calls);
+        const toolNames = res.tool_calls.map((t: any) => t.name).join(", ");
+        showToast(`🔧 Tool executed: ${toolNames}`);
+      }
 
       // Show memory saved indicator
       if (res.memory_saved && res.memory_content) {
@@ -396,9 +423,68 @@ export default function ChatPage() {
     } catch (e: any) {
       // Remove temp message on error
       setMessages((prev) => prev.filter((m) => m.id !== "temp-user"));
-      showToast("Gagal mengirim: " + e.message);
+      if (e.name !== "AbortError") {
+        showToast("Gagal mengirim: " + e.message);
+      }
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const cancelSend = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setLoading(false);
+      setMessages((prev) => prev.filter((m) => m.id !== "temp-user"));
+      showToast("Pesan dibatalkan");
+    }
+  };
+
+  const startEditMessage = (msg: ChatMessage) => {
+    setEditingMessageId(msg.id);
+    setEditText(msg.content);
+  };
+
+  const cancelEdit = () => {
+    setEditingMessageId(null);
+    setEditText("");
+  };
+
+  const submitEdit = async () => {
+    if (!editText.trim() || !editingMessageId || !selectedConversation) return;
+    try {
+      // Find the message index to truncate from
+      const msgIndex = messages.findIndex((m) => m.id === editingMessageId);
+      if (msgIndex === -1) return;
+
+      // Delete messages from this point onward (except temp messages)
+      const messagesToKeep = messages.slice(0, msgIndex);
+
+      // Send the edited message
+      const res = await apiFetch<{
+        user_message: ChatMessage;
+        message: ChatMessage;
+        tool_calls?: any[];
+        memory_saved?: boolean;
+        memory_content?: string;
+      }>(`/api/chat/conversations/${selectedConversation.id}/chat`, {
+        method: "POST",
+        body: JSON.stringify({ message: editText.trim(), model: selectedModel, agent_mode: agentMode }),
+      });
+
+      // Update messages: keep previous + new response
+      setMessages([...messagesToKeep, res.user_message, res.message]);
+
+      if (res.tool_calls && res.tool_calls.length > 0) {
+        setLastToolCalls(res.tool_calls);
+      }
+
+      setEditingMessageId(null);
+      setEditText("");
+      showToast("Pesan direvisi");
+    } catch (e: any) {
+      showToast("Gagal revisi: " + e.message);
     }
   };
 
@@ -793,26 +879,70 @@ export default function ChatPage() {
               <p className="text-xs mt-2 text-neutral-500">Model: {models.find((m) => m.id === selectedModel)?.name}</p>
             </div>
           )}
-          {messages.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
-                  msg.role === "user"
-                    ? "bg-brand-yellow text-neutral-900"
-                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200"
-                }`}
-              >
-                <div className="whitespace-pre-wrap">{msg.role === "assistant" ? renderMarkdown(msg.content) : msg.content}</div>
-                {msg.model_used && (
-                  <div className="text-[10px] text-neutral-400 mt-1">{msg.model_used} • {msg.tokens_used} tokens</div>
-                )}
-              </div>
+          {messages.map((msg, idx) => (
+            <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} gap-2`}>
+              {editingMessageId === msg.id ? (
+                <div className="max-w-[85%] flex flex-col gap-2">
+                  <textarea
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    className="rounded-xl border border-brand-yellow bg-white dark:bg-neutral-900 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-yellow/30 resize-none"
+                    rows={3}
+                    autoFocus
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      onClick={cancelEdit}
+                      className="text-xs text-neutral-500 hover:text-neutral-700 px-3 py-1"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      onClick={submitEdit}
+                      className="text-xs bg-brand-yellow text-neutral-900 px-3 py-1 rounded font-medium"
+                    >
+                      Revisi
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
+                    msg.role === "user"
+                      ? "bg-brand-yellow text-neutral-900"
+                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200"
+                  }`}
+                >
+                  <div className="whitespace-pre-wrap">{msg.role === "assistant" ? renderMarkdown(msg.content) : msg.content}</div>
+                  {msg.model_used && (
+                    <div className="text-[10px] text-neutral-400 mt-1">{msg.model_used} • {msg.tokens_used} tokens</div>
+                  )}
+                </div>
+              )}
+              {msg.role === "user" && editingMessageId !== msg.id && idx === messages.length - 1 && !loading && (
+                <button
+                  onClick={() => startEditMessage(msg)}
+                  className="text-neutral-400 hover:text-neutral-600 self-end mb-1"
+                  title="Revisi pesan"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                </button>
+              )}
             </div>
           ))}
           {loading && (
             <div className="flex justify-start">
               <div className="bg-neutral-100 dark:bg-neutral-800 rounded-2xl px-4 py-2.5 text-sm">
-                <span className="animate-pulse">Thinking...</span>
+                <span className="animate-pulse">{agentMode ? "Executing..." : "Thinking..."}</span>
+              </div>
+            </div>
+          )}
+          {lastToolCalls && lastToolCalls.length > 0 && (
+            <div className="flex justify-start opacity-60 hover:opacity-100 transition-opacity">
+              <div className="bg-neutral-100 dark:bg-neutral-800 rounded-xl px-3 py-2 text-[10px] max-w-[85%]">
+                <div className="text-neutral-400 mb-1">
+                  {lastToolCalls.filter(t => t.result?.success).length}/{lastToolCalls.length} tools: {lastToolCalls.map(t => t.name).join(", ")}
+                </div>
               </div>
             </div>
           )}
@@ -829,23 +959,46 @@ export default function ChatPage() {
 
         {/* Input */}
         <div className="p-4 border-t border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-          <div className="flex gap-3">
-            <input
-              type="text"
+          <div className="flex gap-3 items-end">
+            <textarea
+              ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-              placeholder={selectedConversation ? "Ketik pesan..." : "Pilih conversation dulu"}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage();
+                }
+              }}
+              placeholder={selectedConversation ? "Ketik pesan... (Shift+Enter untuk newline)" : "Pilih conversation dulu"}
               disabled={!selectedConversation || loading}
-              className="flex-1 rounded-xl border border-[var(--border-subtle)] bg-white dark:bg-neutral-900 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-yellow/30 disabled:opacity-50"
+              rows={1}
+              className="flex-1 rounded-xl border border-[var(--border-subtle)] bg-white dark:bg-neutral-900 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-yellow/30 disabled:opacity-50 resize-none max-h-[150px]"
             />
             <button
-              onClick={sendMessage}
-              disabled={!input.trim() || !selectedConversation || loading}
-              className="bg-brand-yellow hover:bg-brand-yellow/90 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-900 font-medium px-5 py-2.5 rounded-xl text-sm transition-colors"
+              onClick={() => setAgentMode(!agentMode)}
+              className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-colors shrink-0 ${agentMode ? "bg-green-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"}`}
+              title={agentMode ? "Agent Mode ON - AI dapat mengeksekusi aksi" : "Agent Mode OFF - AI hanya chat biasa"}
             >
-              Kirim
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>
+              Agent
             </button>
+            {loading ? (
+              <button
+                onClick={cancelSend}
+                className="bg-red-500 hover:bg-red-600 text-white font-medium px-5 py-2.5 rounded-xl text-sm transition-colors shrink-0"
+              >
+                Batal
+              </button>
+            ) : (
+              <button
+                onClick={sendMessage}
+                disabled={!input.trim() || !selectedConversation}
+                className="bg-brand-yellow hover:bg-brand-yellow/90 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-900 font-medium px-5 py-2.5 rounded-xl text-sm transition-colors shrink-0"
+              >
+                Kirim
+              </button>
+            )}
           </div>
         </div>
       </div>
