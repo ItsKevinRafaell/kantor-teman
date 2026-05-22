@@ -256,7 +256,7 @@ export default function BoardPage() {
       });
       if (res.ok) {
         await fetchBoard(selectedProject);
-        setCardModal(prev => prev.card?.id === cardId ? { ...prev, card: { ...prev.card!, is_archived: isArchived } } : prev);
+        setCardModal({ open: false, card: null, columnId: "" });
         setToast({ message: isArchived ? "Card diarsipkan" : "Card dipulihkan", type: "success" });
       }
     } catch (e) { setToast({ message: "Gagal arsipkan card", type: "error" }); }
@@ -458,14 +458,22 @@ export default function BoardPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">Project Board</h1>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Kelola task proyek dengan kanban board</p>
+          {viewMode === "board" && currentProject ? (
+            <div>
+              <button onClick={() => setSelectedProject("")} className="flex items-center gap-1 text-sm text-neutral-500 hover:text-yellow-600 dark:hover:text-yellow-400 mb-1 transition-colors">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+                Semua Proyek
+              </button>
+              <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">{currentProject.name}</h1>
+            </div>
+          ) : (
+            <div>
+              <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">Project Board</h1>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Kelola task proyek dengan kanban board</p>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          <select value={selectedProject} onChange={e => setSelectedProject(e.target.value)} className="px-3 py-2 bg-white dark:bg-[#242423] border border-gray-200 dark:border-gray-700 rounded-lg text-sm">
-            <option value="">Semua Proyek (Overview)</option>
-            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
           {viewMode === "overview" && (
             <label className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
               <input type="checkbox" checked={showArchivedProjects} onChange={e => setShowArchivedProjects(e.target.checked)} className="accent-yellow-500 w-4 h-4" />
@@ -479,7 +487,7 @@ export default function BoardPage() {
             <>
               <button onClick={() => setShowArchived(!showArchived)} className={`px-3 py-2 text-sm rounded-lg flex items-center gap-1 ${showArchived ? COLORS.primary : COLORS.secondary}`}>
                 {showArchived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
-                {showArchived ? "Aktif" : "Arsip"}
+                {showArchived ? "Card Aktif" : "Card Arsip"}
               </button>
               <button onClick={() => { setColumnModal({ open: true, column: null }); setColumnName(""); setColumnColor("yellow"); }} className={`px-3 py-2 text-sm rounded-lg flex items-center gap-1 ${COLORS.primary}`}>
                 <Plus className="w-4 h-4" /> Kolom
