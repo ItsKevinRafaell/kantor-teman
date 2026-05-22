@@ -317,6 +317,7 @@ class Project(Base):
     start_date = Column(String(255), nullable=True)
     end_date = Column(String(255), nullable=True)
     color = Column(String(50), nullable=True, default="yellow")
+    is_archived = Column(Boolean, default=False, nullable=False)
     lead = relationship("Lead", foreign_keys=[lead_id])
 
 
@@ -1242,6 +1243,7 @@ class ProjectOut(BaseModel):
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     color: Optional[str] = "yellow"
+    is_archived: bool = False
     model_config = {"from_attributes": True}
 
 
@@ -4533,9 +4535,38 @@ def delete_project(project_id: str, current_user: User = Depends(get_current_use
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    # Cascade delete: board → columns → cards → children
+    board = db.query(Board).filter(Board.project_id == project_id).first()
+    if board:
+        col_ids = [c.id for c in db.query(BoardColumn.id).filter(BoardColumn.board_id == board.id).all()]
+        if col_ids:
+            card_ids = [c.id for c in db.query(BoardCard.id).filter(BoardCard.column_id.in_(col_ids)).all()]
+            if card_ids:
+                db.query(BoardCardActivity).filter(BoardCardActivity.card_id.in_(card_ids)).delete(synchronize_session=False)
+                db.query(BoardCardChecklist).filter(BoardCardChecklist.card_id.in_(card_ids)).delete(synchronize_session=False)
+                db.query(BoardCardComment).filter(BoardCardComment.card_id.in_(card_ids)).delete(synchronize_session=False)
+            db.query(BoardCard).filter(BoardCard.column_id.in_(col_ids)).delete(synchronize_session=False)
+        db.query(BoardColumn).filter(BoardColumn.board_id == board.id).delete(synchronize_session=False)
+        db.delete(board)
+    project_name = project.name
     db.delete(project)
     db.commit()
-    log_audit(db, current_user.name, "DELETE", "projects", project_id, {"name": project.name})
+    log_audit(db, current_user.name, "DELETE", "projects", project_id, {"name": project_name})
+
+
+@app.patch("/api/projects/{project_id}/archive")
+def archive_project(
+    project_id: str,
+    is_archived: bool = Body(..., embed=True),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    project.is_archived = is_archived
+    db.commit()
+    return {"id": project_id, "is_archived": is_archived}
 
 
 @app.patch("/api/projects/{project_id}/color")
@@ -4592,9 +4623,14 @@ def card_to_out(card: BoardCard) -> BoardCardOut:
 
 
 @app.get("/api/boards/overview")
-def get_boards_overview(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_boards_overview(show_archived: bool = Query(False), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get overview of all boards across projects"""
-    projects = db.query(Project).filter(Project.status == "ACTIVE").all()
+    query = db.query(Project)
+    if show_archived:
+        query = query.filter(Project.is_archived == True)
+    else:
+        query = query.filter(Project.is_archived == False)
+    projects = query.all()
     result = []
     for p in projects:
         board = db.query(Board).filter(Board.project_id == p.id).first()
@@ -4625,6 +4661,7 @@ def get_boards_overview(current_user: User = Depends(get_current_user), db: Sess
                 "due_soon_cards": due_soon_cards,
                 "color": p.color or "yellow",
                 "project_lead_id": p.lead_id,
+                "is_archived": p.is_archived,
             })
     return result
 

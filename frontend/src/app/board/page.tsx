@@ -51,7 +51,7 @@ const LABEL_COLORS: Record<string, string> = {
 };
 
 interface Lead { id: number; business_name: string; }
-interface Project { id: string; name: string; status: string; lead_id: number | null; color?: string; }
+interface Project { id: string; name: string; type: string; status: string; lead_id: number | null; color?: string; is_archived?: boolean; nominal?: number; }
 interface BoardCard {
   id: string; column_id: string; title: string; description: string | null;
   assignee: string | null; due_date: string | null; labels: string[];
@@ -67,7 +67,7 @@ interface BoardOverview {
   project_id: string; project_name: string; board_id: string;
   cards_count: number; columns_count: number; client_name?: string;
   overdue_cards?: string[]; due_soon_cards?: string[];
-  color?: string; project_lead_id?: number | null;
+  color?: string; project_lead_id?: number | null; is_archived?: boolean;
 }
 
 function ConfirmModal({ open, onClose, onConfirm, title, message, danger = true }: {
@@ -144,10 +144,18 @@ export default function BoardPage() {
     setConfirmModal({ open: true, title, message, onConfirm });
   }
 
+  // Overview: show archived projects toggle
+  const [showArchivedProjects, setShowArchivedProjects] = useState(false);
+
+  // Project edit modal
+  const [editProjectModal, setEditProjectModal] = useState<{ open: boolean; projectId: string } | null>(null);
+  const [editProjectForm, setEditProjectForm] = useState({ name: "", type: "FIXED" as "FIXED" | "RETAINER", status: "ACTIVE", nominal: 0, lead_id: null as number | null, color: "yellow" });
+
   const [filterAssignee, setFilterAssignee] = useState("");
   const [filterDue, setFilterDue] = useState("");
 
-  useEffect(() => { fetchProjects(); fetchOverview(); fetchLeads(); }, []);
+  useEffect(() => { fetchProjects(); fetchOverview(false); fetchLeads(); }, []);
+  useEffect(() => { fetchOverview(showArchivedProjects); }, [showArchivedProjects]);
 
   useEffect(() => {
     if (selectedProject) { fetchBoard(selectedProject); setViewMode("board"); }
@@ -158,9 +166,11 @@ export default function BoardPage() {
     try { const res = await apiFetch("/api/projects"); if (res.ok) setProjects(await res.json()); }
     catch (e) { console.error(e); }
   }
-  async function fetchOverview() {
-    try { const res = await apiFetch("/api/boards/overview"); if (res.ok) setOverview(await res.json()); }
-    catch (e) { console.error(e); } finally { setLoading(false); }
+  async function fetchOverview(archived = false) {
+    try {
+      const res = await apiFetch(`/api/boards/overview?show_archived=${archived}`);
+      if (res.ok) setOverview(await res.json());
+    } catch (e) { console.error(e); } finally { setLoading(false); }
   }
   async function fetchLeads() {
     try { const res = await apiFetch("/api/leads"); if (res.ok) setLeads(await res.json()); }
@@ -244,8 +254,55 @@ export default function BoardPage() {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ is_archived: isArchived }),
       });
-      if (res.ok) { await fetchBoard(selectedProject); setToast({ message: isArchived ? "Card diarsipkan" : "Card dipulihkan", type: "success" }); }
+      if (res.ok) {
+        await fetchBoard(selectedProject);
+        setCardModal(prev => prev.card?.id === cardId ? { ...prev, card: { ...prev.card!, is_archived: isArchived } } : prev);
+        setToast({ message: isArchived ? "Card diarsipkan" : "Card dipulihkan", type: "success" });
+      }
     } catch (e) { setToast({ message: "Gagal arsipkan card", type: "error" }); }
+  }
+
+  async function archiveProject(projectId: string, isArchived: boolean) {
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/archive`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_archived: isArchived }),
+      });
+      if (res.ok) {
+        await fetchOverview(showArchivedProjects);
+        setToast({ message: isArchived ? "Proyek diarsipkan" : "Proyek dipulihkan", type: "success" });
+      }
+    } catch (e) { setToast({ message: "Gagal arsipkan proyek", type: "error" }); }
+  }
+
+  async function deleteProjectFromBoard(projectId: string, projectName: string) {
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}`, { method: "DELETE" });
+      if (res.ok) {
+        setProjects(prev => prev.filter(p => p.id !== projectId));
+        await fetchOverview(showArchivedProjects);
+        if (selectedProject === projectId) setSelectedProject("");
+        setToast({ message: `Proyek "${projectName}" dihapus`, type: "success" });
+      }
+    } catch (e) { setToast({ message: "Gagal hapus proyek", type: "error" }); }
+  }
+
+  async function saveEditProject() {
+    if (!editProjectModal || !editProjectForm.name.trim()) return;
+    setSaving(true);
+    try {
+      const res = await apiFetch(`/api/projects/${editProjectModal.projectId}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editProjectForm),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setProjects(prev => prev.map(p => p.id === editProjectModal.projectId ? updated : p));
+        await fetchOverview(showArchivedProjects);
+        setEditProjectModal(null);
+        setToast({ message: "Proyek diupdate", type: "success" });
+      }
+    } catch (e) { setToast({ message: "Gagal update proyek", type: "error" }); } finally { setSaving(false); }
   }
 
   async function deleteCard(cardId: string) {
@@ -409,6 +466,12 @@ export default function BoardPage() {
             <option value="">Semua Proyek (Overview)</option>
             {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
+          {viewMode === "overview" && (
+            <label className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+              <input type="checkbox" checked={showArchivedProjects} onChange={e => setShowArchivedProjects(e.target.checked)} className="accent-yellow-500 w-4 h-4" />
+              Tampilkan arsip
+            </label>
+          )}
           <button onClick={() => { setProjectModal(true); setProjectForm({ name: "", type: "FIXED", status: "ACTIVE", nominal: 0, lead_id: null, color: "yellow" }); }} className={`px-3 py-2 text-sm rounded-lg flex items-center gap-1 ${COLORS.secondary}`}>
             <Plus className="w-4 h-4" /> Proyek Baru
           </button>
@@ -445,11 +508,37 @@ export default function BoardPage() {
           {overview.map(item => {
             const itemColor = COLUMN_COLORS[item.color || "yellow"] || COLUMN_COLORS.yellow;
             return (
-              <div key={item.project_id} onClick={() => setSelectedProject(item.project_id)}
-                className={`rounded-xl border p-4 cursor-pointer transition-all hover:shadow-md ${itemColor.bg} ${itemColor.border}`}>
+              <div key={item.project_id}
+                className={`rounded-xl border p-4 transition-all hover:shadow-md ${itemColor.bg} ${itemColor.border} ${item.is_archived ? "opacity-60" : ""}`}>
                 {/* Header row */}
-                <div className="flex items-start justify-between gap-2 mb-3">
-                  <h3 className="font-semibold text-neutral-800 dark:text-neutral-200 leading-tight">{item.project_name}</h3>
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <h3 className="font-semibold text-neutral-800 dark:text-neutral-200 leading-tight cursor-pointer flex-1" onClick={() => !item.is_archived && setSelectedProject(item.project_id)}>
+                    {item.project_name}
+                  </h3>
+                  {/* Action buttons */}
+                  <div className="flex gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                    {!item.is_archived && (
+                      <button title="Edit proyek" onClick={() => {
+                        const p = projects.find(x => x.id === item.project_id);
+                        if (p) {
+                          setEditProjectForm({ name: p.name, type: p.type as "FIXED"|"RETAINER", status: p.status, nominal: (p as any).nominal || 0, lead_id: p.lead_id, color: p.color || "yellow" });
+                          setEditProjectModal({ open: true, projectId: p.id });
+                        }
+                      }} className="p-1.5 text-neutral-400 hover:text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-lg transition-colors">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                    )}
+                    <button title={item.is_archived ? "Pulihkan proyek" : "Arsipkan proyek"}
+                      onClick={() => archiveProject(item.project_id, !item.is_archived)}
+                      className="p-1.5 text-neutral-400 hover:text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-lg transition-colors">
+                      {item.is_archived ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
+                    </button>
+                    <button title="Hapus proyek"
+                      onClick={() => showConfirm("Hapus Proyek", `Proyek "${item.project_name}" beserta semua board, kolom, dan card-nya akan dihapus permanen.`, () => deleteProjectFromBoard(item.project_id, item.project_name))}
+                      className="p-1.5 text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Client name */}
@@ -783,6 +872,42 @@ export default function BoardPage() {
           </div>
           <button onClick={createProject} disabled={saving || !projectForm.name.trim()} className={`w-full px-4 py-2 text-sm rounded-lg font-medium ${COLORS.primary} disabled:opacity-50`}>
             {saving ? "Membuat..." : "Buat Proyek"}
+          </button>
+        </div>
+      </Modal>
+
+      {/* Edit Project Modal */}
+      <Modal open={editProjectModal?.open || false} onClose={() => setEditProjectModal(null)} title="Edit Proyek">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Nama Proyek</label>
+            <input type="text" value={editProjectForm.name} onChange={e => setEditProjectForm(p => ({ ...p, name: e.target.value }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Tipe</label>
+            <select value={editProjectForm.type} onChange={e => setEditProjectForm(p => ({ ...p, type: e.target.value as "FIXED"|"RETAINER" }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm">
+              <option value="FIXED">Fixed</option>
+              <option value="RETAINER">Retainer</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Client (opsional)</label>
+            <select value={editProjectForm.lead_id ?? ""} onChange={e => setEditProjectForm(p => ({ ...p, lead_id: e.target.value ? Number(e.target.value) : null }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm">
+              <option value="">— Tanpa client —</option>
+              {leads.map(l => <option key={l.id} value={l.id}>{l.business_name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-2">Warna</label>
+            <div className="flex gap-2 flex-wrap">
+              {Object.keys(COLUMN_COLORS).map(color => (
+                <button key={color} type="button" onClick={() => setEditProjectForm(p => ({ ...p, color }))}
+                  className={`w-8 h-8 rounded-lg ${COLUMN_COLORS[color].bg} border-2 transition-all ${editProjectForm.color === color ? "border-neutral-900 dark:border-white scale-110" : `${COLUMN_COLORS[color].border} hover:scale-105`}`} />
+              ))}
+            </div>
+          </div>
+          <button onClick={saveEditProject} disabled={saving || !editProjectForm.name.trim()} className={`w-full px-4 py-2 text-sm rounded-lg font-medium ${COLORS.primary} disabled:opacity-50`}>
+            {saving ? "Menyimpan..." : "Simpan Perubahan"}
           </button>
         </div>
       </Modal>

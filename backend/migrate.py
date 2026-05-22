@@ -284,7 +284,7 @@ else:
 conn.commit()
 
 # ---------------------------------------------------------------------------
-# Migrasi projects: lead_id nullable + tambah kolom color
+# Migrasi projects: lead_id nullable + tambah kolom color + is_archived
 # ---------------------------------------------------------------------------
 cur.execute("PRAGMA table_info(projects)")
 proj_info = cur.fetchall()
@@ -319,7 +319,17 @@ if need_rebuild or not has_proj_color:
     conn.commit()
     print("+ projects direbuild: lead_id nullable, kolom color ditambahkan")
 else:
-    print("= projects sudah up-to-date, skip")
+    print("= projects lead_id dan color sudah up-to-date, skip")
+
+# Tambah is_archived ke projects jika belum ada (terpisah dari rebuild)
+cur.execute("PRAGMA table_info(projects)")
+proj_cols_now = {row[1] for row in cur.fetchall()}
+if proj_cols_now and "is_archived" not in proj_cols_now:
+    cur.execute("ALTER TABLE projects ADD COLUMN is_archived INTEGER DEFAULT 0")
+    conn.commit()
+    print("+ kolom is_archived ditambahkan ke projects")
+elif proj_cols_now:
+    print("= projects.is_archived sudah ada, skip")
 
 # ---------------------------------------------------------------------------
 # Migrasi board_columns: tambah kolom color
