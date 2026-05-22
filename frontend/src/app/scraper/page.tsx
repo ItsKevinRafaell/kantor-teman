@@ -9,6 +9,9 @@ interface Business {
   address: string;
   phone: string | null;
   whatsapp_url: string | null;
+  google_rating: number | null;
+  review_count: number | null;
+  website_url: string | null;
 }
 
 interface CategoryOption {
@@ -236,7 +239,7 @@ export default function ScraperPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-[#2a2a29] border-b border-[var(--border-default)]">
-                <tr>{["#", "Nama Bisnis", "Alamat", "Nomor", "WhatsApp"].map((h) => (
+                <tr>{["#", "Nama Bisnis", "Rating", "Alamat", "Nomor", "Website", "WhatsApp"].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">{h}</th>
                 ))}</tr>
               </thead>
@@ -245,8 +248,25 @@ export default function ScraperPage() {
                   <tr key={i} className="hover:bg-[var(--bg-surface-hover)] transition-colors">
                     <td className="px-4 py-3 text-gray-400 text-xs">{i + 1}</td>
                     <td className="px-4 py-3 font-medium text-gray-800 dark:text-[#fcfaf7]">{biz.name}</td>
-                    <td className="px-4 py-3 text-neutral-500 dark:text-neutral-400 text-xs max-w-[220px] leading-relaxed">{biz.address}</td>
+                    <td className="px-4 py-3">
+                      {biz.google_rating != null ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-amber-400"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                          <span className="text-amber-600 dark:text-amber-400">{biz.google_rating.toFixed(1)}</span>
+                          {biz.review_count != null && <span className="text-gray-400">({biz.review_count})</span>}
+                        </span>
+                      ) : <span className="text-gray-300 text-xs">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-neutral-500 dark:text-neutral-400 text-xs max-w-[200px] leading-relaxed">{biz.address}</td>
                     <td className="px-4 py-3 font-mono text-gray-600 dark:text-gray-400 text-xs">{biz.phone ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      {biz.website_url ? (
+                        <a href={biz.website_url} target="_blank" rel="noopener noreferrer"
+                          className="text-xs text-blue-500 hover:underline max-w-[120px] truncate block">
+                          {biz.website_url.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+                        </a>
+                      ) : <span className="text-gray-300 text-xs">—</span>}
+                    </td>
                     <td className="px-4 py-3">
                       {biz.whatsapp_url ? (
                         <a href={biz.whatsapp_url} target="_blank" rel="noopener noreferrer"
