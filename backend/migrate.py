@@ -9,6 +9,16 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "leads.db")
 conn = sqlite3.connect(DB_PATH)
 cur = conn.cursor()
 
+# Cek apakah tabel leads ada
+cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='leads'")
+leads_table_exists = cur.fetchone() is not None
+
+if not leads_table_exists:
+    print("= leads belum ada, akan dibuat oleh SQLAlchemy saat startup — skip semua ALTER leads")
+    conn.close()
+    print("Migrasi selesai (DB baru, semua tabel akan dibuat oleh SQLAlchemy).")
+    exit(0)
+
 # Cek kolom yang sudah ada di leads
 cur.execute("PRAGMA table_info(leads)")
 existing = {row[1] for row in cur.fetchall()}
