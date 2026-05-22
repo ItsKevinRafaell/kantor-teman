@@ -464,5 +464,53 @@ else:
     print("= board_card_comments belum ada, akan dibuat oleh SQLAlchemy")
 
 conn.commit()
+
+# ---------------------------------------------------------------------------
+# Content Generator Tables
+# ---------------------------------------------------------------------------
+cur.execute("""
+CREATE TABLE IF NOT EXISTS content_providers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    tool_type TEXT NOT NULL DEFAULT 'image',
+    base_url TEXT NOT NULL,
+    api_key TEXT,
+    model TEXT NOT NULL,
+    extra_params TEXT,
+    is_active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL
+)
+""")
+print("+ tabel content_providers ready")
+
+cur.execute("""
+CREATE TABLE IF NOT EXISTS content_sessions (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at TEXT NOT NULL
+)
+""")
+print("+ tabel content_sessions ready")
+
+cur.execute("""
+CREATE TABLE IF NOT EXISTS content_generations (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    session_id TEXT REFERENCES content_sessions(id),
+    tool_type TEXT NOT NULL,
+    input_data TEXT NOT NULL,
+    output_data TEXT,
+    model_used TEXT,
+    provider_name TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    error_msg TEXT,
+    created_at TEXT NOT NULL
+)
+""")
+print("+ tabel content_generations ready")
+
+conn.commit()
 conn.close()
 print("Migrasi selesai.")

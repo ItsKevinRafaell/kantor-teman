@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Any
 import os
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
@@ -556,6 +556,54 @@ class ChatSummary(Base):
     message_count = Column(Integer, default=0)  # Number of messages summarized
     tokens_saved = Column(Integer, default=0)  # Estimated tokens saved
     created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+
+
+
+# ---------------------------------------------------------------------------
+# Content Generator Models
+# ---------------------------------------------------------------------------
+
+class ContentProvider(Base):
+    """Config API per image provider (base_url, api_key, model)"""
+    __tablename__ = "content_providers"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(255), nullable=False)
+    tool_type = Column(String(50), nullable=False)       # "image"
+    base_url = Column(String(500), nullable=False)
+    api_key = Column(String(500), nullable=True)
+    model = Column(String(255), nullable=False)
+    extra_params = Column(Text, nullable=True)            # JSON
+    is_active = Column(Boolean, default=True)
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class ContentSession(Base):
+    """Grouping generasi dalam satu kampanye"""
+    __tablename__ = "content_sessions"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    user = relationship("User", backref="content_sessions")
+
+
+class ContentGeneration(Base):
+    """Setiap hasil generate"""
+    __tablename__ = "content_generations"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    session_id = Column(String(36), ForeignKey("content_sessions.id"), nullable=True)
+    tool_type = Column(String(50), nullable=False)       # "image" | "caption" | "seo_article"
+    input_data = Column(Text, nullable=False)            # JSON
+    output_data = Column(Text, nullable=True)            # JSON
+    model_used = Column(String(255), nullable=True)
+    provider_name = Column(String(255), nullable=True)
+    status = Column(String(50), nullable=False, default="pending")
+    error_msg = Column(Text, nullable=True)
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    user = relationship("User", backref="content_generations")
+    session = relationship("ContentSession", backref="generations")
 
 
 Base.metadata.create_all(bind=engine)
@@ -5939,6 +5987,80 @@ class ChatMemoryOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Content Generator Schemas
+# ---------------------------------------------------------------------------
+
+class ContentProviderIn(BaseModel):
+    name: str
+    tool_type: str = "image"
+    base_url: str
+    api_key: Optional[str] = None
+    model: str
+    extra_params: Optional[dict] = None
+    is_active: bool = True
+
+class ContentProviderOut(BaseModel):
+    id: str
+    name: str
+    tool_type: str
+    base_url: str
+    api_key: Optional[str] = None
+    model: str
+    extra_params: Optional[Any] = None
+    is_active: bool
+    created_at: str
+    model_config = {"from_attributes": True}
+
+class ContentSessionIn(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class ContentSessionOut(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    created_at: str
+    model_config = {"from_attributes": True}
+
+class ContentGenerationOut(BaseModel):
+    id: str
+    session_id: Optional[str] = None
+    tool_type: str
+    input_data: Any = {}
+    output_data: Optional[Any] = None
+    model_used: Optional[str] = None
+    provider_name: Optional[str] = None
+    status: str
+    error_msg: Optional[str] = None
+    created_at: str
+    model_config = {"from_attributes": True}
+
+class ImageGenRequest(BaseModel):
+    prompt: str
+    provider_id: str
+    session_id: Optional[str] = None
+    negative_prompt: Optional[str] = None
+    width: Optional[int] = 512
+    height: Optional[int] = 512
+
+class CaptionGenRequest(BaseModel):
+    topic: str
+    platform: str = "instagram"
+    tone: Optional[str] = "casual"
+    keywords: Optional[List[str]] = []
+    session_id: Optional[str] = None
+    context_from: Optional[List[str]] = []
+
+class SeoArticleGenRequest(BaseModel):
+    keyword: str
+    title: Optional[str] = None
+    word_count: Optional[int] = 800
+    tone: Optional[str] = "informatif"
+    session_id: Optional[str] = None
+    context_from: Optional[List[str]] = []
+
+
+# ---------------------------------------------------------------------------
 # Agent Tools - Functions AI can execute
 # ---------------------------------------------------------------------------
 
@@ -7056,3 +7178,400 @@ def update_conversation(conversation_id: str, body: ChatConversationUpdate, curr
         db.commit()
         db.refresh(conversation)
     return conversation
+
+
+# ===========================================================================
+# Content Generator
+# ===========================================================================
+
+def _get_system_ai_config(db: Session) -> dict:
+    key = db.query(SystemSettings).filter_by(key="openai_api_key").first()
+    base = db.query(SystemSettings).filter_by(key="ai_base_url").first()
+    model_s = db.query(SystemSettings).filter_by(key="ai_model").first()
+    return {
+        "api_key": key.value if key and key.value else "",
+        "base_url": (base.value if base and base.value else "https://api.aimurah.com/v1").rstrip("/"),
+        "model": model_s.value if model_s and model_s.value else "claude-sonnet-4-5",
+    }
+
+
+def _call_text_gen(messages: list, api_key: str, base_url: str, model: str, max_tokens: int = 2000) -> str:
+    import httpx as _httpx
+    with _httpx.Client(timeout=120) as client:
+        resp = client.post(
+            f"{base_url}/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={"model": model, "messages": messages, "max_tokens": max_tokens},
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"AI API error {resp.status_code}: {resp.text[:200]}")
+    return resp.json()["choices"][0]["message"]["content"]
+
+
+def _get_session_ctx(session_id: str, db: Session, limit: int = 5) -> str:
+    if not session_id:
+        return ""
+    gens = (db.query(ContentGeneration)
+            .filter(ContentGeneration.session_id == session_id, ContentGeneration.status == "done")
+            .order_by(ContentGeneration.created_at.desc()).limit(limit).all())
+    if not gens:
+        return ""
+    parts = []
+    for g in reversed(gens):
+        try:
+            out = json.loads(g.output_data) if g.output_data else {}
+        except Exception:
+            out = {}
+        if g.tool_type == "image":
+            images = out.get("images", [])
+            preview = f"{len(images)} gambar dihasilkan" if images else "—"
+        elif g.tool_type == "caption":
+            preview = out.get("caption", "")[:200]
+        elif g.tool_type == "seo_article":
+            preview = f"[{out.get('title', '')}] {out.get('meta_description', '')[:150]}"
+        else:
+            preview = str(out)[:200]
+        parts.append(f"[{g.tool_type}] {preview}")
+    return "Konteks dari sesi ini:\n" + "\n\n".join(parts)
+
+
+def _get_manual_ctx(context_from: list, db: Session) -> str:
+    if not context_from:
+        return ""
+    gens = db.query(ContentGeneration).filter(ContentGeneration.id.in_(context_from)).all()
+    if not gens:
+        return ""
+    parts = []
+    for g in gens:
+        try:
+            out = json.loads(g.output_data) if g.output_data else {}
+        except Exception:
+            out = {}
+        parts.append(f"[{g.tool_type}] {str(out)[:400]}")
+    return "Konteks yang dipilih:\n" + "\n\n".join(parts)
+
+
+# --- Content Provider CRUD ---
+
+@app.get("/api/content/providers", response_model=List[ContentProviderOut])
+def list_content_providers(
+    tool_type: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    q = db.query(ContentProvider)
+    if tool_type:
+        q = q.filter(ContentProvider.tool_type == tool_type)
+    providers = q.order_by(ContentProvider.created_at.desc()).all()
+    result = []
+    for p in providers:
+        out = ContentProviderOut.model_validate(p)
+        if out.api_key:
+            out.api_key = out.api_key[:6] + "***"
+        if p.extra_params:
+            try:
+                out.extra_params = json.loads(p.extra_params)
+            except Exception:
+                pass
+        result.append(out)
+    return result
+
+
+@app.post("/api/content/providers", response_model=ContentProviderOut, status_code=201)
+def create_content_provider(
+    body: ContentProviderIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    p = ContentProvider(
+        id=str(uuid.uuid4()), name=body.name, tool_type=body.tool_type,
+        base_url=body.base_url.rstrip("/"), api_key=body.api_key, model=body.model,
+        extra_params=json.dumps(body.extra_params) if body.extra_params else None,
+        is_active=body.is_active,
+    )
+    db.add(p); db.commit(); db.refresh(p)
+    out = ContentProviderOut.model_validate(p)
+    if out.api_key:
+        out.api_key = out.api_key[:6] + "***"
+    return out
+
+
+@app.put("/api/content/providers/{provider_id}", response_model=ContentProviderOut)
+def update_content_provider(
+    provider_id: str, body: ContentProviderIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    p = db.query(ContentProvider).filter(ContentProvider.id == provider_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Provider tidak ditemukan")
+    p.name = body.name; p.tool_type = body.tool_type
+    p.base_url = body.base_url.rstrip("/"); p.model = body.model; p.is_active = body.is_active
+    p.extra_params = json.dumps(body.extra_params) if body.extra_params else None
+    if body.api_key and not body.api_key.endswith("***"):
+        p.api_key = body.api_key
+    db.commit(); db.refresh(p)
+    out = ContentProviderOut.model_validate(p)
+    if out.api_key:
+        out.api_key = out.api_key[:6] + "***"
+    return out
+
+
+@app.delete("/api/content/providers/{provider_id}", status_code=204)
+def delete_content_provider(
+    provider_id: str, current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    p = db.query(ContentProvider).filter(ContentProvider.id == provider_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Provider tidak ditemukan")
+    db.delete(p); db.commit()
+
+
+# --- Content Session CRUD ---
+
+@app.get("/api/content/sessions", response_model=List[ContentSessionOut])
+def list_content_sessions(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return (db.query(ContentSession)
+            .filter(ContentSession.user_id == current_user.id)
+            .order_by(ContentSession.created_at.desc()).all())
+
+
+@app.post("/api/content/sessions", response_model=ContentSessionOut, status_code=201)
+def create_content_session(
+    body: ContentSessionIn, current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    s = ContentSession(id=str(uuid.uuid4()), user_id=current_user.id,
+                       name=body.name, description=body.description)
+    db.add(s); db.commit(); db.refresh(s)
+    return s
+
+
+@app.delete("/api/content/sessions/{session_id}", status_code=204)
+def delete_content_session(
+    session_id: str, current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    s = db.query(ContentSession).filter(
+        ContentSession.id == session_id, ContentSession.user_id == current_user.id).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Session tidak ditemukan")
+    db.query(ContentGeneration).filter(ContentGeneration.session_id == session_id).delete()
+    db.delete(s); db.commit()
+
+
+# --- History ---
+
+@app.get("/api/content/generations")
+def list_content_generations(
+    session_id: Optional[str] = Query(None),
+    tool_type: Optional[str] = Query(None),
+    limit: int = Query(20),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    q = db.query(ContentGeneration).filter(ContentGeneration.user_id == current_user.id)
+    if session_id:
+        q = q.filter(ContentGeneration.session_id == session_id)
+    if tool_type:
+        q = q.filter(ContentGeneration.tool_type == tool_type)
+    gens = q.order_by(ContentGeneration.created_at.desc()).limit(limit).all()
+    result = []
+    for g in gens:
+        item = {
+            "id": g.id, "session_id": g.session_id, "tool_type": g.tool_type,
+            "model_used": g.model_used, "provider_name": g.provider_name,
+            "status": g.status, "error_msg": g.error_msg, "created_at": g.created_at,
+        }
+        try:
+            item["input_data"] = json.loads(g.input_data)
+        except Exception:
+            item["input_data"] = {}
+        try:
+            item["output_data"] = json.loads(g.output_data) if g.output_data else None
+        except Exception:
+            item["output_data"] = g.output_data
+        result.append(item)
+    return result
+
+
+# --- Generate: Image ---
+
+@app.post("/api/content/generate/image")
+def generate_image(
+    body: ImageGenRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    provider = db.query(ContentProvider).filter(
+        ContentProvider.id == body.provider_id,
+        ContentProvider.tool_type == "image",
+        ContentProvider.is_active == True,
+    ).first()
+    if not provider:
+        raise HTTPException(status_code=404, detail="Image provider tidak ditemukan atau tidak aktif")
+
+    gen = ContentGeneration(
+        id=str(uuid.uuid4()), user_id=current_user.id, session_id=body.session_id,
+        tool_type="image",
+        input_data=json.dumps({"prompt": body.prompt, "negative_prompt": body.negative_prompt,
+                               "width": body.width, "height": body.height, "provider": provider.name}),
+        model_used=provider.model, provider_name=provider.name, status="pending",
+    )
+    db.add(gen); db.commit()
+
+    try:
+        extra = json.loads(provider.extra_params) if provider.extra_params else {}
+        payload = {"model": provider.model, "prompt": body.prompt, "n": 1,
+                   "size": f"{body.width}x{body.height}", **extra}
+        if body.negative_prompt:
+            payload["negative_prompt"] = body.negative_prompt
+
+        import httpx as _httpx
+        with _httpx.Client(timeout=120) as client:
+            resp = client.post(
+                f"{provider.base_url}/images/generations",
+                headers={"Authorization": f"Bearer {provider.api_key}", "Content-Type": "application/json"},
+                json=payload,
+            )
+        if resp.status_code != 200:
+            raise Exception(f"Image API error {resp.status_code}: {resp.text[:300]}")
+
+        items = resp.json().get("data", [])
+        images = []
+        for item in items:
+            if "url" in item:
+                images.append({"type": "url", "value": item["url"]})
+            elif "b64_json" in item:
+                images.append({"type": "b64", "value": item["b64_json"]})
+
+        gen.output_data = json.dumps({"images": images})
+        gen.status = "done"; db.commit()
+        return {"id": gen.id, "status": "done", "images": images, "created_at": gen.created_at}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        gen.status = "error"; gen.error_msg = str(e); db.commit()
+        raise HTTPException(status_code=502, detail=f"Gagal generate image: {str(e)}")
+
+
+# --- Generate: Caption ---
+
+@app.post("/api/content/generate/caption")
+def generate_caption(
+    body: CaptionGenRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    ai = _get_system_ai_config(db)
+    if not ai["api_key"]:
+        raise HTTPException(status_code=400, detail="API Key AI belum dikonfigurasi di Settings")
+
+    platform_guide = {
+        "instagram": "Instagram: max 2200 karakter, 3-5 hashtag relevan, emoji secukupnya, CTA di akhir.",
+        "tiktok": "TikTok: singkat dan catchy, hook kuat di kalimat pertama, 5-10 hashtag trending.",
+    }.get(body.platform, "")
+
+    system_msg = (
+        f"Kamu adalah content writer media sosial profesional Bahasa Indonesia. "
+        f"Buat caption {body.platform.upper()} yang engaging, tone: '{body.tone}'. {platform_guide} "
+        f"WAJIB return valid JSON: {{\"caption\": \"...\", \"hashtags\": [\"#tag\"], \"notes\": \"tip singkat\"}}"
+    )
+    user_msg = f"Topik: {body.topic}"
+    if body.keywords:
+        user_msg += f"\nKeyword wajib disebut: {', '.join(body.keywords)}"
+    ctx = _get_session_ctx(body.session_id, db)
+    if ctx:
+        user_msg += f"\n\n{ctx}"
+    mctx = _get_manual_ctx(body.context_from or [], db)
+    if mctx:
+        user_msg += f"\n\n{mctx}"
+
+    gen = ContentGeneration(
+        id=str(uuid.uuid4()), user_id=current_user.id, session_id=body.session_id,
+        tool_type="caption", input_data=json.dumps(body.model_dump()),
+        model_used=ai["model"], provider_name="System AI", status="pending",
+    )
+    db.add(gen); db.commit()
+
+    try:
+        text = _call_text_gen(
+            messages=[{"role": "system", "content": system_msg}, {"role": "user", "content": user_msg}],
+            api_key=ai["api_key"], base_url=ai["base_url"], model=ai["model"], max_tokens=800,
+        )
+        import re as _re
+        m = _re.search(r'\{[\s\S]*\}', text)
+        try:
+            result = json.loads(m.group()) if m else {"caption": text, "hashtags": [], "notes": ""}
+        except Exception:
+            result = {"caption": text, "hashtags": [], "notes": ""}
+
+        gen.output_data = json.dumps(result); gen.status = "done"; db.commit()
+        return {"id": gen.id, "status": "done", "created_at": gen.created_at, **result}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        gen.status = "error"; gen.error_msg = str(e); db.commit()
+        raise HTTPException(status_code=502, detail=f"Gagal generate caption: {str(e)}")
+
+
+# --- Generate: SEO Article ---
+
+@app.post("/api/content/generate/seo-article")
+def generate_seo_article(
+    body: SeoArticleGenRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    ai = _get_system_ai_config(db)
+    if not ai["api_key"]:
+        raise HTTPException(status_code=400, detail="API Key AI belum dikonfigurasi di Settings")
+
+    target_title = body.title or f"Panduan Lengkap: {body.keyword}"
+    system_msg = (
+        f"Kamu adalah SEO content writer profesional Bahasa Indonesia. "
+        f"Buat artikel SEO berkualitas, tone: '{body.tone}', target sekitar {body.word_count} kata. "
+        f"Gunakan heading H2/H3 dengan format markdown (## dan ###). "
+        f"WAJIB return valid JSON: {{\"title\":\"...\",\"meta_description\":\"...max 160 karakter...\","
+        f"\"body\":\"...artikel markdown lengkap...\",\"focus_keyword\":\"...\","
+        f"\"secondary_keywords\":[\"...\"]}}"
+    )
+    user_msg = f"Keyword utama: {body.keyword}\nJudul target: {target_title}"
+    ctx = _get_session_ctx(body.session_id, db)
+    if ctx:
+        user_msg += f"\n\n{ctx}"
+    mctx = _get_manual_ctx(body.context_from or [], db)
+    if mctx:
+        user_msg += f"\n\n{mctx}"
+
+    gen = ContentGeneration(
+        id=str(uuid.uuid4()), user_id=current_user.id, session_id=body.session_id,
+        tool_type="seo_article", input_data=json.dumps(body.model_dump()),
+        model_used=ai["model"], provider_name="System AI", status="pending",
+    )
+    db.add(gen); db.commit()
+
+    try:
+        text = _call_text_gen(
+            messages=[{"role": "system", "content": system_msg}, {"role": "user", "content": user_msg}],
+            api_key=ai["api_key"], base_url=ai["base_url"], model=ai["model"], max_tokens=4000,
+        )
+        import re as _re
+        m = _re.search(r'\{[\s\S]*\}', text)
+        try:
+            result = json.loads(m.group()) if m else {
+                "title": target_title, "body": text, "meta_description": "", "secondary_keywords": [], "focus_keyword": body.keyword}
+        except Exception:
+            result = {"title": target_title, "body": text, "meta_description": "", "secondary_keywords": [], "focus_keyword": body.keyword}
+
+        gen.output_data = json.dumps(result); gen.status = "done"; db.commit()
+        return {"id": gen.id, "status": "done", "created_at": gen.created_at, **result}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        gen.status = "error"; gen.error_msg = str(e); db.commit()
+        raise HTTPException(status_code=502, detail=f"Gagal generate artikel: {str(e)}")
