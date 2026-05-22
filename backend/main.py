@@ -922,6 +922,9 @@ class Business(BaseModel):
     address: str
     phone: Optional[str] = None
     whatsapp_url: Optional[str] = None
+    google_rating: Optional[float] = None
+    review_count: Optional[int] = None
+    website_url: Optional[str] = None
 
 
 class LeadOut(BaseModel):
@@ -1915,7 +1918,8 @@ async def search_businesses(
                                 rating=score, website_url=website, google_rating=google_rating,
                                 review_count=user_ratings_total, latitude=latitude, longitude=longitude))
                     db.commit()
-                results.append(Business(name=name, address=address, phone=raw_phone, whatsapp_url=wa_url))
+                results.append(Business(name=name, address=address, phone=raw_phone, whatsapp_url=wa_url,
+                                        google_rating=google_rating, review_count=user_ratings_total, website_url=website))
 
             page_token = data.get("nextPageToken")
             if not page_token:
