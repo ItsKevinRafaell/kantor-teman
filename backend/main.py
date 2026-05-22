@@ -7,7 +7,7 @@ from search_volume_data import get_monthly_search_volume
 import csv
 import io
 import httpx
-from fastapi import FastAPI, Query, HTTPException, Depends, BackgroundTasks, Request
+from fastapi import FastAPI, Query, HTTPException, Depends, BackgroundTasks, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse
@@ -309,13 +309,14 @@ class LeadAnalysis(Base):
 class Project(Base):
     __tablename__ = "projects"
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False)
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=True)
     name = Column(String(255), nullable=False)
     type = Column(String(255), nullable=False)  # FIXED / RETAINER
     status = Column(String(255), default="ACTIVE", nullable=False)  # ACTIVE / COMPLETED / HOLD
     nominal = Column(Float, nullable=False, default=0)
     start_date = Column(String(255), nullable=True)
     end_date = Column(String(255), nullable=True)
+    color = Column(String(50), nullable=True, default="yellow")
     lead = relationship("Lead", foreign_keys=[lead_id])
 
 
@@ -349,6 +350,76 @@ class ClientDocument(Base):
     cloud_url = Column(String(255), nullable=False)
     created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
     lead = relationship("Lead", foreign_keys=[lead_id])
+
+
+# Board models for Trello-like functionality
+class Board(Base):
+    __tablename__ = "boards"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_id = Column(String(36), ForeignKey("projects.id"), nullable=False)
+    created_at = Column(String(255), default=lambda: datetime.now(timezone.utc).isoformat())
+    color = Column(String(50), nullable=True, default="yellow")
+    project = relationship("Project", foreign_keys=[project_id])
+
+
+class BoardColumn(Base):
+    __tablename__ = "board_columns"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    board_id = Column(String(36), ForeignKey("boards.id"), nullable=False)
+    name = Column(String(255), nullable=False)
+    position = Column(Integer, default=0)
+    color = Column(String(50), nullable=True, default="yellow")
+    board = relationship("Board", foreign_keys=[board_id])
+
+
+class BoardCard(Base):
+    __tablename__ = "board_cards"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    column_id = Column(String(36), ForeignKey("board_columns.id"), nullable=False)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    assignee = Column(String(255), nullable=True)
+    due_date = Column(String(255), nullable=True)
+    labels = Column(Text, nullable=True)  # JSON array
+    position = Column(Integer, default=0)
+    is_archived = Column(Boolean, default=False)
+    created_at = Column(String(255), default=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at = Column(String(255), nullable=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=True)
+    color = Column(String(50), nullable=True, default="yellow")
+    column = relationship("BoardColumn", foreign_keys=[column_id])
+    lead = relationship("Lead", foreign_keys=[lead_id])
+
+
+class BoardCardComment(Base):
+    __tablename__ = "board_card_comments"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    card_id = Column(String(36), ForeignKey("board_cards.id"), nullable=False)
+    author = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(String(255), default=lambda: datetime.now(timezone.utc).isoformat())
+    card = relationship("BoardCard", foreign_keys=[card_id], backref="comments")
+
+
+class BoardCardChecklist(Base):
+    __tablename__ = "board_card_checklists"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    card_id = Column(String(36), ForeignKey("board_cards.id"), nullable=False)
+    text = Column(String(255), nullable=False)
+    is_done = Column(Boolean, default=False)
+    position = Column(Integer, default=0)
+    card = relationship("BoardCard", foreign_keys=[card_id], backref="checklist")
+
+
+class BoardCardActivity(Base):
+    __tablename__ = "board_card_activities"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    card_id = Column(String(36), ForeignKey("board_cards.id"), nullable=False)
+    action = Column(String(255), nullable=False)  # created, moved, updated, commented, archived
+    description = Column(String(255), nullable=False)
+    actor = Column(String(255), nullable=False)
+    created_at = Column(String(255), default=lambda: datetime.now(timezone.utc).isoformat())
+    card = relationship("BoardCard", foreign_keys=[card_id], backref="activity")
 
 
 class AdsCampaign(Base):
@@ -1151,24 +1222,26 @@ class FinanceReportOut(BaseModel):
 # ---------------------------------------------------------------------------
 
 class ProjectIn(BaseModel):
-    lead_id: int
+    lead_id: Optional[int] = None
     name: str
     type: str  # FIXED / RETAINER
     status: str = "ACTIVE"
     nominal: float = 0
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    color: Optional[str] = "yellow"
 
 
 class ProjectOut(BaseModel):
     id: str
-    lead_id: int
+    lead_id: Optional[int] = None
     name: str
     type: str
     status: str
     nominal: float
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    color: Optional[str] = "yellow"
     model_config = {"from_attributes": True}
 
 
@@ -1186,6 +1259,126 @@ class ClientNoteOut(BaseModel):
     category: str
     content: str
     model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# Board Pydantic Schemas (Trello-like)
+# ---------------------------------------------------------------------------
+
+class LeadMin(BaseModel):
+    id: int
+    business_name: str
+    model_config = {"from_attributes": True}
+
+
+class BoardCardCommentOut(BaseModel):
+    id: str
+    card_id: str
+    author: str
+    content: str
+    created_at: str
+    model_config = {"from_attributes": True}
+
+
+class BoardCardChecklistOut(BaseModel):
+    id: str
+    card_id: str
+    text: str
+    is_done: bool
+    position: int
+    model_config = {"from_attributes": True}
+
+
+class BoardCardActivityOut(BaseModel):
+    id: str
+    card_id: str
+    action: str
+    description: str
+    actor: str
+    created_at: str
+    model_config = {"from_attributes": True}
+
+
+class BoardCardOut(BaseModel):
+    id: str
+    column_id: str
+    title: str
+    description: Optional[str] = None
+    assignee: Optional[str] = None
+    due_date: Optional[str] = None
+    labels: Optional[list[str]] = []
+    position: int
+    is_archived: bool
+    created_at: str
+    updated_at: Optional[str] = None
+    lead_id: Optional[int] = None
+    lead: Optional[LeadMin] = None
+    color: Optional[str] = "yellow"
+    comments: list[BoardCardCommentOut] = []
+    checklist: list[BoardCardChecklistOut] = []
+    activity: list[BoardCardActivityOut] = []
+    model_config = {"from_attributes": True}
+
+
+class BoardColumnOut(BaseModel):
+    id: str
+    board_id: str
+    name: str
+    position: int
+    color: Optional[str] = "yellow"
+    cards: list[BoardCardOut] = []
+    model_config = {"from_attributes": True}
+
+
+class BoardOut(BaseModel):
+    id: str
+    project_id: str
+    created_at: str
+    color: Optional[str] = "yellow"
+    columns: list[BoardColumnOut] = []
+    model_config = {"from_attributes": True}
+
+
+class BoardColumnIn(BaseModel):
+    name: str
+    position: Optional[int] = None
+    color: Optional[str] = "yellow"
+
+
+class BoardCardIn(BaseModel):
+    title: str
+    description: Optional[str] = None
+    assignee: Optional[str] = None
+    due_date: Optional[str] = None
+    labels: Optional[list[str]] = []
+    lead_id: Optional[int] = None
+    color: Optional[str] = "yellow"
+
+
+class BoardCardUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    assignee: Optional[str] = None
+    due_date: Optional[str] = None
+    labels: Optional[list[str]] = None
+    column_id: Optional[str] = None
+    position: Optional[int] = None
+    is_archived: Optional[bool] = None
+    lead_id: Optional[int] = None
+    color: Optional[str] = None
+
+
+class MoveCardRequest(BaseModel):
+    column_id: str
+    position: Optional[int] = None
+
+
+class BoardCardCommentIn(BaseModel):
+    content: str
+
+
+class BoardCardChecklistIn(BaseModel):
+    text: str
 
 
 # ---------------------------------------------------------------------------
@@ -4289,8 +4482,27 @@ def create_project(body: ProjectIn, current_user: User = Depends(get_current_use
         nominal=body.nominal,
         start_date=body.start_date,
         end_date=body.end_date,
+        color=body.color or "yellow",
     )
     db.add(project)
+    db.flush()  # Get project.id without committing
+
+    # Auto-create board with default columns
+    board = Board(id=str(uuid.uuid4()), project_id=project.id)
+    db.add(board)
+    db.flush()
+
+    # Default columns: To Do, In Progress, Review, Done
+    default_columns = [
+        ("To Do", "yellow"),
+        ("In Progress", "blue"),
+        ("Review", "purple"),
+        ("Done", "green"),
+    ]
+    for i, (name, color) in enumerate(default_columns):
+        col = BoardColumn(id=str(uuid.uuid4()), board_id=board.id, name=name, position=i, color=color)
+        db.add(col)
+
     db.commit()
     db.refresh(project)
     log_audit(db, current_user.name, "CREATE", "projects", project.id, {"name": body.name, "lead_id": body.lead_id})
@@ -4309,6 +4521,7 @@ def update_project(project_id: str, body: ProjectIn, current_user: User = Depend
     project.nominal = body.nominal
     project.start_date = body.start_date
     project.end_date = body.end_date
+    project.color = body.color or "yellow"
     db.commit()
     db.refresh(project)
     log_audit(db, current_user.name, "UPDATE", "projects", project_id, {"name": body.name})
@@ -4323,6 +4536,390 @@ def delete_project(project_id: str, current_user: User = Depends(get_current_use
     db.delete(project)
     db.commit()
     log_audit(db, current_user.name, "DELETE", "projects", project_id, {"name": project.name})
+
+
+@app.patch("/api/projects/{project_id}/color")
+def update_project_color(
+    project_id: str,
+    color: str = Body(..., embed=True),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    project.color = color
+    db.commit()
+    return {"id": project_id, "color": color}
+
+
+# ---------------------------------------------------------------------------
+# Board API (Trello-like)
+# ---------------------------------------------------------------------------
+
+def card_to_out(card: BoardCard) -> BoardCardOut:
+    """Convert BoardCard to BoardCardOut with related data"""
+    labels_list = []
+    if card.labels:
+        try:
+            labels_list = json.loads(card.labels) if isinstance(card.labels, str) else card.labels
+        except:
+            labels_list = []
+
+    lead_out = None
+    if card.lead_id and card.lead:
+        lead_out = LeadMin(id=card.lead.id, business_name=card.lead.business_name)
+
+    return BoardCardOut(
+        id=card.id,
+        column_id=card.column_id,
+        title=card.title,
+        description=card.description,
+        assignee=card.assignee,
+        due_date=card.due_date,
+        labels=labels_list,
+        position=card.position,
+        is_archived=card.is_archived,
+        created_at=card.created_at,
+        updated_at=card.updated_at,
+        lead_id=card.lead_id,
+        lead=lead_out,
+        color=card.color or "yellow",
+        comments=[BoardCardCommentOut.model_validate(c) for c in card.comments] if hasattr(card, 'comments') else [],
+        checklist=[BoardCardChecklistOut.model_validate(c) for c in card.checklist] if hasattr(card, 'checklist') else [],
+        activity=[BoardCardActivityOut.model_validate(a) for a in card.activity] if hasattr(card, 'activity') else [],
+    )
+
+
+@app.get("/api/boards/overview")
+def get_boards_overview(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get overview of all boards across projects"""
+    projects = db.query(Project).filter(Project.status == "ACTIVE").all()
+    result = []
+    for p in projects:
+        board = db.query(Board).filter(Board.project_id == p.id).first()
+        if board:
+            columns = db.query(BoardColumn).filter(BoardColumn.board_id == board.id).all()
+            cards_count = 0
+            overdue_cards = []
+            due_soon_cards = []
+            today = datetime.now(timezone.utc).date()
+            for col in columns:
+                cards = db.query(BoardCard).filter(BoardCard.column_id == col.id, BoardCard.is_archived == False).all()
+                cards_count += len(cards)
+                for c in cards:
+                    if c.due_date:
+                        due = datetime.fromisoformat(c.due_date.replace('Z', '+00:00')).date()
+                        if due < today:
+                            overdue_cards.append(c.title)
+                        elif due <= today + timedelta(days=3):
+                            due_soon_cards.append(c.title)
+            result.append({
+                "project_id": p.id,
+                "project_name": p.name,
+                "board_id": board.id,
+                "cards_count": cards_count,
+                "columns_count": len(columns),
+                "client_name": p.lead.business_name if p.lead else None,
+                "overdue_cards": overdue_cards,
+                "due_soon_cards": due_soon_cards,
+                "color": p.color or "yellow",
+                "project_lead_id": p.lead_id,
+            })
+    return result
+
+
+@app.get("/api/projects/{project_id}/board", response_model=BoardOut)
+def get_project_board(project_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get board for a project"""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+
+    board = db.query(Board).filter(Board.project_id == project_id).first()
+    if not board:
+        # Create board if not exists
+        board = Board(id=str(uuid.uuid4()), project_id=project_id)
+        db.add(board)
+        db.flush()
+        # Create default columns
+        default_columns = [("To Do", "yellow"), ("In Progress", "blue"), ("Review", "purple"), ("Done", "green")]
+        for i, (name, color) in enumerate(default_columns):
+            col = BoardColumn(id=str(uuid.uuid4()), board_id=board.id, name=name, position=i, color=color)
+            db.add(col)
+        db.commit()
+        db.refresh(board)
+
+    columns = db.query(BoardColumn).filter(BoardColumn.board_id == board.id).order_by(BoardColumn.position).all()
+    column_outs = []
+    for col in columns:
+        cards = db.query(BoardCard).filter(BoardCard.column_id == col.id, BoardCard.is_archived == False).order_by(BoardCard.position).all()
+        card_outs = [card_to_out(c) for c in cards]
+        column_outs.append(BoardColumnOut(
+            id=col.id, board_id=col.board_id, name=col.name, position=col.position, color=col.color, cards=card_outs
+        ))
+
+    return BoardOut(id=board.id, project_id=board.project_id, created_at=board.created_at, color=board.color or "yellow", columns=column_outs)
+
+
+@app.post("/api/boards/{board_id}/columns", response_model=BoardColumnOut, status_code=201)
+def create_board_column(board_id: str, body: BoardColumnIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Create a new column in board"""
+    board = db.query(Board).filter(Board.id == board_id).first()
+    if not board:
+        raise HTTPException(status_code=404, detail="Board tidak ditemukan")
+    max_pos = db.query(BoardColumn).filter(BoardColumn.board_id == board_id).count()
+    col = BoardColumn(id=str(uuid.uuid4()), board_id=board_id, name=body.name, position=body.position if body.position is not None else max_pos, color=body.color or "yellow")
+    db.add(col)
+    db.commit()
+    db.refresh(col)
+    return BoardColumnOut(id=col.id, board_id=col.board_id, name=col.name, position=col.position, color=col.color, cards=[])
+
+
+@app.put("/api/board-columns/{column_id}", response_model=BoardColumnOut)
+def update_board_column(column_id: str, body: BoardColumnIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Update column name, position or color"""
+    col = db.query(BoardColumn).filter(BoardColumn.id == column_id).first()
+    if not col:
+        raise HTTPException(status_code=404, detail="Column tidak ditemukan")
+    if body.name:
+        col.name = body.name
+    if body.position is not None:
+        col.position = body.position
+    if body.color:
+        col.color = body.color
+    db.commit()
+    db.refresh(col)
+    return BoardColumnOut(id=col.id, board_id=col.board_id, name=col.name, position=col.position, color=col.color, cards=[])
+
+
+@app.delete("/api/board-columns/{column_id}", status_code=204)
+def delete_board_column(column_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Delete a column and all its cards"""
+    col = db.query(BoardColumn).filter(BoardColumn.id == column_id).first()
+    if not col:
+        raise HTTPException(status_code=404, detail="Column tidak ditemukan")
+    db.query(BoardCard).filter(BoardCard.column_id == column_id).delete()
+    db.delete(col)
+    db.commit()
+
+
+@app.post("/api/board-columns/{column_id}/cards", response_model=BoardCardOut, status_code=201)
+def create_board_card(column_id: str, body: BoardCardIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Create a new card in column"""
+    col = db.query(BoardColumn).filter(BoardColumn.id == column_id).first()
+    if not col:
+        raise HTTPException(status_code=404, detail="Column tidak ditemukan")
+    max_pos = db.query(BoardCard).filter(BoardCard.column_id == column_id).count()
+    card = BoardCard(
+        id=str(uuid.uuid4()),
+        column_id=column_id,
+        title=body.title,
+        description=body.description,
+        assignee=body.assignee or current_user.name,
+        due_date=body.due_date,
+        labels=json.dumps(body.labels) if body.labels else None,
+        position=max_pos,
+        lead_id=body.lead_id,
+        color=body.color or "yellow",
+    )
+    db.add(card)
+
+    # Add activity
+    activity = BoardCardActivity(
+        id=str(uuid.uuid4()),
+        card_id=card.id,
+        action="created",
+        description=f"Card created: {body.title}",
+        actor=current_user.name,
+    )
+    db.add(activity)
+    db.commit()
+    db.refresh(card)
+
+    return card_to_out(card)
+
+
+@app.get("/api/board-cards/{card_id}", response_model=BoardCardOut)
+def get_board_card(card_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get card details"""
+    card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
+    if not card:
+        raise HTTPException(status_code=404, detail="Card tidak ditemukan")
+    return card_to_out(card)
+
+
+@app.put("/api/board-cards/{card_id}", response_model=BoardCardOut)
+def update_board_card(card_id: str, body: BoardCardUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Update card"""
+    card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
+    if not card:
+        raise HTTPException(status_code=404, detail="Card tidak ditemukan")
+
+    if body.title is not None:
+        card.title = body.title
+    if body.description is not None:
+        card.description = body.description
+    if body.assignee is not None:
+        card.assignee = body.assignee
+    if body.due_date is not None:
+        card.due_date = body.due_date
+    if body.labels is not None:
+        card.labels = json.dumps(body.labels)
+    if body.column_id is not None:
+        card.column_id = body.column_id
+    if body.position is not None:
+        card.position = body.position
+    if body.lead_id is not None:
+        card.lead_id = body.lead_id
+    if body.color is not None:
+        card.color = body.color
+    if body.is_archived is not None:
+        card.is_archived = body.is_archived
+        # Add activity for archive/unarchive
+        action = "archived" if body.is_archived else "unarchived"
+        activity = BoardCardActivity(
+            id=str(uuid.uuid4()),
+            card_id=card.id,
+            action=action,
+            description=f"Card {action}",
+            actor=current_user.name,
+        )
+        db.add(activity)
+
+    card.updated_at = datetime.now(timezone.utc).isoformat()
+
+    # Add update activity
+    activity = BoardCardActivity(
+        id=str(uuid.uuid4()),
+        card_id=card.id,
+        action="updated",
+        description="Card updated",
+        actor=current_user.name,
+    )
+    db.add(activity)
+
+    db.commit()
+    db.refresh(card)
+    return card_to_out(card)
+
+
+@app.delete("/api/board-cards/{card_id}", status_code=204)
+def delete_board_card(card_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Delete a card"""
+    card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
+    if not card:
+        raise HTTPException(status_code=404, detail="Card tidak ditemukan")
+    db.delete(card)
+    db.commit()
+
+
+@app.post("/api/board-cards/{card_id}/move", response_model=BoardCardOut)
+def move_board_card(card_id: str, body: MoveCardRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Move card to another column"""
+    card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
+    if not card:
+        raise HTTPException(status_code=404, detail="Card tidak ditemukan")
+
+    old_column = card.column_id
+    card.column_id = body.column_id
+    if body.position is not None:
+        card.position = body.position
+    else:
+        max_pos = db.query(BoardCard).filter(BoardCard.column_id == body.column_id).count()
+        card.position = max_pos
+
+    # Add activity
+    activity = BoardCardActivity(
+        id=str(uuid.uuid4()),
+        card_id=card.id,
+        action="moved",
+        description=f"Card moved to another column",
+        actor=current_user.name,
+    )
+    db.add(activity)
+
+    db.commit()
+    db.refresh(card)
+    return card_to_out(card)
+
+
+@app.post("/api/board-cards/{card_id}/comments", response_model=BoardCardCommentOut, status_code=201)
+def create_card_comment(card_id: str, body: BoardCardCommentIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Add comment to card"""
+    card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
+    if not card:
+        raise HTTPException(status_code=404, detail="Card tidak ditemukan")
+
+    comment = BoardCardComment(
+        id=str(uuid.uuid4()),
+        card_id=card_id,
+        author=current_user.name,
+        content=body.content,
+    )
+    db.add(comment)
+
+    # Add activity
+    activity = BoardCardActivity(
+        id=str(uuid.uuid4()),
+        card_id=card_id,
+        action="commented",
+        description=f"Comment added: {body.content[:50]}...",
+        actor=current_user.name,
+    )
+    db.add(activity)
+    db.commit()
+    db.refresh(comment)
+    return comment
+
+
+@app.post("/api/board-cards/{card_id}/checklist", response_model=BoardCardChecklistOut, status_code=201)
+def create_card_checklist(card_id: str, body: BoardCardChecklistIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Add checklist item to card"""
+    card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
+    if not card:
+        raise HTTPException(status_code=404, detail="Card tidak ditemukan")
+
+    max_pos = db.query(BoardCardChecklist).filter(BoardCardChecklist.card_id == card_id).count()
+    item = BoardCardChecklist(
+        id=str(uuid.uuid4()),
+        card_id=card_id,
+        text=body.text,
+        position=max_pos,
+    )
+    db.add(item)
+    activity = BoardCardActivity(
+        id=str(uuid.uuid4()),
+        card_id=card_id,
+        action="checklist",
+        description=f'Checklist "{body.text}" ditambahkan',
+        actor=current_user.name,
+    )
+    db.add(activity)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.patch("/api/board-cards/{card_id}/checklist/{item_id}", response_model=BoardCardChecklistOut)
+def update_card_checklist(card_id: str, item_id: str, is_done: bool = Query(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Toggle checklist item"""
+    item = db.query(BoardCardChecklist).filter(BoardCardChecklist.id == item_id, BoardCardChecklist.card_id == card_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Checklist item tidak ditemukan")
+    item.is_done = is_done
+    status_text = "selesai" if is_done else "belum selesai"
+    activity = BoardCardActivity(
+        id=str(uuid.uuid4()),
+        card_id=card_id,
+        action="checklist",
+        description=f'Checklist "{item.text}" ditandai {status_text}',
+        actor=current_user.name,
+    )
+    db.add(activity)
+    db.commit()
+    db.refresh(item)
+    return item
 
 
 # ---------------------------------------------------------------------------

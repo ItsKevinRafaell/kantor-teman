@@ -272,5 +272,177 @@ else:
     print("= lead_score sudah ada di leads, skip")
 
 conn.commit()
+
+# ---------------------------------------------------------------------------
+# Migrasi projects: lead_id nullable + tambah kolom color
+# ---------------------------------------------------------------------------
+cur.execute("PRAGMA table_info(projects)")
+proj_info = cur.fetchall()
+proj_cols = {row[1]: row for row in proj_info}
+
+need_rebuild = proj_cols.get("lead_id") and proj_cols["lead_id"][3] == 1  # notnull=1
+has_proj_color = "color" in proj_cols
+
+if need_rebuild or not has_proj_color:
+    cur.execute("PRAGMA foreign_keys = OFF")
+    cur.execute("ALTER TABLE projects RENAME TO projects_old")
+    cur.execute("""
+        CREATE TABLE projects (
+            id TEXT PRIMARY KEY,
+            lead_id INTEGER REFERENCES leads(id),
+            name TEXT NOT NULL,
+            type TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'ACTIVE',
+            nominal REAL NOT NULL DEFAULT 0,
+            start_date TEXT,
+            end_date TEXT,
+            color TEXT DEFAULT 'yellow'
+        )
+    """)
+    cur.execute("""
+        INSERT INTO projects (id, lead_id, name, type, status, nominal, start_date, end_date)
+        SELECT id, lead_id, name, type, status, nominal, start_date, end_date
+        FROM projects_old
+    """)
+    cur.execute("DROP TABLE projects_old")
+    cur.execute("PRAGMA foreign_keys = ON")
+    conn.commit()
+    print("+ projects direbuild: lead_id nullable, kolom color ditambahkan")
+else:
+    print("= projects sudah up-to-date, skip")
+
+# ---------------------------------------------------------------------------
+# Migrasi board_columns: tambah kolom color
+# ---------------------------------------------------------------------------
+cur.execute("PRAGMA table_info(board_columns)")
+bcol_cols = {row[1] for row in cur.fetchall()}
+
+if bcol_cols:
+    if "color" not in bcol_cols:
+        cur.execute("ALTER TABLE board_columns ADD COLUMN color TEXT DEFAULT 'yellow'")
+        print("+ kolom color ditambahkan ke board_columns")
+    else:
+        print("= board_columns.color sudah ada, skip")
+else:
+    print("= board_columns belum ada, akan dibuat oleh SQLAlchemy")
+
+# ---------------------------------------------------------------------------
+# Migrasi board_cards: tambah lead_id dan color
+# ---------------------------------------------------------------------------
+cur.execute("PRAGMA table_info(board_cards)")
+card_cols = {row[1] for row in cur.fetchall()}
+
+if card_cols:
+    if "lead_id" not in card_cols:
+        cur.execute("ALTER TABLE board_cards ADD COLUMN lead_id INTEGER REFERENCES leads(id)")
+        print("+ kolom lead_id ditambahkan ke board_cards")
+    else:
+        print("= board_cards.lead_id sudah ada, skip")
+
+    if "color" not in card_cols:
+        cur.execute("ALTER TABLE board_cards ADD COLUMN color TEXT DEFAULT 'yellow'")
+        print("+ kolom color ditambahkan ke board_cards")
+    else:
+        print("= board_cards.color sudah ada, skip")
+else:
+    print("= board_cards belum ada, akan dibuat oleh SQLAlchemy")
+
+# ---------------------------------------------------------------------------
+# Migrasi boards: tambah kolom color
+# ---------------------------------------------------------------------------
+cur.execute("PRAGMA table_info(boards)")
+board_cols = {row[1] for row in cur.fetchall()}
+
+if board_cols:
+    if "color" not in board_cols:
+        cur.execute("ALTER TABLE boards ADD COLUMN color TEXT DEFAULT 'yellow'")
+        print("+ kolom color ditambahkan ke boards")
+    else:
+        print("= boards.color sudah ada, skip")
+else:
+    print("= boards belum ada, akan dibuat oleh SQLAlchemy")
+
+# ---------------------------------------------------------------------------
+# Migrasi board_card_checklists: tambah is_done dan position
+# ---------------------------------------------------------------------------
+cur.execute("PRAGMA table_info(board_card_checklists)")
+checklist_cols = {row[1] for row in cur.fetchall()}
+
+if checklist_cols:
+    if "is_done" not in checklist_cols:
+        cur.execute("ALTER TABLE board_card_checklists ADD COLUMN is_done INTEGER DEFAULT 0")
+        print("+ kolom is_done ditambahkan ke board_card_checklists")
+    else:
+        print("= board_card_checklists.is_done sudah ada, skip")
+
+    if "position" not in checklist_cols:
+        cur.execute("ALTER TABLE board_card_checklists ADD COLUMN position INTEGER DEFAULT 0")
+        print("+ kolom position ditambahkan ke board_card_checklists")
+    else:
+        print("= board_card_checklists.position sudah ada, skip")
+else:
+    print("= board_card_checklists belum ada, akan dibuat oleh SQLAlchemy")
+
+# ---------------------------------------------------------------------------
+# Migrasi board_card_activities: pastikan semua kolom ada
+# ---------------------------------------------------------------------------
+cur.execute("PRAGMA table_info(board_card_activities)")
+activity_cols = {row[1] for row in cur.fetchall()}
+
+if activity_cols:
+    if "action" not in activity_cols:
+        cur.execute("ALTER TABLE board_card_activities ADD COLUMN action TEXT NOT NULL DEFAULT 'updated'")
+        print("+ kolom action ditambahkan ke board_card_activities")
+    if "description" not in activity_cols:
+        cur.execute("ALTER TABLE board_card_activities ADD COLUMN description TEXT NOT NULL DEFAULT ''")
+        print("+ kolom description ditambahkan ke board_card_activities")
+    if "actor" not in activity_cols:
+        cur.execute("ALTER TABLE board_card_activities ADD COLUMN actor TEXT NOT NULL DEFAULT ''")
+        print("+ kolom actor ditambahkan ke board_card_activities")
+    print("= board_card_activities kolom dicek")
+else:
+    print("= board_card_activities belum ada, akan dibuat oleh SQLAlchemy")
+
+# ---------------------------------------------------------------------------
+# Migrasi board_cards: pastikan assignee dan lead_id ada
+# ---------------------------------------------------------------------------
+cur.execute("PRAGMA table_info(board_cards)")
+bcard_cols = {row[1] for row in cur.fetchall()}
+
+if bcard_cols:
+    if "assignee" not in bcard_cols:
+        cur.execute("ALTER TABLE board_cards ADD COLUMN assignee TEXT")
+        print("+ kolom assignee ditambahkan ke board_cards")
+    if "due_date" not in bcard_cols:
+        cur.execute("ALTER TABLE board_cards ADD COLUMN due_date TEXT")
+        print("+ kolom due_date ditambahkan ke board_cards")
+    if "labels" not in bcard_cols:
+        cur.execute("ALTER TABLE board_cards ADD COLUMN labels TEXT")
+        print("+ kolom labels ditambahkan ke board_cards")
+    if "is_archived" not in bcard_cols:
+        cur.execute("ALTER TABLE board_cards ADD COLUMN is_archived INTEGER DEFAULT 0")
+        print("+ kolom is_archived ditambahkan ke board_cards")
+    if "updated_at" not in bcard_cols:
+        cur.execute("ALTER TABLE board_cards ADD COLUMN updated_at TEXT")
+        print("+ kolom updated_at ditambahkan ke board_cards")
+    print("= board_cards kolom dicek")
+else:
+    print("= board_cards belum ada, akan dibuat oleh SQLAlchemy")
+
+# ---------------------------------------------------------------------------
+# Migrasi board_card_comments: pastikan semua kolom ada
+# ---------------------------------------------------------------------------
+cur.execute("PRAGMA table_info(board_card_comments)")
+comment_cols = {row[1] for row in cur.fetchall()}
+
+if comment_cols:
+    if "author" not in comment_cols:
+        cur.execute("ALTER TABLE board_card_comments ADD COLUMN author TEXT NOT NULL DEFAULT ''")
+        print("+ kolom author ditambahkan ke board_card_comments")
+    print("= board_card_comments kolom dicek")
+else:
+    print("= board_card_comments belum ada, akan dibuat oleh SQLAlchemy")
+
+conn.commit()
 conn.close()
 print("Migrasi selesai.")
