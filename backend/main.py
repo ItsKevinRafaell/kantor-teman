@@ -4699,6 +4699,11 @@ def delete_board_column(column_id: str, current_user: User = Depends(get_current
     col = db.query(BoardColumn).filter(BoardColumn.id == column_id).first()
     if not col:
         raise HTTPException(status_code=404, detail="Column tidak ditemukan")
+    card_ids = [c.id for c in db.query(BoardCard.id).filter(BoardCard.column_id == column_id).all()]
+    if card_ids:
+        db.query(BoardCardActivity).filter(BoardCardActivity.card_id.in_(card_ids)).delete(synchronize_session=False)
+        db.query(BoardCardChecklist).filter(BoardCardChecklist.card_id.in_(card_ids)).delete(synchronize_session=False)
+        db.query(BoardCardComment).filter(BoardCardComment.card_id.in_(card_ids)).delete(synchronize_session=False)
     db.query(BoardCard).filter(BoardCard.column_id == column_id).delete()
     db.delete(col)
     db.commit()
@@ -4810,6 +4815,9 @@ def delete_board_card(card_id: str, current_user: User = Depends(get_current_use
     card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
     if not card:
         raise HTTPException(status_code=404, detail="Card tidak ditemukan")
+    db.query(BoardCardActivity).filter(BoardCardActivity.card_id == card_id).delete()
+    db.query(BoardCardChecklist).filter(BoardCardChecklist.card_id == card_id).delete()
+    db.query(BoardCardComment).filter(BoardCardComment.card_id == card_id).delete()
     db.delete(card)
     db.commit()
 

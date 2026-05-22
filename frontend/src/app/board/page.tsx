@@ -70,6 +70,25 @@ interface BoardOverview {
   color?: string; project_lead_id?: number | null;
 }
 
+function ConfirmModal({ open, onClose, onConfirm, title, message, danger = true }: {
+  open: boolean; onClose: () => void; onConfirm: () => void; title: string; message: string; danger?: boolean;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
+      <div className="relative bg-white dark:bg-[#242423] rounded-2xl shadow-2xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
+        <h3 className="font-semibold text-neutral-900 dark:text-neutral-50 mb-2">{title}</h3>
+        <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-5">{message}</p>
+        <div className="flex gap-2 justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>
+          <button onClick={() => { onConfirm(); onClose(); }} className={`px-4 py-2 text-sm rounded-lg font-medium text-white ${danger ? "bg-red-500 hover:bg-red-600" : "bg-yellow-500 hover:bg-yellow-600"}`}>Ya, lanjutkan</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Modal({ open, onClose, title, children, size = "md" }: {
   open: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: "sm" | "md" | "lg"
 }) {
@@ -118,6 +137,12 @@ export default function BoardPage() {
 
   const [draggedCard, setDraggedCard] = useState<{ card: BoardCard; fromColumn: string } | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+
+  // Confirm modal
+  const [confirmModal, setConfirmModal] = useState<{ open: boolean; title: string; message: string; onConfirm: () => void } | null>(null);
+  function showConfirm(title: string, message: string, onConfirm: () => void) {
+    setConfirmModal({ open: true, title, message, onConfirm });
+  }
 
   const [filterAssignee, setFilterAssignee] = useState("");
   const [filterDue, setFilterDue] = useState("");
@@ -224,7 +249,6 @@ export default function BoardPage() {
   }
 
   async function deleteCard(cardId: string) {
-    if (!confirm("Yakin hapus card ini?")) return;
     try {
       const res = await apiFetch(`/api/board-cards/${cardId}`, { method: "DELETE" });
       if (res.ok) {
@@ -272,7 +296,6 @@ export default function BoardPage() {
   }
 
   async function deleteColumn(columnId: string) {
-    if (!confirm("Yakin hapus kolom ini beserta semua card?")) return;
     try {
       const res = await apiFetch(`/api/board-columns/${columnId}`, { method: "DELETE" });
       if (res.ok) { setBoard(prev => prev ? { ...prev, columns: prev.columns.filter(col => col.id !== columnId) } : prev); setToast({ message: "Kolom dihapus", type: "success" }); }
@@ -488,7 +511,7 @@ export default function BoardPage() {
                     </div>
                     <div className="flex items-center gap-0.5">
                       <button onClick={() => { setColumnModal({ open: true, column }); setColumnName(column.name); setColumnColor(column.color || "yellow"); }} className="p-1 text-neutral-400 hover:text-yellow-500 rounded text-xs">Edit</button>
-                      <button onClick={() => deleteColumn(column.id)} className="p-1 text-neutral-400 hover:text-red-500 rounded"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => showConfirm("Hapus Kolom", `Kolom "${column.name}" dan semua card di dalamnya akan dihapus permanen.`, () => deleteColumn(column.id))} className="p-1 text-neutral-400 hover:text-red-500 rounded"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </div>
 
@@ -629,7 +652,7 @@ export default function BoardPage() {
                   title={cardModal.card.is_archived ? "Pulihkan" : "Arsipkan"}>
                   {cardModal.card.is_archived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
                 </button>
-                <button onClick={() => deleteCard(cardModal.card!.id)} className="px-3 py-2 text-sm rounded-lg bg-red-100 text-red-600 hover:bg-red-200" title="Hapus">
+                <button onClick={() => showConfirm("Hapus Card", "Card ini akan dihapus permanen beserta semua checklist, komentar, dan aktivitasnya.", () => deleteCard(cardModal.card!.id))} className="px-3 py-2 text-sm rounded-lg bg-red-100 text-red-600 hover:bg-red-200" title="Hapus">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </>
@@ -763,6 +786,16 @@ export default function BoardPage() {
           </button>
         </div>
       </Modal>
+
+      {confirmModal && (
+        <ConfirmModal
+          open={confirmModal.open}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          onConfirm={confirmModal.onConfirm}
+          onClose={() => setConfirmModal(null)}
+        />
+      )}
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
