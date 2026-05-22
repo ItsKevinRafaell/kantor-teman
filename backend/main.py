@@ -941,6 +941,9 @@ class LeadOut(BaseModel):
     deleted_at: Optional[str] = None
     lead_score: int = 0
     is_ghost_viewer: bool = False
+    google_rating: Optional[float] = None
+    review_count: Optional[int] = None
+    website_url: Optional[str] = None
     model_config = {"from_attributes": True}
 
 
@@ -2005,6 +2008,9 @@ def get_leads(
             "deleted_at": lead.deleted_at,
             "lead_score": lead.lead_score or 0,
             "is_ghost_viewer": lead.id in ghost_lead_ids,
+            "google_rating": lead.google_rating,
+            "review_count": lead.review_count,
+            "website_url": lead.website_url,
         }
         results.append(lead_dict)
     return results
