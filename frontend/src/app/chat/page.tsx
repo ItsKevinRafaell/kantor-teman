@@ -133,10 +133,8 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [savingMemory, setSavingMemory] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  useEffect(() => {
-    if (window.innerWidth >= 1024) setSidebarOpen(true);
-  }, []);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showMobilePicker, setShowMobilePicker] = useState(false);
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [showMemoryPanel, setShowMemoryPanel] = useState(false);
   const [showProjectSettings, setShowProjectSettings] = useState(false);
@@ -576,11 +574,8 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Sidebar */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
-      <aside className={`fixed top-14 bottom-0 left-0 z-50 lg:static lg:top-auto lg:bottom-auto lg:z-auto w-64 ${sidebarOpen ? "translate-x-0 lg:w-64" : "-translate-x-full lg:w-0 lg:translate-x-0"} bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] flex flex-col transition-all duration-200 overflow-hidden`}>
+      {/* Sidebar — desktop only */}
+      <aside className={`hidden lg:flex flex-col shrink-0 ${sidebarOpen ? "lg:w-64" : "lg:w-0"} bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] transition-all duration-200 overflow-hidden`}>
         <div className="p-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
           <h2 className="font-semibold text-sm text-neutral-700 dark:text-neutral-200">Projects</h2>
           <button onClick={() => setShowNewProjectModal(true)} className="text-xs text-brand-yellow hover:underline">+ New</button>
@@ -639,11 +634,68 @@ export default function ChatPage() {
         </div>
       </aside>
 
+      {/* Mobile Picker Modal — bottom sheet */}
+      {showMobilePicker && (
+        <div className="fixed inset-0 z-50 lg:hidden flex items-end">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowMobilePicker(false)} />
+          <div className="relative bg-[var(--bg-surface)] rounded-t-2xl w-full max-h-[80vh] flex flex-col shadow-2xl">
+            <div className="p-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
+              <h2 className="font-semibold text-sm text-neutral-800 dark:text-neutral-100">Pilih Chat</h2>
+              <button onClick={() => setShowMobilePicker(false)} className="text-neutral-400 hover:text-neutral-600 p-1">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 p-3 space-y-3">
+              {projects.length === 0 ? (
+                <p className="text-xs text-neutral-400 text-center py-4">Belum ada project.</p>
+              ) : (
+                projects.map((p) => (
+                  <div key={p.id} className="space-y-1">
+                    <div className="flex items-center justify-between px-2 py-1">
+                      <span className="text-xs font-bold text-neutral-500 uppercase tracking-wide">{p.name}</span>
+                      <button onClick={() => { selectProject(p); createConversation(); setShowMobilePicker(false); }} className="text-xs text-brand-yellow hover:underline">+ Chat</button>
+                    </div>
+                    {selectedProject?.id === p.id && conversations.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => { selectConversation(c); setShowMobilePicker(false); }}
+                        className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-colors ${selectedConversation?.id === c.id ? "bg-brand-yellow/10 text-brand-yellow" : "text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
+                      >
+                        {c.title}
+                      </button>
+                    ))}
+                    {selectedProject?.id !== p.id && (
+                      <button
+                        onClick={() => selectProject(p)}
+                        className="w-full text-left px-3 py-2 rounded-xl text-sm text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                      >
+                        Lihat percakapan...
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+              <button
+                onClick={() => { setShowNewProjectModal(true); setShowMobilePicker(false); }}
+                className="w-full px-3 py-2 rounded-xl text-sm font-semibold text-brand-yellow border border-brand-yellow/30 hover:bg-brand-yellow/5 transition-colors"
+              >
+                + Project Baru
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative">
         {/* Header */}
         <div className="p-4 border-b border-[var(--border-subtle)] flex items-center gap-3 bg-[var(--bg-surface)]">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-neutral-400 hover:text-neutral-600">
+          {/* Mobile: open picker modal */}
+          <button onClick={() => setShowMobilePicker(true)} className="lg:hidden text-neutral-400 hover:text-neutral-600">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
+          </button>
+          {/* Desktop: toggle sidebar */}
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="hidden lg:block text-neutral-400 hover:text-neutral-600">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
           </button>
           <h1 className="font-semibold text-neutral-800 dark:text-neutral-100 flex-1 truncate">

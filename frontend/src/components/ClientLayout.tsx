@@ -17,7 +17,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   if (pathname === "/chat") {
     return (
       <div className="flex flex-col h-screen overflow-hidden bg-[var(--bg-canvas)]">
-        <TopBar onMenuClick={() => {}} />
+        <TopBar onMenuClick={() => {}} hideMenu />
         <div className="flex-1 overflow-hidden">
           {children}
         </div>
