@@ -29,6 +29,16 @@ if "mysql" in _db_url:
         return _cur.fetchone() is not None
 
     _migrations = [
+        # leads
+        ("leads", "is_archived", "ALTER TABLE leads ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0"),
+        ("leads", "deleted_at", "ALTER TABLE leads ADD COLUMN deleted_at VARCHAR(255) NULL"),
+        ("leads", "lead_score", "ALTER TABLE leads ADD COLUMN lead_score INT NOT NULL DEFAULT 0"),
+        ("leads", "website_url", "ALTER TABLE leads ADD COLUMN website_url VARCHAR(2000) NULL"),
+        ("leads", "google_rating", "ALTER TABLE leads ADD COLUMN google_rating FLOAT NULL"),
+        ("leads", "review_count", "ALTER TABLE leads ADD COLUMN review_count INT NULL"),
+        ("leads", "latitude", "ALTER TABLE leads ADD COLUMN latitude FLOAT NULL"),
+        ("leads", "longitude", "ALTER TABLE leads ADD COLUMN longitude FLOAT NULL"),
+        # projects
         ("projects", "color", "ALTER TABLE projects ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'yellow'"),
         ("projects", "is_archived", "ALTER TABLE projects ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0"),
         ("boards", "color", "ALTER TABLE boards ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'yellow'"),
