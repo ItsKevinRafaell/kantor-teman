@@ -11,11 +11,11 @@ import sqlite3, os
 _db_url = os.getenv("DATABASE_URL", "")
 if "mysql" in _db_url:
     import pymysql
-    from urllib.parse import urlparse
+    from urllib.parse import urlparse, unquote
     _p = urlparse(_db_url.replace("mysql+pymysql://", "mysql://"))
     _mc = pymysql.connect(
         host=_p.hostname, port=_p.port or 3306,
-        user=_p.username, password=_p.password,
+        user=unquote(_p.username), password=unquote(_p.password),
         database=_p.path.lstrip("/"), charset="utf8mb4",
     )
     _cur = _mc.cursor()
