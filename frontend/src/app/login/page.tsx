@@ -3,6 +3,7 @@
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { setToken } from "../../lib/api";
+import Image from "next/image";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -42,10 +43,10 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-amber-600 to-yellow-600 bg-clip-text text-transparent">
-            Kantor Teman
-          </h1>
-          <p className="text-gray-400 text-sm mt-2">CRM Internal · Masuk untuk melanjutkan</p>
+          <div className="flex justify-center mb-3">
+            <Image src="/logo-secondary.png" alt="Kantor Teman" width={160} height={48} className="object-contain" priority />
+          </div>
+          <p className="text-gray-400 text-sm">CRM Internal · Masuk untuk melanjutkan</p>
         </div>
 
         {/* Card */}

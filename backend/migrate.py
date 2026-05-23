@@ -54,6 +54,7 @@ if "mysql" in _db_url:
         ("documents", "url", "ALTER TABLE documents ADD COLUMN url VARCHAR(2000) NULL"),
         ("documents", "tags", "ALTER TABLE documents ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'"),
         ("documents", "updated_at", "ALTER TABLE documents ADD COLUMN updated_at VARCHAR(255) NULL"),
+        ("provider_configs", "monthly_quota", "ALTER TABLE provider_configs ADD COLUMN monthly_quota FLOAT NOT NULL DEFAULT 0"),
     ]
 
     for table, col, sql in _migrations:

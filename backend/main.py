@@ -479,6 +479,7 @@ class ProviderConfig(Base):
     id = Column(String(36), primary_key=True)
     provider_name = Column(String(255), nullable=False)
     remaining_quota = Column(Float, default=0)
+    monthly_quota = Column(Float, default=0)
     price_per_unit_idr = Column(Float, default=0)
     price_input_token_usd = Column(Float, default=0)
     price_output_token_usd = Column(Float, default=0)
@@ -2188,6 +2189,7 @@ def send_wa_manual(body: WaSendIn, current_user: User = Depends(get_current_user
         if lead.status == "Scraped":
             lead.status = "Contacted"
             db.commit()
+        log_outreach_cost(db, None, 1)
         log_audit(db, current_user.name, "SEND_WA", "leads", lead.id, {"type": "manual"})
         return {"success": True, "message": "Pesan terkirim via Fonnte."}
     raise HTTPException(status_code=502, detail="Gagal mengirim pesan via Fonnte.")
@@ -7195,6 +7197,20 @@ def list_chat_models(current_user: User = Depends(get_current_user), db: Session
     }
 
 
+def reset_fonnte_monthly_quota():
+    db = SessionLocal()
+    try:
+        provider = db.query(ProviderConfig).filter_by(id="FONNTE").first()
+        if provider and provider.monthly_quota:
+            provider.remaining_quota = provider.monthly_quota
+            db.commit()
+            print(f"[SCHEDULER] Fonnte quota reset → {provider.monthly_quota}", flush=True)
+    except Exception as e:
+        print(f"[SCHEDULER ERROR] Fonnte reset: {e}", flush=True)
+    finally:
+        db.close()
+
+
 scheduler = AsyncIOScheduler()
 scheduler.add_job(process_pending_blasts, "interval", minutes=1, id="blast_processor")
 scheduler.add_job(scheduled_followup_processor, "interval", minutes=30, id="followup_processor")
@@ -7205,6 +7221,7 @@ scheduler.add_job(
     id="outreach_lifecycle_machine",
     args=[SessionLocal, Lead, Proposal, log_audit],
 )
+scheduler.add_job(reset_fonnte_monthly_quota, "cron", day=1, hour=0, minute=0, id="fonnte_monthly_reset")
 
 
 @app.on_event("startup")
