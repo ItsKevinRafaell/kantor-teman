@@ -14,12 +14,23 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     return <>{children}</>;
   }
 
+  if (pathname === "/chat") {
+    return (
+      <div className="flex flex-col h-screen overflow-hidden bg-[var(--bg-canvas)]">
+        <TopBar onMenuClick={() => {}} />
+        <div className="flex-1 overflow-hidden">
+          {children}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--bg-canvas)]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex flex-col flex-1 overflow-hidden min-w-0">
         <TopBar onMenuClick={() => setSidebarOpen(true)} />
-        <main className={`flex-1 bg-[var(--bg-canvas)] ${pathname === "/chat" ? "overflow-hidden" : "overflow-y-auto p-3 sm:p-6"}`}>
+        <main className="flex-1 overflow-y-auto p-3 sm:p-6 bg-[var(--bg-canvas)]">
           {children}
         </main>
       </div>
