@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@ducanh2912/next-pwa": "^10.2.9",
     "@types/leaflet": "^1.9.21",
     "docx": "^9.6.1",
     "leaflet": "^1.9.4",
