@@ -5,6 +5,65 @@ Jalankan sekali: python migrate.py
 """
 import sqlite3, os
 
+# ---------------------------------------------------------------------------
+# MySQL Migration (jalan dulu jika production MySQL)
+# ---------------------------------------------------------------------------
+_db_url = os.getenv("DATABASE_URL", "")
+if "mysql" in _db_url:
+    import pymysql
+    from urllib.parse import urlparse
+    _p = urlparse(_db_url.replace("mysql+pymysql://", "mysql://"))
+    _mc = pymysql.connect(
+        host=_p.hostname, port=_p.port or 3306,
+        user=_p.username, password=_p.password,
+        database=_p.path.lstrip("/"), charset="utf8mb4",
+    )
+    _cur = _mc.cursor()
+
+    def _col_exists(table, col):
+        _cur.execute(f"SHOW COLUMNS FROM `{table}` LIKE %s", (col,))
+        return _cur.fetchone() is not None
+
+    def _table_exists(table):
+        _cur.execute("SHOW TABLES LIKE %s", (table,))
+        return _cur.fetchone() is not None
+
+    _migrations = [
+        ("projects", "color", "ALTER TABLE projects ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'yellow'"),
+        ("projects", "is_archived", "ALTER TABLE projects ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0"),
+        ("boards", "color", "ALTER TABLE boards ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'yellow'"),
+        ("board_columns", "color", "ALTER TABLE board_columns ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'yellow'"),
+        ("board_cards", "color", "ALTER TABLE board_cards ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'yellow'"),
+        ("board_cards", "is_archived", "ALTER TABLE board_cards ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0"),
+        ("board_card_comments", "author", "ALTER TABLE board_card_comments ADD COLUMN author TEXT NOT NULL DEFAULT ''"),
+        ("document_folders", "parent_id", "ALTER TABLE document_folders ADD COLUMN parent_id VARCHAR(36) NULL"),
+        ("document_folders", "color", "ALTER TABLE document_folders ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT '#6B7280'"),
+        ("documents", "folder_id", "ALTER TABLE documents ADD COLUMN folder_id VARCHAR(36) NULL"),
+        ("documents", "title", "ALTER TABLE documents ADD COLUMN title VARCHAR(500) NOT NULL DEFAULT ''"),
+        ("documents", "body", "ALTER TABLE documents ADD COLUMN body LONGTEXT NULL"),
+        ("documents", "url", "ALTER TABLE documents ADD COLUMN url VARCHAR(2000) NULL"),
+        ("documents", "tags", "ALTER TABLE documents ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'"),
+        ("documents", "updated_at", "ALTER TABLE documents ADD COLUMN updated_at VARCHAR(255) NULL"),
+    ]
+
+    for table, col, sql in _migrations:
+        if not _table_exists(table):
+            print(f"= {table} belum ada, skip (akan dibuat SQLAlchemy)")
+            continue
+        if not _col_exists(table, col):
+            _cur.execute(sql)
+            print(f"+ MySQL: {table}.{col} ditambahkan")
+        else:
+            print(f"= MySQL: {table}.{col} sudah ada, skip")
+
+    _mc.commit()
+    _mc.close()
+    print("MySQL migration selesai.")
+    exit(0)
+
+# ---------------------------------------------------------------------------
+# SQLite Migration (local dev)
+# ---------------------------------------------------------------------------
 DB_PATH = os.path.join(os.path.dirname(__file__), "leads.db")
 conn = sqlite3.connect(DB_PATH)
 cur = conn.cursor()
@@ -585,69 +644,5 @@ if doc_cols:
 
 conn.commit()
 conn.close()
-
-# ---------------------------------------------------------------------------
-# MySQL Migration (production)
-# ---------------------------------------------------------------------------
-import os as _os
-_db_url = _os.getenv("DATABASE_URL", "")
-if "mysql" in _db_url:
-    import pymysql
-    from urllib.parse import urlparse
-    _p = urlparse(_db_url.replace("mysql+pymysql://", "mysql://"))
-    _mc = pymysql.connect(
-        host=_p.hostname, port=_p.port or 3306,
-        user=_p.username, password=_p.password,
-        database=_p.path.lstrip("/"), charset="utf8mb4",
-    )
-    _cur = _mc.cursor()
-
-    def _col_exists(table, col):
-        _cur.execute(f"SHOW COLUMNS FROM `{table}` LIKE %s", (col,))
-        return _cur.fetchone() is not None
-
-    def _table_exists(table):
-        _cur.execute("SHOW TABLES LIKE %s", (table,))
-        return _cur.fetchone() is not None
-
-    _migrations = [
-        # projects
-        ("projects", "color", "ALTER TABLE projects ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'yellow'"),
-        ("projects", "is_archived", "ALTER TABLE projects ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0"),
-        # boards
-        ("boards", "color", "ALTER TABLE boards ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'yellow'"),
-        # board_columns
-        ("board_columns", "color", "ALTER TABLE board_columns ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'yellow'"),
-        # board_cards
-        ("board_cards", "color", "ALTER TABLE board_cards ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'yellow'"),
-        ("board_cards", "is_archived", "ALTER TABLE board_cards ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0"),
-        # board_card_comments
-        ("board_card_comments", "author", "ALTER TABLE board_card_comments ADD COLUMN author TEXT NOT NULL DEFAULT ''"),
-        # document_folders
-        ("document_folders", "parent_id", "ALTER TABLE document_folders ADD COLUMN parent_id VARCHAR(36) NULL"),
-        ("document_folders", "color", "ALTER TABLE document_folders ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT '#6B7280'"),
-        # documents
-        ("documents", "folder_id", "ALTER TABLE documents ADD COLUMN folder_id VARCHAR(36) NULL"),
-        ("documents", "title", "ALTER TABLE documents ADD COLUMN title VARCHAR(500) NOT NULL DEFAULT ''"),
-        ("documents", "body", "ALTER TABLE documents ADD COLUMN body LONGTEXT NULL"),
-        ("documents", "url", "ALTER TABLE documents ADD COLUMN url VARCHAR(2000) NULL"),
-        ("documents", "tags", "ALTER TABLE documents ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'"),
-        ("documents", "updated_at", "ALTER TABLE documents ADD COLUMN updated_at VARCHAR(255) NULL"),
-    ]
-
-    for table, col, sql in _migrations:
-        if not _table_exists(table):
-            print(f"= {table} belum ada, skip (akan dibuat SQLAlchemy)")
-            continue
-        if not _col_exists(table, col):
-            _cur.execute(sql)
-            print(f"+ MySQL: {table}.{col} ditambahkan")
-        else:
-            print(f"= MySQL: {table}.{col} sudah ada, skip")
-
-    _mc.commit()
-    _mc.close()
-    print("MySQL migration selesai.")
-else:
-    print("Bukan MySQL, skip MySQL migration.")
 print("Migrasi selesai.")
+
