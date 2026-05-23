@@ -606,6 +606,36 @@ class ContentGeneration(Base):
     session = relationship("ContentSession", backref="generations")
 
 
+# ---------------------------------------------------------------------------
+# Document Folder / Archive Models
+# ---------------------------------------------------------------------------
+
+class DocumentFolder(Base):
+    __tablename__ = "document_folders"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    name = Column(String(255), nullable=False)
+    parent_id = Column(String(36), ForeignKey("document_folders.id"), nullable=True)
+    color = Column(String(20), nullable=False, default="#6B7280")
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    user = relationship("User", backref="document_folders")
+
+
+class Document(Base):
+    __tablename__ = "documents"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    folder_id = Column(String(36), ForeignKey("document_folders.id"), nullable=True)
+    title = Column(String(500), nullable=False)
+    body = Column(Text, nullable=True)
+    url = Column(String(2000), nullable=True)
+    tags = Column(Text, nullable=False, default="[]")
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at = Column(String(255), nullable=True)
+    user = relationship("User", backref="documents")
+    folder = relationship("DocumentFolder", backref="documents")
+
+
 Base.metadata.create_all(bind=engine)
 
 
@@ -6015,6 +6045,10 @@ class ContentSessionIn(BaseModel):
     name: str
     description: Optional[str] = None
 
+class ContentSessionUpdate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
 class ContentSessionOut(BaseModel):
     id: str
     name: str
@@ -6056,6 +6090,20 @@ class SeoArticleGenRequest(BaseModel):
     title: Optional[str] = None
     word_count: Optional[int] = 800
     tone: Optional[str] = "informatif"
+    search_intent: Optional[str] = "informational"
+    # Semrush data
+    keyword_difficulty: Optional[int] = None
+    search_volume: Optional[int] = None
+    lsi_keywords: Optional[List[str]] = []
+    # Content structure
+    faq_topics: Optional[List[str]] = []
+    serp_features: Optional[List[str]] = []
+    # Context
+    target_audience: Optional[str] = None
+    target_location: Optional[str] = None
+    brand_name: Optional[str] = None
+    unique_angle: Optional[str] = None
+    internal_link_targets: Optional[str] = None
     session_id: Optional[str] = None
     context_from: Optional[List[str]] = []
 
@@ -7361,6 +7409,23 @@ def delete_content_session(
     db.delete(s); db.commit()
 
 
+@app.put("/api/content/sessions/{session_id}", response_model=ContentSessionOut)
+def update_content_session(
+    session_id: str, body: ContentSessionUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    s = db.query(ContentSession).filter(
+        ContentSession.id == session_id, ContentSession.user_id == current_user.id).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Session tidak ditemukan")
+    s.name = body.name
+    if body.description is not None:
+        s.description = body.description
+    db.commit(); db.refresh(s)
+    return s
+
+
 # --- History ---
 
 @app.get("/api/content/generations")
@@ -7531,15 +7596,72 @@ def generate_seo_article(
         raise HTTPException(status_code=400, detail="API Key AI belum dikonfigurasi di Settings")
 
     target_title = body.title or f"Panduan Lengkap: {body.keyword}"
+
+    intent_guide = {
+        "informational": "Search intent INFORMATIONAL: edukasi pembaca, jawab 'apa', 'bagaimana', 'mengapa'. Buat artikel komprehensif dengan definisi jelas, contoh praktis, dan takeaway.",
+        "commercial": "Search intent COMMERCIAL INVESTIGATION: pembaca sedang membandingkan pilihan. Sertakan perbandingan, pro-kontra, kriteria pemilihan, dan rekomendasi konkret.",
+        "transactional": "Search intent TRANSACTIONAL: pembaca siap bertindak. CTA kuat, benefit produk/jasa menonjol, hilangkan keraguan, sertakan social proof.",
+        "navigational": "Search intent NAVIGATIONAL: bantu user menemukan brand/resource spesifik. Fokus pada brand credibility dan unique value proposition.",
+    }.get(body.search_intent or "informational", "")
+
+    kd_guide = ""
+    if body.keyword_difficulty is not None:
+        if body.keyword_difficulty >= 70:
+            kd_guide = f"Keyword difficulty {body.keyword_difficulty}/100 (HARD): artikel harus sangat komprehensif, lebih mendalam dari kompetitor, sertakan data/statistik, expert insight."
+        elif body.keyword_difficulty >= 40:
+            kd_guide = f"Keyword difficulty {body.keyword_difficulty}/100 (MEDIUM): artikel solid dan lengkap, pastikan semua subtopik penting tercakup."
+        else:
+            kd_guide = f"Keyword difficulty {body.keyword_difficulty}/100 (EASY): fokus pada kualitas dan kegunaan, pastikan E-E-A-T terpenuhi."
+
+    serp_guide = ""
+    if body.serp_features:
+        hints = []
+        if "featured_snippet" in body.serp_features:
+            hints.append("tambah definition box atau tabel ringkasan di awal untuk optimasi Featured Snippet")
+        if "paa" in body.serp_features:
+            hints.append("sertakan FAQ section (H2 'Pertanyaan Umum') untuk optimasi People Also Ask")
+        if "local_pack" in body.serp_features:
+            hints.append("sertakan informasi lokal yang relevan untuk optimasi Local Pack")
+        if "image_pack" in body.serp_features:
+            hints.append("tambah deskripsi/caption gambar yang informatif untuk optimasi Image Pack")
+        if hints:
+            serp_guide = "SERP features target: " + "; ".join(hints) + "."
+
     system_msg = (
-        f"Kamu adalah SEO content writer profesional Bahasa Indonesia. "
-        f"Buat artikel SEO berkualitas, tone: '{body.tone}', target sekitar {body.word_count} kata. "
+        f"Kamu adalah SEO content writer profesional Bahasa Indonesia, expert dalam E-E-A-T dan on-page SEO. "
+        f"Buat artikel blog SEO berkualitas tinggi, tone: '{body.tone}', target sekitar {body.word_count} kata. "
+        f"{intent_guide} {kd_guide} {serp_guide} "
         f"Gunakan heading H2/H3 dengan format markdown (## dan ###). "
-        f"WAJIB return valid JSON: {{\"title\":\"...\",\"meta_description\":\"...max 160 karakter...\","
+        f"Optimalkan keyword secara natural (density 1-2%, jangan keyword stuffing). "
+        f"Struktur artikel: hook intro, isi dengan heading logis, kesimpulan + CTA. "
+        f"WAJIB return valid JSON (no markdown wrapper): "
+        f"{{\"title\":\"...\",\"meta_description\":\"...max 160 karakter, include keyword...\","
         f"\"body\":\"...artikel markdown lengkap...\",\"focus_keyword\":\"...\","
         f"\"secondary_keywords\":[\"...\"]}}"
     )
-    user_msg = f"Keyword utama: {body.keyword}\nJudul target: {target_title}"
+
+    user_parts = [f"Keyword utama: {body.keyword}", f"Judul: {target_title}"]
+    if body.search_intent:
+        user_parts.append(f"Search intent: {body.search_intent}")
+    if body.search_volume:
+        user_parts.append(f"Search volume: {body.search_volume:,}/bulan")
+    if body.keyword_difficulty is not None:
+        user_parts.append(f"Keyword difficulty: {body.keyword_difficulty}/100")
+    if body.lsi_keywords:
+        user_parts.append(f"LSI/related keywords (sisipkan secara natural): {', '.join(body.lsi_keywords)}")
+    if body.target_audience:
+        user_parts.append(f"Target pembaca: {body.target_audience}")
+    if body.target_location:
+        user_parts.append(f"Target lokasi: {body.target_location}")
+    if body.brand_name:
+        user_parts.append(f"Brand/bisnis: {body.brand_name}")
+    if body.unique_angle:
+        user_parts.append(f"Angle unik artikel ini: {body.unique_angle}")
+    if body.faq_topics:
+        user_parts.append(f"FAQ topics yang wajib dijawab: {'; '.join(body.faq_topics)}")
+    if body.internal_link_targets:
+        user_parts.append(f"Halaman internal untuk disarankan sebagai internal link: {body.internal_link_targets}")
+    user_msg = "\n".join(user_parts)
     ctx = _get_session_ctx(body.session_id, db)
     if ctx:
         user_msg += f"\n\n{ctx}"
@@ -7575,3 +7697,213 @@ def generate_seo_article(
     except Exception as e:
         gen.status = "error"; gen.error_msg = str(e); db.commit()
         raise HTTPException(status_code=502, detail=f"Gagal generate artikel: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# Document Archive: Folders & Documents
+# ---------------------------------------------------------------------------
+
+class ArchiveFolderIn(BaseModel):
+    name: str
+    parent_id: Optional[str] = None
+    color: Optional[str] = "#6B7280"
+
+
+class ArchiveFolderUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+
+
+class ArchiveDocIn(BaseModel):
+    title: str
+    body: Optional[str] = None
+    url: Optional[str] = None
+    tags: Optional[List[str]] = []
+    folder_id: Optional[str] = None
+
+
+class ArchiveDocUpdate(BaseModel):
+    title: Optional[str] = None
+    body: Optional[str] = None
+    url: Optional[str] = None
+    tags: Optional[List[str]] = None
+    folder_id: Optional[str] = None
+
+
+@app.get("/api/archive/folders")
+def list_archive_folders(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    folders = db.query(DocumentFolder).filter(DocumentFolder.user_id == current_user.id).order_by(DocumentFolder.created_at).all()
+    return [
+        {
+            "id": f.id,
+            "name": f.name,
+            "parent_id": f.parent_id,
+            "color": f.color,
+            "created_at": f.created_at,
+        }
+        for f in folders
+    ]
+
+
+@app.post("/api/archive/folders", status_code=201)
+def create_archive_folder(
+    body: ArchiveFolderIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    folder = DocumentFolder(
+        id=str(uuid.uuid4()),
+        user_id=current_user.id,
+        name=body.name.strip(),
+        parent_id=body.parent_id or None,
+        color=body.color or "#6B7280",
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    db.add(folder)
+    db.commit()
+    return {"id": folder.id, "name": folder.name, "parent_id": folder.parent_id, "color": folder.color, "created_at": folder.created_at}
+
+
+@app.put("/api/archive/folders/{folder_id}")
+def update_archive_folder(
+    folder_id: str,
+    body: ArchiveFolderUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    folder = db.query(DocumentFolder).filter(DocumentFolder.id == folder_id, DocumentFolder.user_id == current_user.id).first()
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder tidak ditemukan")
+    if body.name is not None:
+        folder.name = body.name.strip()
+    if body.color is not None:
+        folder.color = body.color
+    db.commit()
+    return {"id": folder.id, "name": folder.name, "parent_id": folder.parent_id, "color": folder.color, "created_at": folder.created_at}
+
+
+@app.delete("/api/archive/folders/{folder_id}", status_code=204)
+def delete_archive_folder(
+    folder_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    folder = db.query(DocumentFolder).filter(DocumentFolder.id == folder_id, DocumentFolder.user_id == current_user.id).first()
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder tidak ditemukan")
+    db.query(Document).filter(Document.folder_id == folder_id).update({"folder_id": None})
+    db.delete(folder)
+    db.commit()
+
+
+@app.get("/api/archive")
+def list_archive_docs(
+    folder_id: Optional[str] = Query(default=None),
+    search: Optional[str] = Query(default=None),
+    limit: int = Query(default=50, le=200),
+    unfoldered: Optional[bool] = Query(default=None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    q = db.query(Document).filter(Document.user_id == current_user.id)
+    if unfoldered:
+        q = q.filter(Document.folder_id == None)
+    elif folder_id is not None:
+        q = q.filter(Document.folder_id == folder_id)
+    if search:
+        q = q.filter(Document.title.ilike(f"%{search}%"))
+    docs = q.order_by(Document.updated_at.desc(), Document.created_at.desc()).limit(limit).all()
+    return [_archive_doc_to_dict(d) for d in docs]
+
+
+@app.post("/api/archive", status_code=201)
+def create_archive_doc(
+    body: ArchiveDocIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    now = datetime.now(timezone.utc).isoformat()
+    doc = Document(
+        id=str(uuid.uuid4()),
+        user_id=current_user.id,
+        folder_id=body.folder_id or None,
+        title=body.title.strip(),
+        body=body.body or None,
+        url=body.url or None,
+        tags=json.dumps(body.tags or []),
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(doc)
+    db.commit()
+    return _archive_doc_to_dict(doc)
+
+
+@app.get("/api/archive/{doc_id}")
+def get_archive_doc(
+    doc_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    doc = db.query(Document).filter(Document.id == doc_id, Document.user_id == current_user.id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
+    return _archive_doc_to_dict(doc)
+
+
+@app.put("/api/archive/{doc_id}")
+def update_archive_doc(
+    doc_id: str,
+    body: ArchiveDocUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    doc = db.query(Document).filter(Document.id == doc_id, Document.user_id == current_user.id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
+    if body.title is not None:
+        doc.title = body.title.strip()
+    if body.body is not None:
+        doc.body = body.body
+    if body.url is not None:
+        doc.url = body.url
+    if body.tags is not None:
+        doc.tags = json.dumps(body.tags)
+    if body.folder_id is not None:
+        doc.folder_id = body.folder_id if body.folder_id != "" else None
+    doc.updated_at = datetime.now(timezone.utc).isoformat()
+    db.commit()
+    return _archive_doc_to_dict(doc)
+
+
+@app.delete("/api/archive/{doc_id}", status_code=204)
+def delete_archive_doc(
+    doc_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    doc = db.query(Document).filter(Document.id == doc_id, Document.user_id == current_user.id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
+    db.delete(doc)
+    db.commit()
+
+
+def _archive_doc_to_dict(doc: Document) -> dict:
+    try:
+        tags = json.loads(doc.tags) if doc.tags else []
+    except Exception:
+        tags = []
+    return {
+        "id": doc.id,
+        "folder_id": doc.folder_id,
+        "title": doc.title,
+        "body": doc.body,
+        "url": doc.url,
+        "tags": tags,
+        "created_at": doc.created_at,
+        "updated_at": doc.updated_at,
+    }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "../../lib/api";
 
 interface Analytics {
@@ -37,26 +38,35 @@ const QUICK_ACTIONS = [
 ];
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [hotLeads, setHotLeads] = useState<{ lead_id: number; business_name: string; phone_number: string; category: string | null; status: string; last_active: string; total_opens: number; proposal_slug: string | null }[]>([]);
   const [alerts, setAlerts] = useState<{ id: string; lead_id: number; business_name: string; phone_number: string; category: string | null; triggered_at: string; days_since_first_view: number; proposal_slug: string | null }[]>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  useEffect(() => {
+    const match = document.cookie.match(/(?:^|;\s*)kt_token=([^;]*)/);
+    if (!match) router.replace("/login");
+  }, [router]);
+
   const fetchAnalytics = useCallback(() => {
     apiFetch("/api/analytics")
-      .then((r) => r.json())
-      .then(setAnalytics)
+      .then((r) => {
+        if (r.status === 401 || r.status === 403) { router.replace("/login"); return null; }
+        return r.ok ? r.json() : null;
+      })
+      .then((data) => { if (data) setAnalytics(data); })
       .finally(() => setLoading(false));
     apiFetch("/api/leads/hot")
-      .then((r) => r.json())
-      .then(setHotLeads)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setHotLeads(data); })
       .catch(() => {});
     apiFetch("/api/alerts/reengagement")
-      .then((r) => r.json())
-      .then(setAlerts)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setAlerts(data); })
       .catch(() => {});
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     fetchAnalytics();
@@ -64,13 +74,13 @@ export default function DashboardPage() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchAnalytics]);
 
-  const maxProduct = analytics ? Math.max(...analytics.leads_by_product.map((p) => p.count), 1) : 1;
+  const maxProduct = analytics ? Math.max(...(analytics.leads_by_product ?? []).map((p) => p.count), 1) : 1;
 
   const STAT_CARDS = [
     { label: "Total Leads", value: loading ? "—" : analytics?.total_leads ?? 0, sub: "Semua prospek tersimpan", color: "text-amber-600", bg: "bg-amber-50" },
     { label: "Total Klien", value: loading ? "—" : analytics?.total_clients ?? 0, sub: "Sudah dikonversi", color: "text-emerald-600", bg: "bg-emerald-50" },
     { label: "Conversion Rate", value: loading ? "—" : `${analytics?.conversion_rate ?? 0}%`, sub: "Klien / Total Leads", color: "text-amber-600", bg: "bg-amber-50" },
-    { label: "Kategori Aktif", value: loading ? "—" : analytics?.leads_by_product.length ?? 0, sub: "Jenis layanan diminati", color: "text-amber-600", bg: "bg-amber-50" },
+    { label: "Kategori Aktif", value: loading ? "—" : analytics?.leads_by_product?.length ?? 0, sub: "Jenis layanan diminati", color: "text-amber-600", bg: "bg-amber-50" },
   ];
 
   return (

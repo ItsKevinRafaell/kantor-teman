@@ -511,6 +511,78 @@ CREATE TABLE IF NOT EXISTS content_generations (
 """)
 print("+ tabel content_generations ready")
 
+# Add missing columns to content_generations (safe re-run)
+existing = {row[1] for row in cur.execute("PRAGMA table_info(content_generations)").fetchall()}
+for col, defn in [
+    ("session_id", "TEXT REFERENCES content_sessions(id)"),
+    ("model_used", "TEXT"),
+    ("provider_name", "TEXT"),
+    ("error_msg", "TEXT"),
+]:
+    if col not in existing:
+        cur.execute(f"ALTER TABLE content_generations ADD COLUMN {col} {defn}")
+        print(f"+ content_generations.{col} ditambahkan")
+
+conn.commit()
+
+# ---------------------------------------------------------------------------
+# Document Folders & Documents Tables
+# ---------------------------------------------------------------------------
+cur.execute("""
+CREATE TABLE IF NOT EXISTS document_folders (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    name TEXT NOT NULL,
+    parent_id TEXT REFERENCES document_folders(id),
+    color TEXT NOT NULL DEFAULT '#6B7280',
+    created_at TEXT NOT NULL
+)
+""")
+print("+ tabel document_folders ready")
+
+cur.execute("""
+CREATE TABLE IF NOT EXISTS documents (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    folder_id TEXT REFERENCES document_folders(id),
+    title TEXT NOT NULL,
+    body TEXT,
+    url TEXT,
+    tags TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    updated_at TEXT
+)
+""")
+print("+ tabel documents ready")
+
+# Add missing columns to document_folders (safe re-run)
+cur.execute("PRAGMA table_info(document_folders)")
+df_cols = {row[1] for row in cur.fetchall()}
+if df_cols:
+    for col, defn in [
+        ("parent_id", "TEXT REFERENCES document_folders(id)"),
+        ("color", "TEXT NOT NULL DEFAULT '#6B7280'"),
+    ]:
+        if col not in df_cols:
+            cur.execute(f"ALTER TABLE document_folders ADD COLUMN {col} {defn}")
+            print(f"+ document_folders.{col} ditambahkan")
+
+# Add missing columns to documents (safe re-run)
+cur.execute("PRAGMA table_info(documents)")
+doc_cols = {row[1] for row in cur.fetchall()}
+if doc_cols:
+    for col, defn in [
+        ("folder_id", "TEXT REFERENCES document_folders(id)"),
+        ("title", "TEXT NOT NULL DEFAULT ''"),
+        ("body", "TEXT"),
+        ("url", "TEXT"),
+        ("tags", "TEXT NOT NULL DEFAULT '[]'"),
+        ("updated_at", "TEXT"),
+    ]:
+        if col not in doc_cols:
+            cur.execute(f"ALTER TABLE documents ADD COLUMN {col} {defn}")
+            print(f"+ documents.{col} ditambahkan")
+
 conn.commit()
 conn.close()
 print("Migrasi selesai.")

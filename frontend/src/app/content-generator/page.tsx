@@ -25,7 +25,7 @@ interface ContentGeneration {
 type Tool = "caption" | "seo_article" | "image";
 type ToastState = { msg: string; type: "success" | "error" | "info" } | null;
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const TOOL_LABELS: Record<Tool, string> = {
   caption: "Caption Generator",
@@ -45,6 +45,100 @@ function formatDate(d: string) {
 
 function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text).catch(() => {});
+}
+
+function applyInlineMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>");
+}
+
+function markdownToHtml(md: string): string {
+  const lines = md.split("\n");
+  const parts: string[] = [];
+  let inList = false;
+
+  const endList = () => { if (inList) { parts.push("</ul>"); inList = false; } };
+
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (line.startsWith("## ")) {
+      endList();
+      parts.push(`<h2 class="text-lg font-bold mt-5 mb-2 text-neutral-800 dark:text-neutral-200">${applyInlineMarkdown(line.slice(3))}</h2>`);
+    } else if (line.startsWith("### ")) {
+      endList();
+      parts.push(`<h3 class="text-base font-semibold mt-4 mb-1 text-neutral-700 dark:text-neutral-300">${applyInlineMarkdown(line.slice(4))}</h3>`);
+    } else if (line.startsWith("#### ")) {
+      endList();
+      parts.push(`<h4 class="text-sm font-semibold mt-3 mb-1 text-neutral-600 dark:text-neutral-400">${applyInlineMarkdown(line.slice(5))}</h4>`);
+    } else if (line.startsWith("- ") || line.startsWith("* ")) {
+      if (!inList) { parts.push(`<ul class="list-disc ml-5 my-2 space-y-0.5">`); inList = true; }
+      parts.push(`<li class="text-sm text-neutral-700 dark:text-neutral-300">${applyInlineMarkdown(line.slice(2))}</li>`);
+    } else if (line.trim() === "") {
+      endList();
+    } else {
+      endList();
+      parts.push(`<p class="text-sm text-neutral-700 dark:text-neutral-300 mb-2 leading-relaxed">${applyInlineMarkdown(line)}</p>`);
+    }
+  }
+  endList();
+  return parts.join("\n");
+}
+
+async function exportToDocx(result: {
+  title: string; meta_description: string; body: string;
+  focus_keyword: string; secondary_keywords: string[];
+}) {
+  const { Document, Paragraph, TextRun, HeadingLevel, Packer } = await import("docx");
+
+  const children: InstanceType<typeof Paragraph>[] = [];
+
+  children.push(new Paragraph({ text: result.title, heading: HeadingLevel.HEADING_1 }));
+  children.push(new Paragraph({ text: "" }));
+  children.push(new Paragraph({
+    children: [
+      new TextRun({ text: "Meta Description: ", bold: true }),
+      new TextRun({ text: result.meta_description }),
+    ],
+  }));
+  if (result.secondary_keywords?.length) {
+    children.push(new Paragraph({
+      children: [
+        new TextRun({ text: "Secondary Keywords: ", bold: true }),
+        new TextRun({ text: result.secondary_keywords.join(", ") }),
+      ],
+    }));
+  }
+  children.push(new Paragraph({ text: "" }));
+
+  for (const raw of result.body.split("\n")) {
+    const line = raw.trimEnd();
+    const strip = (s: string) => s.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1");
+    if (line.startsWith("## ")) {
+      children.push(new Paragraph({ text: strip(line.slice(3)), heading: HeadingLevel.HEADING_2 }));
+    } else if (line.startsWith("### ")) {
+      children.push(new Paragraph({ text: strip(line.slice(4)), heading: HeadingLevel.HEADING_3 }));
+    } else if (line.startsWith("#### ")) {
+      children.push(new Paragraph({ text: strip(line.slice(5)), heading: HeadingLevel.HEADING_4 }));
+    } else if (line.startsWith("- ") || line.startsWith("* ")) {
+      children.push(new Paragraph({ text: strip(line.slice(2)), bullet: { level: 0 } }));
+    } else if (line.trim() === "") {
+      children.push(new Paragraph({ text: "" }));
+    } else {
+      children.push(new Paragraph({ text: strip(line) }));
+    }
+  }
+
+  const doc = new Document({ sections: [{ children }] });
+  const blob = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${result.title.replace(/[^a-z0-9\s]/gi, "").trim().replace(/\s+/g, "_") || "seo_article"}.docx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -76,7 +170,6 @@ export default function ContentGeneratorPage() {
   const [imageProviders, setImageProviders] = useState<ContentProvider[]>([]);
   const [generations, setGenerations] = useState<ContentGeneration[]>([]);
   const [sharedContext, setSharedContext] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
 
   // Modals
@@ -89,6 +182,10 @@ export default function ContentGeneratorPage() {
 
   // Session form
   const [sessionForm, setSessionForm] = useState({ name: "", description: "" });
+
+  // Session rename
+  const [renamingSession, setRenamingSession] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   const showToast = (msg: string, type: "success" | "error" | "info" = "success") => setToast({ msg, type });
 
@@ -165,10 +262,26 @@ export default function ContentGeneratorPage() {
       const res = await apiFetch(`/api/content/sessions/${id}`, { method: "DELETE" });
       if (res.ok) {
         setSessions(prev => prev.filter(s => s.id !== id));
-        if (selectedSession?.id === id) { setSelectedSession(null); }
+        if (selectedSession?.id === id) setSelectedSession(null);
         showToast("Session dihapus");
       }
     } catch { showToast("Gagal hapus session", "error"); }
+  }
+
+  async function commitRename(id: string) {
+    if (!renameValue.trim()) { setRenamingSession(null); return; }
+    try {
+      const res = await apiFetch(`/api/content/sessions/${id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: renameValue.trim() }),
+      });
+      if (res.ok) {
+        setSessions(prev => prev.map(s => s.id === id ? { ...s, name: renameValue.trim() } : s));
+        if (selectedSession?.id === id) setSelectedSession(prev => prev ? { ...prev, name: renameValue.trim() } : null);
+        showToast("Session diupdate");
+      }
+    } catch { showToast("Gagal update session", "error"); }
+    setRenamingSession(null);
   }
 
   // ── Context toggle ─────────────────────────────────────────────────────────
@@ -180,7 +293,7 @@ export default function ContentGeneratorPage() {
   // ── Generation callback ────────────────────────────────────────────────────
 
   function onResult(gen: ContentGeneration) {
-    setGenerations(prev => [gen, ...prev]);
+    setGenerations(prev => prev.some(g => g.id === gen.id) ? prev : [gen, ...prev]);
   }
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -213,12 +326,29 @@ export default function ContentGeneratorPage() {
             Tanpa sesi
           </button>
           {sessions.map(s => (
-            <div key={s.id} className={`group flex items-center gap-1 px-3 py-2 rounded-xl text-sm mb-1 cursor-pointer transition-all
-              ${selectedSession?.id === s.id ? "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 font-medium" : "text-neutral-500 hover:bg-gray-100 dark:hover:bg-gray-800"}`}
-              onClick={() => setSelectedSession(s)}>
-              <span className="flex-1 truncate">{s.name}</span>
-              <button onClick={e => { e.stopPropagation(); deleteSession(s.id); }}
-                className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 text-xs shrink-0">✕</button>
+            <div key={s.id} className={`group flex items-center gap-1 px-3 py-2 rounded-xl text-sm mb-1 transition-all
+              ${selectedSession?.id === s.id ? "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 font-medium" : "text-neutral-500 hover:bg-gray-100 dark:hover:bg-gray-800"}`}>
+              {renamingSession === s.id ? (
+                <input
+                  value={renameValue}
+                  onChange={e => setRenameValue(e.target.value)}
+                  onBlur={() => commitRename(s.id)}
+                  onKeyDown={e => { if (e.key === "Enter") commitRename(s.id); if (e.key === "Escape") setRenamingSession(null); }}
+                  autoFocus
+                  className="flex-1 bg-transparent outline-none border-b border-yellow-400 text-sm min-w-0"
+                  onClick={e => e.stopPropagation()}
+                />
+              ) : (
+                <span className="flex-1 truncate cursor-pointer" onClick={() => setSelectedSession(s)}>{s.name}</span>
+              )}
+              {renamingSession !== s.id && (
+                <>
+                  <button onClick={e => { e.stopPropagation(); setRenameValue(s.name); setRenamingSession(s.id); }}
+                    className="opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-yellow-600 text-xs shrink-0" title="Rename">✎</button>
+                  <button onClick={e => { e.stopPropagation(); deleteSession(s.id); }}
+                    className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 text-xs shrink-0" title="Hapus">✕</button>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -252,16 +382,15 @@ export default function ContentGeneratorPage() {
         {/* Tool Panels */}
         {activeTool === "caption" && (
           <CaptionPanel sessionId={selectedSession?.id || null} sharedContext={sharedContext}
-            loading={loading} setLoading={setLoading} showToast={showToast} onResult={onResult} />
+            showToast={showToast} onResult={onResult} />
         )}
         {activeTool === "seo_article" && (
           <SeoArticlePanel sessionId={selectedSession?.id || null} sharedContext={sharedContext}
-            loading={loading} setLoading={setLoading} showToast={showToast} onResult={onResult} />
+            showToast={showToast} onResult={onResult} />
         )}
         {activeTool === "image" && (
           <ImagePanel sessionId={selectedSession?.id || null} sharedContext={sharedContext}
-            providers={imageProviders} loading={loading} setLoading={setLoading}
-            showToast={showToast} onResult={onResult} />
+            providers={imageProviders} showToast={showToast} onResult={onResult} />
         )}
 
         {/* History */}
@@ -271,7 +400,6 @@ export default function ContentGeneratorPage() {
       {/* ── Modals ── */}
       <Modal open={showProviderModal} onClose={() => setShowProviderModal(false)} title="Image Provider">
         <div className="space-y-4">
-          {/* List existing */}
           {imageProviders.length > 0 && (
             <div className="space-y-2 mb-4">
               {imageProviders.map(p => (
@@ -346,12 +474,12 @@ export default function ContentGeneratorPage() {
 // Caption Panel
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function CaptionPanel({ sessionId, sharedContext, loading, setLoading, showToast, onResult }: {
+function CaptionPanel({ sessionId, sharedContext, showToast, onResult }: {
   sessionId: string | null; sharedContext: string[];
-  loading: boolean; setLoading: (v: boolean) => void;
   showToast: (m: string, t?: "success"|"error"|"info") => void;
   onResult: (g: ContentGeneration) => void;
 }) {
+  const [loading, setLoading] = useState(false);
   const [topic, setTopic] = useState("");
   const [platform, setPlatform] = useState<"instagram"|"tiktok">("instagram");
   const [tone, setTone] = useState("casual");
@@ -449,7 +577,7 @@ function CaptionPanel({ sessionId, sharedContext, loading, setLoading, showToast
           <div className="flex gap-2">
             <button onClick={() => copyToClipboard(`${result.caption}\n\n${result.hashtags?.join(" ")}`)}
               className="flex-1 py-2 text-xs rounded-lg bg-gray-100 dark:bg-gray-800 text-neutral-600 hover:bg-gray-200 dark:hover:bg-gray-700">📋 Copy</button>
-            <button onClick={() => result.id && showToast("Sudah otomatis masuk history")}
+            <button onClick={() => showToast("Sudah otomatis masuk history")}
               className="flex-1 py-2 text-xs rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 hover:bg-amber-100">🔗 Ada di History</button>
           </div>
         </div>
@@ -462,20 +590,41 @@ function CaptionPanel({ sessionId, sharedContext, loading, setLoading, showToast
 // SEO Article Panel
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function SeoArticlePanel({ sessionId, sharedContext, loading, setLoading, showToast, onResult }: {
+function SeoArticlePanel({ sessionId, sharedContext, showToast, onResult }: {
   sessionId: string | null; sharedContext: string[];
-  loading: boolean; setLoading: (v: boolean) => void;
   showToast: (m: string, t?: "success"|"error"|"info") => void;
   onResult: (g: ContentGeneration) => void;
 }) {
+  const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [title, setTitle] = useState("");
   const [wordCount, setWordCount] = useState(800);
   const [tone, setTone] = useState("informatif");
+  const [searchIntent, setSearchIntent] = useState("informational");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  // Semrush data
+  const [keywordDifficulty, setKeywordDifficulty] = useState("");
+  const [searchVolume, setSearchVolume] = useState("");
+  const [lsiKeywords, setLsiKeywords] = useState("");
+  // Content structure
+  const [faqTopics, setFaqTopics] = useState("");
+  const [serpFeatures, setSerpFeatures] = useState<string[]>([]);
+  // Context
+  const [targetAudience, setTargetAudience] = useState("");
+  const [targetLocation, setTargetLocation] = useState("");
+  const [brandName, setBrandName] = useState("");
+  const [uniqueAngle, setUniqueAngle] = useState("");
+  const [internalLinkTargets, setInternalLinkTargets] = useState("");
+
   const [result, setResult] = useState<{
     title: string; meta_description: string; body: string;
     focus_keyword: string; secondary_keywords: string[]; id?: string;
   } | null>(null);
+
+  function toggleSerp(val: string) {
+    setSerpFeatures(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
+  }
 
   async function generate() {
     if (!keyword.trim()) return;
@@ -483,7 +632,21 @@ function SeoArticlePanel({ sessionId, sharedContext, loading, setLoading, showTo
     try {
       const res = await apiFetch("/api/content/generate/seo-article", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ keyword, title: title || undefined, word_count: wordCount, tone, session_id: sessionId, context_from: sharedContext }),
+        body: JSON.stringify({
+          keyword, title: title || undefined, word_count: wordCount, tone,
+          search_intent: searchIntent,
+          keyword_difficulty: keywordDifficulty ? parseInt(keywordDifficulty) : undefined,
+          search_volume: searchVolume ? parseInt(searchVolume) : undefined,
+          lsi_keywords: lsiKeywords ? lsiKeywords.split(",").map(k => k.trim()).filter(Boolean) : [],
+          faq_topics: faqTopics ? faqTopics.split("\n").map(q => q.trim()).filter(Boolean) : [],
+          serp_features: serpFeatures,
+          target_audience: targetAudience || undefined,
+          target_location: targetLocation || undefined,
+          brand_name: brandName || undefined,
+          unique_angle: uniqueAngle || undefined,
+          internal_link_targets: internalLinkTargets || undefined,
+          session_id: sessionId, context_from: sharedContext,
+        }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -499,9 +662,28 @@ function SeoArticlePanel({ sessionId, sharedContext, loading, setLoading, showTo
     finally { setLoading(false); }
   }
 
+  async function handleExportDocx() {
+    if (!result) return;
+    setExporting(true);
+    try {
+      await exportToDocx(result);
+      showToast("DOCX berhasil diexport!");
+    } catch { showToast("Gagal export DOCX", "error"); }
+    finally { setExporting(false); }
+  }
+
+  const SERP_OPTIONS = [
+    { value: "featured_snippet", label: "Featured Snippet" },
+    { value: "paa", label: "People Also Ask" },
+    { value: "local_pack", label: "Local Pack" },
+    { value: "image_pack", label: "Image Pack" },
+  ];
+
   return (
     <div className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-200 dark:border-gray-700 p-5 space-y-4">
       <h2 className="text-base font-semibold text-neutral-800 dark:text-neutral-200">📝 SEO Article Writer</h2>
+
+      {/* Core fields */}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Keyword Utama *</label>
@@ -516,12 +698,17 @@ function SeoArticlePanel({ sessionId, sharedContext, loading, setLoading, showTo
             className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
         </div>
       </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Jumlah Kata: {wordCount}</label>
-          <input type="range" min={400} max={2000} step={200} value={wordCount} onChange={e => setWordCount(Number(e.target.value))}
-            className="w-full accent-yellow-500" />
-          <div className="flex justify-between text-xs text-neutral-400 mt-1"><span>400</span><span>2000</span></div>
+          <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Search Intent</label>
+          <select value={searchIntent} onChange={e => setSearchIntent(e.target.value)}
+            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none">
+            <option value="informational">Informational — edukasi</option>
+            <option value="commercial">Commercial — pertimbangan</option>
+            <option value="transactional">Transactional — konversi</option>
+            <option value="navigational">Navigational — brand</option>
+          </select>
         </div>
         <div>
           <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Tone</label>
@@ -533,11 +720,118 @@ function SeoArticlePanel({ sessionId, sharedContext, loading, setLoading, showTo
           </select>
         </div>
       </div>
+
+      <div>
+        <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Jumlah Kata: {wordCount}</label>
+        <input type="range" min={400} max={2000} step={200} value={wordCount} onChange={e => setWordCount(Number(e.target.value))}
+          className="w-full accent-yellow-500" />
+        <div className="flex justify-between text-xs text-neutral-400 mt-1"><span>400</span><span>2000</span></div>
+      </div>
+
+      {/* Advanced toggle */}
+      <button onClick={() => setShowAdvanced(p => !p)}
+        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 hover:text-yellow-700 dark:hover:text-yellow-400 transition-colors border border-gray-200 dark:border-gray-700 w-full">
+        <span className="text-xs">{showAdvanced ? "▾" : "▸"}</span>
+        <span>{showAdvanced ? "Sembunyikan data lanjutan" : "Data Semrush & konteks lanjutan (opsional)"}</span>
+        {!showAdvanced && <span className="ml-auto text-xs text-neutral-400">KD · Volume · LSI · FAQ · dll</span>}
+      </button>
+
+      {showAdvanced && (
+        <div className="space-y-4 border border-gray-100 dark:border-gray-700 rounded-xl p-4 bg-gray-50/50 dark:bg-gray-800/30">
+          <p className="text-xs font-semibold text-neutral-400 uppercase tracking-widest">Data Semrush</p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Search Volume <span className="font-normal normal-case text-neutral-300">/bulan</span></label>
+              <input type="number" value={searchVolume} onChange={e => setSearchVolume(e.target.value)}
+                placeholder="1200"
+                className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Keyword Difficulty <span className="font-normal normal-case text-neutral-300">0-100</span></label>
+              <input type="number" min={0} max={100} value={keywordDifficulty} onChange={e => setKeywordDifficulty(e.target.value)}
+                placeholder="45"
+                className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">LSI / Related Keywords <span className="font-normal normal-case text-neutral-300">pisah koma</span></label>
+            <input type="text" value={lsiKeywords} onChange={e => setLsiKeywords(e.target.value)}
+              placeholder="jasa web murah, buat website toko online, harga website profesional"
+              className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Target SERP Features</label>
+            <div className="flex flex-wrap gap-2">
+              {SERP_OPTIONS.map(opt => (
+                <button key={opt.value} onClick={() => toggleSerp(opt.value)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all border
+                    ${serpFeatures.includes(opt.value)
+                      ? "bg-yellow-500 text-white border-yellow-500"
+                      : "bg-white dark:bg-gray-800 text-neutral-500 border-gray-200 dark:border-gray-700 hover:border-yellow-300"}`}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">FAQ Topics <span className="font-normal normal-case text-neutral-300">1 pertanyaan per baris</span></label>
+            <textarea value={faqTopics} onChange={e => setFaqTopics(e.target.value)} rows={3}
+              placeholder={"Berapa biaya membuat website?\nBerapa lama proses pembuatan?\nApakah bisa request desain custom?"}
+              className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm resize-none focus:ring-2 focus:ring-yellow-400 outline-none" />
+          </div>
+
+          <hr className="border-gray-200 dark:border-gray-700" />
+          <p className="text-xs font-semibold text-neutral-400 uppercase tracking-widest">Konteks Bisnis</p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Target Pembaca</label>
+              <input type="text" value={targetAudience} onChange={e => setTargetAudience(e.target.value)}
+                placeholder="UMKM, pemilik toko online"
+                className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Target Lokasi</label>
+              <input type="text" value={targetLocation} onChange={e => setTargetLocation(e.target.value)}
+                placeholder="Jakarta, Indonesia"
+                className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Nama Brand</label>
+              <input type="text" value={brandName} onChange={e => setBrandName(e.target.value)}
+                placeholder="Teman UMKM Kita"
+                className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Internal Link Targets</label>
+              <input type="text" value={internalLinkTargets} onChange={e => setInternalLinkTargets(e.target.value)}
+                placeholder="/blog/tips-umkm, /layanan/website"
+                className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Angle Unik Artikel</label>
+            <input type="text" value={uniqueAngle} onChange={e => setUniqueAngle(e.target.value)}
+              placeholder="Fokus pada UMKM kuliner, dengan contoh nyata, bukan teori"
+              className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
+          </div>
+        </div>
+      )}
+
       {sharedContext.length > 0 && (
         <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg">
           ✓ {sharedContext.length} konteks dari history akan digunakan
         </p>
       )}
+
       <button onClick={generate} disabled={loading || !keyword.trim()}
         className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2">
         {loading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Sedang menulis artikel...</> : "✨ Generate Artikel"}
@@ -557,15 +851,19 @@ function SeoArticlePanel({ sessionId, sharedContext, loading, setLoading, showTo
               ))}
             </div>
           )}
-          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 max-h-80 overflow-y-auto">
-            <h3 className="font-semibold text-neutral-800 dark:text-neutral-200 mb-3">{result.title}</h3>
-            <div className="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap leading-relaxed">{result.body}</div>
+          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 max-h-96 overflow-y-auto">
+            <h3 className="font-semibold text-neutral-800 dark:text-neutral-200 mb-3 text-base">{result.title}</h3>
+            <div className="prose-content" dangerouslySetInnerHTML={{ __html: markdownToHtml(result.body) }} />
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button onClick={() => copyToClipboard(`# ${result.title}\n\n${result.body}`)}
               className="flex-1 py-2 text-xs rounded-lg bg-gray-100 dark:bg-gray-800 text-neutral-600 hover:bg-gray-200 dark:hover:bg-gray-700">📋 Copy Markdown</button>
             <button onClick={() => copyToClipboard(result.meta_description)}
               className="flex-1 py-2 text-xs rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 hover:bg-green-100">📋 Copy Meta</button>
+            <button onClick={handleExportDocx} disabled={exporting}
+              className="flex-1 py-2 text-xs rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100 disabled:opacity-50 flex items-center justify-center gap-1">
+              {exporting ? <><div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />Exporting...</> : "⬇ Export DOCX"}
+            </button>
           </div>
         </div>
       )}
@@ -577,12 +875,12 @@ function SeoArticlePanel({ sessionId, sharedContext, loading, setLoading, showTo
 // Image Panel
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function ImagePanel({ sessionId, sharedContext, providers, loading, setLoading, showToast, onResult }: {
+function ImagePanel({ sessionId, sharedContext, providers, showToast, onResult }: {
   sessionId: string | null; sharedContext: string[]; providers: ContentProvider[];
-  loading: boolean; setLoading: (v: boolean) => void;
   showToast: (m: string, t?: "success"|"error"|"info") => void;
   onResult: (g: ContentGeneration) => void;
 }) {
+  const [loading, setLoading] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
   const [providerId, setProviderId] = useState("");

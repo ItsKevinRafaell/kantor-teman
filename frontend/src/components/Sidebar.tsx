@@ -107,6 +107,21 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    title: "DOKUMEN",
+    items: [
+      {
+        href: "/master/internal-vault",
+        label: "Brankas Internal",
+        icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /><circle cx="12" cy="16" r="1" /></svg>,
+      },
+      {
+        href: "/documents",
+        label: "Foldering",
+        icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>,
+      },
+    ],
+  },
+  {
     title: "PENGATURAN",
     items: [
       {
@@ -123,11 +138,6 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/master/templates",
         label: "Template Teks",
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16v2H4z" /><path d="M4 10h10v2H4z" /><path d="M4 16h6v2H4z" /></svg>,
-      },
-      {
-        href: "/master/internal-vault",
-        label: "Brankas Internal",
-        icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /><circle cx="12" cy="16" r="1" /></svg>,
       },
       {
         href: "/tasks",
