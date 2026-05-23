@@ -568,7 +568,7 @@ export default function ChatPage() {
   const totalTokens = messages.reduce((sum, m) => sum + (m.tokens_used || 0), 0);
 
   return (
-    <div className="flex h-[calc(100vh-64px)] bg-[var(--bg-main)]">
+    <div className="flex h-full bg-[var(--bg-main)]">
       {/* Toast */}
       {toast && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] bg-neutral-900 text-white px-4 py-2 rounded-lg text-sm shadow-lg animate-fade-in">
