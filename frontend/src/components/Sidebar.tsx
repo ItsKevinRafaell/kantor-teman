@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import Image from "next/image";
 
 interface NavItem {
   href: string;
@@ -170,7 +169,10 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-60 shrink-0 bg-[var(--bg-surface)] dark:bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] flex flex-col h-full transform transition-transform duration-200 ease-in-out ${open ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}>
         <div className="px-6 py-5 border-b border-[var(--border-subtle)] flex items-center justify-between">
           <div>
-            <Image src="/logo-primary.png" alt="Kantor Teman" width={130} height={36} className="object-contain" priority />
+            <span className="text-lg font-bold text-brand-yellow tracking-tight">
+              Teman UMKM Kita
+            </span>
+            <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 font-medium uppercase tracking-widest">CRM Internal</p>
           </div>
           <button onClick={onClose} className="lg:hidden p-1 text-neutral-400 hover:text-neutral-600">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
@@ -202,8 +204,7 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
           ))}
         </nav>
 
-        <div className="px-5 py-4 border-t border-[var(--border-subtle)] flex items-center gap-2">
-          <Image src="/logo-brandmark.png" alt="" width={18} height={18} className="object-contain opacity-40" />
+        <div className="px-5 py-4 border-t border-[var(--border-subtle)]">
           <p className="text-[11px] text-neutral-400 dark:text-neutral-600 font-medium">v1.0 · Kantor Teman</p>
         </div>
       </aside>
