@@ -574,7 +574,10 @@ export default function ChatPage() {
       )}
 
       {/* Sidebar */}
-      <aside className={`${sidebarOpen ? "w-64" : "w-0"} bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] flex flex-col transition-all duration-200 overflow-hidden`}>
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+      <aside className={`fixed top-14 bottom-0 left-0 z-50 lg:static lg:top-auto lg:bottom-auto lg:z-auto w-64 ${sidebarOpen ? "translate-x-0 lg:w-64" : "-translate-x-full lg:w-0 lg:translate-x-0"} bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] flex flex-col transition-all duration-200 overflow-hidden`}>
         <div className="p-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
           <h2 className="font-semibold text-sm text-neutral-700 dark:text-neutral-200">Projects</h2>
           <button onClick={() => setShowNewProjectModal(true)} className="text-xs text-brand-yellow hover:underline">+ New</button>

@@ -3126,12 +3126,12 @@ def get_analytics(current_user: User = Depends(get_current_user), db: Session = 
     conversion_rate = round((total_clients / total_leads * 100), 1) if total_leads > 0 else 0.0
 
     rows = db.execute(
-        select(Lead.product_interest, func.count(Lead.id).label("count"))
+        select(func.lower(Lead.product_interest).label("product"), func.count(Lead.id).label("count"))
         .where(Lead.product_interest.isnot(None))
-        .group_by(Lead.product_interest)
+        .group_by(func.lower(Lead.product_interest))
         .order_by(func.count(Lead.id).desc())
     ).all()
-    leads_by_product = [{"product": r[0], "count": r[1]} for r in rows]
+    leads_by_product = [{"product": r[0].title() if r[0] else r[0], "count": r[1]} for r in rows]
 
     status_rows = db.execute(
         select(Lead.status, func.count(Lead.id).label("count")).group_by(Lead.status)
