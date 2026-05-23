@@ -66,6 +66,19 @@ if "mysql" in _db_url:
         else:
             print(f"= MySQL: {table}.{col} sudah ada, skip")
 
+    # Make projects.lead_id nullable (was NOT NULL, breaks create-project-without-lead)
+    if _table_exists("projects") and _col_exists("projects", "lead_id"):
+        _cur.execute("""
+            SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projects' AND COLUMN_NAME = 'lead_id'
+        """)
+        row = _cur.fetchone()
+        if row and row[0] == "NO":
+            _cur.execute("ALTER TABLE projects MODIFY COLUMN lead_id VARCHAR(36) NULL")
+            print("+ MySQL: projects.lead_id set to NULL")
+        else:
+            print("= MySQL: projects.lead_id already nullable, skip")
+
     _mc.commit()
     _mc.close()
     print("MySQL migration selesai.")

@@ -107,7 +107,7 @@ export default function ProductsPage() {
           <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">Katalog Produk</h1>
           <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Master data layanan/produk — Single Source of Truth.</p>
         </div>
-        <button onClick={openNew} className="flex items-center gap-1.5 px-4 py-2.5 bg-brand-yellow hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
+        <button onClick={openNew} className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-4 sm:py-2.5 bg-brand-yellow hover:bg-amber-600 text-white text-xs sm:text-sm font-semibold rounded-xl transition-colors">
           <Plus size={16} /> Tambah Produk
         </button>
       </div>

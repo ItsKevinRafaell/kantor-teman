@@ -299,10 +299,10 @@ export default function ContentGeneratorPage() {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full gap-4 p-6 overflow-hidden">
+    <div className="flex flex-col md:flex-row h-full gap-3 p-3 md:p-6 overflow-hidden">
 
       {/* ── Left Sidebar ── */}
-      <aside className="w-52 shrink-0 flex flex-col gap-3 overflow-y-auto">
+      <aside className="w-full md:w-52 shrink-0 flex flex-col gap-3 overflow-x-auto md:overflow-y-auto">
         <div>
           <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">Tools</p>
           {(["caption", "seo_article", "image"] as Tool[]).map(t => (

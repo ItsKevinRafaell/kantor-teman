@@ -135,7 +135,7 @@ export default function CostsPage() {
 
       {/* Blok Atas: Provider Quota Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {providers.map(p => {
+        {providers.filter(p => p.id === "FONNTE").map(p => {
           const isFonnte = p.id === "FONNTE";
           const isAI = !isFonnte;
 
