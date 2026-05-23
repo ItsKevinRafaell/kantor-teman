@@ -230,8 +230,8 @@ export default function DocumentsPage() {
 
   if (loading) {
     return (
-      <div className="flex gap-6 h-full animate-pulse">
-        <div className="w-48 shrink-0 space-y-2">
+      <div className="flex flex-col md:flex-row gap-4 md:gap-6 h-full animate-pulse">
+        <div className="w-full md:w-48 shrink-0 space-y-2">
           {[1, 2, 3].map(i => <div key={i} className="h-9 bg-neutral-100 dark:bg-neutral-800 rounded-xl" />)}
         </div>
         <div className="flex-1 space-y-4">
@@ -245,9 +245,9 @@ export default function DocumentsPage() {
   }
 
   return (
-    <div className="flex gap-6 h-full">
+    <div className="flex flex-col md:flex-row gap-4 md:gap-6 h-full">
       {/* Sidebar */}
-      <aside className="w-48 shrink-0 flex flex-col gap-1">
+      <aside className="w-full md:w-48 shrink-0 flex flex-col gap-1">
         <button
           onClick={selectAll}
           className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors text-left w-full ${

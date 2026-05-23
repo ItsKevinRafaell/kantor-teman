@@ -112,7 +112,7 @@ export default function AdsPage() {
           <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">Ads Tracking Center</h1>
           <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">Rencanakan & lacak performa iklan</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="btn-primary flex items-center gap-1.5 text-sm text-white">
+        <button onClick={() => setShowModal(true)} className="btn-primary flex items-center gap-1.5 text-white">
           <Plus size={16} /> Buat Rencana Iklan
         </button>
       </div>

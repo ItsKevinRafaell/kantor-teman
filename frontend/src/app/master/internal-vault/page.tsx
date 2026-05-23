@@ -162,7 +162,7 @@ export default function InternalVaultPage() {
             </div>
           </div>
         </div>
-        <button onClick={openNew} className="btn-primary flex items-center gap-1.5 text-sm">
+        <button onClick={openNew} className="btn-primary flex items-center gap-1.5 text-white">
           <Plus size={16} /> Tambah Kredensial
         </button>
       </div>
@@ -185,7 +185,7 @@ export default function InternalVaultPage() {
             {search ? "Tidak ada kredensial yang cocok." : "Belum ada kredensial internal tersimpan."}
           </p>
           {!search && (
-            <button onClick={openNew} className="btn-primary mt-4 text-xs">
+            <button onClick={openNew} className="btn-primary mt-4 text-white">
               <Plus size={14} className="inline mr-1" /> Tambah Pertama
             </button>
           )}
@@ -360,7 +360,7 @@ export default function InternalVaultPage() {
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setShowModal(false)} className="btn-ghost">Batal</button>
-              <button onClick={saveCredential} disabled={saving} className="btn-primary">
+              <button onClick={saveCredential} disabled={saving} className="btn-primary text-white">
                 {saving ? "Menyimpan..." : "Simpan"}
               </button>
             </div>
