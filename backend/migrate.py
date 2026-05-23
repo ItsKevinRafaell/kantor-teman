@@ -74,8 +74,24 @@ if "mysql" in _db_url:
         """)
         row = _cur.fetchone()
         if row and row[0] == "NO":
+            # Drop FK constraint first (MySQL blocks MODIFY on FK columns)
+            _cur.execute("""
+                SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projects'
+                  AND COLUMN_NAME = 'lead_id' AND REFERENCED_TABLE_NAME IS NOT NULL
+            """)
+            fk_rows = _cur.fetchall()
+            for (fk_name,) in fk_rows:
+                _cur.execute(f"ALTER TABLE projects DROP FOREIGN KEY `{fk_name}`")
+                print(f"- MySQL: dropped FK {fk_name}")
             _cur.execute("ALTER TABLE projects MODIFY COLUMN lead_id VARCHAR(36) NULL")
             print("+ MySQL: projects.lead_id set to NULL")
+            # Re-add FK (nullable FK still enforces referential integrity when not null)
+            _cur.execute("""
+                ALTER TABLE projects ADD CONSTRAINT projects_lead_fk
+                FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE SET NULL
+            """)
+            print("+ MySQL: re-added FK projects.lead_id → leads.id ON DELETE SET NULL")
         else:
             print("= MySQL: projects.lead_id already nullable, skip")
 
