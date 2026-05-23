@@ -48,6 +48,7 @@ app.add_middleware(
         "http://kantorteman.my.id",
         "https://kantorteman.my.id",
         "https://www.kantorteman.my.id",
+        "https://kantor-teman-five.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
