@@ -141,6 +141,67 @@ async function exportToDocx(result: {
   URL.revokeObjectURL(url);
 }
 
+type ContentBlock =
+  | { type: "h2"; text: string; id: string }
+  | { type: "h3"; text: string; id: string }
+  | { type: "p"; text: string }
+  | { type: "ul"; items: string[] }
+  | { type: "ol"; items: string[] }
+  | { type: "blockquote"; text: string };
+
+function slugify(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9\s-]/g, "").trim().replace(/\s+/g, "-");
+}
+
+function stripInlineMarkdown(text: string): string {
+  return text.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1");
+}
+
+function markdownToContentBlocks(markdown: string): ContentBlock[] {
+  const lines = markdown.split("\n");
+  const blocks: ContentBlock[] = [];
+  let listType: "ul" | "ol" | null = null;
+  let listItems: string[] = [];
+
+  function flushList() {
+    if (listType && listItems.length) {
+      blocks.push({ type: listType, items: [...listItems] });
+    }
+    listType = null;
+    listItems = [];
+  }
+
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+
+    if (line.startsWith("## ")) {
+      flushList();
+      const text = stripInlineMarkdown(line.slice(3).trim());
+      blocks.push({ type: "h2", text, id: slugify(text) });
+    } else if (line.startsWith("### ")) {
+      flushList();
+      const text = stripInlineMarkdown(line.slice(4).trim());
+      blocks.push({ type: "h3", text, id: slugify(text) });
+    } else if (line.startsWith("> ")) {
+      flushList();
+      blocks.push({ type: "blockquote", text: stripInlineMarkdown(line.slice(2).trim()) });
+    } else if (line.startsWith("- ") || line.startsWith("* ")) {
+      if (listType !== "ul") { flushList(); listType = "ul"; }
+      listItems.push(stripInlineMarkdown(line.slice(2).trim()));
+    } else if (/^\d+\. /.test(line)) {
+      if (listType !== "ol") { flushList(); listType = "ol"; }
+      listItems.push(stripInlineMarkdown(line.replace(/^\d+\. /, "").trim()));
+    } else if (line.trim() === "") {
+      flushList();
+    } else {
+      flushList();
+      blocks.push({ type: "p", text: stripInlineMarkdown(line.trim()) });
+    }
+  }
+  flushList();
+  return blocks;
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
@@ -597,6 +658,7 @@ function SeoArticlePanel({ sessionId, sharedContext, showToast, onResult }: {
 }) {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [title, setTitle] = useState("");
   const [wordCount, setWordCount] = useState(800);
@@ -670,6 +732,48 @@ function SeoArticlePanel({ sessionId, sharedContext, showToast, onResult }: {
       showToast("DOCX berhasil diexport!");
     } catch { showToast("Gagal export DOCX", "error"); }
     finally { setExporting(false); }
+  }
+
+  async function handlePublishToCms() {
+    if (!result) return;
+    setPublishing(true);
+    try {
+      const blocks = markdownToContentBlocks(result.body);
+      const slug = slugify(result.title).slice(0, 100);
+      const payload = {
+        title: result.title,
+        slug,
+        excerpt: result.meta_description,
+        content: JSON.stringify(blocks),
+        meta_description: result.meta_description,
+        focus_keyword: result.focus_keyword,
+        status: "draft",
+      };
+      const settingsRes = await apiFetch("/api/settings");
+      const settings = await settingsRes.json();
+      const cmsUrl = settings.cms_url;
+      const cmsToken = settings.cms_api_token;
+      if (!cmsUrl || !cmsToken) {
+        showToast("CMS URL dan token belum diset di Settings", "error");
+        setPublishing(false);
+        return;
+      }
+      const res = await fetch(`${cmsUrl}/api/articles`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${cmsToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      showToast("Artikel terkirim ke CMS sebagai draft!");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error tidak diketahui";
+      showToast(`Gagal kirim ke CMS: ${msg}`, "error");
+    } finally {
+      setPublishing(false);
+    }
   }
 
   const SERP_OPTIONS = [
@@ -863,6 +967,10 @@ function SeoArticlePanel({ sessionId, sharedContext, showToast, onResult }: {
             <button onClick={handleExportDocx} disabled={exporting}
               className="flex-1 py-2 text-xs rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100 disabled:opacity-50 flex items-center justify-center gap-1">
               {exporting ? <><div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />Exporting...</> : "⬇ Export DOCX"}
+            </button>
+            <button onClick={handlePublishToCms} disabled={publishing}
+              className="flex-1 py-2 text-xs rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 disabled:opacity-50 flex items-center justify-center gap-1">
+              {publishing ? <><div className="w-3 h-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />Mengirim...</> : "🚀 Kirim ke CMS"}
             </button>
           </div>
         </div>

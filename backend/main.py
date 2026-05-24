@@ -1092,6 +1092,8 @@ class SettingsUpdate(BaseModel):
     admin_wa: Optional[str] = None
     followup_enabled: Optional[str] = None
     followup_hour: Optional[str] = None
+    cms_url: Optional[str] = None
+    cms_api_token: Optional[str] = None
 
 
 class UserUpdate(BaseModel):
@@ -1767,7 +1769,7 @@ def update_me(body: UserUpdate, current_user: User = Depends(get_current_user), 
 
 @app.get("/api/settings")
 def get_settings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    keys = ["fonnte_token", "gemini_api_key", "claude_api_key", "openai_api_key", "ai_provider", "ai_base_url", "ai_model", "google_api_key", "google_calendar_id", "google_service_account_json", "admin_wa", "followup_enabled", "followup_hour"]
+    keys = ["fonnte_token", "gemini_api_key", "claude_api_key", "openai_api_key", "ai_provider", "ai_base_url", "ai_model", "google_api_key", "google_calendar_id", "google_service_account_json", "admin_wa", "followup_enabled", "followup_hour", "cms_url", "cms_api_token"]
     result = {}
     for k in keys:
         row = db.query(SystemSettings).filter_by(key=k).first()
@@ -1793,6 +1795,8 @@ def update_settings(body: SettingsUpdate, current_user: User = Depends(get_curre
         "admin_wa": body.admin_wa,
         "followup_enabled": body.followup_enabled,
         "followup_hour": body.followup_hour,
+        "cms_url": body.cms_url,
+        "cms_api_token": body.cms_api_token,
     }
     for key, value in settings_map.items():
         if value is not None:

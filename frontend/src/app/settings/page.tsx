@@ -27,6 +27,8 @@ export default function SettingsPage() {
   const [googleCalendarId, setGoogleCalendarId] = useState("");
   const [googleServiceAccountJson, setGoogleServiceAccountJson] = useState("");
   const [adminWa, setAdminWa] = useState("");
+  const [cmsUrl, setCmsUrl] = useState("");
+  const [cmsApiToken, setCmsApiToken] = useState("");
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -49,6 +51,8 @@ export default function SettingsPage() {
       setGoogleCalendarId(d.google_calendar_id ?? "");
       setGoogleServiceAccountJson(d.google_service_account_json ?? "");
       setAdminWa(d.admin_wa ?? "");
+      setCmsUrl(d.cms_url ?? "");
+      setCmsApiToken(d.cms_api_token ?? "");
     });
   }, []);
 
@@ -108,6 +112,8 @@ export default function SettingsPage() {
         google_calendar_id: googleCalendarId,
         google_service_account_json: googleServiceAccountJson,
         admin_wa: adminWa,
+        cms_url: cmsUrl,
+        cms_api_token: cmsApiToken,
       }) });
       if (!res.ok) throw new Error("Gagal menyimpan");
       showToast("Konfigurasi disimpan");
@@ -357,6 +363,30 @@ export default function SettingsPage() {
                   <p className="text-[10px] text-gray-400 mt-1.5 italic">Follow-up akan dikirim otomatis setiap hari pada jam yang dipilih untuk sequence yang aktif.</p>
                 </div>
               )}
+            </div>
+          </div>
+
+          <div className="border-t border-[var(--border-default)] pt-5">
+            <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200 mb-3">CMS Integration</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">
+                  CMS URL
+                </label>
+                <p className="text-xs text-gray-400 mb-3">URL base CMS yang digunakan untuk publish artikel (mis. https://temanumkmkita.com).</p>
+                <input type="text" value={cmsUrl} onChange={(e) => setCmsUrl(e.target.value)}
+                  placeholder="https://temanumkmkita.com"
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 font-mono transition" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">
+                  CMS API Token
+                </label>
+                <p className="text-xs text-gray-400 mb-3">Bearer token untuk autentikasi ke CMS API.</p>
+                <input type="password" value={cmsApiToken} onChange={(e) => setCmsApiToken(e.target.value)}
+                  placeholder="Masukkan CMS API token..."
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 font-mono transition" />
+              </div>
             </div>
           </div>
 
