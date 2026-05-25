@@ -227,6 +227,16 @@ export default function ScraperPage() {
         </div>
       )}
 
+      {!loading && results.length === 0 && category.trim() && (
+        <div className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] shadow-sm p-8 text-center">
+          <div className="text-4xl mb-3">🔍</div>
+          <p className="text-sm font-semibold text-gray-700 dark:text-[#fcfaf7]">0 bisnis ditemukan</p>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 max-w-md mx-auto">
+            Tidak ada hasil untuk &quot;{category.trim()}{location.trim() ? ` ${location.trim()}` : ""}&quot;. Coba kata kunci lain atau perluas lokasi pencarian.
+          </p>
+        </div>
+      )}
+
       {!loading && results.length > 0 && (
         <div className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] shadow-card overflow-hidden">
           <div className="px-6 py-4 border-b border-[var(--border-default)] flex items-center justify-between">
