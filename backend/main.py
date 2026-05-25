@@ -111,18 +111,10 @@ class AIProxy(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String(255), nullable=False)
     base_url = Column(String(500), nullable=False)
-    api_key_encrypted = Column(String(500), default="")  # Always encrypted
+    api_key = Column(String(500), default="")
     model = Column(String(255), default="")
     is_active = Column(Boolean, default=False)
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-
-    @property
-    def api_key(self) -> str:
-        return decrypt_password(self.api_key_encrypted) if self.api_key_encrypted else ""
-
-    @api_key.setter
-    def api_key(self, value: str):
-        self.api_key_encrypted = encrypt_password(value) if value else ""
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class Lead(Base):
