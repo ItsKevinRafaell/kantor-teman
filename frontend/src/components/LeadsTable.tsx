@@ -9,14 +9,14 @@ import Modal from "./Modal";
 import Toast from "./Toast";
 import Pagination from "./Pagination";
 
-const STATUSES = ["Scraped", "Contacted", "Replied", "Closed", "Closed/Client"] as const;
+const STATUSES = ["Scraped", "Contacted", "Replied", "Closed/Lost", "Closed/Client"] as const;
 type Status = (typeof STATUSES)[number];
 
 const STATUS_COLORS: Record<Status, string> = {
   Scraped: "bg-gray-100 text-gray-700",
   Contacted: "bg-blue-100 text-blue-700",
   Replied: "bg-yellow-100 text-yellow-700",
-  Closed: "bg-green-100 text-green-700",
+  "Closed/Lost": "bg-green-100 text-green-700",
   "Closed/Client": "bg-amber-100 text-amber-700",
 };
 

@@ -55,6 +55,8 @@ export default function ScraperPage() {
   const [aiAnalysis, setAiAnalysis] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const PAGE_SIZE = 20;
 
   const fetchCategories = useCallback(async () => {
@@ -68,10 +70,12 @@ export default function ScraperPage() {
     } catch { /* silent */ }
   }, [productInterest]);
 
-  const fetchHistory = useCallback(async (page = 1, search = "") => {
+  const fetchHistory = useCallback(async (page = 1, search = "", from = "", to = "") => {
     try {
       const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) });
       if (search) params.set("search", search);
+      if (from) params.set("date_from", from);
+      if (to) params.set("date_to", to);
       const res = await apiFetch(`/api/scrape-history?${params}`);
       if (res.ok) {
         const data: HistoryResponse = await res.json();
@@ -88,10 +92,10 @@ export default function ScraperPage() {
   useEffect(() => {
     const t = setTimeout(() => {
       setHistorySearch(historySearchInput);
-      fetchHistory(1, historySearchInput);
+      fetchHistory(1, historySearchInput, dateFrom, dateTo);
     }, 350);
     return () => clearTimeout(t);
-  }, [historySearchInput, fetchHistory]);
+  }, [historySearchInput, dateFrom, dateTo, fetchHistory]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -114,7 +118,7 @@ export default function ScraperPage() {
       const data: Business[] = await res.json();
       setResults(data);
       setToast({ message: `${data.length} bisnis ditemukan dan disimpan ke database.`, type: "success" });
-      fetchHistory(1, historySearch);
+      fetchHistory(1, historySearch, dateFrom, dateTo);
       if (aiAnalysis && data.length > 0) {
         runBatchAnalysis();
       }
@@ -326,14 +330,29 @@ export default function ScraperPage() {
 
       {/* Riwayat Pencarian */}
       <div className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] shadow-card overflow-hidden">
-        <div className="px-6 py-4 border-b border-[var(--border-default)] flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-[var(--border-default)] flex items-center justify-between flex-wrap gap-3">
           <div>
             <p className="text-sm font-semibold text-gray-700 dark:text-[#fcfaf7]">Riwayat Batch Scraping</p>
             <p className="text-xs text-gray-400 mt-0.5">Klik batch untuk lihat leads terkait. Total: {historyTotal} batch.</p>
           </div>
-          <input type="text" value={historySearchInput} onChange={(e) => setHistorySearchInput(e.target.value)}
-            placeholder="Cari kategori, lokasi, atau batch..."
-            className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-xs bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition w-56" />
+          <div className="flex items-center gap-2 flex-wrap">
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+              className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-xs bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition"
+              title="Dari tanggal" />
+            <span className="text-xs text-neutral-400">→</span>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+              className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-xs bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition"
+              title="Sampai tanggal" />
+            {(dateFrom || dateTo) && (
+              <button onClick={() => { setDateFrom(""); setDateTo(""); }}
+                className="text-xs text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200 px-2 py-1">
+                Clear
+              </button>
+            )}
+            <input type="text" value={historySearchInput} onChange={(e) => setHistorySearchInput(e.target.value)}
+              placeholder="Cari kategori, lokasi, atau batch..."
+              className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-xs bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition w-56" />
+          </div>
         </div>
         {history.length === 0 ? (
           <div className="p-8 text-center text-xs text-neutral-400">
@@ -372,12 +391,12 @@ export default function ScraperPage() {
                 </span>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => fetchHistory(historyPage - 1, historySearch)}
+                    onClick={() => fetchHistory(historyPage - 1, historySearch, dateFrom, dateTo)}
                     disabled={historyPage <= 1}
                     className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-neutral-800 transition"
                   >Prev</button>
                   <button
-                    onClick={() => fetchHistory(historyPage + 1, historySearch)}
+                    onClick={() => fetchHistory(historyPage + 1, historySearch, dateFrom, dateTo)}
                     disabled={historyPage >= Math.ceil(historyTotal / PAGE_SIZE)}
                     className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-neutral-800 transition"
                   >Next</button>

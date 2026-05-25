@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -131,6 +131,8 @@ export default function ProposalPage() {
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const analyticsIdRef = useRef<string | null>(null);
+  const lastPingRef = useRef<number>(Date.now());
 
   useEffect(() => {
     async function load() {
@@ -146,6 +148,42 @@ export default function ProposalPage() {
     }
     load();
   }, [id]);
+
+  // Track view: open + periodic ping for total_time_seconds
+  useEffect(() => {
+    if (!proposal || analyticsIdRef.current) return;
+    let pingInterval: NodeJS.Timeout | null = null;
+
+    fetch(`${API_BASE}/api/proposals/track/open`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ proposal_id: proposal.id }),
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.analytics_id) {
+          analyticsIdRef.current = data.analytics_id;
+          lastPingRef.current = Date.now();
+          pingInterval = setInterval(() => {
+            if (document.hidden || !analyticsIdRef.current) return;
+            const now = Date.now();
+            const elapsed = Math.round((now - lastPingRef.current) / 1000);
+            lastPingRef.current = now;
+            if (elapsed <= 0 || elapsed > 60) return;
+            fetch(`${API_BASE}/api/proposals/track/ping`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ analytics_id: analyticsIdRef.current, seconds: elapsed, sections_viewed: [] }),
+            }).catch(() => {});
+          }, 10000);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      if (pingInterval) clearInterval(pingInterval);
+    };
+  }, [proposal]);
 
   if (loading) {
     return (

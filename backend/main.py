@@ -1554,7 +1554,7 @@ class DocumentOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-VALID_STATUSES = {"Scraped", "Contacted", "Replied", "Closed", "Closed/Client"}
+VALID_STATUSES = {"Scraped", "Contacted", "Replied", "Closed/Lost", "Closed/Client"}
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -2057,6 +2057,8 @@ async def search_businesses(
 @app.get("/api/scrape-history")
 def get_scrape_history(
     search: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
@@ -2070,6 +2072,11 @@ def get_scrape_history(
             (ScrapeHistory.location.ilike(q)) |
             (ScrapeHistory.batch_name.ilike(q))
         )
+    if date_from:
+        query = query.filter(ScrapeHistory.scraped_at >= date_from)
+    if date_to:
+        # Include the entire day by appending T23:59:59
+        query = query.filter(ScrapeHistory.scraped_at <= f"{date_to}T23:59:59")
     total = query.count()
     history = query.order_by(ScrapeHistory.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
     items = []
