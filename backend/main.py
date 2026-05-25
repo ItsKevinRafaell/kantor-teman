@@ -503,6 +503,21 @@ class ProviderConfig(Base):
     price_output_token_usd = Column(Float, default=0)
 
 
+class AIModel(Base):
+    __tablename__ = "ai_models"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(255), nullable=False)  # display name (e.g. "Claude Haiku 4.5")
+    model_id = Column(String(255), nullable=False)  # provider model ID (e.g. "claude-haiku-4-5-20251001")
+    description = Column(Text, nullable=True)
+    capabilities = Column(Text, nullable=False, default='["chat"]')  # JSON: ["chat", "image", "article", "analysis"]
+    is_active = Column(Integer, default=1)
+    is_default_chat = Column(Integer, default=0)
+    is_default_image = Column(Integer, default=0)
+    is_default_article = Column(Integer, default=0)
+    is_default_analysis = Column(Integer, default=0)
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+
+
 class ContentSchedule(Base):
     __tablename__ = "content_schedules"
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -1113,6 +1128,7 @@ class SettingsUpdate(BaseModel):
     gemini_api_key: Optional[str] = None
     claude_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
+    ai_api_key: Optional[str] = None
     ai_provider: Optional[str] = None
     ai_base_url: Optional[str] = None
     ai_model: Optional[str] = None
@@ -1797,7 +1813,7 @@ def update_me(body: UserUpdate, current_user: User = Depends(get_current_user), 
 
 @app.get("/api/settings")
 def get_settings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    keys = ["fonnte_token", "gemini_api_key", "claude_api_key", "openai_api_key", "ai_provider", "ai_base_url", "ai_model", "google_api_key", "google_calendar_id", "google_service_account_json", "admin_wa", "followup_enabled", "followup_hour", "cms_url", "cms_api_token"]
+    keys = ["fonnte_token", "gemini_api_key", "claude_api_key", "openai_api_key", "ai_api_key", "ai_provider", "ai_base_url", "ai_model", "google_api_key", "google_calendar_id", "google_service_account_json", "admin_wa", "followup_enabled", "followup_hour", "cms_url", "cms_api_token"]
     result = {}
     for k in keys:
         row = db.query(SystemSettings).filter_by(key=k).first()
@@ -1814,6 +1830,7 @@ def update_settings(body: SettingsUpdate, current_user: User = Depends(get_curre
         "gemini_api_key": body.gemini_api_key,
         "claude_api_key": body.claude_api_key,
         "openai_api_key": body.openai_api_key,
+        "ai_api_key": body.ai_api_key,
         "ai_provider": body.ai_provider,
         "ai_base_url": body.ai_base_url,
         "ai_model": body.ai_model,
@@ -1965,6 +1982,119 @@ async def test_api_connection(
             return {"success": False, "message": f"Gagal koneksi ke OpenAI: {str(e)}"}
 
     return {"success": False, "message": f"Provider '{provider}' tidak dikenal."}
+
+
+# ---------------------------------------------------------------------------
+# AI Models CRUD (centralized model registry)
+# ---------------------------------------------------------------------------
+
+class AIModelIn(BaseModel):
+    name: str
+    model_id: str
+    description: Optional[str] = None
+    capabilities: List[str] = ["chat"]
+    is_active: bool = True
+
+
+class AIModelOut(BaseModel):
+    id: str
+    name: str
+    model_id: str
+    description: Optional[str]
+    capabilities: List[str]
+    is_active: bool
+    is_default_chat: bool
+    is_default_image: bool
+    is_default_article: bool
+    is_default_analysis: bool
+
+
+def _ai_model_to_out(m: AIModel) -> dict:
+    return {
+        "id": m.id,
+        "name": m.name,
+        "model_id": m.model_id,
+        "description": m.description,
+        "capabilities": json.loads(m.capabilities or '["chat"]'),
+        "is_active": bool(m.is_active),
+        "is_default_chat": bool(m.is_default_chat),
+        "is_default_image": bool(m.is_default_image),
+        "is_default_article": bool(m.is_default_article),
+        "is_default_analysis": bool(m.is_default_analysis),
+    }
+
+
+@app.get("/api/ai-models")
+def list_ai_models(active_only: bool = Query(False), capability: Optional[str] = Query(None), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    query = db.query(AIModel)
+    if active_only:
+        query = query.filter(AIModel.is_active == 1)
+    models = query.order_by(AIModel.name).all()
+    out = [_ai_model_to_out(m) for m in models]
+    if capability:
+        out = [m for m in out if capability in m["capabilities"]]
+    return out
+
+
+@app.post("/api/ai-models", response_model=dict, status_code=201)
+def create_ai_model(body: AIModelIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    m = AIModel(
+        name=body.name,
+        model_id=body.model_id,
+        description=body.description,
+        capabilities=json.dumps(body.capabilities),
+        is_active=1 if body.is_active else 0,
+    )
+    db.add(m)
+    db.commit()
+    db.refresh(m)
+    return _ai_model_to_out(m)
+
+
+@app.put("/api/ai-models/{model_id}")
+def update_ai_model(model_id: str, body: AIModelIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    m = db.query(AIModel).filter(AIModel.id == model_id).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="Model tidak ditemukan")
+    m.name = body.name
+    m.model_id = body.model_id
+    m.description = body.description
+    m.capabilities = json.dumps(body.capabilities)
+    m.is_active = 1 if body.is_active else 0
+    db.commit()
+    db.refresh(m)
+    return _ai_model_to_out(m)
+
+
+@app.delete("/api/ai-models/{model_id}", status_code=204)
+def delete_ai_model(model_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    m = db.query(AIModel).filter(AIModel.id == model_id).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="Model tidak ditemukan")
+    db.delete(m)
+    db.commit()
+
+
+@app.post("/api/ai-models/{model_id}/set-default")
+def set_default_ai_model(model_id: str, capability: str = Query(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Set this model as default for given capability (chat, image, article, analysis)."""
+    if capability not in ("chat", "image", "article", "analysis"):
+        raise HTTPException(status_code=400, detail="Capability tidak valid")
+    m = db.query(AIModel).filter(AIModel.id == model_id).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="Model tidak ditemukan")
+    field = f"is_default_{capability}"
+    # Reset all defaults for this capability
+    db.query(AIModel).update({field: 0})
+    setattr(m, field, 1)
+    db.commit()
+    return {"ok": True, "default_for": capability, "model_id": m.id}
+
+
+def get_default_model(db: Session, capability: str) -> Optional[AIModel]:
+    """Get the default AI model for a given capability."""
+    field = f"is_default_{capability}"
+    return db.query(AIModel).filter(getattr(AIModel, field) == 1, AIModel.is_active == 1).first()
 
 
 # ---------------------------------------------------------------------------
@@ -4279,19 +4409,38 @@ def get_timeline_templates(db: Session = Depends(get_db)):
 # AI Lead Analysis (Multi-Provider: Gemini, Claude, OpenAI)
 # ---------------------------------------------------------------------------
 
-def get_ai_config(db: Session) -> dict:
+def get_ai_config(db: Session, capability: str = "analysis") -> dict:
+    """Get AI config. Uses new ai_models table if available, falls back to legacy settings."""
+    # Global single API key + base URL (9router)
+    api_key_row = db.query(SystemSettings).filter_by(key="ai_api_key").first()
+    base_url_row = db.query(SystemSettings).filter_by(key="ai_base_url").first()
+    api_key = api_key_row.value if api_key_row and api_key_row.value else ""
+    base_url = base_url_row.value if base_url_row and base_url_row.value else ""
+
+    # Try new model system first
+    default_model = get_default_model(db, capability)
+    if default_model and api_key:
+        return {
+            "provider": "openai",
+            "openai_key": api_key,
+            "base_url": base_url or "https://router.9router.ai/v1",
+            "model": default_model.model_id,
+            "gemini_key": "",
+            "claude_key": "",
+        }
+
+    # Legacy fallback
     provider = db.query(SystemSettings).filter_by(key="ai_provider").first()
     gemini = db.query(SystemSettings).filter_by(key="gemini_api_key").first()
     claude = db.query(SystemSettings).filter_by(key="claude_api_key").first()
     openai = db.query(SystemSettings).filter_by(key="openai_api_key").first()
-    base_url = db.query(SystemSettings).filter_by(key="ai_base_url").first()
     model = db.query(SystemSettings).filter_by(key="ai_model").first()
     return {
         "provider": (provider.value if provider else "gemini"),
         "gemini_key": (gemini.value if gemini else ""),
         "claude_key": (claude.value if claude else ""),
-        "openai_key": (openai.value if openai else ""),
-        "base_url": (base_url.value if base_url else ""),
+        "openai_key": (openai.value if openai else "") or api_key,
+        "base_url": (base_url_row.value if base_url_row else "") or base_url,
         "model": (model.value if model else ""),
     }
 
@@ -7311,7 +7460,14 @@ def delete_memory(memory_id: str, current_user: User = Depends(get_current_user)
 
 @app.get("/api/chat/models")
 def list_chat_models(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    # Available models from AIMurah/Semuts
+    """Read chat-capable models from ai_models table. Falls back to hardcoded if empty."""
+    db_models = db.query(AIModel).filter(AIModel.is_active == 1).order_by(AIModel.name).all()
+    chat_models = [m for m in db_models if "chat" in json.loads(m.capabilities or '["chat"]')]
+    if chat_models:
+        return {
+            "models": [{"id": m.model_id, "name": m.name, "description": m.description or ""} for m in chat_models]
+        }
+    # Legacy fallback
     return {
         "models": [
             {"id": "glm-5", "name": "GLM-5", "description": "Model cepat dan efisien untuk chat umum"},

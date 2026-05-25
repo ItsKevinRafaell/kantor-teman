@@ -59,6 +59,27 @@ if "mysql" in _db_url:
         ("users", "role", "ALTER TABLE users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT 'admin'"),
     ]
 
+    # Create ai_models table if not exists
+    if not _table_exists("ai_models"):
+        _cur.execute("""
+            CREATE TABLE ai_models (
+                id VARCHAR(36) PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                model_id VARCHAR(255) NOT NULL,
+                description TEXT,
+                capabilities TEXT NOT NULL DEFAULT '["chat"]',
+                is_active TINYINT(1) DEFAULT 1,
+                is_default_chat TINYINT(1) DEFAULT 0,
+                is_default_image TINYINT(1) DEFAULT 0,
+                is_default_article TINYINT(1) DEFAULT 0,
+                is_default_analysis TINYINT(1) DEFAULT 0,
+                created_at VARCHAR(255) NOT NULL
+            )
+        """)
+        print("+ MySQL: tabel ai_models dibuat")
+    else:
+        print("= MySQL: ai_models sudah ada, skip")
+
     for table, col, sql in _migrations:
         if not _table_exists(table):
             print(f"= {table} belum ada, skip (akan dibuat SQLAlchemy)")
