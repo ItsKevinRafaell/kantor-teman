@@ -11,3 +11,9 @@ frontend/leads.db
 backend/venv/
 .env
 *.env.local
+.env.production
+frontend-build.zip
+frontend/public/sw.js
+frontend/public/swe-worker-*.js
+frontend/public/workbox-*.js
+frontend/tsconfig.tsbuildinfo
