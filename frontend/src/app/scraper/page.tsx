@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "../../lib/api";
 import Toast from "../../components/Toast";
 
@@ -26,9 +27,19 @@ interface ScrapeHistoryItem {
   product_interest: string | null;
   results_count: number;
   scraped_at: string;
+  batch_name: string | null;
+  lead_count: number;
+}
+
+interface HistoryResponse {
+  items: ScrapeHistoryItem[];
+  total: number;
+  page: number;
+  page_size: number;
 }
 
 export default function ScraperPage() {
+  const router = useRouter();
   const [category, setCategory] = useState("");
   const [location, setLocation] = useState("");
   const [maxResults, setMaxResults] = useState(20);
@@ -37,10 +48,14 @@ export default function ScraperPage() {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Business[]>([]);
   const [history, setHistory] = useState<ScrapeHistoryItem[]>([]);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyPage, setHistoryPage] = useState(1);
   const [historySearch, setHistorySearch] = useState("");
+  const [historySearchInput, setHistorySearchInput] = useState("");
   const [aiAnalysis, setAiAnalysis] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const PAGE_SIZE = 20;
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -53,14 +68,30 @@ export default function ScraperPage() {
     } catch { /* silent */ }
   }, [productInterest]);
 
-  const fetchHistory = useCallback(async () => {
+  const fetchHistory = useCallback(async (page = 1, search = "") => {
     try {
-      const res = await apiFetch("/api/scrape-history");
-      if (res.ok) setHistory(await res.json());
+      const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) });
+      if (search) params.set("search", search);
+      const res = await apiFetch(`/api/scrape-history?${params}`);
+      if (res.ok) {
+        const data: HistoryResponse = await res.json();
+        setHistory(data.items);
+        setHistoryTotal(data.total);
+        setHistoryPage(data.page);
+      }
     } catch { /* silent */ }
   }, []);
 
   useEffect(() => { fetchCategories(); fetchHistory(); }, [fetchCategories, fetchHistory]);
+
+  // Debounce history search
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setHistorySearch(historySearchInput);
+      fetchHistory(1, historySearchInput);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [historySearchInput, fetchHistory]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -83,7 +114,7 @@ export default function ScraperPage() {
       const data: Business[] = await res.json();
       setResults(data);
       setToast({ message: `${data.length} bisnis ditemukan dan disimpan ke database.`, type: "success" });
-      fetchHistory();
+      fetchHistory(1, historySearch);
       if (aiAnalysis && data.length > 0) {
         runBatchAnalysis();
       }
@@ -294,43 +325,68 @@ export default function ScraperPage() {
       )}
 
       {/* Riwayat Pencarian */}
-      {history.length > 0 && (
-        <div className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] shadow-card overflow-hidden">
-          <div className="px-6 py-4 border-b border-[var(--border-default)] flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-gray-700 dark:text-[#fcfaf7]">Riwayat Pencarian</p>
-              <p className="text-xs text-gray-400 mt-0.5">Kombinasi bisnis + lokasi yang sudah pernah di-scrape.</p>
-            </div>
-            <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)}
-              placeholder="Cari lokasi atau kategori..."
-              className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-xs bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition w-56" />
+      <div className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] shadow-card overflow-hidden">
+        <div className="px-6 py-4 border-b border-[var(--border-default)] flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-gray-700 dark:text-[#fcfaf7]">Riwayat Batch Scraping</p>
+            <p className="text-xs text-gray-400 mt-0.5">Klik batch untuk lihat leads terkait. Total: {historyTotal} batch.</p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 dark:bg-[#2a2a29] border-b border-[var(--border-default)]">
-                <tr>{["Tanggal", "Kategori Bisnis", "Lokasi", "Target Layanan", "Hasil"].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">{h}</th>
-                ))}</tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border-subtle)]">
-                {history.filter(h => {
-                  if (!historySearch) return true;
-                  const q = historySearch.toLowerCase();
-                  return h.category.toLowerCase().includes(q) || h.location.toLowerCase().includes(q);
-                }).map((h) => (
-                  <tr key={h.id} className="hover:bg-[var(--bg-surface-hover)] transition-colors">
-                    <td className="px-4 py-3 text-xs text-gray-500">{new Date(h.scraped_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
-                    <td className="px-4 py-3 font-medium text-neutral-800 dark:text-neutral-200">{h.category}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{h.location || "—"}</td>
-                    <td className="px-4 py-3"><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">{h.product_interest || "—"}</span></td>
-                    <td className="px-4 py-3 text-xs font-semibold text-emerald-600">{h.results_count} bisnis</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <input type="text" value={historySearchInput} onChange={(e) => setHistorySearchInput(e.target.value)}
+            placeholder="Cari kategori, lokasi, atau batch..."
+            className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-xs bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition w-56" />
         </div>
-      )}
+        {history.length === 0 ? (
+          <div className="p-8 text-center text-xs text-neutral-400">
+            {historySearch ? "Tidak ada batch yang cocok." : "Belum ada riwayat scraping."}
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-[#2a2a29] border-b border-[var(--border-default)]">
+                  <tr>{["Tanggal", "Kategori Bisnis", "Lokasi", "Target Layanan", "Hasil", "Leads"].map((h) => (
+                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">{h}</th>
+                  ))}</tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border-subtle)]">
+                  {history.map((h) => (
+                    <tr key={h.id}
+                      onClick={() => router.push(`/contacts?batch=${encodeURIComponent(h.batch_name || h.category)}`)}
+                      className="hover:bg-[var(--bg-surface-hover)] transition-colors cursor-pointer">
+                      <td className="px-4 py-3 text-xs text-gray-500">{new Date(h.scraped_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
+                      <td className="px-4 py-3 font-medium text-neutral-800 dark:text-neutral-200">{h.category}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{h.location || "—"}</td>
+                      <td className="px-4 py-3"><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">{h.product_interest || "—"}</span></td>
+                      <td className="px-4 py-3 text-xs font-semibold text-emerald-600">{h.results_count} bisnis</td>
+                      <td className="px-4 py-3 text-xs font-semibold text-blue-600">{h.lead_count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Pagination */}
+            {historyTotal > PAGE_SIZE && (
+              <div className="px-6 py-3 border-t border-[var(--border-subtle)] flex items-center justify-between">
+                <span className="text-xs text-neutral-400">
+                  Halaman {historyPage} dari {Math.ceil(historyTotal / PAGE_SIZE)}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => fetchHistory(historyPage - 1, historySearch)}
+                    disabled={historyPage <= 1}
+                    className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-neutral-800 transition"
+                  >Prev</button>
+                  <button
+                    onClick={() => fetchHistory(historyPage + 1, historySearch)}
+                    disabled={historyPage >= Math.ceil(historyTotal / PAGE_SIZE)}
+                    className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-neutral-800 transition"
+                  >Next</button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

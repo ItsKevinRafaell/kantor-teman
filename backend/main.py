@@ -302,6 +302,7 @@ class ScrapeHistory(Base):
     product_interest = Column(String(255), nullable=True)
     results_count = Column(Integer, default=0)
     scraped_at = Column(String(255), nullable=False)
+    batch_name = Column(String(255), nullable=True)
 
 
 class LeadActivityLog(Base):
@@ -2046,6 +2047,7 @@ async def search_businesses(
             product_interest=product_interest,
             results_count=len(results),
             scraped_at=datetime.now(timezone.utc).isoformat(),
+            batch_name=batch,
         ))
         db.commit()
 
@@ -2053,16 +2055,38 @@ async def search_businesses(
 
 
 @app.get("/api/scrape-history")
-def get_scrape_history(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    history = db.query(ScrapeHistory).order_by(ScrapeHistory.id.desc()).limit(50).all()
-    return [{
-        "id": h.id,
-        "category": h.category,
-        "location": h.location,
-        "product_interest": h.product_interest,
-        "results_count": h.results_count,
-        "scraped_at": h.scraped_at,
-    } for h in history]
+def get_scrape_history(
+    search: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    query = db.query(ScrapeHistory)
+    if search:
+        q = f"%{search}%"
+        query = query.filter(
+            (ScrapeHistory.category.ilike(q)) |
+            (ScrapeHistory.location.ilike(q)) |
+            (ScrapeHistory.batch_name.ilike(q))
+        )
+    total = query.count()
+    history = query.order_by(ScrapeHistory.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    items = []
+    for h in history:
+        batch = h.batch_name or f"{h.category} - {h.location}"
+        lead_count = db.query(Lead).filter(Lead.batch_name == batch).count() if batch else 0
+        items.append({
+            "id": h.id,
+            "category": h.category,
+            "location": h.location,
+            "product_interest": h.product_interest,
+            "results_count": h.results_count,
+            "scraped_at": h.scraped_at,
+            "batch_name": h.batch_name,
+            "lead_count": lead_count,
+        })
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
 # ---------------------------------------------------------------------------

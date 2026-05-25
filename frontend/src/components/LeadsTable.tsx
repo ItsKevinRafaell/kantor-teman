@@ -41,12 +41,12 @@ interface Lead {
 const DEFAULT_TEMPLATE =
   "Halo {{business_name}}, saya baru saja menjalankan audit digital gratis untuk bisnis Anda dan hasilnya cukup mengkhawatirkan — ada beberapa masalah kritis yang membuat calon pelanggan Anda lari ke kompetitor setiap harinya.\n\nSaya sudah buatkan laporan lengkapnya di sini:\n{{proposal_link}}\n\nLaporan ini hanya berlaku 24 jam karena slot optimasi wilayah Anda terbatas. Setelah itu harga kembali normal.\n\nBisa saya jelaskan lebih detail, Pak?";
 
-export default function LeadsTable() {
+export default function LeadsTable({ initialBatch }: { initialBatch?: string }) {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<Status | "">("");
-  const [filterBatch, setFilterBatch] = useState("");
+  const [filterBatch, setFilterBatch] = useState(initialBatch || "");
   const [batches, setBatches] = useState<string[]>([]);
   const [updating, setUpdating] = useState<number | null>(null);
   const [fallbackTemplate, setFallbackTemplate] = useState(DEFAULT_TEMPLATE);

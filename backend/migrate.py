@@ -55,6 +55,7 @@ if "mysql" in _db_url:
         ("documents", "tags", "ALTER TABLE documents ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'"),
         ("documents", "updated_at", "ALTER TABLE documents ADD COLUMN updated_at VARCHAR(255) NULL"),
         ("provider_configs", "monthly_quota", "ALTER TABLE provider_configs ADD COLUMN monthly_quota FLOAT NOT NULL DEFAULT 0"),
+        ("scrape_history", "batch_name", "ALTER TABLE scrape_history ADD COLUMN batch_name VARCHAR(255) NULL"),
     ]
 
     for table, col, sql in _migrations:
@@ -682,7 +683,17 @@ if doc_cols:
             cur.execute(f"ALTER TABLE documents ADD COLUMN {col} {defn}")
             print(f"+ documents.{col} ditambahkan")
 
+# ---------------------------------------------------------------------------
+# Migrasi scrape_history: tambah batch_name
+# ---------------------------------------------------------------------------
+cur.execute("PRAGMA table_info(scrape_history)")
+sh_cols = {row[1] for row in cur.fetchall()}
+if sh_cols and "batch_name" not in sh_cols:
+    cur.execute("ALTER TABLE scrape_history ADD COLUMN batch_name TEXT")
+    print("+ kolom batch_name ditambahkan ke scrape_history")
+elif sh_cols:
+    print("= scrape_history.batch_name sudah ada, skip")
+
 conn.commit()
 conn.close()
 print("Migrasi selesai.")
-
