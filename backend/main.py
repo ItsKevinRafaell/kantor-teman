@@ -7887,18 +7887,46 @@ def cms_publish_article(body: CmsPublishRequest, current_user: User = Depends(ge
         "Authorization": f"Bearer {cms_token_row.value}",
         "Content-Type": "application/json",
     }
-    # Override Host header if using IP address to hit correct vhost
-    if cms_base.replace("https://","").split(":")[0].replace(".","").isdigit():
-        headers["Host"] = "api.temanumkmkita.com"
+    use_ip = cms_base.replace("https://","").split(":")[0].replace(".","").isdigit()
     try:
-        resp = _httpx.post(
-            f"{cms_base}/api/articles",
-            headers=headers,
-            json=body.model_dump(),
-            timeout=30,
-            follow_redirects=True,
-            verify=cms_base.replace("https://","").split(":")[0] != "127.0.0.1",
-        )
+        transport = None
+        if use_ip:
+            # Override DNS: resolve api.temanumkmkita.com → 127.0.0.1
+            # so TLS SNI = api.temanumkmkita.com (correct vhost), but TCP to 127.0.0.1
+            import ssl
+            target_host = "api.temanumkmkita.com"
+            target_port = 443
+            transport = _httpx.HTTPTransport(
+                verify=False,
+                retries=1,
+            )
+            # Patch DNS before request via custom transport
+            import socket as _socket
+            _orig_getaddrinfo = _socket.getaddrinfo
+            def _patched_getaddrinfo(host, port, *args, **kwargs):
+                if host == target_host:
+                    host = "127.0.0.1"
+                return _orig_getaddrinfo(host, port, *args, **kwargs)
+            _socket.getaddrinfo = _patched_getaddrinfo
+            try:
+                resp = _httpx.post(
+                    f"https://{target_host}/api/articles",
+                    headers=headers,
+                    json=body.model_dump(),
+                    timeout=30,
+                    follow_redirects=True,
+                    verify=False,
+                )
+            finally:
+                _socket.getaddrinfo = _orig_getaddrinfo
+        else:
+            resp = _httpx.post(
+                f"{cms_base}/api/articles",
+                headers=headers,
+                json=body.model_dump(),
+                timeout=30,
+                follow_redirects=True,
+            )
         if resp.status_code not in (200, 201):
             raise HTTPException(status_code=502, detail=f"CMS error {resp.status_code}: {resp.text[:300]}")
         return resp.json()
