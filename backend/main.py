@@ -7897,7 +7897,7 @@ def cms_publish_article(body: CmsPublishRequest, current_user: User = Depends(ge
             json=body.model_dump(),
             timeout=30,
             follow_redirects=True,
-            verify=True,
+            verify=cms_base.replace("https://","").split(":")[0] != "127.0.0.1",
         )
         if resp.status_code not in (200, 201):
             raise HTTPException(status_code=502, detail=f"CMS error {resp.status_code}: {resp.text[:300]}")
