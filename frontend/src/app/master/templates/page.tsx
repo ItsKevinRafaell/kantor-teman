@@ -21,12 +21,12 @@ interface CategoryOption {
 }
 
 const TEMPLATE_TYPES = [
-  { value: "WA_BLAST", label: "WA Blast" },
-  { value: "PROPOSAL_TEXT", label: "Proposal Text" },
-  { value: "PROPOSAL_INTRO", label: "Proposal Intro" },
-  { value: "PROPOSAL_OUTRO", label: "Proposal Outro" },
-  { value: "FOLLOW_UP", label: "Follow Up" },
-  { value: "GENERAL", label: "General" },
+  { value: "WA_BLAST", label: "WA Blast", hint: "Dipakai saat blast WA ke leads" },
+  { value: "PROPOSAL_TEXT", label: "Proposal Text", hint: "Isi teks proposal yang dikirim" },
+  { value: "PROPOSAL_INTRO", label: "Proposal Intro", hint: "Pembuka di halaman proposal" },
+  { value: "PROPOSAL_OUTRO", label: "Proposal Outro", hint: "Penutup di halaman proposal" },
+  { value: "FOLLOW_UP", label: "Follow Up", hint: "Pesan follow-up otomatis" },
+  { value: "GENERAL", label: "General", hint: "Template umum" },
 ];
 
 const TYPE_COLORS: Record<string, string> = {
@@ -168,6 +168,7 @@ export default function DynamicTemplatesPage() {
                 <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} className={inputCls}>
                   {TEMPLATE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">{TEMPLATE_TYPES.find(t => t.value === form.type)?.hint}</p>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Kategori Produk</label>
@@ -180,9 +181,23 @@ export default function DynamicTemplatesPage() {
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Isi Konten</label>
                 <textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} rows={6} className={inputCls + " resize-none font-mono"} placeholder="Halo {{client_name}}, kami ingin menawarkan {{product_name}}..." />
-                <div className="mt-1.5 p-2.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg">
-                  <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">Variabel yang tersedia:</p>
-                  <p className="text-[11px] text-blue-500 dark:text-blue-300 mt-0.5 font-mono">{"{{client_name}}"} · {"{{business_name}}"} · {"{{product_name}}"}</p>
+                <div className="mt-1.5 p-2.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg space-y-1.5">
+                  <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">Variabel yang tersedia (klik untuk copy):</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { var: "{{business_name}}", desc: "Nama bisnis lead" },
+                      { var: "{{client_name}}", desc: "Sama dengan business_name" },
+                      { var: "{{product_name}}", desc: "Kategori layanan target" },
+                      { var: "{{proposal_link}}", desc: "Link report/proposal" },
+                    ].map(v => (
+                      <button key={v.var} type="button" onClick={() => { navigator.clipboard.writeText(v.var); setForm(f => ({ ...f, content: f.content + v.var })); }}
+                        className="px-2 py-0.5 bg-blue-100 dark:bg-blue-800/40 text-blue-700 dark:text-blue-300 rounded text-[10px] font-mono hover:bg-blue-200 dark:hover:bg-blue-700/40 transition-colors"
+                        title={v.desc}>{v.var}</button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-blue-500 dark:text-blue-400 mt-1">
+                    <strong>WA Blast:</strong> semua variabel · <strong>Proposal:</strong> business_name · <strong>Follow Up:</strong> business_name, proposal_link
+                  </p>
                 </div>
               </div>
               <label className="flex items-center gap-2 cursor-pointer">

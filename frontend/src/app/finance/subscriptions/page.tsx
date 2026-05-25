@@ -129,8 +129,10 @@ export default function SubscriptionsPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={runAutoDeduct} className="px-2.5 py-1.5 sm:px-4 sm:py-2.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs sm:text-sm font-semibold rounded-xl transition-colors">
-            Auto-Deduct
+          <button onClick={runAutoDeduct}
+            title="Catat semua langganan yang jatuh tempo bulan ini sebagai pengeluaran otomatis"
+            className="px-2.5 py-1.5 sm:px-4 sm:py-2.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs sm:text-sm font-semibold rounded-xl transition-colors">
+            Catat Pengeluaran Bulan Ini
           </button>
           <button onClick={openNew} className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-4 sm:py-2.5 bg-brand-yellow hover:bg-amber-600 text-white text-xs sm:text-sm font-semibold rounded-xl transition-colors">
             <Plus size={16} /> Tambah

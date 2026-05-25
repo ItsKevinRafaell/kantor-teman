@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -160,6 +160,25 @@ const NAV_GROUPS: NavGroup[] = [
 
 export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
+  const [customizing, setCustomizing] = useState(false);
+  const [hiddenItems, setHiddenItems] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("sidebar_hidden_items");
+      if (stored) setHiddenItems(new Set(JSON.parse(stored)));
+    } catch { /* silent */ }
+  }, []);
+
+  function toggleItem(href: string) {
+    setHiddenItems(prev => {
+      const next = new Set(prev);
+      if (next.has(href)) next.delete(href);
+      else next.add(href);
+      localStorage.setItem("sidebar_hidden_items", JSON.stringify(Array.from(next)));
+      return next;
+    });
+  }
 
   return (
     <>
@@ -180,14 +199,28 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
-          {NAV_GROUPS.map((group) => (
+          {NAV_GROUPS.map((group) => {
+            const visibleItems = customizing ? group.items : group.items.filter(i => !hiddenItems.has(i.href));
+            if (visibleItems.length === 0 && !customizing) return null;
+            return (
             <div key={group.title}>
               <p className="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-neutral-400/70 dark:text-neutral-600">
                 {group.title}
               </p>
               <div className="space-y-0.5">
-                {group.items.map((item) => {
+                {visibleItems.map((item) => {
                   const active = pathname === item.href || pathname === item.href + "/" || (item.href !== "/dashboard" && pathname.startsWith(item.href) && !NAV_GROUPS.some(g => g.items.some(i => i.href !== item.href && i.href.startsWith(item.href) && pathname.startsWith(i.href))));
+                  const isHidden = hiddenItems.has(item.href);
+                  if (customizing) {
+                    return (
+                      <button key={item.href} onClick={() => toggleItem(item.href)}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium transition-all ${isHidden ? "opacity-40 line-through" : ""} text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100/80 dark:hover:bg-neutral-800/60`}>
+                        <input type="checkbox" checked={!isHidden} readOnly className="w-3.5 h-3.5 rounded border-gray-300 text-brand-yellow pointer-events-none" />
+                        <span className="text-neutral-400 dark:text-neutral-500">{item.icon}</span>
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    );
+                  }
                   return (
                     <Link key={item.href} href={item.href} onClick={onClose}
                       className={`flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-200 group ${active ? "bg-brand-yellow/10 text-brand-yellow shadow-sm" : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100/80 dark:hover:bg-neutral-800/60 hover:text-neutral-800 dark:hover:text-neutral-200"}`}>
@@ -201,11 +234,17 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
                 })}
               </div>
             </div>
-          ))}
+          );
+          })}
         </nav>
 
-        <div className="px-5 py-4 border-t border-[var(--border-subtle)]">
-          <p className="text-[11px] text-neutral-400 dark:text-neutral-600 font-medium">v1.0 · Kantor Teman</p>
+        <div className="px-3 py-3 border-t border-[var(--border-subtle)] flex items-center justify-between">
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-600 font-medium px-2">v1.0</p>
+          <button onClick={() => setCustomizing(!customizing)}
+            className={`text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors ${customizing ? "bg-brand-yellow text-white" : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
+            title="Pilih menu mana yang tampil di sidebar">
+            {customizing ? "Selesai" : "Atur Menu"}
+          </button>
         </div>
       </aside>
     </>
