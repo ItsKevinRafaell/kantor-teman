@@ -3,10 +3,10 @@ import random
 import asyncio
 import uuid
 import json
-from search_volume_data import get_monthly_search_volume
 import csv
 import io
 import httpx
+from search_volume_data import get_monthly_search_volume
 from fastapi import FastAPI, Query, HTTPException, Depends, BackgroundTasks, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -17,17 +17,16 @@ import os
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
+from cryptography.fernet import Fernet
 import jwt
 import bcrypt as _bcrypt
-from sqlalchemy import create_engine, Column, Integer, String, Text, Float, Boolean, ForeignKey, select, func
+from sqlalchemy import create_engine, Column, Integer, String, Text, Float, Boolean, ForeignKey, select, func, DateTime
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker, relationship
 
-load_dotenv()
+load_dotenv(os.environ.get("ENV_FILE", ".env.production"))
 
-from cryptography.fernet import Fernet
-
-SECRET_ENCRYPTION_KEY = os.getenv("SECRET_ENCRYPTION_KEY", Fernet.generate_key().decode())
-_fernet = Fernet(SECRET_ENCRYPTION_KEY.encode() if isinstance(SECRET_ENCRYPTION_KEY, str) else SECRET_ENCRYPTION_KEY)
+SECRET_ENCRYPTION_KEY = os.environ["SECRET_ENCRYPTION_KEY"]  # fail hard kalo kosong
+_fernet = Fernet(SECRET_ENCRYPTION_KEY.encode())
 
 
 def encrypt_password(plain: str) -> str:
@@ -40,26 +39,29 @@ def decrypt_password(encrypted: str) -> str:
 
 app = FastAPI(title="Kantor Teman API")
 
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://kantorteman.my.id")
+CORS_ORIGIN = os.getenv("CORS_ORIGIN", "https://kantor-teman-five.vercel.app,https://kantorteman.my.id")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
+    allow_origins=CORS_ORIGIN.split(",") if CORS_ORIGIN else [
+        FRONTEND_URL,
         "http://localhost:3000",
         "http://localhost:3001",
-        "http://kantorteman.my.id",
-        "https://kantorteman.my.id",
-        "https://www.kantorteman.my.id",
-        "https://kantor-teman-five.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-PLACES_NEW_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")  # boleh kosong
+PLACES_NEW_SEARCH_URL = os.environ.get("PLACES_NEW_SEARCH_URL", "https://places.googleapis.com/v1/places:searchText")
 JWT_SECRET = os.getenv("JWT_SECRET", "kantor-teman-secret-change-in-prod")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 24
+
+# Limit concurrent search to prevent LSAPI worker explosion
+search_semaphore = asyncio.Semaphore(1)
 
 bearer_scheme = HTTPBearer()
 
@@ -76,6 +78,9 @@ def verify_password(plain: str, hashed: str) -> bool:
 # ---------------------------------------------------------------------------
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./leads.db")
+# Auto-register PyMySQL for MySQL connections
+if "mysql" in DATABASE_URL and "pymysql" not in DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.replace("mysql://", "mysql+pymysql://")
 _connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
 from sqlalchemy.pool import NullPool
 engine = create_engine(DATABASE_URL, connect_args=_connect_args, poolclass=NullPool)
@@ -99,6 +104,25 @@ class SystemSettings(Base):
     id = Column(Integer, primary_key=True)
     key = Column(String(255), unique=True, nullable=False)
     value = Column(Text, nullable=True)
+
+
+class AIProxy(Base):
+    __tablename__ = "ai_proxies"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(255), nullable=False)
+    base_url = Column(String(500), nullable=False)
+    api_key_encrypted = Column(String(500), default="")  # Always encrypted
+    model = Column(String(255), default="")
+    is_active = Column(Boolean, default=False)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    @property
+    def api_key(self) -> str:
+        return decrypt_password(self.api_key_encrypted) if self.api_key_encrypted else ""
+
+    @api_key.setter
+    def api_key(self, value: str):
+        self.api_key_encrypted = encrypt_password(value) if value else ""
 
 
 class Lead(Base):
@@ -641,6 +665,11 @@ class Document(Base):
 Base.metadata.create_all(bind=engine)
 
 
+def _migrate_ai_proxy(db: Session):
+    """Create sample AIProxy for NEW PRODUCTION DB ONLY. Manual run."""
+    pass  # Disabled
+
+
 def get_db():
     db = SessionLocal()
     try:
@@ -720,8 +749,15 @@ def seed_data(db: Session):
         db.commit()
 
 
-with SessionLocal() as _db:
-    seed_data(_db)
+"""
+Expected env variables (all required in production):
+  $JWT_SECRET   — signing key for JWT tokens
+  $SECRET_ENCRYPTION_KEY — Fernet key for encrypting stored secrets
+  $FRONTEND_URL — https://your-frontend.vercel.app
+  $CORS_ORIGIN  — comma-separated allowed origins
+  $DATABASE_URL — mysql://user:pass@host/db
+"""
+# ── Runtime validation ──────────────────────────────────────────────────────
 
 USD_TO_IDR = 17000
 
@@ -1599,14 +1635,12 @@ def _send_fonnte_sync(phone: str, message: str, token: str, _httpx) -> bool:
     if not token:
         return False
     try:
-        print(f"[FONNTE MSG] target={phone} msg_length={len(message)} first100={message[:100]}", flush=True)
         with _httpx.Client(timeout=15) as client:
             resp = client.post(
                 "https://api.fonnte.com/send",
                 headers={"Authorization": token},
                 data={"target": phone, "message": message, "delay": "5"},
             )
-            print(f"[FONNTE] status={resp.status_code} body={resp.text[:200]}", flush=True)
             return resp.status_code == 200 and resp.json().get("status") != False
     except Exception as e:
         print(f"[FONNTE ERROR] {e}", flush=True)
@@ -1688,9 +1722,9 @@ def run_blast_sync(batch_name: str, product_category: str, min_rating: int, db_u
                         pass
                     db = _Session()
 
-            frontend_url = _get_setting("frontend_url", os.getenv("FRONTEND_URL", "http://localhost:3000"))
+            frontend_url = _get_setting("frontend_url", os.environ["FRONTEND_URL"])
             report_slug = generate_report_for_lead(lead, db)
-            report_link = f"https://api.kantorteman.my.id/r/{report_slug}"
+            report_link = f"{FRONTEND_URL}/r/{report_slug}"
 
             if dynamic_templates:
                 tmpl = random.choice(dynamic_templates)
@@ -1953,76 +1987,77 @@ async def search_businesses(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    api_key = _get_setting("google_api_key", GOOGLE_API_KEY or "")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="GOOGLE_API_KEY not configured")
+    async with search_semaphore:
+        api_key = _get_setting("google_api_key", GOOGLE_API_KEY or "")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="GOOGLE_API_KEY not configured")
 
-    batch = generate_batch_name(category or "", location or "")
-    results: list[Business] = []
-    page_token: Optional[str] = None
+        batch = generate_batch_name(category or "", location or "")
+        results: list[Business] = []
+        page_token: Optional[str] = None
 
-    headers = {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": api_key,
-        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.location,nextPageToken",
-    }
+        headers = {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": api_key,
+            "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.location,nextPageToken",
+        }
 
-    async with httpx.AsyncClient(timeout=15) as client:
-        while len(results) < max_results:
-            body: dict = {"textQuery": q, "pageSize": min(20, max_results - len(results)), "languageCode": "id"}
-            if page_token:
-                body["pageToken"] = page_token
+        async with httpx.AsyncClient(timeout=15) as client:
+            while len(results) < max_results:
+                body: dict = {"textQuery": q, "pageSize": min(20, max_results - len(results)), "languageCode": "id"}
+                if page_token:
+                    body["pageToken"] = page_token
 
-            resp = await client.post(PLACES_NEW_SEARCH_URL, json=body, headers=headers)
-            if resp.status_code != 200:
-                detail = resp.json().get("error", {}).get("message", f"HTTP {resp.status_code}")
-                raise HTTPException(status_code=502, detail=f"Google API error: {detail}")
+                resp = await client.post(PLACES_NEW_SEARCH_URL, json=body, headers=headers)
+                if resp.status_code != 200:
+                    detail = resp.json().get("error", {}).get("message", f"HTTP {resp.status_code}")
+                    raise HTTPException(status_code=502, detail=f"Google API error: {detail}")
 
-            data = resp.json()
-            for place in data.get("places", []):
-                if len(results) >= max_results:
+                data = resp.json()
+                for place in data.get("places", []):
+                    if len(results) >= max_results:
+                        break
+                    raw_phone = place.get("nationalPhoneNumber") or place.get("internationalPhoneNumber")
+                    phone_digits = normalize_phone(raw_phone) if raw_phone else None
+                    wa_url = make_wa_url(phone_digits) if phone_digits else None
+                    address = place.get("formattedAddress", "")
+                    name = place.get("displayName", {}).get("text", "")
+                    website = place.get("websiteUri")
+                    google_rating = place.get("rating")
+                    user_ratings_total = place.get("userRatingCount")
+                    location_data = place.get("location", {})
+                    latitude = location_data.get("latitude") if location_data else None
+                    longitude = location_data.get("longitude") if location_data else None
+                    if phone_digits and not db.query(Lead).filter(Lead.phone_number == phone_digits).first():
+                        score = calculate_lead_score(
+                            has_website=bool(website),
+                            google_rating=google_rating,
+                            user_ratings_total=user_ratings_total,
+                            has_phone=True,
+                        )
+                        db.add(Lead(business_name=name, phone_number=phone_digits, address=address,
+                                    original_url=wa_url, product_interest=product_interest, batch_name=batch,
+                                    rating=score, website_url=website, google_rating=google_rating,
+                                    review_count=user_ratings_total, latitude=latitude, longitude=longitude))
+                        db.commit()
+                    results.append(Business(name=name, address=address, phone=raw_phone, whatsapp_url=wa_url,
+                                            google_rating=google_rating, review_count=user_ratings_total, website_url=website))
+
+                page_token = data.get("nextPageToken")
+                if not page_token:
                     break
-                raw_phone = place.get("nationalPhoneNumber") or place.get("internationalPhoneNumber")
-                phone_digits = normalize_phone(raw_phone) if raw_phone else None
-                wa_url = make_wa_url(phone_digits) if phone_digits else None
-                address = place.get("formattedAddress", "")
-                name = place.get("displayName", {}).get("text", "")
-                website = place.get("websiteUri")
-                google_rating = place.get("rating")
-                user_ratings_total = place.get("userRatingCount")
-                location_data = place.get("location", {})
-                latitude = location_data.get("latitude") if location_data else None
-                longitude = location_data.get("longitude") if location_data else None
-                if phone_digits and not db.query(Lead).filter(Lead.phone_number == phone_digits).first():
-                    score = calculate_lead_score(
-                        has_website=bool(website),
-                        google_rating=google_rating,
-                        user_ratings_total=user_ratings_total,
-                        has_phone=True,
-                    )
-                    db.add(Lead(business_name=name, phone_number=phone_digits, address=address,
-                                original_url=wa_url, product_interest=product_interest, batch_name=batch,
-                                rating=score, website_url=website, google_rating=google_rating,
-                                review_count=user_ratings_total, latitude=latitude, longitude=longitude))
-                    db.commit()
-                results.append(Business(name=name, address=address, phone=raw_phone, whatsapp_url=wa_url,
-                                        google_rating=google_rating, review_count=user_ratings_total, website_url=website))
 
-            page_token = data.get("nextPageToken")
-            if not page_token:
-                break
+        # Record scrape history
+        db.add(ScrapeHistory(
+            category=category or q,
+            location=location or "",
+            product_interest=product_interest,
+            results_count=len(results),
+            scraped_at=datetime.now(timezone.utc).isoformat(),
+        ))
+        db.commit()
 
-    # Record scrape history
-    db.add(ScrapeHistory(
-        category=category or q,
-        location=location or "",
-        product_interest=product_interest,
-        results_count=len(results),
-        scraped_at=datetime.now(timezone.utc).isoformat(),
-    ))
-    db.commit()
-
-    return results
+        return results
 
 
 @app.get("/api/scrape-history")
@@ -2606,13 +2641,13 @@ def redirect_proposal_by_slug(slug: str, db: Session = Depends(get_db)):
             status_code=404,
         )
     log_audit(db, "visitor", "VIEW", "proposals", proposal.id, {"slug": slug, "via": "short_link"})
-    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    frontend_url = os.environ["FRONTEND_URL"]  # tidak ada fallback, harus dari env
     return RedirectResponse(url=f"{frontend_url}/proposal/{proposal.id}", status_code=307)
 
 
 @app.get("/r/{slug}")
 def report_og_redirect(slug: str, request: Request, db: Session = Depends(get_db)):
-    frontend_url = _get_setting("frontend_url", os.getenv("FRONTEND_URL", "http://localhost:3000"))
+    frontend_url = _get_setting("frontend_url", os.environ["FRONTEND_URL"])
     report_url = f"{frontend_url}/report/{slug}"
 
     proposal = db.query(Proposal).filter(Proposal.slug == slug, Proposal.status == "Report").first()
@@ -4361,7 +4396,7 @@ def generate_report_endpoint(lead_id: int, current_user: User = Depends(get_curr
     if not lead:
         raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
     slug = generate_report_for_lead(lead, db)
-    frontend_url = _get_setting("frontend_url", os.getenv("FRONTEND_URL", "http://localhost:3000"))
+    frontend_url = _get_setting("frontend_url", os.environ["FRONTEND_URL"])
     return {"slug": slug, "report_url": f"https://api.kantorteman.my.id/r/{slug}"}
 
 
@@ -5836,9 +5871,9 @@ async def process_pending_blasts():
                 sent = 0
                 failed = 0
                 for lead in leads:
-                    frontend_url = _get_setting("frontend_url", os.getenv("FRONTEND_URL", "http://localhost:3000"))
+                    frontend_url = _get_setting("frontend_url", os.environ["FRONTEND_URL"])
                     report_slug = generate_report_for_lead(lead, db)
-                    report_link = f"https://api.kantorteman.my.id/r/{report_slug}"
+                    report_link = f"{FRONTEND_URL}/r/{report_slug}"
 
                     if template:
                         message = template.content.replace("{{client_name}}", lead.business_name).replace("{{business_name}}", lead.business_name)
@@ -6026,6 +6061,22 @@ class ChatMemoryOut(BaseModel):
 # ---------------------------------------------------------------------------
 # Content Generator Schemas
 # ---------------------------------------------------------------------------
+
+class AIProxyIn(BaseModel):
+    name: str
+    base_url: str
+    api_key: str = ""
+    model: str = ""
+
+class AIProxyOut(BaseModel):
+    id: str
+    name: str
+    base_url: str
+    api_key: str = ""
+    model: str = ""
+    is_active: bool
+    created_at: str
+    model_config = {"from_attributes": True}
 
 class ContentProviderIn(BaseModel):
     name: str
@@ -6835,16 +6886,14 @@ async def chat(conversation_id: str, body: ChatRequest, current_user: User = Dep
 
         project = db.query(ChatProject).filter(ChatProject.id == conversation.project_id).first()
 
-        # Get API config
-        openai_key = db.query(SystemSettings).filter_by(key="openai_api_key").first()
-        base_url = db.query(SystemSettings).filter_by(key="ai_base_url").first()
+        # Get API config from active proxy
+        active_proxy = db.query(AIProxy).filter_by(is_active=True).first()
+        if not active_proxy:
+            raise HTTPException(status_code=400, detail="Tidak ada AI proxy aktif. Tambahkan proxy di Settings.")
 
-        if not openai_key or not openai_key.value:
-            raise HTTPException(status_code=400, detail="API Key belum dikonfigurasi")
-
-        api_key = openai_key.value
-        api_base = base_url.value if base_url else "https://api.aimurah.com/v1"
-        model = body.model or project.default_model or "glm-5"
+        api_key = active_proxy.api_key
+        api_base = active_proxy.base_url.rstrip("/")
+        model = body.model or project.default_model or (active_proxy.model or "glm-5")
 
         # Build HYBRID CONTEXT from multiple layers
         context_window = project.context_window_size if project else 20
@@ -7258,8 +7307,11 @@ def _get_system_ai_config(db: Session) -> dict:
     key = db.query(SystemSettings).filter_by(key="openai_api_key").first()
     base = db.query(SystemSettings).filter_by(key="ai_base_url").first()
     model_s = db.query(SystemSettings).filter_by(key="ai_model").first()
+    api_key = key.value if key and key.value else ""
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Content Generator AI belum dikonfigurasi. Set API Key di Settings → Content Generator AI.")
     return {
-        "api_key": key.value if key and key.value else "",
+        "api_key": api_key,
         "base_url": (base.value if base and base.value else "https://api.aimurah.com/v1").rstrip("/"),
         "model": model_s.value if model_s and model_s.value else "claude-sonnet-4-5",
     }
@@ -7271,11 +7323,26 @@ def _call_text_gen(messages: list, api_key: str, base_url: str, model: str, max_
         resp = client.post(
             f"{base_url}/chat/completions",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"model": model, "messages": messages, "max_tokens": max_tokens},
+            json={"model": model, "messages": messages, "max_tokens": max_tokens, "stream": False},
         )
     if resp.status_code != 200:
         raise HTTPException(status_code=502, detail=f"AI API error {resp.status_code}: {resp.text[:200]}")
-    return resp.json()["choices"][0]["message"]["content"]
+    try:
+        data = resp.json()
+    except json.JSONDecodeError:
+        # Some proxies return NDJSON even with stream=False — take first valid line
+        for line in resp.text.splitlines():
+            line = line.strip()
+            if line and not line.startswith("data: [DONE]"):
+                raw = line.removeprefix("data: ")
+                try:
+                    data = json.loads(raw)
+                    break
+                except json.JSONDecodeError:
+                    continue
+        else:
+            raise HTTPException(status_code=502, detail="AI API returned unparseable response")
+    return data["choices"][0]["message"]["content"]
 
 
 def _get_session_ctx(session_id: str, db: Session, limit: int = 5) -> str:
@@ -7319,6 +7386,53 @@ def _get_manual_ctx(context_from: list, db: Session) -> str:
             out = {}
         parts.append(f"[{g.tool_type}] {str(out)[:400]}")
     return "Konteks yang dipilih:\n" + "\n\n".join(parts)
+
+
+# --- AI Proxy CRUD ---
+
+@app.get("/api/ai-proxies", response_model=List[AIProxyOut])
+def list_ai_proxies(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(AIProxy).order_by(AIProxy.created_at.asc()).all()
+
+@app.post("/api/ai-proxies", response_model=AIProxyOut, status_code=201)
+def create_ai_proxy(body: AIProxyIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    proxy = AIProxy(name=body.name, base_url=body.base_url.rstrip("/"), api_key=body.api_key, model=body.model)
+    db.add(proxy)
+    db.commit()
+    db.refresh(proxy)
+    return proxy
+
+@app.put("/api/ai-proxies/{proxy_id}", response_model=AIProxyOut)
+def update_ai_proxy(proxy_id: str, body: AIProxyIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    proxy = db.query(AIProxy).filter_by(id=proxy_id).first()
+    if not proxy:
+        raise HTTPException(status_code=404, detail="Proxy tidak ditemukan")
+    proxy.name = body.name
+    proxy.base_url = body.base_url.rstrip("/")
+    proxy.api_key = body.api_key
+    proxy.model = body.model
+    db.commit()
+    db.refresh(proxy)
+    return proxy
+
+@app.post("/api/ai-proxies/{proxy_id}/activate", response_model=AIProxyOut)
+def activate_ai_proxy(proxy_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    proxy = db.query(AIProxy).filter_by(id=proxy_id).first()
+    if not proxy:
+        raise HTTPException(status_code=404, detail="Proxy tidak ditemukan")
+    db.query(AIProxy).update({"is_active": False})
+    proxy.is_active = True
+    db.commit()
+    db.refresh(proxy)
+    return proxy
+
+@app.delete("/api/ai-proxies/{proxy_id}", status_code=204)
+def delete_ai_proxy(proxy_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    proxy = db.query(AIProxy).filter_by(id=proxy_id).first()
+    if not proxy:
+        raise HTTPException(status_code=404, detail="Proxy tidak ditemukan")
+    db.delete(proxy)
+    db.commit()
 
 
 # --- Content Provider CRUD ---
@@ -7455,15 +7569,21 @@ def list_content_generations(
     session_id: Optional[str] = Query(None),
     tool_type: Optional[str] = Query(None),
     limit: int = Query(20),
+    q: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    q = db.query(ContentGeneration).filter(ContentGeneration.user_id == current_user.id)
+    query = db.query(ContentGeneration).filter(ContentGeneration.user_id == current_user.id)
     if session_id:
-        q = q.filter(ContentGeneration.session_id == session_id)
+        query = query.filter(ContentGeneration.session_id == session_id)
     if tool_type:
-        q = q.filter(ContentGeneration.tool_type == tool_type)
-    gens = q.order_by(ContentGeneration.created_at.desc()).limit(limit).all()
+        query = query.filter(ContentGeneration.tool_type == tool_type)
+    if q:
+        search = f"%{q}%"
+        query = query.filter(
+            ContentGeneration.input_data.ilike(search) | ContentGeneration.output_data.ilike(search)
+        )
+    gens = query.order_by(ContentGeneration.created_at.desc()).limit(limit).all()
     result = []
     for g in gens:
         item = {
@@ -7656,10 +7776,14 @@ def generate_seo_article(
         f"Gunakan heading H2/H3 dengan format markdown (## dan ###). "
         f"Optimalkan keyword secara natural (density 1-2%, jangan keyword stuffing). "
         f"Struktur artikel: hook intro, isi dengan heading logis, kesimpulan + CTA. "
-        f"WAJIB return valid JSON (no markdown wrapper): "
-        f"{{\"title\":\"...\",\"meta_description\":\"...max 160 karakter, include keyword...\","
-        f"\"body\":\"...artikel markdown lengkap...\",\"focus_keyword\":\"...\","
-        f"\"secondary_keywords\":[\"...\"]}}"
+        f"WAJIB output dengan format TEPAT berikut (jangan tambah teks lain di luar format):\n"
+        f"TITLE: <judul artikel>\n"
+        f"META: <meta description max 160 karakter, include keyword>\n"
+        f"FOCUS_KEYWORD: <keyword utama>\n"
+        f"SECONDARY_KEYWORDS: <keyword1>, <keyword2>, <keyword3>\n"
+        f"---ARTICLE---\n"
+        f"<artikel lengkap dalam markdown>\n"
+        f"---END---"
     )
 
     user_parts = [f"Keyword utama: {body.keyword}", f"Judul: {target_title}"]
@@ -7704,12 +7828,20 @@ def generate_seo_article(
             api_key=ai["api_key"], base_url=ai["base_url"], model=ai["model"], max_tokens=4000,
         )
         import re as _re
-        m = _re.search(r'\{[\s\S]*\}', text)
-        try:
-            result = json.loads(m.group()) if m else {
-                "title": target_title, "body": text, "meta_description": "", "secondary_keywords": [], "focus_keyword": body.keyword}
-        except Exception:
-            result = {"title": target_title, "body": text, "meta_description": "", "secondary_keywords": [], "focus_keyword": body.keyword}
+        def _parse_delimited(t: str) -> dict:
+            title = (_re.search(r'^TITLE:\s*(.+)', t, _re.MULTILINE) or _re.search(r'', t))
+            meta = _re.search(r'^META:\s*(.+)', t, _re.MULTILINE)
+            fk = _re.search(r'^FOCUS_KEYWORD:\s*(.+)', t, _re.MULTILINE)
+            sk = _re.search(r'^SECONDARY_KEYWORDS:\s*(.+)', t, _re.MULTILINE)
+            body_m = _re.search(r'---ARTICLE---([\s\S]*?)---END---', t)
+            return {
+                "title": title.group(1).strip() if title and title.lastindex else target_title,
+                "meta_description": meta.group(1).strip() if meta else "",
+                "focus_keyword": fk.group(1).strip() if fk else body.keyword,
+                "secondary_keywords": [k.strip() for k in sk.group(1).split(",") if k.strip()] if sk else [],
+                "body": body_m.group(1).strip() if body_m else t,
+            }
+        result = _parse_delimited(text)
 
         gen.output_data = json.dumps(result); gen.status = "done"; db.commit()
         return {"id": gen.id, "status": "done", "created_at": gen.created_at, **result}
@@ -7719,6 +7851,40 @@ def generate_seo_article(
     except Exception as e:
         gen.status = "error"; gen.error_msg = str(e); db.commit()
         raise HTTPException(status_code=502, detail=f"Gagal generate artikel: {str(e)}")
+
+
+# --- CMS Proxy ---
+
+class CmsPublishRequest(BaseModel):
+    title: str
+    slug: str
+    excerpt: Optional[str] = None
+    content: str
+    meta_description: Optional[str] = None
+    focus_keyword: Optional[str] = None
+    status: str = "draft"
+
+@app.post("/api/cms/publish-article")
+def cms_publish_article(body: CmsPublishRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    cms_url_row = db.query(SystemSettings).filter_by(key="cms_url").first()
+    cms_token_row = db.query(SystemSettings).filter_by(key="cms_api_token").first()
+    if not cms_url_row or not cms_url_row.value:
+        raise HTTPException(status_code=400, detail="CMS URL belum diset di Settings")
+    if not cms_token_row or not cms_token_row.value:
+        raise HTTPException(status_code=400, detail="CMS API Token belum diset di Settings")
+    import httpx as _httpx
+    try:
+        resp = _httpx.post(
+            f"{cms_url_row.value.rstrip('/')}/api/articles",
+            headers={"Authorization": f"Bearer {cms_token_row.value}", "Content-Type": "application/json"},
+            json=body.model_dump(),
+            timeout=30,
+        )
+        if resp.status_code not in (200, 201):
+            raise HTTPException(status_code=502, detail=f"CMS error {resp.status_code}: {resp.text[:300]}")
+        return resp.json()
+    except _httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Gagal koneksi ke CMS: {str(e)}")
 
 
 # ---------------------------------------------------------------------------

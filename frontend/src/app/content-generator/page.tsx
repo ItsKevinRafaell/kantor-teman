@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../lib/api";
 import Toast from "../../components/Toast";
 
@@ -22,19 +22,17 @@ interface ContentGeneration {
   error_msg?: string; created_at: string;
 }
 
-type Tool = "caption" | "seo_article" | "image";
+type Tool = "seo_article" | "image";
 type ToastState = { msg: string; type: "success" | "error" | "info" } | null;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const TOOL_LABELS: Record<Tool, string> = {
-  caption: "Caption Generator",
   seo_article: "SEO Article",
   image: "Image Generator",
 };
 
 const TOOL_COLORS: Record<Tool, string> = {
-  caption: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
   seo_article: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
   image: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
 };
@@ -44,13 +42,35 @@ function formatDate(d: string) {
 }
 
 function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text).catch(() => {});
+  navigator.clipboard.writeText(text).catch(() => {
+    // Fallback for older browsers
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+  });
+}
+
+function escapeHtml(str: string): string {
+  const div = document.createElement("div");
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
 }
 
 function applyInlineMarkdown(text: string): string {
   return text
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>");
+}
+
+function applyInlineMarkdownSafe(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, (_, p1) => `<strong>${escapeHtml(p1)}</strong>`)
+    .replace(/\*(.+?)\*/g, (_, p1) => `<em>${escapeHtml(p1)}</em>`);
 }
 
 function markdownToHtml(md: string): string {
@@ -64,21 +84,21 @@ function markdownToHtml(md: string): string {
     const line = raw.trimEnd();
     if (line.startsWith("## ")) {
       endList();
-      parts.push(`<h2 class="text-lg font-bold mt-5 mb-2 text-neutral-800 dark:text-neutral-200">${applyInlineMarkdown(line.slice(3))}</h2>`);
+      parts.push(`<h2 class="text-lg font-bold mt-5 mb-2 text-neutral-800 dark:text-neutral-200">${applyInlineMarkdownSafe(line.slice(3))}</h2>`);
     } else if (line.startsWith("### ")) {
       endList();
-      parts.push(`<h3 class="text-base font-semibold mt-4 mb-1 text-neutral-700 dark:text-neutral-300">${applyInlineMarkdown(line.slice(4))}</h3>`);
+      parts.push(`<h3 class="text-base font-semibold mt-4 mb-1 text-neutral-700 dark:text-neutral-300">${applyInlineMarkdownSafe(line.slice(4))}</h3>`);
     } else if (line.startsWith("#### ")) {
       endList();
-      parts.push(`<h4 class="text-sm font-semibold mt-3 mb-1 text-neutral-600 dark:text-neutral-400">${applyInlineMarkdown(line.slice(5))}</h4>`);
+      parts.push(`<h4 class="text-sm font-semibold mt-3 mb-1 text-neutral-600 dark:text-neutral-400">${applyInlineMarkdownSafe(line.slice(5))}</h4>`);
     } else if (line.startsWith("- ") || line.startsWith("* ")) {
       if (!inList) { parts.push(`<ul class="list-disc ml-5 my-2 space-y-0.5">`); inList = true; }
-      parts.push(`<li class="text-sm text-neutral-700 dark:text-neutral-300">${applyInlineMarkdown(line.slice(2))}</li>`);
+      parts.push(`<li class="text-sm text-neutral-700 dark:text-neutral-300">${applyInlineMarkdownSafe(line.slice(2))}</li>`);
     } else if (line.trim() === "") {
       endList();
     } else {
       endList();
-      parts.push(`<p class="text-sm text-neutral-700 dark:text-neutral-300 mb-2 leading-relaxed">${applyInlineMarkdown(line)}</p>`);
+      parts.push(`<p class="text-sm text-neutral-700 dark:text-neutral-300 mb-2 leading-relaxed">${applyInlineMarkdownSafe(line)}</p>`);
     }
   }
   endList();
@@ -225,13 +245,19 @@ function Modal({ open, onClose, title, children }: { open: boolean; onClose: () 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ContentGeneratorPage() {
-  const [activeTool, setActiveTool] = useState<Tool>("caption");
+  const [activeTool, setActiveTool] = useState<Tool>("seo_article");
   const [sessions, setSessions] = useState<ContentSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<ContentSession | null>(null);
   const [imageProviders, setImageProviders] = useState<ContentProvider[]>([]);
   const [generations, setGenerations] = useState<ContentGeneration[]>([]);
   const [sharedContext, setSharedContext] = useState<string[]>([]);
   const [toast, setToast] = useState<ToastState>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [viewResult, setViewResult] = useState<{
+    title: string; meta_description: string; body: string;
+    focus_keyword: string; secondary_keywords: string[]; id?: string;
+  } | null>(null);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Modals
   const [showProviderModal, setShowProviderModal] = useState(false);
@@ -251,24 +277,46 @@ export default function ContentGeneratorPage() {
   const showToast = (msg: string, type: "success" | "error" | "info" = "success") => setToast({ msg, type });
 
   const loadSessions = useCallback(async () => {
-    try { const res = await apiFetch("/api/content/sessions"); if (res.ok) setSessions(await res.json()); } catch {}
+    try { const res = await apiFetch("/api/content/sessions"); if (res.ok) setSessions(await res.json()); else showToast("Gagal memuat sesi", "error"); } catch { showToast("Gagal memuat sesi", "error"); }
   }, []);
 
   const loadProviders = useCallback(async () => {
-    try { const res = await apiFetch("/api/content/providers?tool_type=image"); if (res.ok) setImageProviders(await res.json()); } catch {}
+    try { const res = await apiFetch("/api/content/providers?tool_type=image"); if (res.ok) setImageProviders(await res.json()); else showToast("Gagal memuat provider", "error"); } catch { showToast("Gagal memuat provider", "error"); }
   }, []);
 
-  const loadGenerations = useCallback(async (sessionId?: string) => {
+  const loadGenerations = useCallback(async (sessionId?: string, q?: string) => {
     try {
-      const url = sessionId ? `/api/content/generations?session_id=${sessionId}&limit=30` : "/api/content/generations?limit=20";
-      const res = await apiFetch(url);
-      if (res.ok) setGenerations(await res.json());
-    } catch {}
+      const params = new URLSearchParams({ limit: "50" });
+      if (sessionId) params.set("session_id", sessionId);
+      if (q) params.set("q", q);
+      const res = await apiFetch(`/api/content/generations?${params}`);
+      if (res.ok) setGenerations(await res.json()); else showToast("Gagal memuat histori", "error");
+    } catch { showToast("Gagal memuat histori", "error"); }
   }, []);
+
+  async function deleteGeneration(id: string) {
+    try {
+      const res = await apiFetch(`/api/content/generations/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setGenerations(prev => prev.filter(g => g.id !== id));
+        showToast("Artikel dihapus");
+      } else {
+        showToast("Gagal menghapus artikel", "error");
+      }
+    } catch { showToast("Gagal menghapus artikel", "error"); }
+  }
 
   useEffect(() => { loadSessions(); loadProviders(); loadGenerations(); }, [loadSessions, loadProviders, loadGenerations]);
 
-  useEffect(() => { loadGenerations(selectedSession?.id); }, [selectedSession, loadGenerations]);
+  useEffect(() => { loadGenerations(selectedSession?.id, searchQuery || undefined); }, [selectedSession, loadGenerations, searchQuery]);
+
+  function handleSearchChange(val: string) {
+    setSearchQuery(val);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      loadGenerations(selectedSession?.id, val || undefined);
+    }, 400);
+  }
 
   // ── Provider CRUD ──────────────────────────────────────────────────────────
 
@@ -366,11 +414,11 @@ export default function ContentGeneratorPage() {
       <aside className="w-full md:w-52 shrink-0 flex flex-col gap-3 overflow-x-auto md:overflow-y-auto">
         <div>
           <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">Tools</p>
-          {(["caption", "seo_article", "image"] as Tool[]).map(t => (
+          {(["seo_article", "image"] as Tool[]).map(t => (
             <button key={t} onClick={() => setActiveTool(t)}
               className={`w-full text-left px-3 py-2 rounded-xl text-sm font-medium mb-1 transition-all
                 ${activeTool === t ? "bg-yellow-500 text-white shadow-sm" : "text-neutral-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-neutral-800 dark:hover:text-neutral-200"}`}>
-              {t === "caption" && "💬 "}{t === "seo_article" && "📝 "}{t === "image" && "🎨 "}
+              {t === "seo_article" ? "📝 " : "🎨 "}
               {TOOL_LABELS[t]}
             </button>
           ))}
@@ -384,7 +432,7 @@ export default function ContentGeneratorPage() {
           <button onClick={() => setSelectedSession(null)}
             className={`w-full text-left px-3 py-2 rounded-xl text-sm mb-1 transition-all
               ${!selectedSession ? "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 font-medium" : "text-neutral-500 hover:bg-gray-100 dark:hover:bg-gray-800"}`}>
-            Tanpa sesi
+            Semua
           </button>
           {sessions.map(s => (
             <div key={s.id} className={`group flex items-center gap-1 px-3 py-2 rounded-xl text-sm mb-1 transition-all
@@ -441,10 +489,6 @@ export default function ContentGeneratorPage() {
         )}
 
         {/* Tool Panels */}
-        {activeTool === "caption" && (
-          <CaptionPanel sessionId={selectedSession?.id || null} sharedContext={sharedContext}
-            showToast={showToast} onResult={onResult} />
-        )}
         {activeTool === "seo_article" && (
           <SeoArticlePanel sessionId={selectedSession?.id || null} sharedContext={sharedContext}
             showToast={showToast} onResult={onResult} />
@@ -455,7 +499,15 @@ export default function ContentGeneratorPage() {
         )}
 
         {/* History */}
-        <HistoryPanel generations={generations} sharedContext={sharedContext} onToggleContext={toggleContext} />
+        <HistoryPanel
+          generations={generations}
+          sharedContext={sharedContext}
+          onToggleContext={toggleContext}
+          searchQuery={searchQuery}
+          onSearchChange={handleSearchChange}
+          onDelete={deleteGeneration}
+          setViewResult={setViewResult}
+        />
       </div>
 
       {/* ── Modals ── */}
@@ -532,122 +584,6 @@ export default function ContentGeneratorPage() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Caption Panel
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function CaptionPanel({ sessionId, sharedContext, showToast, onResult }: {
-  sessionId: string | null; sharedContext: string[];
-  showToast: (m: string, t?: "success"|"error"|"info") => void;
-  onResult: (g: ContentGeneration) => void;
-}) {
-  const [loading, setLoading] = useState(false);
-  const [topic, setTopic] = useState("");
-  const [platform, setPlatform] = useState<"instagram"|"tiktok">("instagram");
-  const [tone, setTone] = useState("casual");
-  const [keywords, setKeywords] = useState("");
-  const [result, setResult] = useState<{ caption: string; hashtags: string[]; notes: string; id?: string } | null>(null);
-
-  async function generate() {
-    if (!topic.trim()) return;
-    setLoading(true); setResult(null);
-    try {
-      const res = await apiFetch("/api/content/generate/caption", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topic, platform, tone,
-          keywords: keywords.split(",").map(k => k.trim()).filter(Boolean),
-          session_id: sessionId,
-          context_from: sharedContext,
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setResult(data);
-        onResult({ id: data.id, session_id: sessionId || undefined, tool_type: "caption",
-          input_data: { topic, platform }, output_data: data, status: "done", created_at: data.created_at });
-        showToast("Caption berhasil dibuat!");
-      } else {
-        const err = await res.json().catch(() => ({}));
-        showToast(err.detail || "Gagal generate caption", "error");
-      }
-    } catch { showToast("Gagal generate caption", "error"); }
-    finally { setLoading(false); }
-  }
-
-  return (
-    <div className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-200 dark:border-gray-700 p-5 space-y-4">
-      <h2 className="text-base font-semibold text-neutral-800 dark:text-neutral-200">💬 Caption Generator</h2>
-      <div>
-        <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Topik / Produk</label>
-        <textarea value={topic} onChange={e => setTopic(e.target.value)} rows={3}
-          placeholder="Deskripsikan topik, produk, atau pesan yang ingin disampaikan..."
-          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm resize-none focus:ring-2 focus:ring-yellow-400 outline-none" />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Platform</label>
-          <div className="flex gap-2">
-            {(["instagram", "tiktok"] as const).map(p => (
-              <button key={p} onClick={() => setPlatform(p)}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all capitalize
-                  ${platform === p ? "bg-yellow-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-neutral-500 hover:bg-gray-200 dark:hover:bg-gray-700"}`}>
-                {p === "instagram" ? "📸 IG" : "🎵 TikTok"}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Tone</label>
-          <select value={tone} onChange={e => setTone(e.target.value)}
-            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none">
-            {["casual", "profesional", "fun", "inspiratif", "edukatif"].map(t => (
-              <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <div>
-        <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Keyword (pisah koma, opsional)</label>
-        <input type="text" value={keywords} onChange={e => setKeywords(e.target.value)}
-          placeholder="promo, diskon, gratis ongkir"
-          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
-      </div>
-      {sharedContext.length > 0 && (
-        <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg">
-          ✓ {sharedContext.length} konteks dari history akan digunakan
-        </p>
-      )}
-      <button onClick={generate} disabled={loading || !topic.trim()}
-        className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2">
-        {loading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Membuat...</> : "✨ Generate Caption"}
-      </button>
-
-      {result && (
-        <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-gray-700">
-          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4">
-            <p className="text-sm text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap leading-relaxed">{result.caption}</p>
-          </div>
-          {result.hashtags?.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {result.hashtags.map((h, i) => (
-                <span key={i} className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded-full font-medium">{h}</span>
-              ))}
-            </div>
-          )}
-          {result.notes && <p className="text-xs text-neutral-400 italic">💡 {result.notes}</p>}
-          <div className="flex gap-2">
-            <button onClick={() => copyToClipboard(`${result.caption}\n\n${result.hashtags?.join(" ")}`)}
-              className="flex-1 py-2 text-xs rounded-lg bg-gray-100 dark:bg-gray-800 text-neutral-600 hover:bg-gray-200 dark:hover:bg-gray-700">📋 Copy</button>
-            <button onClick={() => showToast("Sudah otomatis masuk history")}
-              className="flex-1 py-2 text-xs rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 hover:bg-amber-100">🔗 Ada di History</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // SEO Article Panel
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -665,14 +601,11 @@ function SeoArticlePanel({ sessionId, sharedContext, showToast, onResult }: {
   const [tone, setTone] = useState("informatif");
   const [searchIntent, setSearchIntent] = useState("informational");
   const [showAdvanced, setShowAdvanced] = useState(false);
-  // Semrush data
   const [keywordDifficulty, setKeywordDifficulty] = useState("");
   const [searchVolume, setSearchVolume] = useState("");
   const [lsiKeywords, setLsiKeywords] = useState("");
-  // Content structure
   const [faqTopics, setFaqTopics] = useState("");
   const [serpFeatures, setSerpFeatures] = useState<string[]>([]);
-  // Context
   const [targetAudience, setTargetAudience] = useState("");
   const [targetLocation, setTargetLocation] = useState("");
   const [brandName, setBrandName] = useState("");
@@ -740,33 +673,23 @@ function SeoArticlePanel({ sessionId, sharedContext, showToast, onResult }: {
     try {
       const blocks = markdownToContentBlocks(result.body);
       const slug = slugify(result.title).slice(0, 100);
-      const payload = {
-        title: result.title,
-        slug,
-        excerpt: result.meta_description,
-        content: JSON.stringify(blocks),
-        meta_description: result.meta_description,
-        focus_keyword: result.focus_keyword,
-        status: "draft",
-      };
-      const settingsRes = await apiFetch("/api/settings");
-      const settings = await settingsRes.json();
-      const cmsUrl = settings.cms_url;
-      const cmsToken = settings.cms_api_token;
-      if (!cmsUrl || !cmsToken) {
-        showToast("CMS URL dan token belum diset di Settings", "error");
-        setPublishing(false);
-        return;
-      }
-      const res = await fetch(`${cmsUrl}/api/articles`, {
+      const res = await apiFetch("/api/cms/publish-article", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${cmsToken}`,
-        },
-        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: result.title,
+          slug,
+          excerpt: result.meta_description,
+          content: JSON.stringify(blocks),
+          meta_description: result.meta_description,
+          focus_keyword: result.focus_keyword,
+          status: "draft",
+        }),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || await res.text());
+      }
       showToast("Artikel terkirim ke CMS sebagai draft!");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Error tidak diketahui";
@@ -787,7 +710,6 @@ function SeoArticlePanel({ sessionId, sharedContext, showToast, onResult }: {
     <div className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-200 dark:border-gray-700 p-5 space-y-4">
       <h2 className="text-base font-semibold text-neutral-800 dark:text-neutral-200">📝 SEO Article Writer</h2>
 
-      {/* Core fields */}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Keyword Utama *</label>
@@ -832,7 +754,6 @@ function SeoArticlePanel({ sessionId, sharedContext, showToast, onResult }: {
         <div className="flex justify-between text-xs text-neutral-400 mt-1"><span>400</span><span>2000</span></div>
       </div>
 
-      {/* Advanced toggle */}
       <button onClick={() => setShowAdvanced(p => !p)}
         className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 hover:text-yellow-700 dark:hover:text-yellow-400 transition-colors border border-gray-200 dark:border-gray-700 w-full">
         <span className="text-xs">{showAdvanced ? "▾" : "▸"}</span>
@@ -932,7 +853,7 @@ function SeoArticlePanel({ sessionId, sharedContext, showToast, onResult }: {
 
       {sharedContext.length > 0 && (
         <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg">
-          ✓ {sharedContext.length} konteks dari history akan digunakan
+          {sharedContext.length} konteks dari history akan digunakan
         </p>
       )}
 
@@ -1097,50 +1018,92 @@ function ImagePanel({ sessionId, sharedContext, providers, showToast, onResult }
 // History Panel
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function HistoryPanel({ generations, sharedContext, onToggleContext }: {
+function HistoryPanel({ generations, sharedContext, onToggleContext, searchQuery, onSearchChange, onDelete, setViewResult }: {
   generations: ContentGeneration[];
   sharedContext: string[];
   onToggleContext: (id: string) => void;
+  searchQuery: string;
+  onSearchChange: (v: string) => void;
+  onDelete: (id: string) => void;
+  setViewResult: (r: { title: string; meta_description: string; body: string; focus_keyword: string; secondary_keywords: string[]; id?: string } | null) => void;
 }) {
-  if (generations.length === 0) return null;
-
   function getPreview(g: ContentGeneration): string {
     const out = g.output_data as Record<string, unknown> | null;
     if (!out) return g.error_msg || "—";
-    if (g.tool_type === "caption") return String(out.caption || "").slice(0, 100);
     if (g.tool_type === "seo_article") return `${out.title || ""} — ${String(out.meta_description || "").slice(0, 80)}`;
     if (g.tool_type === "image") {
-      const imgs = (out.images as unknown[]) || [];
-      return `${imgs.length} gambar`;
+      const inp = g.input_data as Record<string, unknown>;
+      return String(inp.prompt || "").slice(0, 100) || "gambar";
     }
     return "—";
   }
 
   return (
     <div className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
-      <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-3">📂 History</h3>
-      <div className="space-y-2 max-h-64 overflow-y-auto">
-        {generations.map(g => {
-          const isCtx = sharedContext.includes(g.id);
-          return (
-            <div key={g.id} className={`flex items-start gap-3 p-3 rounded-xl transition-colors
-              ${isCtx ? "bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800" : "bg-gray-50 dark:bg-gray-800/50"}`}>
-              <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${TOOL_COLORS[g.tool_type as Tool] || "bg-gray-100 text-gray-600"}`}>
-                {g.tool_type === "caption" ? "💬" : g.tool_type === "seo_article" ? "📝" : "🎨"} {g.tool_type}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-neutral-600 dark:text-neutral-400 truncate">{getPreview(g)}</p>
-                <p className="text-[10px] text-neutral-400 mt-0.5">{formatDate(g.created_at)}</p>
-              </div>
-              <button onClick={() => onToggleContext(g.id)}
-                className={`shrink-0 text-xs px-2 py-1 rounded-lg font-medium transition-all
-                  ${isCtx ? "bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200" : "bg-gray-200 dark:bg-gray-700 text-neutral-500 hover:bg-amber-100 hover:text-amber-700"}`}>
-                {isCtx ? "✓ Konteks" : "+ Konteks"}
-              </button>
-            </div>
-          );
-        })}
+      <div className="flex items-center gap-3 mb-3">
+        <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 shrink-0">📂 Tersimpan</h3>
+        <div className="flex-1 relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => onSearchChange(e.target.value)}
+            placeholder="Cari keyword, judul, prompt..."
+            className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-800 border-0 rounded-lg focus:ring-2 focus:ring-yellow-400 outline-none"
+          />
+          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          {searchQuery && (
+            <button onClick={() => onSearchChange("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          )}
+        </div>
+        <span className="text-xs text-neutral-400 shrink-0">{generations.length}</span>
       </div>
+
+      {generations.length === 0 ? (
+        <p className="text-xs text-neutral-400 text-center py-6">
+          {searchQuery ? `Tidak ada hasil untuk "${searchQuery}"` : "Belum ada konten yang dibuat."}
+        </p>
+      ) : (
+        <div className="space-y-2 max-h-64 overflow-y-auto">
+          {generations.map(g => {
+            const isCtx = sharedContext.includes(g.id);
+            return (
+              <div key={g.id} className={`flex items-start gap-3 p-3 rounded-xl transition-colors
+                ${isCtx ? "bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800" : "bg-gray-50 dark:bg-gray-800/50"}`}>
+                <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${TOOL_COLORS[g.tool_type as Tool] || "bg-gray-100 text-gray-600"}`}>
+                  {g.tool_type === "seo_article" ? "📝" : "🎨"} {g.tool_type === "seo_article" ? "artikel" : "gambar"}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400 truncate">{getPreview(g)}</p>
+                  <p className="text-[10px] text-neutral-400 mt-0.5">{formatDate(g.created_at)}</p>
+                </div>
+                <button onClick={() => {
+                  if (g.tool_type === "seo_article") {
+                    const out = g.output_data as Record<string, unknown> | null;
+                    if (out) {
+                      setViewResult({ title: String(out.title || ""), meta_description: String(out.meta_description || ""), body: String(out.body || ""), focus_keyword: String(out.focus_keyword || ""), secondary_keywords: (out.secondary_keywords as string[]) || [], id: g.id });
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }
+                  }
+                }}
+                  className="shrink-0 text-xs px-2 py-1 rounded-lg bg-gray-200 dark:bg-gray-700 text-neutral-500 hover:bg-blue-100 hover:text-blue-700 transition-all">
+                  👁
+                </button>
+                <button onClick={() => onToggleContext(g.id)}
+                  className={`shrink-0 text-xs px-2 py-1 rounded-lg font-medium transition-all
+                    ${isCtx ? "bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200" : "bg-gray-200 dark:bg-gray-700 text-neutral-500 hover:bg-amber-100 hover:text-amber-700"}`}>
+                  {isCtx ? "✓" : "+"}
+                </button>
+                <button onClick={() => { if (confirm("Hapus artikel ini?")) onDelete(g.id); }}
+                  className="shrink-0 text-xs px-2 py-1 rounded-lg bg-gray-200 dark:bg-gray-700 text-neutral-400 hover:bg-red-100 hover:text-red-600 transition-all">
+                  ✕
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

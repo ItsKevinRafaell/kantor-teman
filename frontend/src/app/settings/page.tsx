@@ -1,11 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getUserInfo, clearToken, apiFetch } from "../../lib/api";
 import Toast from "../../components/Toast";
 
 type Tab = "profile" | "api";
+
+interface AIProxy {
+  id: string;
+  name: string;
+  base_url: string;
+  api_key: string;
+  model: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+const EMPTY_PROXY_FORM = { name: "", base_url: "", api_key: "", model: "" };
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -15,12 +27,6 @@ export default function SettingsPage() {
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [fonnteToken, setFonnteToken] = useState("");
-  const [geminiKey, setGeminiKey] = useState("");
-  const [claudeKey, setClaudeKey] = useState("");
-  const [openaiKey, setOpenaiKey] = useState("");
-  const [aiProvider, setAiProvider] = useState("gemini");
-  const [aiBaseUrl, setAiBaseUrl] = useState("");
-  const [aiModel, setAiModel] = useState("");
   const [followupEnabled, setFollowupEnabled] = useState(false);
   const [followupHour, setFollowupHour] = useState("9");
   const [googleApiKey, setGoogleApiKey] = useState("");
@@ -29,9 +35,26 @@ export default function SettingsPage() {
   const [adminWa, setAdminWa] = useState("");
   const [cmsUrl, setCmsUrl] = useState("");
   const [cmsApiToken, setCmsApiToken] = useState("");
+  // Content Generator AI (separate from chat proxy)
+  const [contentAiBaseUrl, setContentAiBaseUrl] = useState("");
+  const [contentAiApiKey, setContentAiApiKey] = useState("");
+  const [contentAiModel, setContentAiModel] = useState("");
+  // AI Proxies (for chat)
+  const [proxies, setProxies] = useState<AIProxy[]>([]);
+  const [showProxyForm, setShowProxyForm] = useState(false);
+  const [editingProxy, setEditingProxy] = useState<AIProxy | null>(null);
+  const [proxyForm, setProxyForm] = useState(EMPTY_PROXY_FORM);
+  const [savingProxy, setSavingProxy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  const loadProxies = useCallback(async () => {
+    try {
+      const res = await apiFetch("/api/ai-proxies");
+      if (res.ok) setProxies(await res.json());
+    } catch {}
+  }, []);
 
   useEffect(() => {
     const info = getUserInfo();
@@ -39,12 +62,9 @@ export default function SettingsPage() {
     setName(info.name);
     apiFetch("/api/settings").then((r) => r.json()).then((d) => {
       setFonnteToken(d.fonnte_token ?? "");
-      setGeminiKey(d.gemini_api_key ?? "");
-      setClaudeKey(d.claude_api_key ?? "");
-      setOpenaiKey(d.openai_api_key ?? "");
-      setAiProvider(d.ai_provider ?? "gemini");
-      setAiBaseUrl(d.ai_base_url ?? "");
-      setAiModel(d.ai_model ?? "");
+      setContentAiApiKey(d.openai_api_key ?? "");
+      setContentAiBaseUrl(d.ai_base_url ?? "");
+      setContentAiModel(d.ai_model ?? "");
       setFollowupEnabled(d.followup_enabled === "true");
       setFollowupHour(d.followup_hour ?? "9");
       setGoogleApiKey(d.google_api_key ?? "");
@@ -54,7 +74,8 @@ export default function SettingsPage() {
       setCmsUrl(d.cms_url ?? "");
       setCmsApiToken(d.cms_api_token ?? "");
     });
-  }, []);
+    loadProxies();
+  }, [loadProxies]);
 
   function showToast(message: string, type: "success" | "error" = "success") {
     setToast({ message, type });
@@ -100,12 +121,9 @@ export default function SettingsPage() {
     try {
       const res = await apiFetch("/api/settings", { method: "PUT", body: JSON.stringify({
         fonnte_token: fonnteToken,
-        gemini_api_key: geminiKey,
-        claude_api_key: claudeKey,
-        openai_api_key: openaiKey,
-        ai_provider: aiProvider,
-        ai_base_url: aiBaseUrl,
-        ai_model: aiModel,
+        openai_api_key: contentAiApiKey,
+        ai_base_url: contentAiBaseUrl,
+        ai_model: contentAiModel,
         followup_enabled: followupEnabled ? "true" : "false",
         followup_hour: followupHour,
         google_api_key: googleApiKey,
@@ -124,10 +142,55 @@ export default function SettingsPage() {
     }
   }
 
+  async function saveProxy() {
+    if (!proxyForm.name.trim() || !proxyForm.base_url.trim()) return;
+    setSavingProxy(true);
+    try {
+      const method = editingProxy ? "PUT" : "POST";
+      const url = editingProxy ? `/api/ai-proxies/${editingProxy.id}` : "/api/ai-proxies";
+      const res = await apiFetch(url, { method, body: JSON.stringify(proxyForm) });
+      if (!res.ok) throw new Error("Gagal simpan proxy");
+      await loadProxies();
+      setShowProxyForm(false);
+      setEditingProxy(null);
+      setProxyForm(EMPTY_PROXY_FORM);
+      showToast(editingProxy ? "Proxy diupdate" : "Proxy ditambahkan");
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Gagal", "error");
+    } finally {
+      setSavingProxy(false);
+    }
+  }
+
+  async function activateProxy(id: string) {
+    try {
+      const res = await apiFetch(`/api/ai-proxies/${id}/activate`, { method: "POST" });
+      if (!res.ok) throw new Error("Gagal aktifkan proxy");
+      await loadProxies();
+      showToast("Proxy diaktifkan");
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Gagal", "error");
+    }
+  }
+
+  async function deleteProxy(id: string) {
+    try {
+      const res = await apiFetch(`/api/ai-proxies/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        await loadProxies();
+        showToast("Proxy dihapus");
+      }
+    } catch { showToast("Gagal hapus proxy", "error"); }
+  }
+
   function handleLogout() {
     clearToken();
     router.push("/login");
   }
+
+  const inputCls = "w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 font-mono transition";
+  const inputClsNoMono = "w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 transition";
+  const labelCls = "block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5";
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -144,7 +207,7 @@ export default function SettingsPage() {
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
           </svg>
           Logout
-          </button>
+        </button>
       </div>
 
       {/* Tabs */}
@@ -169,23 +232,17 @@ export default function SettingsPage() {
               <p className="text-sm text-gray-400">{userInfo.email}</p>
             </div>
           </div>
-
           <div>
-            <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">Nama</label>
-            <input value={name} onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
+            <label className={labelCls}>Nama</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} className={inputClsNoMono} />
           </div>
-
           <div className="border-t border-[var(--border-default)] pt-4">
             <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-3">Ganti Password</p>
             <div className="space-y-3">
-              <input type="password" placeholder="Password lama" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
-              <input type="password" placeholder="Password baru" value={newPw} onChange={(e) => setNewPw(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
+              <input type="password" placeholder="Password lama" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} className={inputClsNoMono} />
+              <input type="password" placeholder="Password baru" value={newPw} onChange={(e) => setNewPw(e.target.value)} className={inputClsNoMono} />
             </div>
           </div>
-
           <button onClick={saveProfile} disabled={saving || !name.trim()}
             className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-700 hover:to-yellow-700 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-all shadow-sm">
             {saving ? "Menyimpan..." : "Simpan Profil"}
@@ -196,120 +253,143 @@ export default function SettingsPage() {
       {/* API Config tab */}
       {tab === "api" && (
         <div className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] shadow-sm p-6 space-y-5">
+
+          {/* ── AI Proxy (Chat) ── */}
           <div>
-            <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">
-              Fonnte API Token
-            </label>
-            <p className="text-xs text-gray-400 mb-3">Token digunakan untuk fitur WA Blast. Dapatkan di dashboard Fonnte.</p>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">AI Proxy (Chat)</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Provider untuk fitur Chat & Agent. Pilih satu yang aktif.</p>
+              </div>
+              <button onClick={() => { setEditingProxy(null); setProxyForm(EMPTY_PROXY_FORM); setShowProxyForm(p => !p); }}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 transition-colors">
+                + Tambah Proxy
+              </button>
+            </div>
+
+            {proxies.length === 0 ? (
+              <p className="text-xs text-neutral-400 py-3 text-center border border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
+                Belum ada proxy. Tambahkan proxy untuk mengaktifkan Chat.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {proxies.map(p => (
+                  <div key={p.id} className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${p.is_active ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700" : "bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700"}`}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">{p.name}</p>
+                        {p.is_active && <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500 text-white font-semibold shrink-0">Aktif</span>}
+                      </div>
+                      <p className="text-xs text-neutral-400 truncate mt-0.5">{p.base_url} {p.model ? `· ${p.model}` : ""}</p>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      {!p.is_active && (
+                        <button onClick={() => activateProxy(p.id)}
+                          className="text-xs px-2 py-1 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 transition-colors font-medium">
+                          Aktifkan
+                        </button>
+                      )}
+                      <button onClick={() => { setEditingProxy(p); setProxyForm({ name: p.name, base_url: p.base_url, api_key: p.api_key, model: p.model }); setShowProxyForm(true); }}
+                        className="text-xs px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-700 text-neutral-500 hover:bg-gray-200 transition-colors">
+                        Edit
+                      </button>
+                      <button onClick={() => deleteProxy(p.id)}
+                        className="text-xs px-2 py-1 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-500 hover:bg-red-100 transition-colors">
+                        Hapus
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Proxy form */}
+            {showProxyForm && (
+              <div className="mt-3 p-4 border border-gray-200 dark:border-gray-700 rounded-xl space-y-3 bg-gray-50 dark:bg-gray-800/30">
+                <p className="text-xs font-bold text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">
+                  {editingProxy ? "Edit Proxy" : "Proxy Baru"}
+                </p>
+                {([
+                  { label: "Nama", key: "name" as const, placeholder: "AIMurah", type: "text" },
+                  { label: "Base URL", key: "base_url" as const, placeholder: "https://api.aimurah.com/v1", type: "text" },
+                  { label: "API Key", key: "api_key" as const, placeholder: "sk-...", type: "password" },
+                  { label: "Model (opsional)", key: "model" as const, placeholder: "glm-5", type: "text" },
+                ] as { label: string; key: "name"|"base_url"|"api_key"|"model"; placeholder: string; type: string }[]).map(({ label, key, placeholder, type }) => (
+                  <div key={key}>
+                    <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">{label}</label>
+                    <input type={type} value={proxyForm[key]}
+                      onChange={e => setProxyForm(prev => ({ ...prev, [key]: e.target.value }))}
+                      placeholder={placeholder}
+                      className="w-full px-3 py-2 bg-white dark:bg-[#2a2a29] border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-300 outline-none transition" />
+                  </div>
+                ))}
+                <div className="flex gap-2">
+                  <button onClick={saveProxy} disabled={savingProxy || !proxyForm.name.trim() || !proxyForm.base_url.trim()}
+                    className="flex-1 px-4 py-2 text-sm rounded-lg font-medium bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50 transition-colors">
+                    {savingProxy ? "Menyimpan..." : editingProxy ? "Simpan Perubahan" : "Tambah Proxy"}
+                  </button>
+                  <button onClick={() => { setShowProxyForm(false); setEditingProxy(null); setProxyForm(EMPTY_PROXY_FORM); }}
+                    className="px-4 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-700 text-neutral-600 hover:bg-gray-200 transition-colors">
+                    Batal
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── Fonnte ── */}
+          <div className="border-t border-[var(--border-default)] pt-5">
+            <label className={labelCls}>Fonnte API Token</label>
+            <p className="text-xs text-gray-400 mb-3">Token untuk fitur WA Blast. Dapatkan di dashboard Fonnte.</p>
             <input type="password" value={fonnteToken} onChange={(e) => setFonnteToken(e.target.value)}
-              placeholder="Masukkan Fonnte token..."
-              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 font-mono transition" />
+              placeholder="Masukkan Fonnte token..." className={inputCls} />
             <button onClick={() => testApi("fonnte")} disabled={testing === "fonnte"}
-              className="mt-2 px-3 py-1.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors disabled:opacity-50">
+              className="mt-2 px-3 py-1.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg hover:bg-emerald-100 transition-colors disabled:opacity-50">
               {testing === "fonnte" ? "Testing..." : "Test Koneksi Fonnte"}
             </button>
           </div>
 
+          {/* ── Content Generator AI ── */}
           <div className="border-t border-[var(--border-default)] pt-5">
-            <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200 mb-3">AI Analysis Provider</h3>
-            <div>
-              <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">Provider Aktif</label>
-              <select value={aiProvider} onChange={(e) => setAiProvider(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
-                <option value="gemini">Google Gemini 2.5 Flash</option>
-                <option value="claude">Anthropic Claude 4.5 Haiku</option>
-                <option value="openai">OpenAI GPT-5</option>
-              </select>
+            <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200 mb-1">Content Generator AI</h3>
+            <p className="text-xs text-gray-400 mb-4">AI khusus untuk generate artikel SEO & gambar. Terpisah dari Chat proxy.</p>
+            <div className="space-y-4">
+              <div>
+                <label className={labelCls}>Base URL</label>
+                <input type="text" value={contentAiBaseUrl} onChange={(e) => setContentAiBaseUrl(e.target.value)}
+                  placeholder="https://api.aimurah.com/v1" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>API Key</label>
+                <input type="password" value={contentAiApiKey} onChange={(e) => setContentAiApiKey(e.target.value)}
+                  placeholder="sk-..." className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Model</label>
+                <input type="text" value={contentAiModel} onChange={(e) => setContentAiModel(e.target.value)}
+                  placeholder="claude-sonnet-4-5" className={inputCls} />
+              </div>
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">
-              Gemini API Key
-            </label>
-            <p className="text-xs text-gray-400 mb-3">Dapatkan di Google AI Studio (aistudio.google.com).</p>
-            <input type="password" value={geminiKey} onChange={(e) => setGeminiKey(e.target.value)}
-              placeholder="Masukkan Gemini API key..."
-              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 font-mono transition" />
-            <button onClick={() => testApi("gemini")} disabled={testing === "gemini"}
-              className="mt-2 px-3 py-1.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors disabled:opacity-50">
-              {testing === "gemini" ? "Testing..." : "Test Koneksi Gemini"}
-            </button>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">
-              Claude API Key
-            </label>
-            <p className="text-xs text-gray-400 mb-3">Dapatkan di console.anthropic.com.</p>
-            <input type="password" value={claudeKey} onChange={(e) => setClaudeKey(e.target.value)}
-              placeholder="Masukkan Claude API key..."
-              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 font-mono transition" />
-            <button onClick={() => testApi("claude")} disabled={testing === "claude"}
-              className="mt-2 px-3 py-1.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors disabled:opacity-50">
-              {testing === "claude" ? "Testing..." : "Test Koneksi Claude"}
-            </button>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">
-              OpenAI API Key
-            </label>
-            <p className="text-xs text-gray-400 mb-3">Dapatkan di platform.openai.com.</p>
-            <input type="password" value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)}
-              placeholder="Masukkan OpenAI API key..."
-              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 font-mono transition" />
-            <button onClick={() => testApi("openai")} disabled={testing === "openai"}
-              className="mt-2 px-3 py-1.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors disabled:opacity-50">
-              {testing === "openai" ? "Testing..." : "Test Koneksi OpenAI"}
-            </button>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">
-              AI Base URL (Opsional)
-            </label>
-            <p className="text-xs text-gray-400 mb-3">Untuk OpenAI-compatible provider (OpenRouter, LiteLLM, dll). Kosongkan jika pakai default.</p>
-            <input type="text" value={aiBaseUrl} onChange={(e) => setAiBaseUrl(e.target.value)}
-              placeholder="https://openrouter.ai/api/v1"
-              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 font-mono transition" />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">
-              AI Model (Opsional)
-            </label>
-            <p className="text-xs text-gray-400 mb-3">Nama model yang digunakan. Kosongkan untuk default provider.</p>
-            <input type="text" value={aiModel} onChange={(e) => setAiModel(e.target.value)}
-              placeholder="claude-haiku-4-5-20251001"
-              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 font-mono transition" />
-          </div>
-
+          {/* ── Google Services ── */}
           <div className="border-t border-[var(--border-default)] pt-5">
             <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200 mb-3">Google Services</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">
-                  Google Maps API Key
-                </label>
+                <label className={labelCls}>Google Maps API Key</label>
                 <p className="text-xs text-gray-400 mb-3">Untuk fitur Maps Scraper. Dapatkan di Google Cloud Console.</p>
                 <input type="password" value={googleApiKey} onChange={(e) => setGoogleApiKey(e.target.value)}
-                  placeholder="Masukkan Google API key..."
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 font-mono transition" />
+                  placeholder="Masukkan Google API key..." className={inputCls} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">
-                  Google Calendar ID
-                </label>
+                <label className={labelCls}>Google Calendar ID</label>
                 <p className="text-xs text-gray-400 mb-3">ID kalender untuk sync Content Calendar. Default: primary.</p>
                 <input value={googleCalendarId} onChange={(e) => setGoogleCalendarId(e.target.value)}
-                  placeholder="primary"
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 font-mono transition" />
+                  placeholder="primary" className={inputCls} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">
-                  Google Service Account JSON
-                </label>
+                <label className={labelCls}>Google Service Account JSON</label>
                 <p className="text-xs text-gray-400 mb-3">Paste isi file JSON service account untuk Google Calendar sync.</p>
                 <textarea value={googleServiceAccountJson} onChange={(e) => setGoogleServiceAccountJson(e.target.value)}
                   placeholder='{"type": "service_account", "project_id": "...", ...}'
@@ -319,20 +399,18 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* ── WhatsApp Notification ── */}
           <div className="border-t border-[var(--border-default)] pt-5">
             <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200 mb-3">WhatsApp Notification</h3>
             <div>
-              <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">
-                Nomor Admin WA
-              </label>
+              <label className={labelCls}>Nomor Admin WA</label>
               <p className="text-xs text-gray-400 mb-3">Nomor yang menerima notifikasi (format: 6281xxx).</p>
               <input value={adminWa} onChange={(e) => setAdminWa(e.target.value)}
-                placeholder="6281234567890"
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 font-mono transition" />
+                placeholder="6281234567890" className={inputCls} />
             </div>
           </div>
 
-          {/* Auto Follow-up Settings */}
+          {/* ── Auto Follow-up ── */}
           <div className="border-t border-gray-200 dark:border-gray-700 pt-5">
             <h3 className="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-4">Auto Follow-up Scheduler</h3>
             <div className="space-y-4">
@@ -348,44 +426,33 @@ export default function SettingsPage() {
               </div>
               {followupEnabled && (
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">Jam Pengiriman (WIB)</label>
+                  <label className={labelCls}>Jam Pengiriman (WIB)</label>
                   <select value={followupHour} onChange={(e) => setFollowupHour(e.target.value)}
                     className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
-                    <option value="7">07:00 WIB</option>
-                    <option value="8">08:00 WIB</option>
-                    <option value="9">09:00 WIB (Recommended)</option>
-                    <option value="10">10:00 WIB</option>
-                    <option value="11">11:00 WIB</option>
-                    <option value="13">13:00 WIB</option>
-                    <option value="14">14:00 WIB</option>
-                    <option value="16">16:00 WIB</option>
+                    {["7","8","9","10","11","13","14","16"].map(h => (
+                      <option key={h} value={h}>{h.padStart(2,"0")}:00 WIB{h === "9" ? " (Recommended)" : ""}</option>
+                    ))}
                   </select>
-                  <p className="text-[10px] text-gray-400 mt-1.5 italic">Follow-up akan dikirim otomatis setiap hari pada jam yang dipilih untuk sequence yang aktif.</p>
                 </div>
               )}
             </div>
           </div>
 
+          {/* ── CMS Integration ── */}
           <div className="border-t border-[var(--border-default)] pt-5">
             <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200 mb-3">CMS Integration</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">
-                  CMS URL
-                </label>
-                <p className="text-xs text-gray-400 mb-3">URL base CMS yang digunakan untuk publish artikel (mis. https://temanumkmkita.com).</p>
+                <label className={labelCls}>CMS URL</label>
+                <p className="text-xs text-gray-400 mb-3">URL base CMS untuk publish artikel (mis. https://temanumkmkita.com).</p>
                 <input type="text" value={cmsUrl} onChange={(e) => setCmsUrl(e.target.value)}
-                  placeholder="https://temanumkmkita.com"
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 font-mono transition" />
+                  placeholder="https://temanumkmkita.com" className={inputCls} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">
-                  CMS API Token
-                </label>
+                <label className={labelCls}>CMS API Token</label>
                 <p className="text-xs text-gray-400 mb-3">Bearer token untuk autentikasi ke CMS API.</p>
                 <input type="password" value={cmsApiToken} onChange={(e) => setCmsApiToken(e.target.value)}
-                  placeholder="Masukkan CMS API token..."
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 font-mono transition" />
+                  placeholder="Masukkan CMS API token..." className={inputCls} />
               </div>
             </div>
           </div>
