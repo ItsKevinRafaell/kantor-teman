@@ -518,7 +518,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
       {blastOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setBlastOpen(false)} />
-          <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 w-full max-w-md p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+          <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 w-full max-w-md p-5 space-y-3 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Eksekusi WA Blast</h3>
               <button onClick={() => setBlastOpen(false)} className="p-1 text-gray-400 hover:text-gray-600">
@@ -527,7 +527,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
             </div>
 
             {/* Target Info - realtime based on filters */}
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3">
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-2.5">
               <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
                 Target: {leads.filter(l => l.status === "Scraped" && !l.is_archived && (blastMinRating === 0 || l.rating >= blastMinRating) && (!blastBatch || l.batch_name === blastBatch)).length} Leads akan menerima pesan.
               </p>
@@ -536,47 +536,47 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
               </p>
             </div>
 
-            <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Batch Target</label>
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Batch</label>
                 <select value={blastBatch} onChange={(e) => setBlastBatch(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
-                  <option value="">— Semua Batch —</option>
+                  className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
+                  <option value="">— Semua —</option>
                   {batches.map((b) => <option key={b} value={b}>{b}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Kategori Layanan</label>
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Kategori</label>
                 <select value={blastCategoryId} onChange={(e) => { setBlastCategoryId(e.target.value); setBlastTemplateId(""); }}
-                  className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
-                  <option value="">— Semua Kategori —</option>
+                  className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
+                  <option value="">— Semua —</option>
                   {blastCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Minimal Rating</label>
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Min. Rating</label>
                 <select value={blastMinRating} onChange={(e) => setBlastMinRating(Number(e.target.value))}
-                  className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
-                  <option value={0}>Semua (tanpa filter)</option>
-                  <option value={1}>Min. 1 Bintang</option>
-                  <option value={2}>Min. 2 Bintang</option>
-                  <option value={3}>Min. 3 Bintang</option>
-                  <option value={4}>Min. 4 Bintang</option>
-                  <option value={5}>5 Bintang saja</option>
+                  className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
+                  <option value={0}>Semua</option>
+                  <option value={1}>Min. 1</option>
+                  <option value={2}>Min. 2</option>
+                  <option value={3}>Min. 3</option>
+                  <option value={4}>Min. 4</option>
+                  <option value={5}>5 saja</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Pilih Template</label>
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Template</label>
                 <select value={blastTemplateId} onChange={(e) => setBlastTemplateId(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
-                  <option value="">— pilih template —</option>
+                  className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
+                  <option value="">— pilih —</option>
                   {blastTemplates.filter(t => !blastCategoryId || t.category_id === blastCategoryId).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
-                {blastTemplates.length === 0 && (
-                  <p className="text-[11px] text-amber-500 mt-1">Belum ada template WA Blast. <a href="/master/templates" className="underline">Buat di Master Data</a>.</p>
-                )}
               </div>
             </div>
+            {blastTemplates.length === 0 && (
+              <p className="text-[11px] text-amber-500">Belum ada template WA Blast. <a href="/master/templates" className="underline">Buat di Master Data</a>.</p>
+            )}
 
             <p className="text-xs text-gray-400">Hanya lead berstatus "Scraped" yang akan dikirim pesan. Delay 5 detik antar pesan.</p>
 

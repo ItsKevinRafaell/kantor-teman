@@ -291,7 +291,7 @@ export default function ProposalPage() {
                 </div>
                 <div className="flex justify-between mt-2">
                   <span className="text-[9px] text-amber-600 font-bold">Anda di sini</span>
-                  <span className="text-[9px] text-zinc-400">Proyek Selesai</span>
+                  <span className="text-xs font-semibold text-zinc-500">Proyek Selesai</span>
                 </div>
               </div>
               <div className="space-y-0">
