@@ -7888,45 +7888,17 @@ def cms_publish_article(body: CmsPublishRequest, current_user: User = Depends(ge
         "Content-Type": "application/json",
     }
     use_ip = cms_base.replace("https://","").split(":")[0].replace(".","").isdigit()
+    if use_ip:
+        headers["Host"] = "api.temanumkmkita.com"
     try:
-        transport = None
-        if use_ip:
-            # Override DNS: resolve api.temanumkmkita.com → 127.0.0.1
-            # so TLS SNI = api.temanumkmkita.com (correct vhost), but TCP to 127.0.0.1
-            import ssl
-            target_host = "api.temanumkmkita.com"
-            target_port = 443
-            transport = _httpx.HTTPTransport(
-                verify=False,
-                retries=1,
-            )
-            # Patch DNS before request via custom transport
-            import socket as _socket
-            _orig_getaddrinfo = _socket.getaddrinfo
-            def _patched_getaddrinfo(host, port, *args, **kwargs):
-                if host == target_host:
-                    host = "127.0.0.1"
-                return _orig_getaddrinfo(host, port, *args, **kwargs)
-            _socket.getaddrinfo = _patched_getaddrinfo
-            try:
-                resp = _httpx.post(
-                    f"https://{target_host}/api/articles",
-                    headers=headers,
-                    json=body.model_dump(),
-                    timeout=30,
-                    follow_redirects=True,
-                    verify=False,
-                )
-            finally:
-                _socket.getaddrinfo = _orig_getaddrinfo
-        else:
-            resp = _httpx.post(
-                f"{cms_base}/api/articles",
-                headers=headers,
-                json=body.model_dump(),
-                timeout=30,
-                follow_redirects=True,
-            )
+        resp = _httpx.post(
+            f"{cms_base}/api/articles",
+            headers=headers,
+            json=body.model_dump(),
+            timeout=30,
+            follow_redirects=True,
+            verify=not use_ip,
+        )
         if resp.status_code not in (200, 201):
             raise HTTPException(status_code=502, detail=f"CMS error {resp.status_code}: {resp.text[:300]}")
         return resp.json()
