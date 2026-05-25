@@ -263,6 +263,7 @@ export default function ContentGeneratorPage() {
   const [showProviderModal, setShowProviderModal] = useState(false);
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const [editingProvider, setEditingProvider] = useState<ContentProvider | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ContentGeneration | null>(null);
 
   // Provider form
   const [providerForm, setProviderForm] = useState({ name: "", base_url: "", api_key: "", model: "", is_active: true });
@@ -528,6 +529,7 @@ export default function ContentGeneratorPage() {
           onSearchChange={handleSearchChange}
           onDelete={deleteGeneration}
           setViewResult={setViewResult}
+          setDeleteTarget={setDeleteTarget}
         />
       </div>
 
@@ -596,6 +598,19 @@ export default function ContentGeneratorPage() {
             className="w-full px-4 py-2 text-sm rounded-lg font-medium bg-yellow-500 hover:bg-yellow-600 text-white disabled:opacity-50">
             Buat Sesi
           </button>
+        </div>
+      </Modal>
+
+      {/* Delete confirmation modal */}
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Hapus Artikel">
+        <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+          Yakin hapus artikel ini?
+        </p>
+        <div className="flex gap-2 justify-end">
+          <button onClick={() => setDeleteTarget(null)}
+            className="px-4 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-800 text-neutral-600">Batal</button>
+          <button onClick={() => { if (deleteTarget) { onDelete(deleteTarget.id); setDeleteTarget(null); } }}
+            className="px-4 py-2 text-sm rounded-lg bg-red-500 hover:bg-red-600 text-white">Hapus</button>
         </div>
       </Modal>
 
@@ -1039,7 +1054,18 @@ function ImagePanel({ sessionId, sharedContext, providers, showToast, onResult }
 // History Panel
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function HistoryPanel({ generations, sharedContext, onToggleContext, searchQuery, onSearchChange, onDelete, setViewResult }: {
+function getGenerationPreview(g: ContentGeneration): string {
+  const out = g.output_data as Record<string, unknown> | null;
+  if (!out) return g.error_msg || "—";
+  if (g.tool_type === "seo_article") return `${out.title || ""} — ${String(out.meta_description || "").slice(0, 80)}`;
+  if (g.tool_type === "image") {
+    const inp = g.input_data as Record<string, unknown>;
+    return String(inp.prompt || "").slice(0, 100) || "gambar";
+  }
+  return "—";
+}
+
+function HistoryPanel({ generations, sharedContext, onToggleContext, searchQuery, onSearchChange, onDelete, setViewResult, setDeleteTarget }: {
   generations: ContentGeneration[];
   sharedContext: string[];
   onToggleContext: (id: string) => void;
@@ -1047,17 +1073,8 @@ function HistoryPanel({ generations, sharedContext, onToggleContext, searchQuery
   onSearchChange: (v: string) => void;
   onDelete: (id: string) => void;
   setViewResult: (r: { title: string; meta_description: string; body: string; focus_keyword: string; secondary_keywords: string[]; id?: string } | null) => void;
+  setDeleteTarget: (g: ContentGeneration | null) => void;
 }) {
-  function getPreview(g: ContentGeneration): string {
-    const out = g.output_data as Record<string, unknown> | null;
-    if (!out) return g.error_msg || "—";
-    if (g.tool_type === "seo_article") return `${out.title || ""} — ${String(out.meta_description || "").slice(0, 80)}`;
-    if (g.tool_type === "image") {
-      const inp = g.input_data as Record<string, unknown>;
-      return String(inp.prompt || "").slice(0, 100) || "gambar";
-    }
-    return "—";
-  }
 
   return (
     <div className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
@@ -1096,7 +1113,7 @@ function HistoryPanel({ generations, sharedContext, onToggleContext, searchQuery
                   {g.tool_type === "seo_article" ? "Article" : "Image"}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-neutral-600 dark:text-neutral-400 truncate">{getPreview(g)}</p>
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400 truncate">{getGenerationPreview(g)}</p>
                   <p className="text-[10px] text-neutral-400 mt-0.5">{formatDate(g.created_at)}</p>
                 </div>
                 <button onClick={() => {
@@ -1116,7 +1133,7 @@ function HistoryPanel({ generations, sharedContext, onToggleContext, searchQuery
                     ${isCtx ? "bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200" : "bg-gray-200 dark:bg-gray-700 text-neutral-500 hover:bg-amber-100 hover:text-amber-700"}`}>
                   {isCtx ? "−" : "+"}
                 </button>
-                <button onClick={() => { if (confirm("Hapus artikel ini?")) onDelete(g.id); }}
+                <button onClick={() => setDeleteTarget(g)}
                   className="shrink-0 text-xs px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-neutral-400 hover:bg-red-100 hover:text-red-600 transition-all">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                 </button>
