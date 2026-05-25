@@ -511,11 +511,50 @@ export default function ContentGeneratorPage() {
             </div>
             {viewResult.focus_keyword && (
               <div className="flex flex-wrap gap-1.5 mb-3">
-                <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-xs rounded-full">{viewResult.focus_keyword}</span>
+                {viewResult.focus_keyword && <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-xs rounded-full">{viewResult.focus_keyword}</span>}
+                {viewResult.secondary_keywords?.map((k, i) => (
+                  <span key={i} className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs rounded-full">{k}</span>
+                ))}
               </div>
             )}
             <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 max-h-96 overflow-y-auto">
               <div className="prose-content" dangerouslySetInnerHTML={{ __html: markdownToHtml(viewResult.body) }} />
+            </div>
+            <div className="flex gap-2 flex-wrap mt-4">
+              <button onClick={() => copyToClipboard(`# ${viewResult.title}\n\n${viewResult.body}`)}
+                className="flex-1 py-2 text-xs rounded-lg bg-gray-100 dark:bg-gray-800 text-neutral-600 hover:bg-gray-200 dark:hover:bg-gray-700">Copy Markdown</button>
+              <button onClick={() => copyToClipboard(viewResult.meta_description)}
+                className="flex-1 py-2 text-xs rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 hover:bg-green-100">Copy Meta</button>
+              <button onClick={async () => { await exportToDocx(viewResult); }}
+                className="flex-1 py-2 text-xs rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100">Export DOCX</button>
+              <button onClick={async () => {
+                const blocks = markdownToContentBlocks(viewResult.body);
+                const slug = slugify(viewResult.title).slice(0, 100);
+                try {
+                  const res = await apiFetch("/api/cms/publish-article", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      title: viewResult.title,
+                      slug,
+                      excerpt: viewResult.meta_description,
+                      content: JSON.stringify(blocks),
+                      meta_description: viewResult.meta_description,
+                      focus_keyword: viewResult.focus_keyword,
+                      status: "draft",
+                    }),
+                  });
+                  if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || await res.text());
+                  }
+                  showToast("Artikel terkirim ke CMS sebagai draft!");
+                } catch (e: unknown) {
+                  const msg = e instanceof Error ? e.message : "Error tidak diketahui";
+                  showToast(`Gagal kirim ke CMS: ${msg}`, "error");
+                }
+              }}
+                className="flex-1 py-2 text-xs rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100">Kirim ke CMS</button>
             </div>
           </div>
         )}
@@ -609,7 +648,7 @@ export default function ContentGeneratorPage() {
         <div className="flex gap-2 justify-end">
           <button onClick={() => setDeleteTarget(null)}
             className="px-4 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-800 text-neutral-600">Batal</button>
-          <button onClick={() => { if (deleteTarget) { onDelete(deleteTarget.id); setDeleteTarget(null); } }}
+          <button onClick={() => { if (deleteTarget) { deleteGeneration(deleteTarget.id); setDeleteTarget(null); } }}
             className="px-4 py-2 text-sm rounded-lg bg-red-500 hover:bg-red-600 text-white">Hapus</button>
         </div>
       </Modal>
