@@ -418,7 +418,6 @@ export default function ContentGeneratorPage() {
             <button key={t} onClick={() => setActiveTool(t)}
               className={`w-full text-left px-3 py-2 rounded-xl text-sm font-medium mb-1 transition-all
                 ${activeTool === t ? "bg-yellow-500 text-white shadow-sm" : "text-neutral-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-neutral-800 dark:hover:text-neutral-200"}`}>
-              {t === "seo_article" ? "📝 " : "🎨 "}
               {TOOL_LABELS[t]}
             </button>
           ))}
@@ -453,9 +452,13 @@ export default function ContentGeneratorPage() {
               {renamingSession !== s.id && (
                 <>
                   <button onClick={e => { e.stopPropagation(); setRenameValue(s.name); setRenamingSession(s.id); }}
-                    className="opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-yellow-600 text-xs shrink-0" title="Rename">✎</button>
+                    className="opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-yellow-600 text-xs shrink-0" title="Rename">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
                   <button onClick={e => { e.stopPropagation(); deleteSession(s.id); }}
-                    className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 text-xs shrink-0" title="Hapus">✕</button>
+                    className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 text-xs shrink-0" title="Hapus">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                  </button>
                 </>
               )}
             </div>
@@ -483,7 +486,7 @@ export default function ContentGeneratorPage() {
         {/* Session badge */}
         {selectedSession && (
           <div className="flex items-center gap-2 px-3 py-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl w-fit">
-            <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-300">📁 {selectedSession.name}</span>
+            <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-300">{selectedSession.name}</span>
             {selectedSession.description && <span className="text-xs text-neutral-400">{selectedSession.description}</span>}
           </div>
         )}
@@ -496,6 +499,24 @@ export default function ContentGeneratorPage() {
         {activeTool === "image" && (
           <ImagePanel sessionId={selectedSession?.id || null} sharedContext={sharedContext}
             providers={imageProviders} showToast={showToast} onResult={onResult} />
+        )}
+
+        {/* Viewed history result */}
+        {viewResult && (
+          <div className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-neutral-800 dark:text-neutral-200 text-base">{viewResult.title}</h3>
+              <button onClick={() => setViewResult(null)} className="text-neutral-400 hover:text-neutral-600">&times;</button>
+            </div>
+            {viewResult.focus_keyword && (
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-xs rounded-full">{viewResult.focus_keyword}</span>
+              </div>
+            )}
+            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 max-h-96 overflow-y-auto">
+              <div className="prose-content" dangerouslySetInnerHTML={{ __html: markdownToHtml(viewResult.body) }} />
+            </div>
+          </div>
         )}
 
         {/* History */}
@@ -708,7 +729,7 @@ function SeoArticlePanel({ sessionId, sharedContext, showToast, onResult }: {
 
   return (
     <div className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-200 dark:border-gray-700 p-5 space-y-4">
-      <h2 className="text-base font-semibold text-neutral-800 dark:text-neutral-200">📝 SEO Article Writer</h2>
+      <h2 className="text-base font-semibold text-neutral-800 dark:text-neutral-200">SEO Article Writer</h2>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -882,16 +903,16 @@ function SeoArticlePanel({ sessionId, sharedContext, showToast, onResult }: {
           </div>
           <div className="flex gap-2 flex-wrap">
             <button onClick={() => copyToClipboard(`# ${result.title}\n\n${result.body}`)}
-              className="flex-1 py-2 text-xs rounded-lg bg-gray-100 dark:bg-gray-800 text-neutral-600 hover:bg-gray-200 dark:hover:bg-gray-700">📋 Copy Markdown</button>
+              className="flex-1 py-2 text-xs rounded-lg bg-gray-100 dark:bg-gray-800 text-neutral-600 hover:bg-gray-200 dark:hover:bg-gray-700">Copy Markdown</button>
             <button onClick={() => copyToClipboard(result.meta_description)}
-              className="flex-1 py-2 text-xs rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 hover:bg-green-100">📋 Copy Meta</button>
+              className="flex-1 py-2 text-xs rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 hover:bg-green-100">Copy Meta</button>
             <button onClick={handleExportDocx} disabled={exporting}
               className="flex-1 py-2 text-xs rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100 disabled:opacity-50 flex items-center justify-center gap-1">
-              {exporting ? <><div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />Exporting...</> : "⬇ Export DOCX"}
+              {exporting ? <><div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />Exporting...</> : "Export DOCX"}
             </button>
             <button onClick={handlePublishToCms} disabled={publishing}
               className="flex-1 py-2 text-xs rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 disabled:opacity-50 flex items-center justify-center gap-1">
-              {publishing ? <><div className="w-3 h-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />Mengirim...</> : "🚀 Kirim ke CMS"}
+              {publishing ? <><div className="w-3 h-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />Mengirim...</> : "Kirim ke CMS"}
             </button>
           </div>
         </div>
@@ -945,7 +966,7 @@ function ImagePanel({ sessionId, sharedContext, providers, showToast, onResult }
 
   return (
     <div className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-200 dark:border-gray-700 p-5 space-y-4">
-      <h2 className="text-base font-semibold text-neutral-800 dark:text-neutral-200">🎨 Image Generator</h2>
+      <h2 className="text-base font-semibold text-neutral-800 dark:text-neutral-200">Image Generator</h2>
       {providers.length === 0 ? (
         <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 text-center">
           <p className="text-sm text-amber-700 dark:text-amber-400">Belum ada image provider.</p>
@@ -997,10 +1018,10 @@ function ImagePanel({ sessionId, sharedContext, providers, showToast, onResult }
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                       <a href={img.type === "b64" ? `data:image/png;base64,${img.value}` : img.value}
                         download={`generated-${i + 1}.png`}
-                        className="px-3 py-1.5 bg-white text-neutral-800 text-xs rounded-lg font-medium">⬇ Download</a>
+                        className="px-3 py-1.5 bg-white text-neutral-800 text-xs rounded-lg font-medium">Download</a>
                       {img.type === "url" && (
                         <button onClick={() => copyToClipboard(img.value)}
-                          className="px-3 py-1.5 bg-white text-neutral-800 text-xs rounded-lg font-medium">📋 URL</button>
+                          className="px-3 py-1.5 bg-white text-neutral-800 text-xs rounded-lg font-medium">Copy URL</button>
                       )}
                     </div>
                   </div>
@@ -1041,7 +1062,7 @@ function HistoryPanel({ generations, sharedContext, onToggleContext, searchQuery
   return (
     <div className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
       <div className="flex items-center gap-3 mb-3">
-        <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 shrink-0">📂 Tersimpan</h3>
+        <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 shrink-0">History</h3>
         <div className="flex-1 relative">
           <input
             type="text"
@@ -1072,7 +1093,7 @@ function HistoryPanel({ generations, sharedContext, onToggleContext, searchQuery
               <div key={g.id} className={`flex items-start gap-3 p-3 rounded-xl transition-colors
                 ${isCtx ? "bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800" : "bg-gray-50 dark:bg-gray-800/50"}`}>
                 <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${TOOL_COLORS[g.tool_type as Tool] || "bg-gray-100 text-gray-600"}`}>
-                  {g.tool_type === "seo_article" ? "📝" : "🎨"} {g.tool_type === "seo_article" ? "artikel" : "gambar"}
+                  {g.tool_type === "seo_article" ? "Article" : "Image"}
                 </span>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-neutral-600 dark:text-neutral-400 truncate">{getPreview(g)}</p>
@@ -1087,17 +1108,17 @@ function HistoryPanel({ generations, sharedContext, onToggleContext, searchQuery
                     }
                   }
                 }}
-                  className="shrink-0 text-xs px-2 py-1 rounded-lg bg-gray-200 dark:bg-gray-700 text-neutral-500 hover:bg-blue-100 hover:text-blue-700 transition-all">
-                  👁
+                  className="shrink-0 text-xs px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-neutral-500 hover:bg-blue-100 hover:text-blue-700 transition-all">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/></svg>
                 </button>
                 <button onClick={() => onToggleContext(g.id)}
-                  className={`shrink-0 text-xs px-2 py-1 rounded-lg font-medium transition-all
+                  className={`shrink-0 text-xs px-2 py-1 rounded font-medium transition-all
                     ${isCtx ? "bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200" : "bg-gray-200 dark:bg-gray-700 text-neutral-500 hover:bg-amber-100 hover:text-amber-700"}`}>
-                  {isCtx ? "✓" : "+"}
+                  {isCtx ? "−" : "+"}
                 </button>
                 <button onClick={() => { if (confirm("Hapus artikel ini?")) onDelete(g.id); }}
-                  className="shrink-0 text-xs px-2 py-1 rounded-lg bg-gray-200 dark:bg-gray-700 text-neutral-400 hover:bg-red-100 hover:text-red-600 transition-all">
-                  ✕
+                  className="shrink-0 text-xs px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-neutral-400 hover:bg-red-100 hover:text-red-600 transition-all">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                 </button>
               </div>
             );

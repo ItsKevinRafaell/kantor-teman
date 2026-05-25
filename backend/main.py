@@ -7603,6 +7603,23 @@ def list_content_generations(
     return result
 
 
+@app.delete("/api/content/generations/{generation_id}", status_code=204)
+def delete_content_generation(
+    generation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    gen = db.query(ContentGeneration).filter(
+        ContentGeneration.id == generation_id,
+        ContentGeneration.user_id == current_user.id,
+    ).first()
+    if not gen:
+        raise HTTPException(status_code=404, detail="Generation not found")
+    db.delete(gen)
+    db.commit()
+    return
+
+
 # --- Generate: Image ---
 
 @app.post("/api/content/generate/image")
