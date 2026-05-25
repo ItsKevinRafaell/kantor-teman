@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../lib/api";
 import { Search, Copy, Trash2, ArrowUpDown } from "lucide-react";
 import Toast from "../../components/Toast";
+import Pagination from "../../components/Pagination";
 
 interface ProposalRecord {
   id: string;
@@ -29,6 +30,8 @@ export default function ProposalsPage() {
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [analyticsMap, setAnalyticsMap] = useState<Record<string, { total_opens: number; total_time_seconds: number; last_opened: string | null }>>({});
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   const fetchProposals = useCallback(async () => {
     try {
@@ -132,7 +135,7 @@ export default function ProposalsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-subtle)]">
-                {filteredProposals.map((p) => (
+                {filteredProposals.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((p) => (
                   <tr key={p.id} className="hover:bg-[var(--bg-surface-hover)] transition-colors">
                     <td className="px-4 py-3 text-xs text-gray-500">{p.created_at ? new Date(p.created_at).toLocaleDateString("id-ID") : "—"}</td>
                     <td className="px-4 py-3 font-semibold text-neutral-800 dark:text-neutral-200">{p.business_name ?? "—"}</td>
@@ -178,6 +181,7 @@ export default function ProposalsPage() {
                 ))}
               </tbody>
             </table>
+            <Pagination page={page} pageSize={PAGE_SIZE} total={filteredProposals.length} onPageChange={setPage} itemLabel="proposal" />
             <div className="px-4 py-2 bg-neutral-50 dark:bg-neutral-800 border-t border-[var(--border-default)] text-xs text-gray-400">
               {filteredProposals.length} proposal
             </div>

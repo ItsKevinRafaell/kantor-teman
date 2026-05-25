@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../../lib/api";
 import { Plus, Edit2, Trash2, X, FileText } from "lucide-react";
+import Pagination from "../../../components/Pagination";
 
 interface DynTemplate {
   id: string;
@@ -45,6 +46,8 @@ export default function DynamicTemplatesPage() {
   const [form, setForm] = useState({ name: "", type: "WA_BLAST", content: "", is_active: true, category_id: "" });
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 15;
 
   const fetchTemplates = useCallback(async () => {
     try {
@@ -121,7 +124,7 @@ export default function DynamicTemplatesPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {templates.map(t => (
+          {templates.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(t => (
             <div key={t.id} className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] shadow-sm p-4 hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -142,6 +145,7 @@ export default function DynamicTemplatesPage() {
               </div>
             </div>
           ))}
+          <Pagination page={page} pageSize={PAGE_SIZE} total={templates.length} onPageChange={setPage} itemLabel="template" />
         </div>
       )}
 

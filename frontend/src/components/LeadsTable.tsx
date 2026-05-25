@@ -7,6 +7,7 @@ import { Search, Download, Plus, Pencil, Trash2 } from "lucide-react";
 
 import Modal from "./Modal";
 import Toast from "./Toast";
+import Pagination from "./Pagination";
 
 const STATUSES = ["Scraped", "Contacted", "Replied", "Closed", "Closed/Client"] as const;
 type Status = (typeof STATUSES)[number];
@@ -83,9 +84,11 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
 
   // Rating filter
   const [filterRating, setFilterRating] = useState(0);
-
   // Search
   const [searchQuery, setSearchQuery] = useState("");
+  // Pagination
+  const [leadsPage, setLeadsPage] = useState(1);
+  const LEADS_PAGE_SIZE = 25;
 
   // Add/Edit lead modal
   const [addLeadModal, setAddLeadModal] = useState(false);
@@ -715,7 +718,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
 
       {!loading && leads.length > 0 && (
         <div className="overflow-x-auto rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <table className="w-full bg-white dark:bg-[#242423] text-sm">
+          <table className="w-full min-w-[1100px] bg-white dark:bg-[#242423] text-sm">
             <thead className="bg-gray-50 dark:bg-[#2a2a29] border-b border-gray-100 dark:border-gray-700">
               <tr>
                 {["#", "Nama Bisnis", "Alamat", "Nomor WA", "Layanan", "Website", "Google Rating", "Status", "Aksi"].map((h) => (
@@ -724,9 +727,12 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-subtle)]">
-              {leads.filter((l) => (filterRating === 0 || l.rating >= filterRating) && (!searchQuery || l.business_name.toLowerCase().includes(searchQuery.toLowerCase()) || (l.address || "").toLowerCase().includes(searchQuery.toLowerCase()) || l.phone_number.includes(searchQuery))).map((lead, i) => (
+              {(() => {
+                const filtered = leads.filter((l) => (filterRating === 0 || l.rating >= filterRating) && (!searchQuery || l.business_name.toLowerCase().includes(searchQuery.toLowerCase()) || (l.address || "").toLowerCase().includes(searchQuery.toLowerCase()) || l.phone_number.includes(searchQuery)));
+                const start = (leadsPage - 1) * LEADS_PAGE_SIZE;
+                return filtered.slice(start, start + LEADS_PAGE_SIZE).map((lead, i) => (
                 <tr key={lead.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${lead.is_archived ? "opacity-70" : ""} ${lead.is_ghost_viewer ? "bg-red-500/10 border-l-4 border-l-red-500 animate-pulse" : ""}`}>
-                  <td className="px-4 py-3 text-gray-400 text-xs">{i + 1}</td>
+                  <td className="px-4 py-3 text-gray-400 text-xs">{start + i + 1}</td>
                   <td className="px-4 py-3 font-medium text-gray-800 dark:text-[#fcfaf7] max-w-[180px]">
                     <div className="flex items-center gap-1.5">
                       <span>{lead.business_name}{lead.is_archived ? " (Archived)" : ""}</span>
@@ -816,9 +822,14 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
                     </div>
                   </td>
                 </tr>
-              ))}
+              ));
+            })()}
             </tbody>
           </table>
+          {(() => {
+            const filtered = leads.filter((l) => (filterRating === 0 || l.rating >= filterRating) && (!searchQuery || l.business_name.toLowerCase().includes(searchQuery.toLowerCase()) || (l.address || "").toLowerCase().includes(searchQuery.toLowerCase()) || l.phone_number.includes(searchQuery)));
+            return <Pagination page={leadsPage} pageSize={LEADS_PAGE_SIZE} total={filtered.length} onPageChange={(p) => setLeadsPage(p)} itemLabel="lead" />;
+          })()}
           <div className="px-4 py-2 bg-gray-50 dark:bg-[#2a2a29] border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400">
             {leads.filter((l) => filterRating === 0 || l.rating >= filterRating).length} lead{leads.filter((l) => filterRating === 0 || l.rating >= filterRating).length !== 1 ? "s" : ""}
             {filterBatch && <span className="ml-2 text-amber-400">· {filterBatch}</span>}

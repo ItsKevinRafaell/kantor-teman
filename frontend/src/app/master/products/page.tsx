@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../../lib/api";
 import { Plus, Edit2, Trash2, X, Package } from "lucide-react";
 import { formatRupiahInput, cleanRupiahInput } from "../../../utils/formatter";
+import Pagination from "../../../components/Pagination";
 
 interface Product {
   id: string;
@@ -30,6 +31,8 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState({ name: "", description: "", base_price: 0, features: "", category_id: "", is_active: true, is_retainer: false });
@@ -127,7 +130,7 @@ export default function ProductsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-subtle)]">
-              {products.map(p => (
+              {products.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(p => (
                 <tr key={p.id} className="hover:bg-[var(--bg-surface-hover)] transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -157,6 +160,7 @@ export default function ProductsPage() {
               ))}
             </tbody>
           </table>
+          <Pagination page={page} pageSize={PAGE_SIZE} total={products.length} onPageChange={setPage} itemLabel="produk" />
           <div className="px-4 py-2 bg-neutral-50 dark:bg-neutral-800 border-t border-[var(--border-default)] text-xs text-gray-400">{products.length} produk</div>
         </div>
       )}
