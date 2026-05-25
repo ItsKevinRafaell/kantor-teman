@@ -7882,13 +7882,22 @@ def cms_publish_article(body: CmsPublishRequest, current_user: User = Depends(ge
     if not cms_token_row or not cms_token_row.value:
         raise HTTPException(status_code=400, detail="CMS API Token belum diset di Settings")
     import httpx as _httpx
+    cms_base = cms_url_row.value.rstrip("/")
+    headers = {
+        "Authorization": f"Bearer {cms_token_row.value}",
+        "Content-Type": "application/json",
+    }
+    # Override Host header if using IP address to hit correct vhost
+    if cms_base.replace("https://","").split(":")[0].replace(".","").isdigit():
+        headers["Host"] = "api.temanumkmkita.com"
     try:
         resp = _httpx.post(
-            f"{cms_url_row.value.rstrip('/')}/api/articles",
-            headers={"Authorization": f"Bearer {cms_token_row.value}", "Content-Type": "application/json"},
+            f"{cms_base}/api/articles",
+            headers=headers,
             json=body.model_dump(),
             timeout=30,
             follow_redirects=True,
+            verify=True,
         )
         if resp.status_code not in (200, 201):
             raise HTTPException(status_code=502, detail=f"CMS error {resp.status_code}: {resp.text[:300]}")
