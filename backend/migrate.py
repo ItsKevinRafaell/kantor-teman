@@ -56,6 +56,7 @@ if "mysql" in _db_url:
         ("documents", "updated_at", "ALTER TABLE documents ADD COLUMN updated_at VARCHAR(255) NULL"),
         ("provider_configs", "monthly_quota", "ALTER TABLE provider_configs ADD COLUMN monthly_quota FLOAT NOT NULL DEFAULT 0"),
         ("scrape_history", "batch_name", "ALTER TABLE scrape_history ADD COLUMN batch_name VARCHAR(255) NULL"),
+        ("users", "role", "ALTER TABLE users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT 'admin'"),
     ]
 
     for table, col, sql in _migrations:
@@ -693,6 +694,17 @@ if sh_cols and "batch_name" not in sh_cols:
     print("+ kolom batch_name ditambahkan ke scrape_history")
 elif sh_cols:
     print("= scrape_history.batch_name sudah ada, skip")
+
+# ---------------------------------------------------------------------------
+# Migrasi users: tambah role
+# ---------------------------------------------------------------------------
+cur.execute("PRAGMA table_info(users)")
+users_cols = {row[1] for row in cur.fetchall()}
+if users_cols and "role" not in users_cols:
+    cur.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'")
+    print("+ kolom role ditambahkan ke users")
+elif users_cols:
+    print("= users.role sudah ada, skip")
 
 conn.commit()
 conn.close()

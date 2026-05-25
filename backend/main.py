@@ -97,6 +97,7 @@ class User(Base):
     name = Column(String(255), nullable=False)
     email = Column(String(255), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=False)
+    role = Column(String(50), nullable=False, default="admin")  # admin / member
 
 
 class SystemSettings(Base):
@@ -2526,6 +2527,46 @@ async def start_blast(
 # ---------------------------------------------------------------------------
 # Public Template Endpoint (for proposal page)
 # ---------------------------------------------------------------------------
+
+@app.post("/api/webhook/fonnte-incoming")
+async def fonnte_incoming(request: Request, db: Session = Depends(get_db)):
+    """
+    Fonnte webhook for incoming WA messages.
+    Auto-update lead status to 'Replied' when sender matches a Contacted lead.
+    Configure in Fonnte dashboard: webhook URL = https://api.kantorteman.my.id/api/webhook/fonnte-incoming
+    """
+    try:
+        payload = await request.json()
+    except Exception:
+        try:
+            form = await request.form()
+            payload = dict(form)
+        except Exception:
+            payload = {}
+
+    sender = payload.get("sender") or payload.get("device") or payload.get("from") or ""
+    sender_digits = normalize_phone(str(sender))
+    if not sender_digits:
+        return {"ok": True, "skipped": "no_sender"}
+
+    lead = db.query(Lead).filter(Lead.phone_number == sender_digits).first()
+    if not lead:
+        return {"ok": True, "skipped": "no_lead"}
+
+    # Only auto-promote Contacted → Replied. Don't downgrade other statuses.
+    if lead.status == "Contacted":
+        lead.status = "Replied"
+        db.add(LeadActivityLog(
+            lead_id=lead.id,
+            activity_type="WA_REPLIED",
+            created_at=datetime.now(timezone.utc).isoformat(),
+        ))
+        db.commit()
+        log_audit(db, "fonnte-webhook", "UPDATE", "leads", lead.id, {"field": "status", "old": "Contacted", "new": "Replied", "via": "wa_reply"})
+        return {"ok": True, "lead_id": lead.id, "new_status": "Replied"}
+
+    return {"ok": True, "lead_id": lead.id, "current_status": lead.status}
+
 
 @app.get("/api/public/proposal-templates")
 def get_proposal_templates(db: Session = Depends(get_db)):
@@ -5018,6 +5059,13 @@ def move_board_card(card_id: str, body: MoveCardRequest, current_user: User = De
     card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
     if not card:
         raise HTTPException(status_code=404, detail="Card tidak ditemukan")
+
+    # Admin-only rule: moves to Done/Revisi columns require admin role
+    target_column = db.query(BoardColumn).filter(BoardColumn.id == body.column_id).first()
+    if target_column:
+        target_name = (target_column.name or "").strip().lower()
+        if target_name in {"done", "revisi", "selesai"} and (current_user.role or "").lower() != "admin":
+            raise HTTPException(status_code=403, detail=f"Hanya admin yang bisa pindahin card ke '{target_column.name}'.")
 
     old_column = card.column_id
     card.column_id = body.column_id

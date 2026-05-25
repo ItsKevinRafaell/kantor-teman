@@ -83,6 +83,7 @@ export default function ClientDetailPage() {
   const [projectForm, setProjectForm] = useState({ name: "", type: "RETAINER", status: "ACTIVE", nominal: 0, start_date: "", end_date: "" });
   const [editingProject, setEditingProject] = useState<ProjectData | null>(null);
   const [saving, setSaving] = useState(false);
+  const [products, setProducts] = useState<{ id: string; name: string; base_price: number; is_retainer: boolean }[]>([]);
 
   const fetchDetail = useCallback(async () => {
     try {
@@ -96,6 +97,26 @@ export default function ClientDetailPage() {
     intervalRef.current = setInterval(fetchDetail, 5000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchDetail]);
+
+  // Fetch products for project form selector
+  useEffect(() => {
+    apiFetch("/api/products?active_only=true")
+      .then(r => r.ok ? r.json() : [])
+      .then(setProducts)
+      .catch(() => {});
+  }, []);
+
+  function applyProductToProjectForm(productId: string) {
+    if (!productId) return;
+    const p = products.find(x => x.id === productId);
+    if (!p) return;
+    setProjectForm(f => ({
+      ...f,
+      name: p.name,
+      type: p.is_retainer ? "RETAINER" : "FIXED",
+      nominal: p.base_price,
+    }));
+  }
 
   async function saveProject() {
     if (!projectForm.name) return;
@@ -303,6 +324,15 @@ export default function ClientDetailPage() {
               </button>
             </div>
             <div className="space-y-3">
+              {!editingProject && products.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-500 uppercase mb-1">Pilih dari Paket</label>
+                  <select onChange={e => applyProductToProjectForm(e.target.value)} className={inputCls} defaultValue="">
+                    <option value="">— Custom (isi manual) —</option>
+                    {products.map(p => <option key={p.id} value={p.id}>{p.name} — {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(p.base_price)}{p.is_retainer ? "/bln" : ""}</option>)}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-neutral-500 uppercase mb-1">Nama Proyek</label>
                 <input value={projectForm.name} onChange={e => setProjectForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder="Contoh: SEO Bulanan, Landing Page" />
