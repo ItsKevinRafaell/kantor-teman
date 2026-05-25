@@ -401,7 +401,7 @@ export default function ChatPage() {
       if (res.tool_calls && res.tool_calls.length > 0) {
         setLastToolCalls(res.tool_calls);
         const toolNames = res.tool_calls.map((t: any) => t.name).join(", ");
-        showToast(`🔧 Tool executed: ${toolNames}`);
+        showToast(`Tool executed: ${toolNames}`);
       }
 
       // Show memory saved indicator
@@ -409,7 +409,7 @@ export default function ChatPage() {
         setSavingMemory(true);
         setTimeout(() => {
           setSavingMemory(false);
-          showToast("💾 Memory disimpan: " + res.memory_content?.substring(0, 50) + "...");
+          showToast("Memory disimpan: " + res.memory_content?.substring(0, 50) + "...");
           // Reload memories
           if (selectedProject) {
             loadMemories(selectedProject.id);
@@ -419,7 +419,7 @@ export default function ChatPage() {
 
       // Show summary created indicator
       if (res.summary_created) {
-        showToast("📝 Ringkasan percakapan dibuat untuk konteks panjang");
+        showToast("Ringkasan percakapan dibuat untuk konteks panjang");
       }
     } catch (e: any) {
       // Remove temp message on error
@@ -921,13 +921,13 @@ export default function ChatPage() {
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {!selectedProject && (
             <div className="text-center text-neutral-400 text-sm mt-20">
-              <div className="text-4xl mb-4">💬</div>
+              <div className="text-4xl mb-4 text-neutral-300"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
               <p>Buat project baru untuk mulai chat</p>
             </div>
           )}
           {selectedProject && !selectedConversation && (
             <div className="text-center text-neutral-400 text-sm mt-20">
-              <div className="text-4xl mb-4">💬</div>
+              <div className="text-4xl mb-4 text-neutral-300"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
               <p>Buat conversation baru untuk mulai chat</p>
               <button onClick={createConversation} className="mt-4 text-brand-yellow hover:underline text-sm">
                 + Buat Conversation
@@ -936,7 +936,7 @@ export default function ChatPage() {
           )}
           {selectedConversation && messages.length === 0 && !loading && (
             <div className="text-center text-neutral-400 text-sm mt-20">
-              <div className="text-4xl mb-4">💬</div>
+              <div className="text-4xl mb-4 text-neutral-300"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
               <p>Mulai percakapan dengan AI</p>
               <p className="text-xs mt-2 text-neutral-500">Model: {models.find((m) => m.id === selectedModel)?.name}</p>
             </div>
@@ -1011,7 +1011,7 @@ export default function ChatPage() {
           {savingMemory && (
             <div className="flex justify-center">
               <div className="bg-brand-yellow/10 text-brand-yellow rounded-full px-4 py-1.5 text-xs flex items-center gap-2">
-                <span className="animate-spin">💾</span>
+                <span className="animate-spin inline-block w-4 h-4 border-2 border-neutral-400 border-t-transparent rounded-full"></span>
                 <span>Menyimpan memory...</span>
               </div>
             </div>

@@ -264,7 +264,7 @@ export default function ScraperPage() {
 
       {!loading && results.length === 0 && category.trim() && (
         <div className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] shadow-sm p-8 text-center">
-          <div className="text-4xl mb-3">🔍</div>
+          <div className="text-4xl mb-3 text-neutral-300"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
           <p className="text-sm font-semibold text-gray-700 dark:text-[#fcfaf7]">0 bisnis ditemukan</p>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 max-w-md mx-auto">
             Tidak ada hasil untuk &quot;{category.trim()}{location.trim() ? ` ${location.trim()}` : ""}&quot;. Coba kata kunci lain atau perluas lokasi pencarian.

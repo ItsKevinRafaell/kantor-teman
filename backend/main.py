@@ -1136,6 +1136,7 @@ class SettingsUpdate(BaseModel):
     google_calendar_id: Optional[str] = None
     google_service_account_json: Optional[str] = None
     admin_wa: Optional[str] = None
+    admin_name: Optional[str] = None
     followup_enabled: Optional[str] = None
     followup_hour: Optional[str] = None
     cms_url: Optional[str] = None
@@ -1813,7 +1814,7 @@ def update_me(body: UserUpdate, current_user: User = Depends(get_current_user), 
 
 @app.get("/api/settings")
 def get_settings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    keys = ["fonnte_token", "gemini_api_key", "claude_api_key", "openai_api_key", "ai_api_key", "ai_provider", "ai_base_url", "ai_model", "google_api_key", "google_calendar_id", "google_service_account_json", "admin_wa", "followup_enabled", "followup_hour", "cms_url", "cms_api_token"]
+    keys = ["fonnte_token", "gemini_api_key", "claude_api_key", "openai_api_key", "ai_api_key", "ai_provider", "ai_base_url", "ai_model", "google_api_key", "google_calendar_id", "google_service_account_json", "admin_wa", "admin_name", "followup_enabled", "followup_hour", "cms_url", "cms_api_token"]
     result = {}
     for k in keys:
         row = db.query(SystemSettings).filter_by(key=k).first()
@@ -1838,6 +1839,7 @@ def update_settings(body: SettingsUpdate, current_user: User = Depends(get_curre
         "google_calendar_id": body.google_calendar_id,
         "google_service_account_json": body.google_service_account_json,
         "admin_wa": body.admin_wa,
+        "admin_name": body.admin_name,
         "followup_enabled": body.followup_enabled,
         "followup_hour": body.followup_hour,
         "cms_url": body.cms_url,
@@ -1982,6 +1984,22 @@ async def test_api_connection(
             return {"success": False, "message": f"Gagal koneksi ke OpenAI: {str(e)}"}
 
     return {"success": False, "message": f"Provider '{provider}' tidak dikenal."}
+
+
+@app.post("/api/settings/test-calendar")
+def test_calendar_connection(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Test Google Calendar connection."""
+    try:
+        service = _get_google_calendar_service()
+        if not service:
+            return {"success": False, "message": "Google Calendar service tidak bisa diinisialisasi. Cek google_service_account_json dan google_calendar_id di Settings."}
+        calendar_id = _get_setting("google_calendar_id", GOOGLE_CALENDAR_ID)
+        if not calendar_id:
+            return {"success": False, "message": "google_calendar_id belum diisi di Settings."}
+        result = service.calendarList().get(calendarId=calendar_id).execute()
+        return {"success": True, "message": f"Terhubung ke kalender: {result.get('summary', calendar_id)}"}
+    except Exception as e:
+        return {"success": False, "message": f"Gagal: {str(e)[:200]}"}
 
 
 # ---------------------------------------------------------------------------
@@ -2817,13 +2835,17 @@ def create_proposal(body: ProposalIn, current_user: User = Depends(get_current_u
     return _proposal_to_out(proposal, lead)
 
 
-@app.get("/api/proposals/public/{proposal_id}", response_model=ProposalOut)
+@app.get("/api/proposals/public/{proposal_id}")
 def get_public_proposal(proposal_id: str, db: Session = Depends(get_db)):
     proposal = db.query(Proposal).filter(Proposal.id == proposal_id).first()
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal tidak ditemukan")
     lead = db.query(Lead).filter(Lead.id == proposal.lead_id).first()
-    return _proposal_to_out(proposal, lead)
+    out = _proposal_to_out(proposal, lead)
+    data = out.model_dump() if hasattr(out, "model_dump") else out.__dict__
+    data["admin_wa"] = _get_setting("admin_wa", ADMIN_WA)
+    data["admin_name"] = _get_setting("admin_name", "Admin")
+    return data
 
 
 @app.get("/p/{slug}")
@@ -3041,6 +3063,8 @@ def get_public_report_by_slug(slug: str, db: Session = Depends(get_db)):
         ) if lead else 500,
         "selected_addons": json.loads(proposal.selected_addons) if proposal.selected_addons and proposal.selected_addons != "[]" else [{"id": p.id, "name": p.name, "price": p.base_price} for p in db.query(Product).filter(Product.is_active == True).all()],
         "timeline_data": sorted(json.loads(proposal.timeline_data), key=lambda x: x["sequence"]) if proposal.timeline_data else [],
+        "admin_wa": _get_setting("admin_wa", ADMIN_WA),
+        "admin_name": _get_setting("admin_name", "Admin"),
     }
 
 
@@ -3274,7 +3298,7 @@ async def track_open(body: TrackOpenIn, background_tasks: BackgroundTasks, db: S
     business_name = lead.business_name if lead else "Unknown"
     services = [s["name"] for s in json.loads(proposal.services_detail)]
     service_names = ", ".join(services) if services else "—"
-    message = f"🚨 Mind Reader Alert: Klien {business_name} sedang membuka proposal [{service_names}] SEKARANG!"
+    message = f"[ALERT] Mind Reader: Klien {business_name} sedang membuka proposal [{service_names}] SEKARANG!"
     admin_wa = _get_setting("admin_wa", ADMIN_WA)
     background_tasks.add_task(send_fonnte_message, admin_wa, message, fonnte_token)
 
@@ -5622,7 +5646,7 @@ def create_ads_campaign(body: AdsCampaignIn, current_user: User = Depends(get_cu
     if body.status == "ACTIVE" and body.budget > 0:
         ads_wallet = db.query(Wallet).filter(Wallet.name == "Dompet Budget Ads").first()
         if not ads_wallet:
-            ads_wallet = Wallet(name="Dompet Budget Ads", balance=0, icon="📢", color="#f59e0b")
+            ads_wallet = Wallet(name="Dompet Budget Ads", balance=0, icon="megaphone", color="#f59e0b")
             db.add(ads_wallet)
             db.commit()
             db.refresh(ads_wallet)
@@ -5670,7 +5694,7 @@ def update_ads_campaign(campaign_id: str, body: AdsCampaignUpdate, current_user:
     if old_status == "PLANNING" and body.status == "ACTIVE" and campaign.budget > 0:
         ads_wallet = db.query(Wallet).filter(Wallet.name == "Dompet Budget Ads").first()
         if not ads_wallet:
-            ads_wallet = Wallet(name="Dompet Budget Ads", balance=0, icon="📢", color="#f59e0b")
+            ads_wallet = Wallet(name="Dompet Budget Ads", balance=0, icon="megaphone", color="#f59e0b")
             db.add(ads_wallet)
             db.commit()
             db.refresh(ads_wallet)

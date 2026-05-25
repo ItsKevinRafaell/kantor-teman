@@ -33,6 +33,8 @@ export default function SettingsPage() {
   const [googleCalendarId, setGoogleCalendarId] = useState("");
   const [googleServiceAccountJson, setGoogleServiceAccountJson] = useState("");
   const [adminWa, setAdminWa] = useState("");
+  const [adminName, setAdminName] = useState("");
+  const [testingCalendar, setTestingCalendar] = useState(false);
   const [cmsUrl, setCmsUrl] = useState("");
   const [cmsApiToken, setCmsApiToken] = useState("");
   // Content Generator AI (separate from chat proxy)
@@ -71,6 +73,7 @@ export default function SettingsPage() {
       setGoogleCalendarId(d.google_calendar_id ?? "");
       setGoogleServiceAccountJson(d.google_service_account_json ?? "");
       setAdminWa(d.admin_wa ?? "");
+      setAdminName(d.admin_name ?? "");
       setCmsUrl(d.cms_url ?? "");
       setCmsApiToken(d.cms_api_token ?? "");
     });
@@ -130,6 +133,7 @@ export default function SettingsPage() {
         google_calendar_id: googleCalendarId,
         google_service_account_json: googleServiceAccountJson,
         admin_wa: adminWa,
+        admin_name: adminName,
         cms_url: cmsUrl,
         cms_api_token: cmsApiToken,
       }) });
@@ -396,17 +400,37 @@ export default function SettingsPage() {
                   rows={4}
                   className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 font-mono transition resize-none" />
               </div>
+              <button type="button" onClick={async () => {
+                setTestingCalendar(true);
+                try {
+                  const res = await apiFetch("/api/settings/test-calendar", { method: "POST" });
+                  const data = await res.json();
+                  showToast(data.message, data.success ? "success" : "error");
+                } catch { showToast("Gagal test calendar", "error"); }
+                finally { setTestingCalendar(false); }
+              }} disabled={testingCalendar}
+                className="px-4 py-2 text-sm font-semibold bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl transition-colors disabled:opacity-50">
+                {testingCalendar ? "Testing..." : "Test Calendar Connection"}
+              </button>
             </div>
           </div>
 
           {/* ── WhatsApp Notification ── */}
           <div className="border-t border-[var(--border-default)] pt-5">
             <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200 mb-3">WhatsApp Notification</h3>
-            <div>
-              <label className={labelCls}>Nomor Admin WA</label>
-              <p className="text-xs text-gray-400 mb-3">Nomor yang menerima notifikasi (format: 6281xxx).</p>
-              <input value={adminWa} onChange={(e) => setAdminWa(e.target.value)}
-                placeholder="6281234567890" className={inputCls} />
+            <div className="space-y-3">
+              <div>
+                <label className={labelCls}>Nomor Admin WA</label>
+                <p className="text-xs text-gray-400 mb-3">Nomor yang menerima notifikasi (format: 6281xxx). Dipakai juga di template proposal/report.</p>
+                <input value={adminWa} onChange={(e) => setAdminWa(e.target.value)}
+                  placeholder="6281234567890" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Nama Admin (untuk template)</label>
+                <p className="text-xs text-gray-400 mb-3">Nama yang muncul di template WA &quot;Halo {"{nama}"}&quot;. Contoh: Vin, Kevin, dll.</p>
+                <input value={adminName} onChange={(e) => setAdminName(e.target.value)}
+                  placeholder="Vin" className={inputCls} />
+              </div>
             </div>
           </div>
 

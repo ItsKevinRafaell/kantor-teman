@@ -476,7 +476,7 @@ export default function ContentGeneratorPage() {
         {activeTool === "image" && (
           <button onClick={() => { setEditingProvider(null); setProviderForm({ name: "", base_url: "", api_key: "", model: "", is_active: true }); setShowProviderModal(true); }}
             className="text-xs text-neutral-500 hover:text-yellow-600 px-3 py-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left">
-            ⚙️ Kelola Image Provider
+            Kelola Image Provider
           </button>
         )}
       </aside>

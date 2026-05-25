@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import { useTheme } from "next-themes";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-const ADMIN_WA = process.env.NEXT_PUBLIC_ADMIN_WA ?? "6285156843788";
 
 interface ReportData {
   id: string;
@@ -35,6 +34,8 @@ interface ReportData {
   faqs: { question: string; answer: string }[];
   monthly_search_volume: number;
   selected_addons: { id: string; name: string; price: number }[];
+  admin_wa?: string;
+  admin_name?: string;
 }
 
 function formatRupiah(num: number): string {
@@ -330,14 +331,14 @@ export default function PublicReportPage() {
     : [];
 
   const waText = report
-    ? `Halo Vin, saya sudah lihat laporan audit web untuk ${report.nama_usaha}. Saya mau tanya solusi untuk perbaikan masalah tadi dong.${checkedAddonNames.length > 0 ? ` Dan saya tertarik menambahkan opsi: ${checkedAddonNames.join(" dan ")}.` : ""}`
+    ? `Halo ${report.admin_name || "Admin"}, saya sudah lihat laporan audit web untuk ${report.nama_usaha}. Saya mau tanya solusi untuk perbaikan masalah tadi dong.${checkedAddonNames.length > 0 ? ` Dan saya tertarik menambahkan opsi: ${checkedAddonNames.join(" dan ")}.` : ""}`
     : "";
-  const waLink = `https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(waText)}`;
+  const waLink = `https://wa.me/${report?.admin_wa || ""}?text=${encodeURIComponent(waText)}`;
 
   const waTextExpired = report
-    ? `Halo Vin, saya telat membuka laporan audit untuk ${report.nama_usaha} dan kuotanya sudah habis terkunci. Apakah masih ada slot antrean kosong untuk bulan depan?`
+    ? `Halo ${report.admin_name || "Admin"}, saya telat membuka laporan audit untuk ${report.nama_usaha} dan kuotanya sudah habis terkunci. Apakah masih ada slot antrean kosong untuk bulan depan?`
     : "";
-  const waLinkExpired = `https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(waTextExpired)}`;
+  const waLinkExpired = `https://wa.me/${report?.admin_wa || ""}?text=${encodeURIComponent(waTextExpired)}`;
 
   if (loading) {
     return (
@@ -768,7 +769,7 @@ export default function PublicReportPage() {
           {/* Geographic Proximity Trust Badge */}
           <div className="rounded-xl bg-amber-50 dark:bg-amber-950/30 border-2 border-amber-200 dark:border-amber-800 px-4 py-3">
             <p className="text-sm text-zinc-900 dark:text-zinc-100 leading-relaxed">
-              📍 <span className="font-bold text-zinc-900">Prioritas Layanan Wilayah {city || "Kota Anda"} & Sekitarnya:</span>{" "}
+              <span className="font-bold text-zinc-900">Prioritas Layanan Wilayah {city || "Kota Anda"} & Sekitarnya:</span>{" "}
               Tim kami memastikan seluruh langkah optimasi disesuaikan dengan algoritma kompetisi pasar area{" "}
               <span className="font-bold text-zinc-900">{getProvinceForCity(city) || "Wilayah Kota Anda & Sekitarnya"}</span>.
             </p>
@@ -822,7 +823,7 @@ export default function PublicReportPage() {
             }}
             className="block w-full text-center py-3 px-4 rounded-xl border-2 border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-zinc-700 hover:text-zinc-900 font-bold text-sm transition-all duration-300"
           >
-            🔗 Share Laporan Ini ke Partner Bisnis Anda
+            Share Laporan Ini ke Partner Bisnis Anda
           </button>
         </section>
 
@@ -845,7 +846,7 @@ export default function PublicReportPage() {
       {!discountExpired && (
         <div className="fixed bottom-0 left-0 right-0 z-50 print:hidden">
           <div className="max-w-3xl mx-auto px-4 pb-4">
-            <a href={`https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(`Halo Vin, saya sudah baca laporan audit digital untuk ${report.nama_usaha}. Saya tertarik untuk diskusi lebih lanjut tentang solusinya.`)}`}
+            <a href={`https://wa.me/${report.admin_wa || ""}?text=${encodeURIComponent(`Halo ${report.admin_name || "Admin"}, saya sudah baca laporan audit digital untuk ${report.nama_usaha}. Saya tertarik untuk diskusi lebih lanjut tentang solusinya.`)}`}
               target="_blank" rel="noopener noreferrer"
               className="flex items-center justify-between w-full px-5 py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-2xl shadow-lg shadow-amber-500/30 transition-all hover:scale-[1.02]">
               <div className="flex items-center gap-3">

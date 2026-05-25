@@ -4,7 +4,6 @@ import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-const ADMIN_WA = process.env.NEXT_PUBLIC_ADMIN_WA ?? "6285156843788";
 
 interface TimelinePhase {
   sequence: number;
@@ -42,6 +41,8 @@ interface Proposal {
   slug: string | null;
   timeline_data?: TimelinePhase[];
   roi_data?: RoiData | null;
+  admin_wa?: string;
+  admin_name?: string;
 }
 
 function formatRupiah(num: number): string {
@@ -209,8 +210,10 @@ export default function ProposalPage() {
   const finalTotal = proposal.discount_price || proposal.total_price;
   const timeline = proposal.timeline_data || [];
 
-  const waText = `Halo Vin, saya sudah pelajari detail produk dan benefit di proposal akhir untuk ${proposal.business_name}. Penawarannya sangat menarik, saya setuju untuk amankan slot proyeknya ya!`;
-  const waLink = `https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(waText)}`;
+  const adminWa = proposal.admin_wa || "";
+  const adminName = proposal.admin_name || "Admin";
+  const waText = `Halo ${adminName}, saya sudah pelajari detail produk dan benefit di proposal akhir untuk ${proposal.business_name}. Penawarannya sangat menarik, saya setuju untuk amankan slot proyeknya ya!`;
+  const waLink = `https://wa.me/${adminWa}?text=${encodeURIComponent(waText)}`;
 
   return (
     <div className="min-h-screen bg-white dark:bg-zinc-950 bg-[radial-gradient(#e4e4e7_1px,transparent_1px)] dark:bg-[radial-gradient(#27272a_1px,transparent_1px)] [background-size:20px_20px] text-zinc-900 dark:text-zinc-100 print:bg-white print:text-black print:bg-none">

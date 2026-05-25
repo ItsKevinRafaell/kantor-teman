@@ -737,7 +737,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
                     <div className="flex items-center gap-1.5">
                       <span>{lead.business_name}{lead.is_archived ? " (Archived)" : ""}</span>
                       {lead.is_ghost_viewer && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 whitespace-nowrap">🔥 GHOST VIEWER</span>
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 whitespace-nowrap">GHOST VIEWER</span>
                       )}
                     </div>
                     {lead.batch_name && <div className="text-[10px] text-gray-400 mt-0.5 truncate max-w-[160px]">{lead.batch_name}</div>}
