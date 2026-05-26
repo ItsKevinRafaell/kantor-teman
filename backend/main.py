@@ -1989,8 +1989,53 @@ class ExternalLeadIn(BaseModel):
     source: str = "website_temanumkmkita"
 
 
+PRODUCT_INTEREST_LABELS = {
+    "web_development": "Web Development",
+    "seo_google_maps": "SEO & Google Maps",
+    "kelola_sosial_media": "Kelola Sosial Media",
+    "maintenance_website": "Maintenance Website",
+    "desain_logo": "Desain Logo",
+}
+
+
+def _send_wa_auto_reply_sync(lead_id: int, phone: str, name: str, product_interest: str, db_url: str, jwt_secret: str):
+    import httpx as _httpx
+    from sqlalchemy import create_engine as _ce
+    from sqlalchemy.orm import sessionmaker as _sm
+    _ca = {"check_same_thread": False} if "sqlite" in db_url else {}
+    _engine = _ce(db_url, connect_args=_ca, pool_recycle=60, pool_pre_ping=True, pool_size=1, max_overflow=0)
+    _Session = _sm(bind=_engine)
+    db = _Session()
+    try:
+        if not phone:
+            return
+        row = db.query(SystemSettings).filter_by(key="fonnte_token").first()
+        token = (row.value or "") if row else ""
+        if not token:
+            print(f"[WA_AUTO_REPLY] fonnte_token missing, skip", flush=True)
+            return
+        label = PRODUCT_INTEREST_LABELS.get(product_interest, product_interest or "layanan kami")
+        msg = (
+            f"Halo {name}! 👋 Terima kasih sudah menghubungi kami. "
+            f"Kami telah menerima permintaan Anda untuk layanan *{label}*. "
+            f"Tim kami akan segera menghubungi Anda dalam waktu dekat. "
+            f"Salam, Tim Teman UMKM Kita 🙏"
+        )
+        _send_fonnte_sync(phone, msg, token, _httpx)
+        db.add(LeadActivityLog(
+            id=str(uuid.uuid4()),
+            lead_id=lead_id,
+            activity_type="wa_auto_reply",
+        ))
+        db.commit()
+    except Exception as e:
+        print(f"[WA_AUTO_REPLY] error: {e}", flush=True)
+    finally:
+        db.close()
+
+
 @app.post("/api/leads/external", status_code=201)
-def create_external_lead(request: Request, body: ExternalLeadIn, db: Session = Depends(get_db)):
+def create_external_lead(request: Request, body: ExternalLeadIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     import threading, httpx as _httpx
 
     api_key = request.headers.get("X-API-Key", "")
@@ -2030,7 +2075,7 @@ def create_external_lead(request: Request, body: ExternalLeadIn, db: Session = D
         f"🔥 *Lead baru dari website!*\n\n"
         f"Nama: *{body.business_name}*\n"
         f"WA: {phone}\n"
-        f"Layanan: {body.product_interest or '-'}\n"
+        f"Layanan: {PRODUCT_INTEREST_LABELS.get(body.product_interest or '', body.product_interest or '-')}\n"
         f"Email: {body.email or '-'}\n"
         f"Sumber: {body.source}\n"
     )
@@ -2042,6 +2087,13 @@ def create_external_lead(request: Request, body: ExternalLeadIn, db: Session = D
         args=(admin_wa, msg, fonnte_token, _httpx),
         daemon=True,
     ).start()
+
+    db_url = os.getenv("DATABASE_URL", "sqlite:///./leads.db")
+    background_tasks.add_task(
+        _send_wa_auto_reply_sync,
+        lead.id, phone, body.business_name,
+        body.product_interest or "", db_url, JWT_SECRET,
+    )
 
     return {"lead_id": lead.id, "success": True, "duplicate": False}
 
