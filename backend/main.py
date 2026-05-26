@@ -349,6 +349,8 @@ class Project(Base):
     end_date = Column(String(255), nullable=True)
     color = Column(String(50), nullable=True, default="yellow")
     is_archived = Column(Boolean, default=False, nullable=False)
+    service_type = Column(String(50), nullable=True)
+    contract_months = Column(Integer, nullable=True, default=1)
     lead = relationship("Lead", foreign_keys=[lead_id])
 
 
@@ -495,6 +497,76 @@ class BlastMessage(Base):
     replied_at = Column(String(255), nullable=True)
     status = Column(String(50), nullable=False, default="sent")
     error_message = Column(Text, nullable=True)
+
+
+# ---------------------------------------------------------------------------
+# Workspace Klien Models
+# ---------------------------------------------------------------------------
+
+class WorkspaceSheet(Base):
+    __tablename__ = "workspace_sheets"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    sheet_index = Column(Integer, nullable=False)
+    sheet_label = Column(String(100), nullable=False)
+    service_type = Column(String(50), nullable=True)
+    month_number = Column(Integer, nullable=True)
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at = Column(String(255), nullable=True)
+    project = relationship("Project", backref="workspace_sheets")
+
+
+class WorkspaceColumn(Base):
+    __tablename__ = "workspace_columns"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    sheet_id = Column(String(36), ForeignKey("workspace_sheets.id", ondelete="CASCADE"), nullable=False, index=True)
+    column_key = Column(String(100), nullable=False)
+    column_label = Column(String(100), nullable=False)
+    column_type = Column(String(30), nullable=False, default="text")
+    column_options = Column(Text, nullable=True)
+    column_order = Column(Integer, nullable=False, default=0)
+    is_system = Column(Boolean, default=False)
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    sheet = relationship("WorkspaceSheet", backref="columns")
+
+
+class WorkspaceRow(Base):
+    __tablename__ = "workspace_rows"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    sheet_id = Column(String(36), ForeignKey("workspace_sheets.id", ondelete="CASCADE"), nullable=False, index=True)
+    row_order = Column(Integer, nullable=False, default=0)
+    board_card_id = Column(String(36), nullable=True)
+    is_template = Column(Boolean, default=True)
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at = Column(String(255), nullable=True)
+    sheet = relationship("WorkspaceSheet", backref="rows")
+
+
+class WorkspaceCell(Base):
+    __tablename__ = "workspace_cells"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    row_id = Column(String(36), ForeignKey("workspace_rows.id", ondelete="CASCADE"), nullable=False, index=True)
+    column_id = Column(String(36), ForeignKey("workspace_columns.id", ondelete="CASCADE"), nullable=False, index=True)
+    value_text = Column(Text, nullable=True)
+    value_bool = Column(Boolean, nullable=True)
+    value_number = Column(Float, nullable=True)
+    value_date = Column(String(50), nullable=True)
+    value_json = Column(Text, nullable=True)
+    updated_at = Column(String(255), nullable=True)
+    row = relationship("WorkspaceRow", backref="cells")
+    column = relationship("WorkspaceColumn", backref="cells")
+
+
+class WorkspaceAttachment(Base):
+    __tablename__ = "workspace_attachments"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    row_id = Column(String(36), ForeignKey("workspace_rows.id", ondelete="CASCADE"), nullable=False, index=True)
+    column_id = Column(String(36), ForeignKey("workspace_columns.id", ondelete="CASCADE"), nullable=False)
+    file_path = Column(String(500), nullable=False)
+    file_name = Column(String(255), nullable=False)
+    file_type = Column(String(100), nullable=True)
+    uploaded_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    row = relationship("WorkspaceRow", backref="attachments")
 
 
 class FollowUpSequence(Base):
@@ -7233,6 +7305,564 @@ def get_blast_analytics(days: int = 30, current_user: User = Depends(get_current
         },
         "by_template": ranked,
         "top_performer": {"template_name": top["template_name"], "reply_rate": top["reply_rate"]} if top else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Workspace Klien
+# ---------------------------------------------------------------------------
+
+from workspace_templates import build_sheets_for_service, WORKSPACE_TEMPLATES
+
+
+class WorkspaceInitIn(BaseModel):
+    project_id: str
+    service_type: str
+    contract_months: int = 1
+
+
+class WorkspaceCellUpdate(BaseModel):
+    value_text: Optional[str] = None
+    value_bool: Optional[bool] = None
+    value_number: Optional[float] = None
+    value_date: Optional[str] = None
+    value_json: Optional[str] = None
+
+
+class WorkspaceRowIn(BaseModel):
+    cells: dict = {}
+    row_order: Optional[int] = None
+
+
+class WorkspaceColumnIn(BaseModel):
+    column_key: str
+    column_label: str
+    column_type: str = "text"
+    column_options: Optional[List[str]] = None
+    column_order: Optional[int] = None
+
+
+def sync_row_to_board(row_id: str, db: Session):
+    """Create board card for workspace row if not exists."""
+    try:
+        row = db.query(WorkspaceRow).filter(WorkspaceRow.id == row_id).first()
+        if not row or row.board_card_id:
+            return
+        sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.id == row.sheet_id).first()
+        if not sheet:
+            return
+        project = db.query(Project).filter(Project.id == sheet.project_id).first()
+        if not project:
+            return
+
+        task_cell = db.query(WorkspaceCell).join(WorkspaceColumn).filter(
+            WorkspaceCell.row_id == row_id,
+            WorkspaceColumn.column_key == "task_name",
+        ).first()
+        title = task_cell.value_text if task_cell else f"Task {row.row_order}"
+
+        board = db.query(Board).filter(Board.project_id == project.id).first()
+        if not board:
+            board = Board(id=str(uuid.uuid4()), project_id=project.id)
+            db.add(board)
+            db.flush()
+            for i, (col_name, col_color) in enumerate([("To Do", "yellow"), ("In Progress", "blue"), ("Review", "purple"), ("Done", "green")]):
+                db.add(BoardColumn(id=str(uuid.uuid4()), board_id=board.id, name=col_name, position=i, color=col_color))
+            db.flush()
+
+        todo_col = db.query(BoardColumn).filter(BoardColumn.board_id == board.id, BoardColumn.name == "To Do").first()
+        if not todo_col:
+            return
+
+        card = BoardCard(
+            id=str(uuid.uuid4()),
+            column_id=todo_col.id,
+            title=title,
+            position=row.row_order or 0,
+            lead_id=project.lead_id,
+        )
+        db.add(card)
+        db.flush()
+        row.board_card_id = card.id
+        db.commit()
+    except Exception as e:
+        print(f"[WORKSPACE_SYNC] sync_row_to_board error: {e}", flush=True)
+
+
+def sync_row_status_to_board(row_id: str, db: Session):
+    """Move board card when workspace task status/done changes."""
+    try:
+        row = db.query(WorkspaceRow).filter(WorkspaceRow.id == row_id).first()
+        if not row or not row.board_card_id:
+            return
+        card = db.query(BoardCard).filter(BoardCard.id == row.board_card_id).first()
+        if not card:
+            return
+
+        sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.id == row.sheet_id).first()
+        board = db.query(Board).filter(Board.project_id == sheet.project_id).first() if sheet else None
+        if not board:
+            return
+
+        status_cell = db.query(WorkspaceCell).join(WorkspaceColumn).filter(
+            WorkspaceCell.row_id == row_id,
+            WorkspaceColumn.column_key == "status",
+        ).first()
+        done_cell = db.query(WorkspaceCell).join(WorkspaceColumn).filter(
+            WorkspaceCell.row_id == row_id,
+            WorkspaceColumn.column_key == "done",
+        ).first()
+
+        target_col_name = "To Do"
+        if done_cell and done_cell.value_bool:
+            target_col_name = "Done"
+        elif status_cell and status_cell.value_text:
+            sv = status_cell.value_text
+            if sv in ("Done", "Published", "Posted"):
+                target_col_name = "Done"
+            elif sv in ("In Progress", "Draft", "Approved"):
+                target_col_name = "In Progress"
+            elif sv in ("Revision", "Review"):
+                target_col_name = "Review"
+
+        target_col = db.query(BoardColumn).filter(BoardColumn.board_id == board.id, BoardColumn.name == target_col_name).first()
+        if target_col and card.column_id != target_col.id:
+            card.column_id = target_col.id
+            db.commit()
+    except Exception as e:
+        print(f"[WORKSPACE_SYNC] sync_row_status error: {e}", flush=True)
+
+
+@app.post("/api/workspace/init")
+def init_workspace(body: WorkspaceInitIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == body.project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+
+    existing = db.query(WorkspaceSheet).filter(WorkspaceSheet.project_id == body.project_id).first()
+    if existing:
+        return {"message": "Workspace sudah ada", "sheets": _get_workspace_data(body.project_id, db)["sheets"]}
+
+    if body.service_type not in WORKSPACE_TEMPLATES:
+        raise HTTPException(status_code=400, detail=f"service_type tidak valid: {body.service_type}")
+
+    project.service_type = body.service_type
+    project.contract_months = body.contract_months
+
+    sheet_defs = build_sheets_for_service(body.service_type, body.contract_months)
+    now = datetime.now(timezone.utc).isoformat()
+
+    for idx, sdef in enumerate(sheet_defs):
+        sheet = WorkspaceSheet(
+            id=str(uuid.uuid4()),
+            project_id=body.project_id,
+            sheet_index=idx,
+            sheet_label=sdef["label"],
+            service_type=body.service_type,
+            month_number=sdef.get("month"),
+            created_at=now,
+        )
+        db.add(sheet)
+        db.flush()
+
+        col_map = {}
+        for ci, cdef in enumerate(sdef["columns"]):
+            col = WorkspaceColumn(
+                id=str(uuid.uuid4()),
+                sheet_id=sheet.id,
+                column_key=cdef["key"],
+                column_label=cdef["label"],
+                column_type=cdef["type"],
+                column_options=json.dumps(cdef.get("options", [])),
+                column_order=ci,
+                is_system=cdef.get("is_system", False),
+                created_at=now,
+            )
+            db.add(col)
+            db.flush()
+            col_map[cdef["key"]] = col
+
+        for ri, rdef in enumerate(sdef.get("default_rows", [])):
+            row = WorkspaceRow(
+                id=str(uuid.uuid4()),
+                sheet_id=sheet.id,
+                row_order=ri,
+                is_template=True,
+                created_at=now,
+            )
+            db.add(row)
+            db.flush()
+
+            for key, val in rdef.items():
+                col = col_map.get(key)
+                if not col:
+                    continue
+                cell = WorkspaceCell(
+                    id=str(uuid.uuid4()),
+                    row_id=row.id,
+                    column_id=col.id,
+                    updated_at=now,
+                )
+                if col.column_type == "checkbox":
+                    cell.value_bool = bool(val)
+                elif col.column_type == "number":
+                    cell.value_number = float(val) if val else None
+                else:
+                    cell.value_text = str(val) if val else None
+                db.add(cell)
+
+            db.flush()
+            sync_row_to_board(row.id, db)
+
+    db.commit()
+    return {"message": "Workspace initialized", "sheets": _get_workspace_data(body.project_id, db)["sheets"]}
+
+
+def _get_workspace_data(project_id: str, db: Session) -> dict:
+    sheets = db.query(WorkspaceSheet).filter(WorkspaceSheet.project_id == project_id).order_by(WorkspaceSheet.sheet_index).all()
+    result = {"project_id": project_id, "service_type": None, "sheets": []}
+    if sheets:
+        result["service_type"] = sheets[0].service_type
+
+    for sheet in sheets:
+        cols = db.query(WorkspaceColumn).filter(WorkspaceColumn.sheet_id == sheet.id).order_by(WorkspaceColumn.column_order).all()
+        rows = db.query(WorkspaceRow).filter(WorkspaceRow.sheet_id == sheet.id).order_by(WorkspaceRow.row_order).all()
+
+        cols_data = [{"id": c.id, "column_key": c.column_key, "column_label": c.column_label, "column_type": c.column_type, "column_options": json.loads(c.column_options or "[]"), "column_order": c.column_order, "is_system": c.is_system} for c in cols]
+
+        rows_data = []
+        for row in rows:
+            cells = db.query(WorkspaceCell).filter(WorkspaceCell.row_id == row.id).all()
+            cells_map = {}
+            for cell in cells:
+                cells_map[cell.column_id] = {
+                    "id": cell.id,
+                    "value_text": cell.value_text,
+                    "value_bool": cell.value_bool,
+                    "value_number": cell.value_number,
+                    "value_date": cell.value_date,
+                    "value_json": cell.value_json,
+                }
+            rows_data.append({
+                "id": row.id,
+                "row_order": row.row_order,
+                "board_card_id": row.board_card_id,
+                "is_template": row.is_template,
+                "cells": cells_map,
+            })
+
+        result["sheets"].append({
+            "id": sheet.id,
+            "sheet_index": sheet.sheet_index,
+            "sheet_label": sheet.sheet_label,
+            "month_number": sheet.month_number,
+            "columns": cols_data,
+            "rows": rows_data,
+        })
+    return result
+
+
+@app.get("/api/workspace-list")
+def get_workspace_list(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    projects = db.query(Project).filter(Project.is_archived == False).order_by(Project.status).all()
+    result = []
+    for p in projects:
+        lead = db.query(Lead).filter(Lead.id == p.lead_id).first() if p.lead_id else None
+        sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.project_id == p.id).first()
+        has_workspace = sheet is not None
+        progress = None
+        if has_workspace:
+            rows = db.query(WorkspaceRow).filter(WorkspaceRow.sheet_id == sheet.id).all()
+            if rows:
+                done_col = db.query(WorkspaceColumn).filter(WorkspaceColumn.sheet_id == sheet.id, WorkspaceColumn.column_key == "done").first()
+                if done_col:
+                    done_count = db.query(WorkspaceCell).filter(WorkspaceCell.column_id == done_col.id, WorkspaceCell.value_bool == True).count()
+                    progress = round(done_count / len(rows) * 100) if rows else 0
+        result.append({
+            "id": p.id,
+            "name": p.name,
+            "service_type": p.service_type,
+            "contract_months": p.contract_months,
+            "lead_name": lead.business_name if lead else None,
+            "status": p.status,
+            "has_workspace": has_workspace,
+            "progress": progress,
+        })
+    return result
+
+
+@app.get("/api/workspace/{project_id}")
+def get_workspace(project_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    return _get_workspace_data(project_id, db)
+
+
+@app.patch("/api/workspace/cell/{row_id}/{column_id}")
+def update_workspace_cell(row_id: str, column_id: str, body: WorkspaceCellUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    row = db.query(WorkspaceRow).filter(WorkspaceRow.id == row_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Row tidak ditemukan")
+    col = db.query(WorkspaceColumn).filter(WorkspaceColumn.id == column_id).first()
+    if not col:
+        raise HTTPException(status_code=404, detail="Column tidak ditemukan")
+
+    cell = db.query(WorkspaceCell).filter(WorkspaceCell.row_id == row_id, WorkspaceCell.column_id == column_id).first()
+    if not cell:
+        cell = WorkspaceCell(id=str(uuid.uuid4()), row_id=row_id, column_id=column_id)
+        db.add(cell)
+
+    if body.value_text is not None:
+        cell.value_text = body.value_text
+    if body.value_bool is not None:
+        cell.value_bool = body.value_bool
+    if body.value_number is not None:
+        cell.value_number = body.value_number
+    if body.value_date is not None:
+        cell.value_date = body.value_date
+    if body.value_json is not None:
+        cell.value_json = body.value_json
+    cell.updated_at = datetime.now(timezone.utc).isoformat()
+    row.updated_at = cell.updated_at
+    db.commit()
+
+    if col.column_key in ("status", "done"):
+        sync_row_status_to_board(row_id, db)
+
+    return {"id": cell.id, "value_text": cell.value_text, "value_bool": cell.value_bool, "value_number": cell.value_number, "value_date": cell.value_date}
+
+
+@app.post("/api/workspace/sheet/{sheet_id}/row")
+def add_workspace_row(sheet_id: str, body: WorkspaceRowIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.id == sheet_id).first()
+    if not sheet:
+        raise HTTPException(status_code=404, detail="Sheet tidak ditemukan")
+
+    max_order = db.query(func.max(WorkspaceRow.row_order)).filter(WorkspaceRow.sheet_id == sheet_id).scalar() or 0
+    row = WorkspaceRow(
+        id=str(uuid.uuid4()),
+        sheet_id=sheet_id,
+        row_order=body.row_order if body.row_order is not None else max_order + 1,
+        is_template=False,
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    db.add(row)
+    db.flush()
+
+    cols = db.query(WorkspaceColumn).filter(WorkspaceColumn.sheet_id == sheet_id).all()
+    col_by_key = {c.column_key: c for c in cols}
+    for key, val in body.cells.items():
+        col = col_by_key.get(key)
+        if not col:
+            continue
+        cell = WorkspaceCell(id=str(uuid.uuid4()), row_id=row.id, column_id=col.id, updated_at=row.created_at)
+        if col.column_type == "checkbox":
+            cell.value_bool = bool(val)
+        elif col.column_type == "number":
+            try:
+                cell.value_number = float(val)
+            except (ValueError, TypeError):
+                cell.value_text = str(val)
+        else:
+            cell.value_text = str(val) if val else None
+        db.add(cell)
+
+    db.commit()
+    sync_row_to_board(row.id, db)
+
+    cells = db.query(WorkspaceCell).filter(WorkspaceCell.row_id == row.id).all()
+    cells_map = {c.column_id: {"id": c.id, "value_text": c.value_text, "value_bool": c.value_bool, "value_number": c.value_number, "value_date": c.value_date} for c in cells}
+    return {"id": row.id, "row_order": row.row_order, "board_card_id": row.board_card_id, "is_template": row.is_template, "cells": cells_map}
+
+
+@app.delete("/api/workspace/row/{row_id}", status_code=204)
+def delete_workspace_row(row_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    row = db.query(WorkspaceRow).filter(WorkspaceRow.id == row_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Row tidak ditemukan")
+    if row.is_template:
+        raise HTTPException(status_code=400, detail="Row template tidak dapat dihapus")
+    if row.board_card_id:
+        card = db.query(BoardCard).filter(BoardCard.id == row.board_card_id).first()
+        if card:
+            db.delete(card)
+    db.query(WorkspaceCell).filter(WorkspaceCell.row_id == row_id).delete()
+    db.query(WorkspaceAttachment).filter(WorkspaceAttachment.row_id == row_id).delete()
+    db.delete(row)
+    db.commit()
+
+
+@app.post("/api/workspace/sheet/{sheet_id}/column")
+def add_workspace_column(sheet_id: str, body: WorkspaceColumnIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.id == sheet_id).first()
+    if not sheet:
+        raise HTTPException(status_code=404, detail="Sheet tidak ditemukan")
+    existing = db.query(WorkspaceColumn).filter(WorkspaceColumn.sheet_id == sheet_id, WorkspaceColumn.column_key == body.column_key).first()
+    if existing:
+        raise HTTPException(status_code=400, detail=f"column_key '{body.column_key}' sudah ada")
+
+    max_order = db.query(func.max(WorkspaceColumn.column_order)).filter(WorkspaceColumn.sheet_id == sheet_id).scalar() or 0
+    col = WorkspaceColumn(
+        id=str(uuid.uuid4()),
+        sheet_id=sheet_id,
+        column_key=body.column_key,
+        column_label=body.column_label,
+        column_type=body.column_type,
+        column_options=json.dumps(body.column_options or []),
+        column_order=body.column_order if body.column_order is not None else max_order + 1,
+        is_system=False,
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    db.add(col)
+    db.flush()
+
+    rows = db.query(WorkspaceRow).filter(WorkspaceRow.sheet_id == sheet_id).all()
+    for row in rows:
+        db.add(WorkspaceCell(id=str(uuid.uuid4()), row_id=row.id, column_id=col.id))
+    db.commit()
+
+    return {"id": col.id, "column_key": col.column_key, "column_label": col.column_label, "column_type": col.column_type, "column_order": col.column_order}
+
+
+@app.delete("/api/workspace/column/{column_id}", status_code=204)
+def delete_workspace_column(column_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    col = db.query(WorkspaceColumn).filter(WorkspaceColumn.id == column_id).first()
+    if not col:
+        raise HTTPException(status_code=404, detail="Column tidak ditemukan")
+    if col.is_system:
+        raise HTTPException(status_code=400, detail="Kolom sistem tidak dapat dihapus")
+    db.query(WorkspaceCell).filter(WorkspaceCell.column_id == column_id).delete()
+    db.query(WorkspaceAttachment).filter(WorkspaceAttachment.column_id == column_id).delete()
+    db.delete(col)
+    db.commit()
+
+
+@app.patch("/api/workspace/sheet/{sheet_id}/reorder-rows")
+def reorder_workspace_rows(sheet_id: str, body: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    row_ids = body.get("row_ids", [])
+    for i, rid in enumerate(row_ids):
+        row = db.query(WorkspaceRow).filter(WorkspaceRow.id == rid, WorkspaceRow.sheet_id == sheet_id).first()
+        if row:
+            row.row_order = i
+    db.commit()
+    return {"success": True}
+
+
+@app.post("/api/workspace/row/{row_id}/attachment")
+async def upload_workspace_attachment(
+    row_id: str,
+    column_id: str = Form(...),
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    row = db.query(WorkspaceRow).filter(WorkspaceRow.id == row_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Row tidak ditemukan")
+    sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.id == row.sheet_id).first()
+
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File terlalu besar (max 5MB)")
+
+    ws_dir = os.path.join(UPLOADS_DIR, "workspace", sheet.project_id, row_id)
+    os.makedirs(ws_dir, exist_ok=True)
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    fname = f"{uuid.uuid4().hex}{ext}"
+    fpath = os.path.join(ws_dir, fname)
+    with open(fpath, "wb") as f:
+        f.write(contents)
+
+    file_url = f"/uploads/workspace/{sheet.project_id}/{row_id}/{fname}"
+    att = WorkspaceAttachment(
+        id=str(uuid.uuid4()),
+        row_id=row_id,
+        column_id=column_id,
+        file_path=file_url,
+        file_name=file.filename or fname,
+        file_type=file.content_type,
+    )
+    db.add(att)
+
+    cell = db.query(WorkspaceCell).filter(WorkspaceCell.row_id == row_id, WorkspaceCell.column_id == column_id).first()
+    if cell:
+        cell.value_text = file_url
+    else:
+        db.add(WorkspaceCell(id=str(uuid.uuid4()), row_id=row_id, column_id=column_id, value_text=file_url))
+    db.commit()
+
+    return {"id": att.id, "file_url": file_url, "file_name": att.file_name}
+
+
+@app.get("/api/workspace/{project_id}/report-data")
+def get_workspace_report_data(project_id: str, month: int = 1, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    lead = db.query(Lead).filter(Lead.id == project.lead_id).first() if project.lead_id else None
+
+    sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.project_id == project_id, WorkspaceSheet.month_number == month).first()
+    if not sheet:
+        raise HTTPException(status_code=404, detail=f"Sheet bulan {month} tidak ditemukan")
+
+    rows = db.query(WorkspaceRow).filter(WorkspaceRow.sheet_id == sheet.id).order_by(WorkspaceRow.row_order).all()
+    cols = db.query(WorkspaceColumn).filter(WorkspaceColumn.sheet_id == sheet.id).all()
+    col_by_id = {c.id: c for c in cols}
+
+    tasks = []
+    screenshots = []
+    total_tasks = len(rows)
+    completed = 0
+
+    for row in rows:
+        cells = db.query(WorkspaceCell).filter(WorkspaceCell.row_id == row.id).all()
+        task = {}
+        for cell in cells:
+            col = col_by_id.get(cell.column_id)
+            if not col:
+                continue
+            if col.column_type == "checkbox":
+                task[col.column_key] = cell.value_bool
+            elif col.column_type == "number":
+                task[col.column_key] = cell.value_number
+            else:
+                task[col.column_key] = cell.value_text
+        if task.get("done"):
+            completed += 1
+        tasks.append(task)
+        if task.get("screenshot"):
+            screenshots.append({"task_name": task.get("task_name", ""), "url": task["screenshot"]})
+
+    by_status: dict[str, int] = {}
+    for t in tasks:
+        s = t.get("status", "To Do") or "To Do"
+        by_status[s] = by_status.get(s, 0) + 1
+
+    artikel_tracker = []
+    if project.service_type == "seo_gmaps":
+        art_sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.project_id == project_id, WorkspaceSheet.sheet_label == "Artikel Tracker").first()
+        if art_sheet:
+            art_rows = db.query(WorkspaceRow).filter(WorkspaceRow.sheet_id == art_sheet.id).all()
+            art_cols = {c.id: c for c in db.query(WorkspaceColumn).filter(WorkspaceColumn.sheet_id == art_sheet.id).all()}
+            for ar in art_rows:
+                art_cells = db.query(WorkspaceCell).filter(WorkspaceCell.row_id == ar.id).all()
+                art_task = {}
+                for ac in art_cells:
+                    acol = art_cols.get(ac.column_id)
+                    if acol:
+                        art_task[acol.column_key] = ac.value_text or ac.value_number
+                artikel_tracker.append(art_task)
+
+    return {
+        "project": {"name": project.name, "service_type": project.service_type, "start_date": project.start_date, "end_date": project.end_date},
+        "contact": {"name": lead.business_name if lead else None, "phone": lead.phone_number if lead else None},
+        "month_number": month,
+        "sheet_label": sheet.sheet_label,
+        "summary": {"total_tasks": total_tasks, "completed_tasks": completed, "completion_pct": round(completed / total_tasks * 100, 1) if total_tasks else 0, "by_status": by_status},
+        "tasks": tasks,
+        "screenshots": screenshots,
+        "artikel_tracker": artikel_tracker,
     }
 
 

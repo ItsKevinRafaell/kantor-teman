@@ -1012,5 +1012,92 @@ else:
 
 conn.commit()
 
+# ---------------------------------------------------------------------------
+# Migrasi: workspace tables
+# ---------------------------------------------------------------------------
+for tbl, ddl in [
+    ("workspace_sheets", """
+        CREATE TABLE workspace_sheets (
+            id VARCHAR(36) PRIMARY KEY,
+            project_id VARCHAR(36) NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            sheet_index INTEGER NOT NULL,
+            sheet_label VARCHAR(100) NOT NULL,
+            service_type VARCHAR(50),
+            month_number INTEGER,
+            created_at VARCHAR(255) NOT NULL,
+            updated_at VARCHAR(255),
+            UNIQUE(project_id, sheet_index)
+        )"""),
+    ("workspace_columns", """
+        CREATE TABLE workspace_columns (
+            id VARCHAR(36) PRIMARY KEY,
+            sheet_id VARCHAR(36) NOT NULL REFERENCES workspace_sheets(id) ON DELETE CASCADE,
+            column_key VARCHAR(100) NOT NULL,
+            column_label VARCHAR(100) NOT NULL,
+            column_type VARCHAR(30) NOT NULL DEFAULT 'text',
+            column_options TEXT,
+            column_order INTEGER NOT NULL DEFAULT 0,
+            is_system BOOLEAN DEFAULT 0,
+            created_at VARCHAR(255) NOT NULL
+        )"""),
+    ("workspace_rows", """
+        CREATE TABLE workspace_rows (
+            id VARCHAR(36) PRIMARY KEY,
+            sheet_id VARCHAR(36) NOT NULL REFERENCES workspace_sheets(id) ON DELETE CASCADE,
+            row_order INTEGER NOT NULL DEFAULT 0,
+            board_card_id VARCHAR(36),
+            is_template BOOLEAN DEFAULT 1,
+            created_at VARCHAR(255) NOT NULL,
+            updated_at VARCHAR(255)
+        )"""),
+    ("workspace_cells", """
+        CREATE TABLE workspace_cells (
+            id VARCHAR(36) PRIMARY KEY,
+            row_id VARCHAR(36) NOT NULL REFERENCES workspace_rows(id) ON DELETE CASCADE,
+            column_id VARCHAR(36) NOT NULL REFERENCES workspace_columns(id) ON DELETE CASCADE,
+            value_text TEXT,
+            value_bool BOOLEAN,
+            value_number REAL,
+            value_date VARCHAR(50),
+            value_json TEXT,
+            updated_at VARCHAR(255),
+            UNIQUE(row_id, column_id)
+        )"""),
+    ("workspace_attachments", """
+        CREATE TABLE workspace_attachments (
+            id VARCHAR(36) PRIMARY KEY,
+            row_id VARCHAR(36) NOT NULL REFERENCES workspace_rows(id) ON DELETE CASCADE,
+            column_id VARCHAR(36) NOT NULL REFERENCES workspace_columns(id) ON DELETE CASCADE,
+            file_path VARCHAR(500) NOT NULL,
+            file_name VARCHAR(255) NOT NULL,
+            file_type VARCHAR(100),
+            uploaded_at VARCHAR(255) NOT NULL
+        )"""),
+]:
+    cur.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{tbl}'")
+    if not cur.fetchone():
+        cur.execute(ddl)
+        print(f"+ tabel {tbl} dibuat")
+    else:
+        print(f"= tabel {tbl} sudah ada, skip")
+
+conn.commit()
+
+# Alter projects: service_type + contract_months
+cur.execute("PRAGMA table_info(projects)")
+proj_cols_ws = {row[1] for row in cur.fetchall()}
+if "service_type" not in proj_cols_ws:
+    cur.execute("ALTER TABLE projects ADD COLUMN service_type VARCHAR(50)")
+    print("+ kolom service_type ditambahkan ke projects")
+else:
+    print("= projects.service_type sudah ada, skip")
+if "contract_months" not in proj_cols_ws:
+    cur.execute("ALTER TABLE projects ADD COLUMN contract_months INTEGER DEFAULT 1")
+    print("+ kolom contract_months ditambahkan ke projects")
+else:
+    print("= projects.contract_months sudah ada, skip")
+
+conn.commit()
+
 conn.close()
 print("Migrasi selesai.")
