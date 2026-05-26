@@ -45,6 +45,7 @@ interface Proposal {
   admin_name?: string;
   accepted_at?: string | null;
   rejected_at?: string | null;
+  discount_expires_at?: string | null;
 }
 
 function formatRupiah(num: number): string {
@@ -141,8 +142,31 @@ export default function ProposalPage() {
   const [acceptNotes, setAcceptNotes] = useState("");
   const [rejectReason, setRejectReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [clientCount, setClientCount] = useState<number>(0);
   const analyticsIdRef = useRef<string | null>(null);
   const lastPingRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    if (!proposal?.discount_expires_at) { setTimeLeft(null); return; }
+    const expiresMs = new Date(proposal.discount_expires_at).getTime();
+    if (isNaN(expiresMs)) { setTimeLeft(null); return; }
+    const tick = () => {
+      const remaining = expiresMs - Date.now();
+      setTimeLeft(remaining > 0 ? remaining : 0);
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [proposal?.discount_expires_at]);
+
+  useEffect(() => {
+    if (!proposal?.slug) return;
+    fetch(`${API_BASE}/api/proposals/${proposal.slug}/social-proof`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.client_count) setClientCount(d.client_count); })
+      .catch(() => {});
+  }, [proposal?.slug]);
 
   async function refreshProposal() {
     const res = await fetch(`${API_BASE}/api/proposals/public/${id}`);
@@ -614,9 +638,31 @@ export default function ProposalPage() {
             </div>
           ) : (
             <>
+              {timeLeft !== null && timeLeft > 0 && (
+                <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4 text-center">
+                  <p className="text-xs font-bold text-red-600 uppercase tracking-wide mb-1">Penawaran berakhir dalam</p>
+                  <p className="text-2xl font-black text-red-700 tabular-nums">
+                    {String(Math.floor(timeLeft / 3600000)).padStart(2, "0")}:{String(Math.floor((timeLeft % 3600000) / 60000)).padStart(2, "0")}:{String(Math.floor((timeLeft % 60000) / 1000)).padStart(2, "0")}
+                  </p>
+                </div>
+              )}
+              {timeLeft === 0 && (
+                <div className="bg-zinc-100 border-2 border-zinc-300 rounded-2xl p-4 text-center">
+                  <p className="text-sm font-bold text-zinc-500">Penawaran telah berakhir.</p>
+                  <p className="text-xs text-zinc-400 mt-1">Hubungi kami untuk perpanjangan.</p>
+                </div>
+              )}
+              {clientCount > 0 && (
+                <div className="text-center py-2">
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400 font-medium">
+                    <span className="mr-1">🤝</span>{clientCount} klien sudah menggunakan layanan ini
+                  </p>
+                </div>
+              )}
               <button
                 onClick={() => setAcceptModal(true)}
-                className="block w-full text-center py-5 px-6 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-black text-lg shadow-md border-b-4 border-amber-700 transition-all duration-200 hover:scale-[1.02]"
+                disabled={timeLeft === 0}
+                className="block w-full text-center py-5 px-6 rounded-2xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 text-white font-black text-lg shadow-md border-b-4 border-amber-700 transition-all duration-200 hover:scale-[1.02]"
               >
                 <span className="inline-flex items-center gap-2.5">
                   <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>

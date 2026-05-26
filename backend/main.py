@@ -3082,7 +3082,14 @@ def get_public_proposal(proposal_id: str, db: Session = Depends(get_db)):
     data["admin_name"] = _get_setting("admin_name", "Admin")
     data["accepted_at"] = proposal.accepted_at
     data["rejected_at"] = proposal.rejected_at
+    data["discount_expires_at"] = proposal.discount_expires_at
     return data
+
+
+@app.get("/api/proposals/{slug}/social-proof")
+def get_proposal_social_proof(slug: str, db: Session = Depends(get_db)):
+    count = db.query(Contact).count()
+    return {"client_count": count}
 
 
 @app.get("/p/{slug}")
