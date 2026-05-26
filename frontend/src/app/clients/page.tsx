@@ -41,6 +41,7 @@ interface ProductItem {
   features: string[];
   category: string | null;
   is_active: boolean;
+  is_retainer?: boolean;
 }
 
 interface ProposalRecord {
@@ -342,6 +343,18 @@ export default function ClientsPage() {
       setEditingProject(null);
       setProjectForm({ name: "", type: "RETAINER", status: "ACTIVE", nominal: 0, start_date: new Date().toISOString().slice(0, 10), end_date: "", service_type: "", contract_months: 1 });
     }
+  }
+
+  function applyProductToProjectForm(productId: string) {
+    if (!productId) return;
+    const p = products.find(x => x.id === productId);
+    if (!p) return;
+    setProjectForm(f => ({
+      ...f,
+      name: p.name,
+      type: p.is_retainer ? "RETAINER" : "FIXED",
+      nominal: p.base_price,
+    }));
   }
 
   async function saveProject() {
@@ -908,6 +921,13 @@ export default function ClientsPage() {
               <button onClick={() => setProjectModal({ open: false, contactId: null })} className="p-1 text-gray-400 hover:text-gray-600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
             </div>
             <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Pilih dari Paket</label>
+                <select onChange={e => applyProductToProjectForm(e.target.value)} className={inputCls} defaultValue="">
+                  <option value="">— Custom (isi manual) —</option>
+                  {products.map(p => <option key={p.id} value={p.id}>{p.name} — {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(p.base_price)}{p.is_retainer ? "/bln" : ""}</option>)}
+                </select>
+              </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Nama Project</label>
                 <input value={projectForm.name} onChange={e => setProjectForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder="Contoh: SEO Bulanan, Landing Page" />
