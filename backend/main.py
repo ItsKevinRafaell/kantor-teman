@@ -1517,6 +1517,8 @@ class ProjectIn(BaseModel):
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     color: Optional[str] = "yellow"
+    service_type: Optional[str] = None
+    contract_months: Optional[int] = None
 
 
 class ProjectOut(BaseModel):
@@ -5509,6 +5511,8 @@ def create_project(body: ProjectIn, current_user: User = Depends(get_current_use
         start_date=body.start_date,
         end_date=body.end_date,
         color=body.color or "yellow",
+        service_type=body.service_type,
+        contract_months=body.contract_months or 1,
     )
     db.add(project)
     db.flush()  # Get project.id without committing
@@ -5532,6 +5536,58 @@ def create_project(body: ProjectIn, current_user: User = Depends(get_current_use
     db.commit()
     db.refresh(project)
     log_audit(db, current_user.name, "CREATE", "projects", project.id, {"name": body.name, "lead_id": body.lead_id})
+
+    # Auto-init workspace if service_type provided
+    if body.service_type and body.service_type in WORKSPACE_TEMPLATES:
+        try:
+            months = body.contract_months or WORKSPACE_TEMPLATES[body.service_type].get("default_months", 1)
+            sheet_defs = build_sheets_for_service(body.service_type, months)
+            now_ws = datetime.now(timezone.utc).isoformat()
+            for idx, sdef in enumerate(sheet_defs):
+                sheet = WorkspaceSheet(
+                    id=str(uuid.uuid4()), project_id=project.id,
+                    sheet_index=idx, sheet_label=sdef["label"],
+                    service_type=body.service_type, month_number=sdef.get("month"),
+                    created_at=now_ws,
+                )
+                db.add(sheet)
+                db.flush()
+                col_map = {}
+                for ci, cdef in enumerate(sdef["columns"]):
+                    col = WorkspaceColumn(
+                        id=str(uuid.uuid4()), sheet_id=sheet.id,
+                        column_key=cdef["key"], column_label=cdef["label"],
+                        column_type=cdef["type"], column_options=json.dumps(cdef.get("options", [])),
+                        column_order=ci, is_system=cdef.get("is_system", False), created_at=now_ws,
+                    )
+                    db.add(col)
+                    db.flush()
+                    col_map[cdef["key"]] = col
+                for ri, rdef in enumerate(sdef.get("default_rows", [])):
+                    row = WorkspaceRow(
+                        id=str(uuid.uuid4()), sheet_id=sheet.id,
+                        row_order=ri, is_template=True, created_at=now_ws,
+                    )
+                    db.add(row)
+                    db.flush()
+                    for key, val in rdef.items():
+                        col = col_map.get(key)
+                        if not col:
+                            continue
+                        cell = WorkspaceCell(id=str(uuid.uuid4()), row_id=row.id, column_id=col.id, updated_at=now_ws)
+                        if col.column_type == "checkbox":
+                            cell.value_bool = bool(val)
+                        elif col.column_type == "number":
+                            cell.value_number = float(val) if val else None
+                        else:
+                            cell.value_text = str(val) if val else None
+                        db.add(cell)
+                    db.flush()
+                    sync_row_to_board(row.id, db)
+            db.commit()
+        except Exception as e:
+            print(f"[AUTO_WORKSPACE] error: {e}", flush=True)
+
     return project
 
 
