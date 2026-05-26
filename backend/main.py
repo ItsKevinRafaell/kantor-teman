@@ -6554,7 +6554,7 @@ def _build_brand_context(db: Session) -> dict:
 TRACKING_PIXEL_PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
 
 
-@app.get("/api/track/pdf-open/{document_id}")
+@app.get("/api/pixel/{document_id}")
 def track_pdf_open(document_id: str):
     return {"ok": True, "tracked": document_id}
 
