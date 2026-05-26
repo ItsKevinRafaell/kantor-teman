@@ -4800,8 +4800,9 @@ def export_leads_csv(current_user: User = Depends(get_current_user), db: Session
     for l in leads:
         writer.writerow([l.id, l.business_name, l.phone_number, l.address or "", l.status, l.product_interest or "", l.batch_name or "", l.rating])
     output.seek(0)
-    return StreamingResponse(
-        iter([output.getvalue()]),
+    from fastapi.responses import Response
+    return Response(
+        content=output.getvalue(),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=leads_export.csv"},
     )
@@ -4816,8 +4817,9 @@ def export_finance_csv(current_user: User = Depends(get_current_user), db: Sessi
     for t in transactions:
         writer.writerow([t.id, t.wallet_id, t.type, t.amount, t.category or "", t.date, t.notes or "", t.lead_id or "", t.is_billed])
     output.seek(0)
-    return StreamingResponse(
-        iter([output.getvalue()]),
+    from fastapi.responses import Response
+    return Response(
+        content=output.getvalue(),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=finance_export.csv"},
     )
@@ -6571,8 +6573,9 @@ def track_pdf_open(document_id: str, db: Session = Depends(get_db)):
         db.commit()
     except Exception:
         pass
-    return StreamingResponse(
-        iter([TRACKING_PIXEL_PNG]),
+    from fastapi.responses import Response
+    return Response(
+        content=TRACKING_PIXEL_PNG,
         media_type="image/png",
         headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
     )
