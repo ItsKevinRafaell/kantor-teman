@@ -2053,6 +2053,16 @@ class ExternalLeadIn(BaseModel):
     product_interest: Optional[str] = None
     source: str = "website_temanumkmkita"
 
+    @field_validator("source")
+    @classmethod
+    def cap_source(cls, v: str) -> str:
+        return v[:64]
+
+    @field_validator("message")
+    @classmethod
+    def cap_message(cls, v: Optional[str]) -> Optional[str]:
+        return v[:500] if v else v
+
 
 PRODUCT_INTEREST_LABELS = {
     "web_development": "Web Development",
@@ -3209,7 +3219,18 @@ def get_public_proposal(proposal_id: str, db: Session = Depends(get_db)):
 @app.get("/api/proposals/{slug}/social-proof")
 def get_proposal_social_proof(slug: str, db: Session = Depends(get_db)):
     count = db.query(Contact).count()
-    return {"client_count": count}
+    # Return banded count to avoid disclosing exact business size
+    if count >= 100:
+        banded = "100+"
+    elif count >= 50:
+        banded = "50+"
+    elif count >= 20:
+        banded = "20+"
+    elif count >= 10:
+        banded = "10+"
+    else:
+        banded = str(count)
+    return {"client_count": count, "client_count_display": banded}
 
 
 @app.get("/p/{slug}")
@@ -6214,7 +6235,7 @@ async def upload_brand_asset_file(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    allowed_ext = {".png", ".jpg", ".jpeg", ".svg", ".webp", ".ico"}
+    allowed_ext = {".png", ".jpg", ".jpeg", ".webp", ".ico"}
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in allowed_ext:
         raise HTTPException(status_code=400, detail=f"Format tidak diizinkan: {ext}")
