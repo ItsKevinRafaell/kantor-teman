@@ -37,6 +37,8 @@ export default function SettingsPage() {
   const [testingCalendar, setTestingCalendar] = useState(false);
   const [cmsUrl, setCmsUrl] = useState("");
   const [cmsApiToken, setCmsApiToken] = useState("");
+  const [externalLeadApiKey, setExternalLeadApiKey] = useState("");
+  const [regeneratingKey, setRegeneratingKey] = useState(false);
   // Content Generator AI (separate from chat proxy)
   const [contentAiBaseUrl, setContentAiBaseUrl] = useState("");
   const [contentAiApiKey, setContentAiApiKey] = useState("");
@@ -76,6 +78,7 @@ export default function SettingsPage() {
       setAdminName(d.admin_name ?? "");
       setCmsUrl(d.cms_url ?? "");
       setCmsApiToken(d.cms_api_token ?? "");
+      setExternalLeadApiKey(d.external_lead_api_key ?? "");
     });
     loadProxies();
   }, [loadProxies]);
@@ -477,6 +480,51 @@ export default function SettingsPage() {
                 <p className="text-xs text-gray-400 mb-3">Bearer token untuk autentikasi ke CMS API.</p>
                 <input type="password" value={cmsApiToken} onChange={(e) => setCmsApiToken(e.target.value)}
                   placeholder="Masukkan CMS API token..." className={inputCls} />
+              </div>
+            </div>
+          </div>
+
+          {/* ── External Lead API (Web Form Integration) ── */}
+          <div className="border-t border-[var(--border-default)] pt-5">
+            <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200 mb-3">External Lead API</h3>
+            <div className="space-y-4">
+              <div>
+                <label className={labelCls}>API Key</label>
+                <p className="text-xs text-gray-400 mb-3">Key untuk validasi POST /api/leads/external dari website eksternal (form kontak temanumkmkita.com).</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={externalLeadApiKey}
+                    readOnly
+                    placeholder="Belum digenerate. Klik Generate untuk membuat."
+                    className={`${inputCls} font-mono text-xs`}
+                  />
+                  <button
+                    onClick={async () => {
+                      setRegeneratingKey(true);
+                      try {
+                        const res = await apiFetch("/api/settings/external-lead-key/regenerate", { method: "POST" });
+                        if (!res.ok) throw new Error("Gagal generate");
+                        const data = await res.json();
+                        setExternalLeadApiKey(data.key);
+                        showToast(externalLeadApiKey ? "API key di-regenerate" : "API key digenerate");
+                      } catch {
+                        showToast("Gagal generate key", "error");
+                      } finally {
+                        setRegeneratingKey(false);
+                      }
+                    }}
+                    disabled={regeneratingKey}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {regeneratingKey ? "..." : externalLeadApiKey ? "Regenerate" : "Generate"}
+                  </button>
+                </div>
+                {externalLeadApiKey && (
+                  <p className="text-[11px] text-amber-600 mt-2">
+                    Regenerate akan invalidate key lama — pastikan update di temanumkmkita backend setelah regenerate.
+                  </p>
+                )}
               </div>
             </div>
           </div>

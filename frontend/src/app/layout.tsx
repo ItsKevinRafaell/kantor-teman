@@ -7,7 +7,7 @@ import { ThemeProvider } from "../components/ThemeProvider";
 export const metadata: Metadata = {
   title: "Kantor Teman",
   description: "CRM pribadi untuk prospek bisnis lokal",
-  icons: { icon: "/logo-brandmark.png", apple: "/icons/icon-152x152.png" },
+  icons: { icon: "/api/favicon", apple: "/api/favicon" },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

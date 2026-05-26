@@ -7,10 +7,11 @@ import csv
 import io
 import httpx
 from search_volume_data import get_monthly_search_volume
-from fastapi import FastAPI, Query, HTTPException, Depends, BackgroundTasks, Request, Body
+from fastapi import FastAPI, Query, HTTPException, Depends, BackgroundTasks, Request, Body, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, List, Any
 import os
@@ -53,6 +54,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "uploads")
+os.makedirs(UPLOADS_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")  # boleh kosong
 PLACES_NEW_SEARCH_URL = os.environ.get("PLACES_NEW_SEARCH_URL", "https://places.googleapis.com/v1/places:searchText")
@@ -177,6 +182,8 @@ class Proposal(Base):
     selected_addons = Column(Text, nullable=True, default="[]")
     timeline_data = Column(Text, nullable=True)
     roi_data = Column(Text, nullable=True)
+    accepted_at = Column(String(255), nullable=True)
+    rejected_at = Column(String(255), nullable=True)
     lead = relationship("Lead", backref="proposals")
 
 
@@ -671,6 +678,52 @@ class Document(Base):
     folder = relationship("DocumentFolder", backref="documents")
 
 
+class BrandKit(Base):
+    __tablename__ = "brand_kits"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    kit_name = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class BrandAsset(Base):
+    __tablename__ = "brand_assets"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    kit_id = Column(String(36), ForeignKey("brand_kits.id"), nullable=False)
+    asset_type = Column(String(50), nullable=False)
+    name = Column(String(255), nullable=False)
+    value = Column(Text, nullable=True)
+    file_url = Column(String(500), nullable=True)
+    position = Column(Integer, default=0)
+    asset_metadata = Column(Text, nullable=True)
+    kit = relationship("BrandKit", backref="assets")
+
+
+class DocumentTemplate(Base):
+    __tablename__ = "document_templates"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(255), nullable=False)
+    type = Column(String(50), nullable=False)
+    html_template = Column(Text, nullable=False)
+    variables = Column(Text, nullable=True, default="[]")
+    is_active = Column(Boolean, default=True)
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class GeneratedDocument(Base):
+    __tablename__ = "generated_documents"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    template_id = Column(String(36), ForeignKey("document_templates.id"), nullable=True)
+    template_name = Column(String(255), nullable=True)
+    target_type = Column(String(50), nullable=True)
+    target_id = Column(String(255), nullable=True)
+    variables_used = Column(Text, nullable=True)
+    file_url = Column(String(500), nullable=True)
+    generated_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    generated_by = Column(String(255), nullable=True)
+    template = relationship("DocumentTemplate", backref="generated_docs")
+
+
 Base.metadata.create_all(bind=engine)
 
 
@@ -1141,6 +1194,7 @@ class SettingsUpdate(BaseModel):
     followup_hour: Optional[str] = None
     cms_url: Optional[str] = None
     cms_api_token: Optional[str] = None
+    external_lead_api_key: Optional[str] = None
 
 
 class UserUpdate(BaseModel):
@@ -1814,7 +1868,7 @@ def update_me(body: UserUpdate, current_user: User = Depends(get_current_user), 
 
 @app.get("/api/settings")
 def get_settings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    keys = ["fonnte_token", "gemini_api_key", "claude_api_key", "openai_api_key", "ai_api_key", "ai_provider", "ai_base_url", "ai_model", "google_api_key", "google_calendar_id", "google_service_account_json", "admin_wa", "admin_name", "followup_enabled", "followup_hour", "cms_url", "cms_api_token"]
+    keys = ["fonnte_token", "gemini_api_key", "claude_api_key", "openai_api_key", "ai_api_key", "ai_provider", "ai_base_url", "ai_model", "google_api_key", "google_calendar_id", "google_service_account_json", "admin_wa", "admin_name", "followup_enabled", "followup_hour", "cms_url", "cms_api_token", "external_lead_api_key"]
     result = {}
     for k in keys:
         row = db.query(SystemSettings).filter_by(key=k).first()
@@ -1844,6 +1898,7 @@ def update_settings(body: SettingsUpdate, current_user: User = Depends(get_curre
         "followup_hour": body.followup_hour,
         "cms_url": body.cms_url,
         "cms_api_token": body.cms_api_token,
+        "external_lead_api_key": body.external_lead_api_key,
     }
     for key, value in settings_map.items():
         if value is not None:
@@ -1854,6 +1909,91 @@ def update_settings(body: SettingsUpdate, current_user: User = Depends(get_curre
                 db.add(SystemSettings(key=key, value=value))
     db.commit()
     return {"ok": True}
+
+
+@app.post("/api/settings/external-lead-key/regenerate")
+def regenerate_external_lead_key(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    new_key = str(uuid.uuid4())
+    row = db.query(SystemSettings).filter_by(key="external_lead_api_key").first()
+    if row:
+        row.value = new_key
+    else:
+        db.add(SystemSettings(key="external_lead_api_key", value=new_key))
+    db.commit()
+    return {"key": new_key}
+
+
+def _normalize_phone(phone: str) -> str:
+    digits = "".join(c for c in phone if c.isdigit())
+    if digits.startswith("0"):
+        digits = "62" + digits[1:]
+    elif digits.startswith("8"):
+        digits = "62" + digits
+    return digits
+
+
+class ExternalLeadIn(BaseModel):
+    business_name: str
+    phone_number: str
+    email: Optional[str] = None
+    message: Optional[str] = None
+    product_interest: Optional[str] = None
+    source: str = "website_temanumkmkita"
+
+
+@app.post("/api/leads/external", status_code=201)
+def create_external_lead(request: Request, body: ExternalLeadIn, db: Session = Depends(get_db)):
+    import threading, httpx as _httpx
+
+    api_key = request.headers.get("X-API-Key", "")
+    stored_key = _get_setting("external_lead_api_key", "")
+    if not stored_key or api_key != stored_key:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    phone = _normalize_phone(body.phone_number)
+
+    existing = db.query(Lead).filter(Lead.phone_number == phone).first()
+
+    if existing:
+        note_text = f"[{body.source}] {body.message or ''} (duplikat {datetime.now(timezone.utc).strftime('%Y-%m-%d')})"
+        existing.batch_name = (existing.batch_name or "") + f" | {note_text}"
+        if existing.status == "Scraped":
+            existing.status = "Replied"
+        db.commit()
+        return {"lead_id": existing.id, "success": True, "duplicate": True}
+
+    lead = Lead(
+        business_name=body.business_name,
+        phone_number=phone,
+        status="Replied",
+        product_interest=body.product_interest or "",
+        batch_name="Web Form",
+        lead_score=70,
+    )
+    db.add(lead)
+    db.commit()
+    db.refresh(lead)
+
+    fonnte_token = get_fonnte_token(db)
+    admin_wa = _get_setting("admin_wa", ADMIN_WA)
+    msg = (
+        f"🔥 *Lead baru dari website!*\n\n"
+        f"Nama: *{body.business_name}*\n"
+        f"WA: {phone}\n"
+        f"Layanan: {body.product_interest or '-'}\n"
+        f"Email: {body.email or '-'}\n"
+        f"Sumber: {body.source}\n"
+    )
+    if body.message:
+        msg += f"\nPesan: {body.message}"
+
+    threading.Thread(
+        target=_send_fonnte_sync,
+        args=(admin_wa, msg, fonnte_token, _httpx),
+        daemon=True,
+    ).start()
+
+    return {"lead_id": lead.id, "success": True, "duplicate": False}
 
 
 @app.post("/api/admin/seed")
@@ -2845,6 +2985,8 @@ def get_public_proposal(proposal_id: str, db: Session = Depends(get_db)):
     data = out.model_dump() if hasattr(out, "model_dump") else out.__dict__
     data["admin_wa"] = _get_setting("admin_wa", ADMIN_WA)
     data["admin_name"] = _get_setting("admin_name", "Admin")
+    data["accepted_at"] = proposal.accepted_at
+    data["rejected_at"] = proposal.rejected_at
     return data
 
 
@@ -2975,9 +3117,123 @@ def get_public_proposal_by_slug(slug: str, db: Session = Depends(get_db)):
         "additional_options": proposal.additional_options,
         "status": proposal.status,
         "created_at": proposal.created_at,
+        "accepted_at": proposal.accepted_at,
+        "rejected_at": proposal.rejected_at,
         "competitor_count": competitor_count,
         "timeline_data": sorted(json.loads(proposal.timeline_data), key=lambda x: x["sequence"]) if proposal.timeline_data else [],
     }
+
+
+class ProposalAcceptIn(BaseModel):
+    client_name: str
+    client_phone: str
+    accept_notes: Optional[str] = None
+
+
+class ProposalRejectIn(BaseModel):
+    reason: Optional[str] = None
+
+
+def _detect_project_type(services: list) -> str:
+    for s in services:
+        if s.get("is_retainer"):
+            return "RETAINER"
+        name = (s.get("name") or "").lower()
+        if any(k in name for k in ["bulanan", "retainer", "maintenance", "kelola", "seo"]):
+            return "RETAINER"
+    return "FIXED"
+
+
+@app.post("/api/proposals/public/{slug}/accept")
+def accept_proposal(slug: str, body: ProposalAcceptIn, db: Session = Depends(get_db)):
+    import threading, httpx as _httpx
+
+    proposal = db.query(Proposal).filter(Proposal.slug == slug).first()
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal tidak ditemukan")
+    if proposal.status == "accepted":
+        project = db.query(Project).filter(Project.lead_id == proposal.lead_id).order_by(Project.id.desc()).first()
+        return {"success": True, "project_id": project.id if project else None, "already_accepted": True}
+    if proposal.status == "rejected":
+        raise HTTPException(status_code=400, detail="Proposal sudah ditolak")
+
+    lead = db.query(Lead).filter(Lead.id == proposal.lead_id).first()
+    now = datetime.now(timezone.utc).isoformat()
+
+    proposal.status = "accepted"
+    proposal.accepted_at = now
+
+    if lead and lead.status not in ("Closed/Client", "Active Client"):
+        lead.status = "Closed/Client"
+
+    services = json.loads(proposal.services_detail) if proposal.services_detail else []
+    project_type = _detect_project_type(services)
+    active_price = proposal.discount_price or proposal.total_price
+    business_name = lead.business_name if lead else body.client_name
+    service_names = ", ".join(s.get("name", "") for s in services[:2])
+    project_name = f"{service_names} — {business_name}" if service_names else f"Project {business_name}"
+
+    project = Project(
+        id=str(uuid.uuid4()),
+        lead_id=proposal.lead_id,
+        name=project_name,
+        type=project_type,
+        status="ACTIVE",
+        nominal=active_price,
+        start_date=now[:10],
+        color="yellow",
+    )
+    db.add(project)
+    db.flush()
+
+    board = Board(id=str(uuid.uuid4()), project_id=project.id)
+    db.add(board)
+    db.flush()
+
+    for i, (col_name, col_color) in enumerate([("To Do", "yellow"), ("In Progress", "blue"), ("Review", "purple"), ("Done", "green")]):
+        db.add(BoardColumn(id=str(uuid.uuid4()), board_id=board.id, name=col_name, position=i, color=col_color))
+
+    db.commit()
+
+    fonnte_token = get_fonnte_token(db)
+    admin_wa = _get_setting("admin_wa", ADMIN_WA)
+    msg = (
+        f"✅ *Proposal Diterima!*\n\n"
+        f"Klien: *{business_name}*\n"
+        f"Nama: {body.client_name}\n"
+        f"WA: {body.client_phone}\n"
+        f"Layanan: {service_names or '-'}\n"
+        f"Nilai: Rp {int(active_price):,}\n"
+        f"Tipe: {project_type}\n"
+        f"Project ID: {project.id[:8]}...\n\n"
+        f"Project & board sudah dibuat otomatis."
+    )
+    if body.accept_notes:
+        msg += f"\n\nCatatan klien: {body.accept_notes}"
+
+    threading.Thread(
+        target=_send_fonnte_sync,
+        args=(admin_wa, msg, fonnte_token, _httpx),
+        daemon=True,
+    ).start()
+
+    return {"success": True, "project_id": project.id, "already_accepted": False}
+
+
+@app.post("/api/proposals/public/{slug}/reject")
+def reject_proposal(slug: str, body: ProposalRejectIn, db: Session = Depends(get_db)):
+    proposal = db.query(Proposal).filter(Proposal.slug == slug).first()
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal tidak ditemukan")
+    if proposal.status == "rejected":
+        return {"success": True, "already_rejected": True}
+    if proposal.status == "accepted":
+        raise HTTPException(status_code=400, detail="Proposal sudah diterima")
+
+    proposal.status = "rejected"
+    proposal.rejected_at = datetime.now(timezone.utc).isoformat()
+    db.commit()
+    return {"success": True, "already_rejected": False}
 
 
 @app.get("/api/proposals/public/report/{slug}")
@@ -5573,6 +5829,171 @@ def delete_document(doc_id: str, current_user: User = Depends(get_current_user),
     log_audit(db, current_user.name, "DELETE", "client_documents", doc_id, {"title": doc.title})
     db.delete(doc)
     db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Brand Kit
+# ---------------------------------------------------------------------------
+
+class BrandKitUpdate(BaseModel):
+    kit_name: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class BrandAssetIn(BaseModel):
+    asset_type: str
+    name: str
+    value: Optional[str] = None
+    file_url: Optional[str] = None
+    position: Optional[int] = 0
+    asset_metadata: Optional[str] = None
+
+
+def _serialize_kit(kit: BrandKit, db: Session) -> dict:
+    assets = db.query(BrandAsset).filter(BrandAsset.kit_id == kit.id).order_by(BrandAsset.asset_type, BrandAsset.position).all()
+    return {
+        "id": kit.id,
+        "kit_name": kit.kit_name,
+        "is_active": kit.is_active,
+        "created_at": kit.created_at,
+        "assets": [
+            {
+                "id": a.id,
+                "asset_type": a.asset_type,
+                "name": a.name,
+                "value": a.value,
+                "file_url": a.file_url,
+                "position": a.position,
+                "asset_metadata": a.asset_metadata,
+            }
+            for a in assets
+        ],
+    }
+
+
+def _get_active_kit(db: Session) -> BrandKit:
+    kit = db.query(BrandKit).filter(BrandKit.is_active == True).first()
+    if not kit:
+        kit = db.query(BrandKit).first()
+    if not kit:
+        raise HTTPException(status_code=404, detail="Brand kit tidak ditemukan")
+    return kit
+
+
+@app.get("/api/brand-kit")
+def get_brand_kit(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return _serialize_kit(_get_active_kit(db), db)
+
+
+@app.get("/api/brand-kit/public")
+def get_brand_kit_public(db: Session = Depends(get_db)):
+    return _serialize_kit(_get_active_kit(db), db)
+
+
+@app.put("/api/brand-kit")
+def update_brand_kit(body: BrandKitUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    kit = _get_active_kit(db)
+    if body.kit_name is not None:
+        kit.kit_name = body.kit_name
+    if body.is_active is not None:
+        kit.is_active = body.is_active
+    db.commit()
+    return _serialize_kit(kit, db)
+
+
+@app.post("/api/brand-assets", status_code=201)
+def create_brand_asset(body: BrandAssetIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    kit = _get_active_kit(db)
+    asset = BrandAsset(
+        id=str(uuid.uuid4()),
+        kit_id=kit.id,
+        asset_type=body.asset_type,
+        name=body.name,
+        value=body.value,
+        file_url=body.file_url,
+        position=body.position or 0,
+        asset_metadata=body.asset_metadata,
+    )
+    db.add(asset)
+    db.commit()
+    db.refresh(asset)
+    return {"id": asset.id, "asset_type": asset.asset_type, "name": asset.name, "value": asset.value, "file_url": asset.file_url, "position": asset.position, "asset_metadata": asset.asset_metadata}
+
+
+@app.put("/api/brand-assets/{asset_id}")
+def update_brand_asset(asset_id: str, body: BrandAssetIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    asset = db.query(BrandAsset).filter(BrandAsset.id == asset_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset tidak ditemukan")
+    asset.asset_type = body.asset_type
+    asset.name = body.name
+    asset.value = body.value
+    asset.file_url = body.file_url
+    asset.position = body.position or 0
+    asset.asset_metadata = body.asset_metadata
+    db.commit()
+    return {"id": asset.id, "asset_type": asset.asset_type, "name": asset.name, "value": asset.value, "file_url": asset.file_url, "position": asset.position, "asset_metadata": asset.asset_metadata}
+
+
+@app.delete("/api/brand-assets/{asset_id}", status_code=204)
+def delete_brand_asset(asset_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    asset = db.query(BrandAsset).filter(BrandAsset.id == asset_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset tidak ditemukan")
+    db.delete(asset)
+    db.commit()
+
+
+@app.post("/api/brand-assets/upload")
+async def upload_brand_asset_file(
+    file: UploadFile = File(...),
+    asset_type: str = Form(...),
+    name: str = Form(...),
+    asset_id: Optional[str] = Form(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    allowed_ext = {".png", ".jpg", ".jpeg", ".svg", ".webp", ".ico"}
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in allowed_ext:
+        raise HTTPException(status_code=400, detail=f"Format tidak diizinkan: {ext}")
+
+    contents = await file.read()
+    if len(contents) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File terlalu besar (max 2MB)")
+
+    brand_dir = os.path.join(UPLOADS_DIR, "brand")
+    os.makedirs(brand_dir, exist_ok=True)
+    fname = f"{uuid.uuid4().hex}{ext}"
+    fpath = os.path.join(brand_dir, fname)
+    with open(fpath, "wb") as f:
+        f.write(contents)
+
+    file_url = f"/uploads/brand/{fname}"
+    kit = _get_active_kit(db)
+
+    if asset_id:
+        asset = db.query(BrandAsset).filter(BrandAsset.id == asset_id).first()
+        if not asset:
+            raise HTTPException(status_code=404, detail="Asset tidak ditemukan")
+        asset.file_url = file_url
+        asset.name = name
+        asset.asset_type = asset_type
+        db.commit()
+        return {"id": asset.id, "file_url": file_url, "name": name, "asset_type": asset_type}
+
+    asset = BrandAsset(
+        id=str(uuid.uuid4()),
+        kit_id=kit.id,
+        asset_type=asset_type,
+        name=name,
+        file_url=file_url,
+        position=0,
+    )
+    db.add(asset)
+    db.commit()
+    db.refresh(asset)
+    return {"id": asset.id, "file_url": file_url, "name": name, "asset_type": asset_type}
 
 
 # ---------------------------------------------------------------------------

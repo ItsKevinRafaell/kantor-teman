@@ -391,6 +391,18 @@ if "timeline_data" not in proposal_cols_2:
 else:
     print("= timeline_data sudah ada di proposals, skip")
 
+if "accepted_at" not in proposal_cols_2:
+    cur.execute("ALTER TABLE proposals ADD COLUMN accepted_at VARCHAR(255)")
+    print("+ kolom accepted_at ditambahkan ke proposals")
+else:
+    print("= accepted_at sudah ada di proposals, skip")
+
+if "rejected_at" not in proposal_cols_2:
+    cur.execute("ALTER TABLE proposals ADD COLUMN rejected_at VARCHAR(255)")
+    print("+ kolom rejected_at ditambahkan ke proposals")
+else:
+    print("= rejected_at sudah ada di proposals, skip")
+
 # ---------------------------------------------------------------------------
 # Migrasi leads: tambah kolom lead_score
 # ---------------------------------------------------------------------------
@@ -728,5 +740,64 @@ elif users_cols:
     print("= users.role sudah ada, skip")
 
 conn.commit()
+
+# ---------------------------------------------------------------------------
+# Migrasi: brand_kits + brand_assets tables
+# ---------------------------------------------------------------------------
+cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='brand_kits'")
+if not cur.fetchone():
+    cur.execute("""
+        CREATE TABLE brand_kits (
+            id VARCHAR(36) PRIMARY KEY,
+            kit_name VARCHAR(255) NOT NULL,
+            is_active BOOLEAN DEFAULT 1,
+            created_at VARCHAR(255) NOT NULL
+        )
+    """)
+    print("+ tabel brand_kits dibuat")
+else:
+    print("= tabel brand_kits sudah ada, skip")
+
+cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='brand_assets'")
+if not cur.fetchone():
+    cur.execute("""
+        CREATE TABLE brand_assets (
+            id VARCHAR(36) PRIMARY KEY,
+            kit_id VARCHAR(36) NOT NULL REFERENCES brand_kits(id),
+            asset_type VARCHAR(50) NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            value TEXT,
+            file_url VARCHAR(500),
+            position INTEGER DEFAULT 0,
+            asset_metadata TEXT
+        )
+    """)
+    print("+ tabel brand_assets dibuat")
+else:
+    print("= tabel brand_assets sudah ada, skip")
+
+conn.commit()
+
+# Seed default brand kit
+cur.execute("SELECT id FROM brand_kits LIMIT 1")
+if not cur.fetchone():
+    import uuid as _uuid
+    kit_id = str(_uuid.uuid4())
+    cur.execute("INSERT INTO brand_kits (id, kit_name, is_active, created_at) VALUES (?, ?, 1, ?)",
+                (kit_id, "Teman UMKM Kita", "2026-05-26T00:00:00+00:00"))
+    default_assets = [
+        (str(_uuid.uuid4()), kit_id, "color", "Optimism Yellow", "#f5a700", None, 0, None),
+        (str(_uuid.uuid4()), kit_id, "color", "Dark Charcoal", "#242423", None, 1, None),
+        (str(_uuid.uuid4()), kit_id, "color", "Pure Snow", "#fcfaf7", None, 2, None),
+        (str(_uuid.uuid4()), kit_id, "font", "Heading Font", "Fredoka", None, 0, '{"weight":"700","fallback":"sans-serif"}'),
+        (str(_uuid.uuid4()), kit_id, "font", "Body Font", "Poppins", None, 1, '{"weight":"400","fallback":"sans-serif"}'),
+        (str(_uuid.uuid4()), kit_id, "tagline", "Tagline", "Sahabat Digital, UMKM Makin Maju.", None, 0, None),
+    ]
+    cur.executemany("INSERT INTO brand_assets (id, kit_id, asset_type, name, value, file_url, position, asset_metadata) VALUES (?,?,?,?,?,?,?,?)", default_assets)
+    conn.commit()
+    print(f"+ seed brand kit 'Teman UMKM Kita' + {len(default_assets)} assets")
+else:
+    print("= brand kit sudah ada, skip seed")
+
 conn.close()
 print("Migrasi selesai.")
