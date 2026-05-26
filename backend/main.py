@@ -3506,6 +3506,48 @@ def _detect_project_type(services: list) -> str:
     return "FIXED"
 
 
+def _detect_service_type(services: list) -> Optional[str]:
+    for s in services:
+        name = (s.get("name") or "").lower()
+        if any(k in name for k in ["web dev", "website", "landing page", "company profile"]):
+            return "web_dev_bulanan" if "bulanan" in name else "web_dev"
+        if any(k in name for k in ["seo", "google maps", "gmaps", "google business"]):
+            return "seo_gmaps"
+        if any(k in name for k in ["sosial media", "sosmed", "kelola", "instagram", "tiktok", "facebook"]):
+            return "sosmed"
+        if "maintenance" in name:
+            return "maintenance"
+        if any(k in name for k in ["logo", "branding", "desain", "identitas visual"]):
+            return "branding"
+    return None
+
+
+def _detect_contract_months(proposal, services: list) -> int:
+    if proposal.roi_data:
+        try:
+            roi = json.loads(proposal.roi_data) if isinstance(proposal.roi_data, str) else proposal.roi_data
+            if roi.get("retainer_period"):
+                return int(roi["retainer_period"])
+            if roi.get("comparison_period"):
+                return int(roi["comparison_period"])
+        except Exception:
+            pass
+    if proposal.timeline_data:
+        try:
+            tl = json.loads(proposal.timeline_data) if isinstance(proposal.timeline_data, str) else proposal.timeline_data
+            if tl:
+                return max(1, len(tl))
+        except Exception:
+            pass
+    for s in services:
+        name = (s.get("name") or "").lower()
+        if "seo" in name or "sosmed" in name or "kelola" in name:
+            return 6
+        if "maintenance" in name:
+            return 1
+    return 2
+
+
 @app.post("/api/proposals/public/{slug}/accept")
 def accept_proposal(slug: str, body: ProposalAcceptIn, db: Session = Depends(get_db)):
     import threading, httpx as _httpx
@@ -3530,6 +3572,8 @@ def accept_proposal(slug: str, body: ProposalAcceptIn, db: Session = Depends(get
 
     services = json.loads(proposal.services_detail) if proposal.services_detail else []
     project_type = _detect_project_type(services)
+    detected_service_type = _detect_service_type(services)
+    detected_months = _detect_contract_months(proposal, services)
     active_price = proposal.discount_price or proposal.total_price
     business_name = lead.business_name if lead else body.client_name
     service_names = ", ".join(s.get("name", "") for s in services[:2])
@@ -3544,6 +3588,8 @@ def accept_proposal(slug: str, body: ProposalAcceptIn, db: Session = Depends(get
         nominal=active_price,
         start_date=now[:10],
         color="yellow",
+        service_type=detected_service_type,
+        contract_months=detected_months,
     )
     db.add(project)
     db.flush()
@@ -3556,6 +3602,55 @@ def accept_proposal(slug: str, body: ProposalAcceptIn, db: Session = Depends(get
         db.add(BoardColumn(id=str(uuid.uuid4()), board_id=board.id, name=col_name, position=i, color=col_color))
 
     db.commit()
+
+    # Auto-init workspace if service_type detected
+    if detected_service_type and detected_service_type in WORKSPACE_TEMPLATES:
+        try:
+            sheet_defs = build_sheets_for_service(detected_service_type, detected_months)
+            now_ws = datetime.now(timezone.utc).isoformat()
+            for idx, sdef in enumerate(sheet_defs):
+                sheet = WorkspaceSheet(
+                    id=str(uuid.uuid4()), project_id=project.id,
+                    sheet_index=idx, sheet_label=sdef["label"],
+                    service_type=detected_service_type, month_number=sdef.get("month"),
+                    created_at=now_ws,
+                )
+                db.add(sheet)
+                db.flush()
+                col_map = {}
+                for ci, cdef in enumerate(sdef["columns"]):
+                    col = WorkspaceColumn(
+                        id=str(uuid.uuid4()), sheet_id=sheet.id,
+                        column_key=cdef["key"], column_label=cdef["label"],
+                        column_type=cdef["type"], column_options=json.dumps(cdef.get("options", [])),
+                        column_order=ci, is_system=cdef.get("is_system", False), created_at=now_ws,
+                    )
+                    db.add(col)
+                    db.flush()
+                    col_map[cdef["key"]] = col
+                for ri, rdef in enumerate(sdef.get("default_rows", [])):
+                    row = WorkspaceRow(id=str(uuid.uuid4()), sheet_id=sheet.id, row_order=ri, is_template=True, created_at=now_ws)
+                    db.add(row)
+                    db.flush()
+                    for key, val in rdef.items():
+                        col = col_map.get(key)
+                        if not col:
+                            continue
+                        cell = WorkspaceCell(id=str(uuid.uuid4()), row_id=row.id, column_id=col.id, updated_at=now_ws)
+                        if col.column_type == "checkbox":
+                            cell.value_bool = bool(val)
+                        elif col.column_type == "number":
+                            cell.value_number = float(val) if val else None
+                        else:
+                            cell.value_text = str(val) if val else None
+                        db.add(cell)
+                    db.flush()
+                    sync_row_to_board(row.id, db)
+            db.commit()
+        except Exception as e:
+            print(f"[ACCEPT_AUTO_WORKSPACE] error: {e}", flush=True)
+            try: db.rollback()
+            except Exception: pass
 
     fonnte_token = get_fonnte_token(db)
     admin_wa = _get_setting("admin_wa", ADMIN_WA)
