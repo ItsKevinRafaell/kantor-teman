@@ -1647,26 +1647,64 @@ def make_wa_url(phone_digits: str) -> str:
     return f"https://wa.me/{phone_digits}"
 
 
-def calculate_lead_score(has_website: bool, google_rating: Optional[float], user_ratings_total: Optional[int], has_phone: bool) -> int:
-    points = 0
-    if not has_website:
-        points += 3
-    if google_rating is None or google_rating < 4.0:
-        points += 2
-    if user_ratings_total is None or user_ratings_total < 10:
-        points += 2
-    if has_phone:
-        points += 3
-    points = min(points, 10)
-    if points >= 8:
-        return 5
-    elif points >= 6:
-        return 4
-    elif points >= 4:
-        return 3
-    elif points >= 2:
-        return 2
-    return 1
+def calculate_lead_score(lead) -> tuple[int, dict]:
+    score = 50
+    breakdown: dict[str, int] = {}
+
+    # Google rating
+    if lead.google_rating is not None:
+        if lead.google_rating >= 4.5:
+            score += 15; breakdown["Rating ≥4.5"] = 15
+        elif lead.google_rating >= 4.0:
+            score += 10; breakdown["Rating 4.0-4.4"] = 10
+        elif lead.google_rating >= 3.5:
+            score += 5; breakdown["Rating 3.5-3.9"] = 5
+        else:
+            score -= 10; breakdown["Rating <3.5"] = -10
+
+    # Review count
+    rc = lead.review_count or 0
+    if rc > 100:
+        score += 15; breakdown["Reviews >100"] = 15
+    elif rc >= 20:
+        score += 10; breakdown["Reviews 20-100"] = 10
+
+    # Website vs product interest
+    has_website = bool(lead.website_url)
+    pi = (lead.product_interest or "").lower()
+    if has_website:
+        if any(k in pi for k in ["seo", "maintenance"]):
+            score += 5; breakdown["Has website (SEO/Maintenance)"] = 5
+        else:
+            score -= 5; breakdown["Has website"] = -5
+    else:
+        if "web" in pi:
+            score += 10; breakdown["No website (WebDev)"] = 10
+
+    # Batch source
+    bn = (lead.batch_name or "").lower()
+    if "web form" in bn:
+        score += 20; breakdown["Web Form (warm)"] = 20
+    elif any(k in bn for k in ["scrape", "maps", "gmaps", "·"]):
+        score -= 5; breakdown["Maps scraper (cold)"] = -5
+
+    # Status
+    if lead.status == "Replied":
+        score += 15; breakdown["Status: Replied"] = 15
+    elif lead.status == "Contacted":
+        score -= 10; breakdown["Status: Contacted (no reply)"] = -10
+
+    # Tier 1 city
+    addr = (lead.address or "").lower()
+    if any(city in addr for city in ["jakarta", "surabaya", "bandung", "bali", "denpasar"]):
+        score += 5; breakdown["Tier 1 city"] = 5
+
+    # High-budget industry
+    name_upper = (lead.business_name or "").upper()
+    if any(k in name_upper for k in ["PT ", "PT.", " CV ", "CV.", "GROUP", "GRUP"]):
+        score += 10; breakdown["PT/CV/Group"] = 10
+
+    return max(0, min(100, score)), breakdown
 
 
 def generate_batch_name(category: str, location: str) -> str:
@@ -1971,6 +2009,8 @@ def create_external_lead(request: Request, body: ExternalLeadIn, db: Session = D
         lead_score=70,
     )
     db.add(lead)
+    db.flush()
+    lead.lead_score, _ = calculate_lead_score(lead)
     db.commit()
     db.refresh(lead)
 
@@ -2311,16 +2351,13 @@ async def search_businesses(
                     latitude = location_data.get("latitude") if location_data else None
                     longitude = location_data.get("longitude") if location_data else None
                     if phone_digits and not db.query(Lead).filter(Lead.phone_number == phone_digits).first():
-                        score = calculate_lead_score(
-                            has_website=bool(website),
-                            google_rating=google_rating,
-                            user_ratings_total=user_ratings_total,
-                            has_phone=True,
-                        )
-                        db.add(Lead(business_name=name, phone_number=phone_digits, address=address,
+                        new_lead = Lead(business_name=name, phone_number=phone_digits, address=address,
                                     original_url=wa_url, product_interest=product_interest, batch_name=batch,
-                                    rating=score, website_url=website, google_rating=google_rating,
-                                    review_count=user_ratings_total, latitude=latitude, longitude=longitude))
+                                    website_url=website, google_rating=google_rating,
+                                    review_count=user_ratings_total, latitude=latitude, longitude=longitude)
+                        db.add(new_lead)
+                        db.flush()
+                        new_lead.lead_score, _ = calculate_lead_score(new_lead)
                         db.commit()
                     results.append(Business(name=name, address=address, phone=raw_phone, whatsapp_url=wa_url,
                                             google_rating=google_rating, review_count=user_ratings_total, website_url=website))
@@ -2569,6 +2606,8 @@ def update_lead(lead_id: int, body: LeadEdit, current_user: User = Depends(get_c
         lead.batch_name = body.batch_name
     db.commit()
     db.refresh(lead)
+    lead.lead_score, _ = calculate_lead_score(lead)
+    db.commit()
     if changes:
         log_audit(db, current_user.name, "UPDATE", "leads", lead_id, changes)
     return lead
@@ -2600,6 +2639,50 @@ def get_batches(current_user: User = Depends(get_current_user), db: Session = De
     return [r for r in rows if r]
 
 
+@app.post("/api/leads/recalculate-scores")
+def recalculate_all_scores(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    leads = db.query(Lead).filter(Lead.is_archived == False).all()
+    updated = 0
+    for lead in leads:
+        new_score, _ = calculate_lead_score(lead)
+        if lead.lead_score != new_score:
+            lead.lead_score = new_score
+            updated += 1
+    db.commit()
+    return {"total": len(leads), "updated": updated}
+
+
+@app.post("/api/leads/{lead_id}/recalculate")
+def recalculate_lead_score(lead_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
+    score, breakdown = calculate_lead_score(lead)
+    lead.lead_score = score
+    db.commit()
+    return {"lead_id": lead_id, "score": score, "breakdown": breakdown}
+
+
+@app.get("/api/leads/top-scored")
+def get_top_scored_leads(limit: int = 10, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    leads = db.query(Lead).filter(
+        Lead.is_archived == False,
+        Lead.status.notin_(["Closed/Client", "Closed/Lost"]),
+    ).order_by(Lead.lead_score.desc()).limit(limit).all()
+    return [
+        {
+            "id": l.id,
+            "business_name": l.business_name,
+            "phone_number": l.phone_number,
+            "lead_score": l.lead_score,
+            "status": l.status,
+            "product_interest": l.product_interest,
+            "address": l.address,
+        }
+        for l in leads
+    ]
+
+
 @app.patch("/api/leads/{lead_id}/status", response_model=LeadOut)
 def update_lead_status(lead_id: int, body: StatusUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if body.status not in VALID_STATUSES:
@@ -2611,6 +2694,8 @@ def update_lead_status(lead_id: int, body: StatusUpdate, current_user: User = De
     lead.status = body.status
     db.commit()
     db.refresh(lead)
+    lead.lead_score, _ = calculate_lead_score(lead)
+    db.commit()
     log_audit(db, current_user.name, "UPDATE", "leads", lead_id, {"field": "status", "old": old_status, "new": body.status})
     return lead
 

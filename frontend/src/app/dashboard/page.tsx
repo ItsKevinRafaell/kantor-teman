@@ -42,6 +42,7 @@ export default function DashboardPage() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [hotLeads, setHotLeads] = useState<{ lead_id: number; business_name: string; phone_number: string; category: string | null; status: string; last_active: string; total_opens: number; proposal_slug: string | null }[]>([]);
+  const [topScoredLeads, setTopScoredLeads] = useState<{ id: number; business_name: string; phone_number: string; lead_score: number; status: string; product_interest: string | null; address: string | null }[]>([]);
   const [alerts, setAlerts] = useState<{ id: string; lead_id: number; business_name: string; phone_number: string; category: string | null; triggered_at: string; days_since_first_view: number; proposal_slug: string | null }[]>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -65,6 +66,10 @@ export default function DashboardPage() {
     apiFetch("/api/alerts/reengagement")
       .then((r) => r.ok ? r.json() : null)
       .then((data) => { if (data) setAlerts(data); })
+      .catch(() => {});
+    apiFetch("/api/leads/top-scored?limit=10")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setTopScoredLeads(data); })
       .catch(() => {});
   }, [router]);
 
@@ -134,6 +139,50 @@ export default function DashboardPage() {
                 </a>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Hot Leads by Score */}
+      {topScoredLeads.length > 0 && (
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🔥</span>
+              <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Top Leads by Score</h2>
+            </div>
+            <span className="text-[10px] text-neutral-400 uppercase tracking-wide font-bold">{topScoredLeads.length} prioritas</span>
+          </div>
+          <div className="space-y-2 max-h-72 overflow-y-auto">
+            {topScoredLeads.map((lead) => {
+              const score = lead.lead_score ?? 0;
+              const color = score >= 71 ? "bg-green-500" : score >= 41 ? "bg-orange-500" : "bg-red-500";
+              const tier = score >= 80 ? "🔥" : score >= 50 ? "🌤️" : "❄️";
+              const waMsg = `Halo ${lead.business_name}, saya dari Teman UMKM Kita. Ingin diskusi soal kebutuhan ${lead.product_interest || "digital"} bisnis Anda. Apakah ada waktu sebentar?`;
+              return (
+                <div key={lead.id} className="flex items-center justify-between py-2 px-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-700">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <span className="text-lg shrink-0">{tier}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">{lead.business_name}</p>
+                        <span className="text-xs font-bold tabular-nums text-neutral-600 dark:text-neutral-400">{score}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="h-1 w-24 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <div className={`h-full ${color}`} style={{ width: `${score}%` }}></div>
+                        </div>
+                        <p className="text-[10px] text-neutral-400 truncate">{lead.product_interest || "—"} · {lead.status}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <a href={`https://wa.me/${lead.phone_number}?text=${encodeURIComponent(waMsg)}`} target="_blank" rel="noopener noreferrer"
+                    className="ml-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg transition-colors whitespace-nowrap shrink-0">
+                    Follow Up
+                  </a>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

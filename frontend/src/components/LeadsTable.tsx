@@ -48,6 +48,8 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<Status | "">("");
   const [filterBatch, setFilterBatch] = useState(initialBatch || "");
+  const [filterScore, setFilterScore] = useState<"hot" | "warm" | "cold" | "">("");
+  const [recalculating, setRecalculating] = useState(false);
   const [batches, setBatches] = useState<string[]>([]);
   const [updating, setUpdating] = useState<number | null>(null);
   const [fallbackTemplate, setFallbackTemplate] = useState(DEFAULT_TEMPLATE);
@@ -100,6 +102,47 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   function showToast(message: string, type: "success" | "error" | "info" = "success") {
     setToast({ message, type });
+  }
+
+  function getScoreBreakdown(lead: Lead): string[] {
+    const parts: string[] = [];
+    if (lead.google_rating != null) {
+      if (lead.google_rating >= 4.5) parts.push("Rating ≥4.5 +15");
+      else if (lead.google_rating >= 4.0) parts.push("Rating 4.0-4.4 +10");
+      else if (lead.google_rating >= 3.5) parts.push("Rating 3.5-3.9 +5");
+      else parts.push("Rating <3.5 -10");
+    }
+    const rc = lead.review_count || 0;
+    if (rc > 100) parts.push("Reviews >100 +15");
+    else if (rc >= 20) parts.push("Reviews 20-100 +10");
+    const pi = (lead.product_interest || "").toLowerCase();
+    if (lead.website_url) {
+      if (pi.includes("seo") || pi.includes("maintenance")) parts.push("Has website (SEO) +5");
+      else parts.push("Has website -5");
+    } else if (pi.includes("web")) parts.push("No website (WebDev) +10");
+    const bn = (lead.batch_name || "").toLowerCase();
+    if (bn.includes("web form")) parts.push("Web Form +20");
+    else if (bn.includes("·") || bn.includes("scrape")) parts.push("Maps scraper -5");
+    if (lead.status === "Replied") parts.push("Replied +15");
+    else if (lead.status === "Contacted") parts.push("Contacted -10");
+    const addr = (lead.address || "").toLowerCase();
+    if (["jakarta","surabaya","bandung","bali","denpasar"].some(c => addr.includes(c))) parts.push("Tier 1 city +5");
+    const name = (lead.business_name || "").toUpperCase();
+    if (["PT ","PT."," CV ","CV.","GROUP","GRUP"].some(k => name.includes(k))) parts.push("PT/CV/Group +10");
+    return parts;
+  }
+
+  async function recalculateAll() {
+    setRecalculating(true);
+    try {
+      const res = await apiFetch("/api/leads/recalculate-scores", { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        showToast(`Score diupdate: ${data.updated}/${data.total} leads`);
+        fetchLeads();
+      }
+    } catch { showToast("Gagal recalculate", "error"); }
+    finally { setRecalculating(false); }
   }
 
   const fetchBatches = useCallback(async () => {
@@ -686,6 +729,21 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
           </select>
         </div>
 
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Score:</span>
+          {([["", "Semua"], ["hot", "HOT (≥80)"], ["warm", "WARM (50-79)"], ["cold", "COLD (<50)"]] as const).map(([val, label]) => (
+            <button key={val} onClick={() => setFilterScore(val as typeof filterScore)}
+              className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${filterScore === val ? "bg-amber-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <button onClick={recalculateAll} disabled={recalculating}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-700 dark:text-neutral-200 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap">
+          {recalculating ? "..." : "Recalculate Scores"}
+        </button>
+
         <button onClick={() => { fetchLeads(); fetchBatches(); }}
           className="sm:ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-[#2a2a29] border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
           ↻ Refresh
@@ -721,14 +779,22 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
           <table className="w-full min-w-[1100px] bg-white dark:bg-[#242423] text-sm">
             <thead className="bg-gray-50 dark:bg-[#2a2a29] border-b border-gray-100 dark:border-gray-700">
               <tr>
-                {["#", "Nama Bisnis", "Alamat", "Nomor WA", "Layanan", "Website", "Google Rating", "Status", "Aksi"].map((h) => (
+                {["#", "Nama Bisnis", "Alamat", "Nomor WA", "Layanan", "Website", "Google Rating", "Score", "Status", "Aksi"].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-subtle)]">
               {(() => {
-                const filtered = leads.filter((l) => (filterRating === 0 || l.rating >= filterRating) && (!searchQuery || l.business_name.toLowerCase().includes(searchQuery.toLowerCase()) || (l.address || "").toLowerCase().includes(searchQuery.toLowerCase()) || l.phone_number.includes(searchQuery)));
+                const filtered = leads.filter((l) => {
+                  if (filterRating !== 0 && l.rating < filterRating) return false;
+                  if (searchQuery && !l.business_name.toLowerCase().includes(searchQuery.toLowerCase()) && !(l.address || "").toLowerCase().includes(searchQuery.toLowerCase()) && !l.phone_number.includes(searchQuery)) return false;
+                  const s = l.lead_score ?? 0;
+                  if (filterScore === "hot" && s < 80) return false;
+                  if (filterScore === "warm" && (s < 50 || s >= 80)) return false;
+                  if (filterScore === "cold" && s >= 50) return false;
+                  return true;
+                }).sort((a, b) => (b.lead_score ?? 0) - (a.lead_score ?? 0));
                 const start = (leadsPage - 1) * LEADS_PAGE_SIZE;
                 return filtered.slice(start, start + LEADS_PAGE_SIZE).map((lead, i) => (
                 <tr key={lead.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${lead.is_archived ? "opacity-70" : ""} ${lead.is_ghost_viewer ? "bg-red-500/10 border-l-4 border-l-red-500 animate-pulse" : ""}`}>
@@ -767,6 +833,32 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
                         {lead.review_count && <span className="text-gray-400">({lead.review_count})</span>}
                       </div>
                     ) : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {(() => {
+                      const score = lead.lead_score ?? 0;
+                      const color = score >= 71 ? "bg-green-500" : score >= 41 ? "bg-orange-500" : "bg-red-500";
+                      const label = score >= 80 ? "🔥" : score >= 50 ? "🌤️" : "❄️";
+                      const breakdown = getScoreBreakdown(lead);
+                      return (
+                        <div className="group relative w-24">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span>{label}</span>
+                            <span className="font-bold tabular-nums">{score}</span>
+                          </div>
+                          <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div className={`h-full ${color} transition-all`} style={{ width: `${score}%` }}></div>
+                          </div>
+                          {breakdown.length > 0 && (
+                            <div className="absolute left-0 top-full mt-1 z-20 hidden group-hover:block bg-gray-900 text-white text-[10px] rounded-lg px-3 py-2 shadow-xl whitespace-nowrap min-w-[180px]">
+                              <div className="font-bold mb-1">Breakdown:</div>
+                              {breakdown.map((b, i) => <div key={i}>• {b}</div>)}
+                              <div className="mt-1 pt-1 border-t border-gray-700">Base: 50</div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[lead.status]}`}>
