@@ -5615,6 +5615,19 @@ def delete_project(project_id: str, current_user: User = Depends(get_current_use
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    # Cascade delete: workspace → sheets → columns → rows → cells → attachments
+    ws_sheets = db.query(WorkspaceSheet).filter(WorkspaceSheet.project_id == project_id).all()
+    for sheet in ws_sheets:
+        row_ids = [r.id for r in db.query(WorkspaceRow.id).filter(WorkspaceRow.sheet_id == sheet.id).all()]
+        col_ids = [c.id for c in db.query(WorkspaceColumn.id).filter(WorkspaceColumn.sheet_id == sheet.id).all()]
+        if row_ids:
+            db.query(WorkspaceAttachment).filter(WorkspaceAttachment.row_id.in_(row_ids)).delete(synchronize_session=False)
+            db.query(WorkspaceCell).filter(WorkspaceCell.row_id.in_(row_ids)).delete(synchronize_session=False)
+        if col_ids:
+            db.query(WorkspaceCell).filter(WorkspaceCell.column_id.in_(col_ids)).delete(synchronize_session=False)
+        db.query(WorkspaceRow).filter(WorkspaceRow.sheet_id == sheet.id).delete(synchronize_session=False)
+        db.query(WorkspaceColumn).filter(WorkspaceColumn.sheet_id == sheet.id).delete(synchronize_session=False)
+    db.query(WorkspaceSheet).filter(WorkspaceSheet.project_id == project_id).delete(synchronize_session=False)
     # Cascade delete: board → columns → cards → children
     board = db.query(Board).filter(Board.project_id == project_id).first()
     if board:
