@@ -349,11 +349,21 @@ export default function ClientsPage() {
     if (!productId) return;
     const p = products.find(x => x.id === productId);
     if (!p) return;
+    const cat = (p.category || "").toLowerCase();
+    let svcType = "";
+    if (cat.includes("web")) svcType = cat.includes("bulanan") ? "web_dev_bulanan" : "web_dev";
+    else if (cat.includes("seo") || cat.includes("google")) svcType = "seo_gmaps";
+    else if (cat.includes("sosial") || cat.includes("sosmed") || cat.includes("kelola")) svcType = "sosmed";
+    else if (cat.includes("maintenance")) svcType = "maintenance";
+    else if (cat.includes("logo") || cat.includes("branding") || cat.includes("desain")) svcType = "branding";
+    const match = serviceTypes.find(s => s.value === svcType);
     setProjectForm(f => ({
       ...f,
       name: p.name,
       type: p.is_retainer ? "RETAINER" : "FIXED",
       nominal: p.base_price,
+      service_type: svcType,
+      contract_months: match?.default_months || 1,
     }));
   }
 

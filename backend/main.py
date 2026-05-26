@@ -3509,7 +3509,8 @@ def _detect_project_type(services: list) -> str:
 def _detect_service_type(services: list) -> Optional[str]:
     for s in services:
         name = (s.get("name") or "").lower()
-        if any(k in name for k in ["web dev", "website", "landing page", "company profile"]):
+        # Web detection: "Web Starter", "Website", "Web Pro", etc.
+        if "web" in name or "website" in name or "landing page" in name or "company profile" in name:
             return "web_dev_bulanan" if "bulanan" in name else "web_dev"
         if any(k in name for k in ["seo", "google maps", "gmaps", "google business"]):
             return "seo_gmaps"
@@ -3522,7 +3523,27 @@ def _detect_service_type(services: list) -> Optional[str]:
     return None
 
 
-def _detect_contract_months(proposal, services: list) -> int:
+def _months_between_dates(start_date: Optional[str], end_date: Optional[str]) -> Optional[int]:
+    if not start_date or not end_date:
+        return None
+    try:
+        from datetime import date as _date
+        s = _date.fromisoformat(start_date[:10])
+        e = _date.fromisoformat(end_date[:10])
+        days = (e - s).days
+        if days <= 0:
+            return None
+        return max(1, round(days / 30))
+    except Exception:
+        return None
+
+
+def _detect_contract_months(proposal, services: list, project_start: Optional[str] = None, project_end: Optional[str] = None) -> int:
+    # Priority 1: project start/end dates if both provided
+    months = _months_between_dates(project_start, project_end)
+    if months:
+        return months
+    # Priority 2: ROI retainer period / comparison period
     if proposal.roi_data:
         try:
             roi = json.loads(proposal.roi_data) if isinstance(proposal.roi_data, str) else proposal.roi_data
@@ -3532,6 +3553,7 @@ def _detect_contract_months(proposal, services: list) -> int:
                 return int(roi["comparison_period"])
         except Exception:
             pass
+    # Priority 3: timeline data length
     if proposal.timeline_data:
         try:
             tl = json.loads(proposal.timeline_data) if isinstance(proposal.timeline_data, str) else proposal.timeline_data
@@ -3539,6 +3561,7 @@ def _detect_contract_months(proposal, services: list) -> int:
                 return max(1, len(tl))
         except Exception:
             pass
+    # Fallback: service-type defaults
     for s in services:
         name = (s.get("name") or "").lower()
         if "seo" in name or "sosmed" in name or "kelola" in name:
@@ -3573,7 +3596,7 @@ def accept_proposal(slug: str, body: ProposalAcceptIn, db: Session = Depends(get
     services = json.loads(proposal.services_detail) if proposal.services_detail else []
     project_type = _detect_project_type(services)
     detected_service_type = _detect_service_type(services)
-    detected_months = _detect_contract_months(proposal, services)
+    detected_months = _detect_contract_months(proposal, services, now[:10], None)
     active_price = proposal.discount_price or proposal.total_price
     business_name = lead.business_name if lead else body.client_name
     service_names = ", ".join(s.get("name", "") for s in services[:2])
