@@ -70,12 +70,37 @@ export default function WorkspaceDetailPage() {
         if (data.sheets && data.sheets.length > 0) {
           setWorkspace(data);
           setInitMode(false);
-        } else {
-          setInitMode(true);
+          return;
         }
-      } else {
-        setInitMode(true);
       }
+      // No workspace yet — check if project has service_type to auto-init
+      const projRes = await apiFetch(`/api/projects/${projectId}`);
+      if (projRes.ok) {
+        const proj = await projRes.json();
+        if (proj.service_type) {
+          // Auto-init silently from project data
+          const initRes = await apiFetch("/api/workspace/init", {
+            method: "POST",
+            body: JSON.stringify({
+              project_id: projectId,
+              service_type: proj.service_type,
+              contract_months: proj.contract_months || 1,
+            }),
+          });
+          if (initRes.ok) {
+            const initData = await initRes.json();
+            if (initData.sheets && initData.sheets.length > 0) {
+              setWorkspace({ project_id: projectId, service_type: proj.service_type, sheets: initData.sheets });
+              setInitMode(false);
+              return;
+            }
+          }
+        }
+        // No service_type — show manual form with defaults from project
+        setInitService(proj.service_type || "web_dev");
+        setInitMonths(proj.contract_months || 2);
+      }
+      setInitMode(true);
     } finally { setLoading(false); }
   }, [projectId]);
 
