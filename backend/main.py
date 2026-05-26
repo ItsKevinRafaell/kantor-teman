@@ -6614,7 +6614,7 @@ def generate_document(body: DocumentGenerateIn, current_user: User = Depends(get
     pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
 
     base_url = _get_setting("app_base_url", "") or os.getenv("APP_BASE_URL", "https://api.kantorteman.my.id")
-    tracking_pixel = f'<img src="{base_url.rstrip("/")}/api/track/pdf-open/{file_id}" width="1" height="1" style="position:absolute;opacity:0;" alt="" />'
+    tracking_pixel = f'<img src="{base_url.rstrip("/")}/api/pixel/{file_id}" width="1" height="1" style="position:absolute;opacity:0;" alt="" />'
     if "</body>" in rendered_html:
         rendered_html = rendered_html.replace("</body>", f"{tracking_pixel}</body>")
     else:
