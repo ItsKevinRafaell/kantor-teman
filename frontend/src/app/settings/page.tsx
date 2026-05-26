@@ -39,6 +39,11 @@ export default function SettingsPage() {
   const [cmsApiToken, setCmsApiToken] = useState("");
   const [externalLeadApiKey, setExternalLeadApiKey] = useState("");
   const [regeneratingKey, setRegeneratingKey] = useState(false);
+  const [smtpHost, setSmtpHost] = useState("");
+  const [smtpPort, setSmtpPort] = useState("587");
+  const [smtpUser, setSmtpUser] = useState("");
+  const [smtpPassword, setSmtpPassword] = useState("");
+  const [smtpFrom, setSmtpFrom] = useState("");
   // Content Generator AI (separate from chat proxy)
   const [contentAiBaseUrl, setContentAiBaseUrl] = useState("");
   const [contentAiApiKey, setContentAiApiKey] = useState("");
@@ -79,6 +84,11 @@ export default function SettingsPage() {
       setCmsUrl(d.cms_url ?? "");
       setCmsApiToken(d.cms_api_token ?? "");
       setExternalLeadApiKey(d.external_lead_api_key ?? "");
+      setSmtpHost(d.smtp_host ?? "");
+      setSmtpPort(d.smtp_port ?? "587");
+      setSmtpUser(d.smtp_user ?? "");
+      setSmtpPassword(d.smtp_password ?? "");
+      setSmtpFrom(d.smtp_from ?? "");
     });
     loadProxies();
   }, [loadProxies]);
@@ -139,6 +149,11 @@ export default function SettingsPage() {
         admin_name: adminName,
         cms_url: cmsUrl,
         cms_api_token: cmsApiToken,
+        smtp_host: smtpHost,
+        smtp_port: smtpPort,
+        smtp_user: smtpUser,
+        smtp_password: smtpPassword,
+        smtp_from: smtpFrom,
       }) });
       if (!res.ok) throw new Error("Gagal menyimpan");
       showToast("Konfigurasi disimpan");
@@ -525,6 +540,39 @@ export default function SettingsPage() {
                     Regenerate akan invalidate key lama — pastikan update di temanumkmkita backend setelah regenerate.
                   </p>
                 )}
+              </div>
+            </div>
+          </div>
+
+          {/* ── SMTP / Email ── */}
+          <div className="border-t border-[var(--border-default)] pt-5">
+            <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200 mb-3">SMTP / Email</h3>
+            <p className="text-xs text-gray-400 mb-4">Konfigurasi server SMTP untuk kirim dokumen via email (Document Generator).</p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>SMTP Host</label>
+                <input type="text" value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)}
+                  placeholder="smtp.gmail.com" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>SMTP Port</label>
+                <input type="text" value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)}
+                  placeholder="587" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>SMTP User</label>
+                <input type="text" value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)}
+                  placeholder="username@gmail.com" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>SMTP Password</label>
+                <input type="password" value={smtpPassword} onChange={(e) => setSmtpPassword(e.target.value)}
+                  placeholder="App password" className={inputCls} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className={labelCls}>From Address</label>
+                <input type="text" value={smtpFrom} onChange={(e) => setSmtpFrom(e.target.value)}
+                  placeholder="noreply@kantorteman.my.id (kosongkan = pakai SMTP User)" className={inputCls} />
               </div>
             </div>
           </div>

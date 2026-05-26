@@ -1195,6 +1195,11 @@ class SettingsUpdate(BaseModel):
     cms_url: Optional[str] = None
     cms_api_token: Optional[str] = None
     external_lead_api_key: Optional[str] = None
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[str] = None
+    smtp_user: Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_from: Optional[str] = None
 
 
 class UserUpdate(BaseModel):
@@ -1906,7 +1911,7 @@ def update_me(body: UserUpdate, current_user: User = Depends(get_current_user), 
 
 @app.get("/api/settings")
 def get_settings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    keys = ["fonnte_token", "gemini_api_key", "claude_api_key", "openai_api_key", "ai_api_key", "ai_provider", "ai_base_url", "ai_model", "google_api_key", "google_calendar_id", "google_service_account_json", "admin_wa", "admin_name", "followup_enabled", "followup_hour", "cms_url", "cms_api_token", "external_lead_api_key"]
+    keys = ["fonnte_token", "gemini_api_key", "claude_api_key", "openai_api_key", "ai_api_key", "ai_provider", "ai_base_url", "ai_model", "google_api_key", "google_calendar_id", "google_service_account_json", "admin_wa", "admin_name", "followup_enabled", "followup_hour", "cms_url", "cms_api_token", "external_lead_api_key", "smtp_host", "smtp_port", "smtp_user", "smtp_password", "smtp_from"]
     result = {}
     for k in keys:
         row = db.query(SystemSettings).filter_by(key=k).first()
@@ -1937,6 +1942,11 @@ def update_settings(body: SettingsUpdate, current_user: User = Depends(get_curre
         "cms_url": body.cms_url,
         "cms_api_token": body.cms_api_token,
         "external_lead_api_key": body.external_lead_api_key,
+        "smtp_host": body.smtp_host,
+        "smtp_port": body.smtp_port,
+        "smtp_user": body.smtp_user,
+        "smtp_password": body.smtp_password,
+        "smtp_from": body.smtp_from,
     }
     for key, value in settings_map.items():
         if value is not None:
@@ -6079,6 +6089,275 @@ async def upload_brand_asset_file(
     db.commit()
     db.refresh(asset)
     return {"id": asset.id, "file_url": file_url, "name": name, "asset_type": asset_type}
+
+
+# ---------------------------------------------------------------------------
+# Document Generator
+# ---------------------------------------------------------------------------
+
+DOCUMENTS_DIR = os.path.join(UPLOADS_DIR, "documents")
+os.makedirs(DOCUMENTS_DIR, exist_ok=True)
+
+
+class DocumentTemplateIn(BaseModel):
+    name: str
+    type: str
+    html_template: str
+    variables: Optional[List[str]] = None
+    is_active: Optional[bool] = True
+
+
+class DocumentGenerateIn(BaseModel):
+    template_id: str
+    target_type: Optional[str] = None
+    target_id: Optional[str] = None
+    variables: dict = {}
+
+
+class DocumentEmailIn(BaseModel):
+    to_email: str
+    subject: Optional[str] = None
+    body: Optional[str] = None
+
+
+def _serialize_template(t: DocumentTemplate) -> dict:
+    try:
+        vars_list = json.loads(t.variables or "[]")
+    except Exception:
+        vars_list = []
+    return {
+        "id": t.id,
+        "name": t.name,
+        "type": t.type,
+        "html_template": t.html_template,
+        "variables": vars_list,
+        "is_active": t.is_active,
+        "created_at": t.created_at,
+    }
+
+
+@app.get("/api/document-templates")
+def list_document_templates(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    templates = db.query(DocumentTemplate).filter(DocumentTemplate.is_active == True).order_by(DocumentTemplate.name).all()
+    return [_serialize_template(t) for t in templates]
+
+
+@app.get("/api/document-templates/{tid}")
+def get_document_template(tid: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    t = db.query(DocumentTemplate).filter(DocumentTemplate.id == tid).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Template tidak ditemukan")
+    return _serialize_template(t)
+
+
+@app.post("/api/document-templates", status_code=201)
+def create_document_template(body: DocumentTemplateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    valid_types = {"proposal_pdf", "invoice", "kontrak", "surat_penawaran", "custom"}
+    if body.type not in valid_types:
+        raise HTTPException(status_code=400, detail=f"Type harus salah satu: {', '.join(valid_types)}")
+    t = DocumentTemplate(
+        id=str(uuid.uuid4()),
+        name=body.name,
+        type=body.type,
+        html_template=body.html_template,
+        variables=json.dumps(body.variables or []),
+        is_active=body.is_active if body.is_active is not None else True,
+    )
+    db.add(t)
+    db.commit()
+    db.refresh(t)
+    return _serialize_template(t)
+
+
+@app.put("/api/document-templates/{tid}")
+def update_document_template(tid: str, body: DocumentTemplateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    t = db.query(DocumentTemplate).filter(DocumentTemplate.id == tid).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Template tidak ditemukan")
+    t.name = body.name
+    t.type = body.type
+    t.html_template = body.html_template
+    t.variables = json.dumps(body.variables or [])
+    if body.is_active is not None:
+        t.is_active = body.is_active
+    db.commit()
+    return _serialize_template(t)
+
+
+@app.delete("/api/document-templates/{tid}", status_code=204)
+def delete_document_template(tid: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    t = db.query(DocumentTemplate).filter(DocumentTemplate.id == tid).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Template tidak ditemukan")
+    db.delete(t)
+    db.commit()
+
+
+@app.get("/api/documents")
+def list_generated_documents(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    docs = db.query(GeneratedDocument).order_by(GeneratedDocument.generated_at.desc()).all()
+    return [
+        {
+            "id": d.id,
+            "template_id": d.template_id,
+            "template_name": d.template_name,
+            "target_type": d.target_type,
+            "target_id": d.target_id,
+            "file_url": d.file_url,
+            "generated_at": d.generated_at,
+            "generated_by": d.generated_by,
+        }
+        for d in docs
+    ]
+
+
+@app.delete("/api/documents/generated/{did}", status_code=204)
+def delete_generated_document(did: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    d = db.query(GeneratedDocument).filter(GeneratedDocument.id == did).first()
+    if not d:
+        raise HTTPException(status_code=404, detail="Document tidak ditemukan")
+    if d.file_url:
+        fpath = os.path.join(os.path.dirname(__file__), d.file_url.lstrip("/"))
+        if os.path.exists(fpath):
+            try:
+                os.remove(fpath)
+            except Exception:
+                pass
+    db.delete(d)
+    db.commit()
+
+
+def _build_brand_context(db: Session) -> dict:
+    kit = db.query(BrandKit).filter(BrandKit.is_active == True).first() or db.query(BrandKit).first()
+    ctx = {"logo": "", "colors": {}, "fonts": {}, "tagline": ""}
+    if not kit:
+        return ctx
+    assets = db.query(BrandAsset).filter(BrandAsset.kit_id == kit.id).all()
+    for a in assets:
+        if a.asset_type == "logo_primary" and a.file_url:
+            ctx["logo"] = f'<img src="{FRONTEND_URL.rstrip("/")}{a.file_url}" alt="logo" style="max-height:60px"/>'
+        elif a.asset_type == "color":
+            ctx["colors"][a.name.lower().replace(" ", "_")] = a.value or ""
+        elif a.asset_type == "font":
+            ctx["fonts"][a.name.lower().replace(" ", "_")] = a.value or ""
+        elif a.asset_type == "tagline" and a.value:
+            ctx["tagline"] = a.value
+    return ctx
+
+
+@app.post("/api/documents/generate")
+def generate_document(body: DocumentGenerateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    template = db.query(DocumentTemplate).filter(DocumentTemplate.id == body.template_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="Template tidak ditemukan")
+
+    brand_ctx = _build_brand_context(db)
+    full_vars = {**brand_ctx, **body.variables}
+    if "logo" not in body.variables:
+        full_vars["logo"] = brand_ctx["logo"]
+
+    try:
+        from jinja2 import Template as JinjaTemplate
+        rendered_html = JinjaTemplate(template.html_template).render(**full_vars)
+        for k, v in full_vars.items():
+            if isinstance(v, str):
+                rendered_html = rendered_html.replace(f"{{{{{k}}}}}", v)
+    except ImportError:
+        rendered_html = template.html_template
+        for k, v in full_vars.items():
+            if isinstance(v, str):
+                rendered_html = rendered_html.replace(f"{{{{{k}}}}}", v)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Render template gagal: {e}")
+
+    file_id = str(uuid.uuid4())
+    pdf_filename = f"{file_id}.pdf"
+    pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
+
+    try:
+        from weasyprint import HTML
+        HTML(string=rendered_html).write_pdf(pdf_path)
+    except ImportError:
+        raise HTTPException(status_code=500, detail="WeasyPrint tidak terinstall. Jalankan: pip install weasyprint")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF generation gagal: {e}")
+
+    file_url = f"/uploads/documents/{pdf_filename}"
+    doc = GeneratedDocument(
+        id=file_id,
+        template_id=template.id,
+        template_name=template.name,
+        target_type=body.target_type,
+        target_id=body.target_id,
+        variables_used=json.dumps(body.variables),
+        file_url=file_url,
+        generated_by=current_user.name,
+    )
+    db.add(doc)
+    db.commit()
+
+    return {"document_id": doc.id, "file_url": file_url, "template_name": template.name}
+
+
+@app.get("/api/documents/{did}/download")
+def download_document(did: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    doc = db.query(GeneratedDocument).filter(GeneratedDocument.id == did).first()
+    if not doc or not doc.file_url:
+        raise HTTPException(status_code=404, detail="Document tidak ditemukan")
+    fpath = os.path.join(os.path.dirname(__file__), doc.file_url.lstrip("/"))
+    if not os.path.exists(fpath):
+        raise HTTPException(status_code=404, detail="File tidak ada di disk")
+    from fastapi.responses import FileResponse
+    return FileResponse(fpath, media_type="application/pdf", filename=f"{doc.template_name or 'document'}.pdf")
+
+
+@app.post("/api/documents/{did}/email")
+def email_document(did: str, body: DocumentEmailIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    doc = db.query(GeneratedDocument).filter(GeneratedDocument.id == did).first()
+    if not doc or not doc.file_url:
+        raise HTTPException(status_code=404, detail="Document tidak ditemukan")
+    fpath = os.path.join(os.path.dirname(__file__), doc.file_url.lstrip("/"))
+    if not os.path.exists(fpath):
+        raise HTTPException(status_code=404, detail="File tidak ada di disk")
+
+    smtp_host = _get_setting("smtp_host", "")
+    smtp_port = int(_get_setting("smtp_port", "587") or "587")
+    smtp_user = _get_setting("smtp_user", "")
+    smtp_pass = _get_setting("smtp_password", "")
+    smtp_from = _get_setting("smtp_from", smtp_user)
+
+    if not smtp_host or not smtp_user or not smtp_pass:
+        raise HTTPException(status_code=400, detail="SMTP belum dikonfigurasi di Settings")
+
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    from email.mime.application import MIMEApplication
+
+    msg = MIMEMultipart()
+    msg["From"] = smtp_from
+    msg["To"] = body.to_email
+    msg["Subject"] = body.subject or f"{doc.template_name or 'Document'} dari Teman UMKM Kita"
+    msg.attach(MIMEText(body.body or "Terlampir dokumen yang Anda minta. Hubungi kami jika ada pertanyaan.", "plain"))
+
+    with open(fpath, "rb") as f:
+        part = MIMEApplication(f.read(), _subtype="pdf")
+        part.add_header("Content-Disposition", f'attachment; filename="{doc.template_name or "document"}.pdf"')
+        msg.attach(part)
+
+    try:
+        if smtp_port == 465:
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30)
+        else:
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
+            server.starttls()
+        server.login(smtp_user, smtp_pass)
+        server.send_message(msg)
+        server.quit()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"SMTP send gagal: {e}")
+
+    return {"success": True, "to": body.to_email}
 
 
 # ---------------------------------------------------------------------------

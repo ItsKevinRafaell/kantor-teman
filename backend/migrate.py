@@ -799,5 +799,161 @@ if not cur.fetchone():
 else:
     print("= brand kit sudah ada, skip seed")
 
+# ---------------------------------------------------------------------------
+# Migrasi: document_templates + generated_documents tables
+# ---------------------------------------------------------------------------
+cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='document_templates'")
+if not cur.fetchone():
+    cur.execute("""
+        CREATE TABLE document_templates (
+            id VARCHAR(36) PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            type VARCHAR(50) NOT NULL,
+            html_template TEXT NOT NULL,
+            variables TEXT DEFAULT '[]',
+            is_active BOOLEAN DEFAULT 1,
+            created_at VARCHAR(255) NOT NULL
+        )
+    """)
+    print("+ tabel document_templates dibuat")
+else:
+    print("= tabel document_templates sudah ada, skip")
+
+cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='generated_documents'")
+if not cur.fetchone():
+    cur.execute("""
+        CREATE TABLE generated_documents (
+            id VARCHAR(36) PRIMARY KEY,
+            template_id VARCHAR(36) REFERENCES document_templates(id),
+            template_name VARCHAR(255),
+            target_type VARCHAR(50),
+            target_id VARCHAR(255),
+            variables_used TEXT,
+            file_url VARCHAR(500),
+            generated_at VARCHAR(255) NOT NULL,
+            generated_by VARCHAR(255)
+        )
+    """)
+    print("+ tabel generated_documents dibuat")
+else:
+    print("= tabel generated_documents sudah ada, skip")
+
+conn.commit()
+
+# Seed default document templates
+cur.execute("SELECT COUNT(*) FROM document_templates")
+if cur.fetchone()[0] == 0:
+    import uuid as _uuid2
+    _now = "2026-05-26T00:00:00+00:00"
+    _templates = [
+        (str(_uuid2.uuid4()), "Invoice", "invoice", """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+body{font-family:'Poppins',sans-serif;margin:0;padding:40px;color:#242423}
+.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px}
+.logo{max-height:60px}
+.title{font-size:28px;font-weight:700;color:#f5a700;margin:0}
+.meta{font-size:12px;color:#666;margin-top:4px}
+table{width:100%;border-collapse:collapse;margin:20px 0}
+th{background:#f5a700;color:#fff;padding:10px 12px;text-align:left;font-size:12px}
+td{padding:10px 12px;border-bottom:1px solid #eee;font-size:13px}
+.total-row td{font-weight:700;border-top:2px solid #242423;font-size:15px}
+.footer{margin-top:40px;padding-top:20px;border-top:1px solid #eee;font-size:11px;color:#999;text-align:center}
+</style></head><body>
+<div class="header"><div>{{logo}}<p class="title">INVOICE</p><p class="meta">{{nomor_invoice}}</p></div><div style="text-align:right"><p style="font-weight:600">{{klien}}</p><p class="meta">Tanggal: {{tanggal}}</p><p class="meta">Jatuh Tempo: {{due_date}}</p></div></div>
+<table><thead><tr><th>Item</th><th>Qty</th><th>Harga</th><th>Subtotal</th></tr></thead><tbody>{{items_rows}}</tbody><tr class="total-row"><td colspan="3">TOTAL</td><td>{{total}}</td></tr></table>
+<div class="footer">Teman UMKM Kita · temanumkmkita.com</div>
+</body></html>""", '["nomor_invoice","tanggal","klien","items_rows","total","due_date"]', 1, _now),
+
+        (str(_uuid2.uuid4()), "Proposal Penawaran PDF", "proposal_pdf", """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+body{font-family:'Poppins',sans-serif;margin:0;padding:40px;color:#242423}
+.header{text-align:center;margin-bottom:30px}
+.title{font-size:24px;font-weight:700;color:#f5a700}
+.subtitle{font-size:14px;color:#666;margin-top:4px}
+.section{margin:24px 0}
+.section h2{font-size:14px;text-transform:uppercase;letter-spacing:1px;color:#f5a700;border-bottom:2px solid #f5a700;padding-bottom:4px}
+.service{background:#fcfaf7;border:1px solid #eee;border-radius:8px;padding:16px;margin:12px 0}
+.service-name{font-weight:700;font-size:15px}
+.service-price{color:#f5a700;font-weight:700}
+.total{font-size:22px;font-weight:700;color:#f5a700;text-align:right;margin-top:20px}
+.validity{font-size:11px;color:#999;text-align:center;margin-top:30px}
+.footer{margin-top:40px;text-align:center;font-size:11px;color:#999}
+</style></head><body>
+<div class="header">{{logo}}<p class="title">Proposal Penawaran</p><p class="subtitle">Disiapkan untuk: {{klien}}</p></div>
+<div class="section"><h2>Layanan</h2>{{services_html}}</div>
+<p class="total">Total: {{total}}</p>
+<div class="section"><h2>FAQ</h2>{{faqs_html}}</div>
+<p class="validity">Berlaku hingga: {{validity}}</p>
+<div class="footer">Teman UMKM Kita · temanumkmkita.com</div>
+</body></html>""", '["klien","services_html","total","validity","faqs_html"]', 1, _now),
+
+        (str(_uuid2.uuid4()), "Surat Penawaran Formal", "surat_penawaran", """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+body{font-family:'Poppins',sans-serif;margin:0;padding:50px;color:#242423;font-size:13px;line-height:1.8}
+.kop{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #f5a700;padding-bottom:16px;margin-bottom:30px}
+.kop-logo{max-height:50px}
+.kop-info{text-align:right;font-size:11px;color:#666}
+.nomor{font-size:11px;color:#666;margin-bottom:20px}
+.perihal{font-weight:700;margin:16px 0}
+.ttd{margin-top:60px}
+.ttd-line{border-top:1px solid #242423;width:200px;margin-top:60px;padding-top:4px}
+</style></head><body>
+<div class="kop"><div>{{logo}}</div><div class="kop-info">Teman UMKM Kita<br>temanumkmkita.com<br>+62 895-0192-5395</div></div>
+<p class="nomor">No: {{nomor}}<br>Tanggal: {{tanggal}}</p>
+<p>Kepada Yth,<br><strong>{{klien}}</strong></p>
+<p class="perihal">Perihal: {{perihal}}</p>
+<div>{{body}}</div>
+<div class="ttd"><p>Hormat kami,</p><div class="ttd-line">{{ttd}}</div></div>
+</body></html>""", '["nomor","tanggal","klien","perihal","body","ttd"]', 1, _now),
+
+        (str(_uuid2.uuid4()), "Kontrak / MoU", "kontrak", """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+body{font-family:'Poppins',sans-serif;margin:0;padding:50px;color:#242423;font-size:13px;line-height:1.8}
+.title{text-align:center;font-size:18px;font-weight:700;text-transform:uppercase;margin-bottom:30px;border-bottom:2px solid #f5a700;padding-bottom:10px}
+.section{margin:20px 0}
+.section h3{font-size:13px;font-weight:700;color:#f5a700;margin-bottom:8px}
+.signatures{display:flex;justify-content:space-between;margin-top:80px}
+.sig-box{text-align:center;width:45%}
+.sig-line{border-top:1px solid #242423;margin-top:80px;padding-top:4px;font-size:12px}
+</style></head><body>
+<p class="title">Kontrak Kerja Sama</p>
+<div class="section"><h3>Pihak-Pihak</h3>{{parties}}</div>
+<div class="section"><h3>Lingkup Pekerjaan</h3>{{scope}}</div>
+<div class="section"><h3>Timeline</h3>{{timeline}}</div>
+<div class="section"><h3>Ketentuan Pembayaran</h3>{{payment_terms}}</div>
+<div class="signatures"><div class="sig-box"><div class="sig-line">Pihak Pertama</div></div><div class="sig-box"><div class="sig-line">Pihak Kedua</div></div></div>
+</body></html>""", '["parties","scope","timeline","payment_terms"]', 1, _now),
+
+        (str(_uuid2.uuid4()), "Receipt / Bukti Pembayaran", "invoice", """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+body{font-family:'Poppins',sans-serif;margin:0;padding:40px;color:#242423}
+.header{text-align:center;margin-bottom:30px}
+.title{font-size:22px;font-weight:700;color:#f5a700}
+.receipt-box{border:2px solid #f5a700;border-radius:12px;padding:24px;max-width:400px;margin:0 auto}
+.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;font-size:13px}
+.row:last-child{border:none}
+.row .label{color:#666}
+.row .value{font-weight:600}
+.amount{font-size:24px;font-weight:700;color:#f5a700;text-align:center;margin:20px 0}
+.footer{text-align:center;margin-top:30px;font-size:11px;color:#999}
+</style></head><body>
+<div class="header">{{logo}}<p class="title">Bukti Pembayaran</p></div>
+<div class="receipt-box">
+<div class="row"><span class="label">No. Receipt</span><span class="value">{{nomor}}</span></div>
+<div class="row"><span class="label">Klien</span><span class="value">{{klien}}</span></div>
+<div class="row"><span class="label">Tanggal</span><span class="value">{{tanggal}}</span></div>
+<div class="row"><span class="label">Metode</span><span class="value">{{payment_method}}</span></div>
+<p class="amount">{{amount}}</p>
+</div>
+<div class="footer">Teman UMKM Kita · temanumkmkita.com</div>
+</body></html>""", '["nomor","klien","amount","tanggal","payment_method"]', 1, _now),
+    ]
+    for t in _templates:
+        cur.execute("INSERT INTO document_templates (id, name, type, html_template, variables, is_active, created_at) VALUES (?,?,?,?,?,?,?)", t)
+    conn.commit()
+    print(f"+ seed {len(_templates)} document templates")
+else:
+    print("= document templates sudah ada, skip seed")
+
 conn.close()
 print("Migrasi selesai.")
