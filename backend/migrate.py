@@ -234,6 +234,15 @@ CREATE TABLE IF NOT EXISTS proposal_analytics (
 """)
 print("+ tabel proposal_analytics ready")
 
+# Add event column if missing
+cur.execute("PRAGMA table_info(proposal_analytics)")
+pa_cols = {row[1] for row in cur.fetchall()}
+if "event" not in pa_cols:
+    cur.execute("ALTER TABLE proposal_analytics ADD COLUMN event VARCHAR(50)")
+    print("+ kolom event ditambahkan ke proposal_analytics")
+else:
+    print("= proposal_analytics.event sudah ada, skip")
+
 conn.commit()
 
 # ---------------------------------------------------------------------------

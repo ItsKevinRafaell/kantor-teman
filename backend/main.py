@@ -5,6 +5,7 @@ import uuid
 import json
 import csv
 import io
+import base64
 import httpx
 from search_volume_data import get_monthly_search_volume
 from fastapi import FastAPI, Query, HTTPException, Depends, BackgroundTasks, Request, Body, UploadFile, File, Form
@@ -241,6 +242,7 @@ class ProposalAnalytics(Base):
     last_ping = Column(String(255), nullable=True)
     total_time_seconds = Column(Integer, default=0)
     sections_viewed = Column(Text, default="[]")
+    event = Column(String(50), nullable=True)
 
 
 # ---------------------------------------------------------------------------
@@ -6304,6 +6306,38 @@ def _build_brand_context(db: Session) -> dict:
     return ctx
 
 
+TRACKING_PIXEL_PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
+
+
+@app.get("/api/track/pdf-open/{document_id}")
+def track_pdf_open(document_id: str, db: Session = Depends(get_db)):
+    try:
+        doc = db.query(GeneratedDocument).filter(GeneratedDocument.id == document_id).first()
+        now = datetime.now(timezone.utc).isoformat()
+        if doc and doc.target_id:
+            try:
+                lead_id = int(doc.target_id)
+                db.add(LeadActivityLog(id=str(uuid.uuid4()), lead_id=lead_id, activity_type="pdf_opened"))
+            except (ValueError, TypeError):
+                pass
+            proposal = db.query(Proposal).filter(Proposal.lead_id == int(doc.target_id) if doc.target_id.isdigit() else False).first()
+            if proposal:
+                db.add(ProposalAnalytics(
+                    id=str(uuid.uuid4()),
+                    proposal_id=proposal.id,
+                    opened_at=now,
+                    event="pdf_opened",
+                ))
+        db.commit()
+    except Exception:
+        pass
+    return StreamingResponse(
+        iter([TRACKING_PIXEL_PNG]),
+        media_type="image/png",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
+    )
+
+
 @app.post("/api/documents/generate")
 def generate_document(body: DocumentGenerateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     template = db.query(DocumentTemplate).filter(DocumentTemplate.id == body.template_id).first()
@@ -6332,6 +6366,13 @@ def generate_document(body: DocumentGenerateIn, current_user: User = Depends(get
     file_id = str(uuid.uuid4())
     pdf_filename = f"{file_id}.pdf"
     pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
+
+    base_url = _get_setting("app_base_url", "") or os.getenv("APP_BASE_URL", "https://api.kantorteman.my.id")
+    tracking_pixel = f'<img src="{base_url.rstrip("/")}/api/track/pdf-open/{file_id}" width="1" height="1" style="position:absolute;opacity:0;" alt="" />'
+    if "</body>" in rendered_html:
+        rendered_html = rendered_html.replace("</body>", f"{tracking_pixel}</body>")
+    else:
+        rendered_html += tracking_pixel
 
     try:
         from weasyprint import HTML
