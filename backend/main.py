@@ -6556,31 +6556,27 @@ TRACKING_PIXEL_PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfF
 
 @app.get("/api/track/pdf-open/{document_id}")
 def track_pdf_open(document_id: str):
-    db = None
-    try:
-        db = SessionLocal()
-        doc = db.query(GeneratedDocument).filter(GeneratedDocument.id == document_id).first()
-        now = datetime.now(timezone.utc).isoformat()
-        if doc and doc.target_id and doc.target_id.isdigit():
-            lead_id = int(doc.target_id)
-            db.add(LeadActivityLog(id=str(uuid.uuid4()), lead_id=lead_id, activity_type="pdf_opened"))
-            proposal = db.query(Proposal).filter(Proposal.lead_id == lead_id).first()
-            if proposal:
-                db.add(ProposalAnalytics(
-                    id=str(uuid.uuid4()),
-                    proposal_id=proposal.id,
-                    opened_at=now,
-                    event="pdf_opened",
-                ))
-        db.commit()
-    except Exception:
-        pass
-    finally:
-        if db:
-            try:
-                db.close()
-            except Exception:
-                pass
+    import threading
+    def _log():
+        db = None
+        try:
+            db = SessionLocal()
+            doc = db.query(GeneratedDocument).filter(GeneratedDocument.id == document_id).first()
+            now = datetime.now(timezone.utc).isoformat()
+            if doc and doc.target_id and doc.target_id.isdigit():
+                lead_id = int(doc.target_id)
+                db.add(LeadActivityLog(id=str(uuid.uuid4()), lead_id=lead_id, activity_type="pdf_opened"))
+                proposal = db.query(Proposal).filter(Proposal.lead_id == lead_id).first()
+                if proposal:
+                    db.add(ProposalAnalytics(id=str(uuid.uuid4()), proposal_id=proposal.id, opened_at=now, event="pdf_opened"))
+            db.commit()
+        except Exception:
+            pass
+        finally:
+            if db:
+                try: db.close()
+                except Exception: pass
+    threading.Thread(target=_log, daemon=True).start()
     return Response(
         content=TRACKING_PIXEL_PNG,
         media_type="image/png",
