@@ -43,7 +43,7 @@ def decrypt_password(encrypted: str) -> str:
 app = FastAPI(title="Kantor Teman API")
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://kantorteman.my.id")
-CORS_ORIGIN = os.getenv("CORS_ORIGIN", "https://kantor-teman-five.vercel.app,https://kantorteman.my.id")
+CORS_ORIGIN = os.getenv("CORS_ORIGIN", "https://kantor-teman-five.vercel.app,https://kantorteman.my.id,https://www.kantorteman.my.id")
 
 app.add_middleware(
     CORSMiddleware,
