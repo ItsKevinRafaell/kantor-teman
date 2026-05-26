@@ -7436,12 +7436,19 @@ def sync_row_to_board(row_id: str, db: Session):
         if not todo_col:
             return
 
+        # Validate lead exists before assigning FK
+        valid_lead_id = None
+        if project.lead_id:
+            lead_exists = db.query(Lead).filter(Lead.id == project.lead_id).first()
+            if lead_exists:
+                valid_lead_id = project.lead_id
+
         card = BoardCard(
             id=str(uuid.uuid4()),
             column_id=todo_col.id,
             title=title,
             position=row.row_order or 0,
-            lead_id=project.lead_id,
+            lead_id=valid_lead_id,
         )
         db.add(card)
         db.flush()
@@ -7449,6 +7456,10 @@ def sync_row_to_board(row_id: str, db: Session):
         db.commit()
     except Exception as e:
         print(f"[WORKSPACE_SYNC] sync_row_to_board error: {e}", flush=True)
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
 
 def sync_row_status_to_board(row_id: str, db: Session):
