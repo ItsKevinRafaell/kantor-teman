@@ -6380,7 +6380,7 @@ def delete_document_template(tid: str, current_user: User = Depends(get_current_
     db.commit()
 
 
-@app.get("/api/documents")
+@app.get("/api/generated-documents")
 def list_generated_documents(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     docs = db.query(GeneratedDocument).order_by(GeneratedDocument.generated_at.desc()).all()
     return [

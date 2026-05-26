@@ -27,7 +27,7 @@ export default function DocumentGeneratorPage() {
 
   const fetchDocs = useCallback(async () => {
     try {
-      const res = await apiFetch("/api/documents");
+      const res = await apiFetch("/api/generated-documents");
       if (res.ok) setDocs(await res.json());
     } finally { setLoading(false); }
   }, []);
