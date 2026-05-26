@@ -12,7 +12,7 @@ from search_volume_data import get_monthly_search_volume
 from fastapi import FastAPI, Query, HTTPException, Depends, BackgroundTasks, Request, Body, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse
+from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
 from typing import Optional, List, Any
@@ -6555,8 +6555,10 @@ TRACKING_PIXEL_PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfF
 
 
 @app.get("/api/track/pdf-open/{document_id}")
-def track_pdf_open(document_id: str, db: Session = Depends(get_db)):
+def track_pdf_open(document_id: str):
+    db = None
     try:
+        db = SessionLocal()
         doc = db.query(GeneratedDocument).filter(GeneratedDocument.id == document_id).first()
         now = datetime.now(timezone.utc).isoformat()
         if doc and doc.target_id and doc.target_id.isdigit():
@@ -6573,7 +6575,12 @@ def track_pdf_open(document_id: str, db: Session = Depends(get_db)):
         db.commit()
     except Exception:
         pass
-    from fastapi.responses import Response
+    finally:
+        if db:
+            try:
+                db.close()
+            except Exception:
+                pass
     return Response(
         content=TRACKING_PIXEL_PNG,
         media_type="image/png",
