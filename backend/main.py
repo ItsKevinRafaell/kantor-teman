@@ -7614,6 +7614,36 @@ def sync_row_status_to_board(row_id: str, db: Session):
         print(f"[WORKSPACE_SYNC] sync_row_status error: {e}", flush=True)
 
 
+@app.get("/api/workspace/service-types")
+def get_workspace_service_types(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    categories = db.query(Category).filter(Category.is_active == True).all()
+    cat_map = {c.name.lower(): c.name for c in categories}
+    result = []
+    type_to_label = {
+        "web_dev": "Web Development",
+        "seo_gmaps": "SEO & Google Maps",
+        "sosmed": "Kelola Sosial Media",
+        "maintenance": "Maintenance Website",
+        "web_dev_bulanan": "Web Development (Bulanan)",
+        "branding": "Desain Logo & Identitas Visual",
+    }
+    for key, tmpl in WORKSPACE_TEMPLATES.items():
+        label = type_to_label.get(key, key)
+        for cat in categories:
+            if key == "web_dev" and "web" in cat.name.lower() and "bulanan" not in cat.name.lower():
+                label = cat.name
+            elif key == "seo_gmaps" and ("seo" in cat.name.lower() or "google" in cat.name.lower()):
+                label = cat.name
+            elif key == "sosmed" and ("sosial" in cat.name.lower() or "kelola" in cat.name.lower()):
+                label = cat.name
+            elif key == "maintenance" and "maintenance" in cat.name.lower():
+                label = cat.name
+            elif key == "branding" and ("logo" in cat.name.lower() or "desain" in cat.name.lower()):
+                label = cat.name
+        result.append({"value": key, "label": label, "default_months": tmpl.get("default_months", 1)})
+    return result
+
+
 @app.post("/api/workspace/init")
 def init_workspace(body: WorkspaceInitIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == body.project_id).first()

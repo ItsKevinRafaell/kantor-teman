@@ -84,6 +84,7 @@ export default function ClientDetailPage() {
   const [editingProject, setEditingProject] = useState<ProjectData | null>(null);
   const [saving, setSaving] = useState(false);
   const [products, setProducts] = useState<{ id: string; name: string; base_price: number; is_retainer: boolean }[]>([]);
+  const [serviceTypes, setServiceTypes] = useState<{ value: string; label: string; default_months: number }[]>([]);
 
   const fetchDetail = useCallback(async () => {
     try {
@@ -103,6 +104,10 @@ export default function ClientDetailPage() {
     apiFetch("/api/products?active_only=true")
       .then(r => r.ok ? r.json() : [])
       .then(setProducts)
+      .catch(() => {});
+    apiFetch("/api/workspace/service-types")
+      .then(r => r.ok ? r.json() : [])
+      .then(setServiceTypes)
       .catch(() => {});
   }, []);
 
@@ -373,16 +378,11 @@ export default function ClientDetailPage() {
                   <label className="block text-xs font-semibold text-neutral-500 uppercase mb-1">Jenis Layanan (Workspace)</label>
                   <select value={projectForm.service_type} onChange={e => {
                     const svc = e.target.value;
-                    const defaultMonths: Record<string, number> = { web_dev: 2, seo_gmaps: 6, sosmed: 3, maintenance: 1, web_dev_bulanan: 3, branding: 1 };
-                    setProjectForm(f => ({ ...f, service_type: svc, contract_months: defaultMonths[svc] || 1 }));
+                    const match = serviceTypes.find(s => s.value === svc);
+                    setProjectForm(f => ({ ...f, service_type: svc, contract_months: match?.default_months || 1 }));
                   }} className={inputCls}>
                     <option value="">— Pilih (opsional) —</option>
-                    <option value="web_dev">Web Development</option>
-                    <option value="seo_gmaps">SEO & Google Maps</option>
-                    <option value="sosmed">Kelola Sosial Media</option>
-                    <option value="maintenance">Maintenance Website</option>
-                    <option value="web_dev_bulanan">Web Dev (Bulanan)</option>
-                    <option value="branding">Desain Logo & Branding</option>
+                    {serviceTypes.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                   </select>
                 </div>
                 <div>

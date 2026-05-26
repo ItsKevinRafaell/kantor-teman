@@ -124,8 +124,9 @@ export default function ClientsPage() {
 
   // Project modal
   const [projectModal, setProjectModal] = useState<{ open: boolean; contactId: number | null }>({ open: false, contactId: null });
-  const [projectForm, setProjectForm] = useState({ name: "", type: "RETAINER", status: "ACTIVE", nominal: 0, start_date: "", end_date: "" });
+  const [projectForm, setProjectForm] = useState({ name: "", type: "RETAINER", status: "ACTIVE", nominal: 0, start_date: "", end_date: "", service_type: "", contract_months: 1 });
   const [editingProject, setEditingProject] = useState<ProjectData | null>(null);
+  const [serviceTypes, setServiceTypes] = useState<{ value: string; label: string; default_months: number }[]>([]);
 
   // Notes modal (per-column/category)
   const [notesModal, setNotesModal] = useState<{ open: boolean; contact: Contact | null }>({ open: false, contact: null });
@@ -141,6 +142,13 @@ export default function ClientsPage() {
       if (cRes.ok) setContacts(await cRes.json());
       if (pRes.ok) setProjects(await pRes.json());
     } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    apiFetch("/api/workspace/service-types")
+      .then(r => r.ok ? r.json() : [])
+      .then(setServiceTypes)
+      .catch(() => {});
   }, []);
 
   const fetchServices = useCallback(async () => {
@@ -329,10 +337,10 @@ export default function ClientsPage() {
     setProjectModal({ open: true, contactId });
     if (project) {
       setEditingProject(project);
-      setProjectForm({ name: project.name, type: project.type, status: project.status, nominal: project.nominal, start_date: project.start_date || "", end_date: project.end_date || "" });
+      setProjectForm({ name: project.name, type: project.type, status: project.status, nominal: project.nominal, start_date: project.start_date || "", end_date: project.end_date || "", service_type: "", contract_months: 1 });
     } else {
       setEditingProject(null);
-      setProjectForm({ name: "", type: "RETAINER", status: "ACTIVE", nominal: 0, start_date: new Date().toISOString().slice(0, 10), end_date: "" });
+      setProjectForm({ name: "", type: "RETAINER", status: "ACTIVE", nominal: 0, start_date: new Date().toISOString().slice(0, 10), end_date: "", service_type: "", contract_months: 1 });
     }
   }
 
@@ -933,6 +941,23 @@ export default function ClientsPage() {
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Berakhir</label>
                   <input type="date" value={projectForm.end_date} onChange={e => setProjectForm(f => ({ ...f, end_date: e.target.value }))} className={inputCls} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Jenis Layanan (Workspace)</label>
+                  <select value={projectForm.service_type} onChange={e => {
+                    const svc = e.target.value;
+                    const match = serviceTypes.find(s => s.value === svc);
+                    setProjectForm(f => ({ ...f, service_type: svc, contract_months: match?.default_months || 1 }));
+                  }} className={inputCls}>
+                    <option value="">— Pilih (opsional) —</option>
+                    {serviceTypes.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Durasi (Bulan)</label>
+                  <input type="number" min={1} max={24} value={projectForm.contract_months} onChange={e => setProjectForm(f => ({ ...f, contract_months: Number(e.target.value) }))} className={inputCls} disabled={!projectForm.service_type} />
                 </div>
               </div>
             </div>
