@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../../lib/api";
-import { Plus, Edit2, Trash2, X, FileText } from "lucide-react";
+import { Plus, Edit2, Trash2, X, FileText, BarChart2 } from "lucide-react";
 import Pagination from "../../../components/Pagination";
+import Link from "next/link";
 
 interface DynTemplate {
   id: string;
@@ -13,6 +14,16 @@ interface DynTemplate {
   is_active: boolean;
   category_id: string | null;
   category_name: string | null;
+}
+
+interface TemplateStats {
+  sent: number;
+  delivered: number;
+  read: number;
+  replied: number;
+  closed: number;
+  reply_rate: number;
+  conversion_rate: number;
 }
 
 interface CategoryOption {
@@ -45,6 +56,8 @@ export default function DynamicTemplatesPage() {
   const [editing, setEditing] = useState<DynTemplate | null>(null);
   const [form, setForm] = useState({ name: "", type: "WA_BLAST", content: "", is_active: true, category_id: "" });
   const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [stats, setStats] = useState<Record<string, TemplateStats>>({});
+  const [sortBy, setSortBy] = useState<"name" | "reply_rate" | "conversion_rate">("name");
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 15;
@@ -62,6 +75,22 @@ export default function DynamicTemplatesPage() {
       if (res.ok) setCategories(await res.json());
     } catch { /* silent */ }
   }, []);
+
+  const fetchStats = useCallback(async (waBlastIds: string[]) => {
+    const results: Record<string, TemplateStats> = {};
+    await Promise.all(waBlastIds.map(async (id) => {
+      try {
+        const res = await apiFetch(`/api/templates/${id}/stats?days=30`);
+        if (res.ok) results[id] = await res.json();
+      } catch { /* silent */ }
+    }));
+    setStats(results);
+  }, []);
+
+  useEffect(() => {
+    const waIds = templates.filter(t => t.type === "WA_BLAST").map(t => t.id);
+    if (waIds.length > 0) fetchStats(waIds);
+  }, [templates, fetchStats]);
 
   useEffect(() => {
     fetchTemplates();
@@ -136,6 +165,15 @@ export default function DynamicTemplatesPage() {
                       {!t.is_active && <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-200 dark:bg-gray-700 text-gray-500">Nonaktif</span>}
                     </div>
                     <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2 font-mono whitespace-pre-wrap">{t.content}</p>
+                    {t.type === "WA_BLAST" && stats[t.id] && (
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[10px] font-semibold">
+                        <span className="text-gray-500">📤 Sent: {stats[t.id].sent}</span>
+                        <span className="text-blue-600">✓ Delivered: {stats[t.id].delivered}</span>
+                        <span className="text-purple-600">👁 Read: {stats[t.id].read}</span>
+                        <span className="text-amber-600">💬 Replied: {stats[t.id].replied} ({stats[t.id].reply_rate}%)</span>
+                        <span className="text-green-600">🎯 Closed: {stats[t.id].closed} ({stats[t.id].conversion_rate}%)</span>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0 ml-3">

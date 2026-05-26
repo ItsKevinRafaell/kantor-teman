@@ -482,6 +482,21 @@ class BlastCampaign(Base):
     created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
 
 
+class BlastMessage(Base):
+    __tablename__ = "blast_messages"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    campaign_id = Column(String(36), ForeignKey("blast_campaigns.id"), nullable=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False, index=True)
+    template_id = Column(String(36), ForeignKey("dynamic_templates.id"), nullable=True, index=True)
+    phone_number = Column(String(255), nullable=False, index=True)
+    sent_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    delivered_at = Column(String(255), nullable=True)
+    read_at = Column(String(255), nullable=True)
+    replied_at = Column(String(255), nullable=True)
+    status = Column(String(50), nullable=False, default="sent")
+    error_message = Column(Text, nullable=True)
+
+
 class FollowUpSequence(Base):
     __tablename__ = "followup_sequences"
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -1913,9 +1928,30 @@ def run_blast_sync(batch_name: str, product_category: str, min_rating: int, db_u
             success = _send_fonnte_sync(lead.phone_number, message, token, _httpx)
             if success:
                 lead.status = "Contacted"
+                tmpl_id_for_track = (tmpl.id if dynamic_templates else None)
+                db.add(BlastMessage(
+                    id=str(uuid.uuid4()),
+                    campaign_id=None,
+                    lead_id=lead.id,
+                    template_id=tmpl_id_for_track,
+                    phone_number=lead.phone_number,
+                    sent_at=datetime.now(timezone.utc).isoformat(),
+                    status="sent",
+                ))
                 db.commit()
                 _blast_jobs[batch_name]["sent"] += 1
             else:
+                db.add(BlastMessage(
+                    id=str(uuid.uuid4()),
+                    campaign_id=None,
+                    lead_id=lead.id,
+                    template_id=(tmpl.id if dynamic_templates else None),
+                    phone_number=lead.phone_number,
+                    sent_at=datetime.now(timezone.utc).isoformat(),
+                    status="failed",
+                    error_message="Fonnte send returned non-200",
+                ))
+                db.commit()
                 _blast_jobs[batch_name]["failed"] += 1
             db.close()
             _time.sleep(5)
@@ -2832,6 +2868,15 @@ def update_lead_status(lead_id: int, body: StatusUpdate, current_user: User = De
     old_status = lead.status
     lead.status = body.status
     lead.last_followup_at = datetime.now(timezone.utc).isoformat()
+    if body.status == "Replied":
+        now_iso = datetime.now(timezone.utc).isoformat()
+        pending = db.query(BlastMessage).filter(
+            BlastMessage.lead_id == lead_id,
+            BlastMessage.replied_at.is_(None),
+        ).all()
+        for bm in pending:
+            bm.replied_at = now_iso
+            bm.status = "replied"
     db.commit()
     db.refresh(lead)
     lead.lead_score, _ = calculate_lead_score_full(lead)
@@ -7081,6 +7126,114 @@ def delete_blast_campaign(campaign_id: str, current_user: User = Depends(get_cur
     log_audit(db, current_user.name, "DELETE", "blast_campaigns", campaign_id, {"name": campaign.name})
     db.delete(campaign)
     db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Blast Message Tracking + Analytics
+# ---------------------------------------------------------------------------
+
+class FonnteWebhookIn(BaseModel):
+    device: Optional[str] = None
+    target: Optional[str] = None
+    status: Optional[str] = None
+    message: Optional[str] = None
+
+
+@app.post("/api/blast/webhook/fonnte")
+def fonnte_webhook(body: FonnteWebhookIn, db: Session = Depends(get_db)):
+    """Fonnte callback for delivery/read status updates."""
+    try:
+        if not body.target:
+            return {"ok": True}
+        phone = _normalize_phone(body.target)
+        now = datetime.now(timezone.utc).isoformat()
+        msgs = db.query(BlastMessage).filter(BlastMessage.phone_number == phone).order_by(BlastMessage.sent_at.desc()).limit(5).all()
+        for msg in msgs:
+            if body.status == "delivered" and not msg.delivered_at:
+                msg.delivered_at = now
+                msg.status = "delivered"
+            elif body.status == "read" and not msg.read_at:
+                msg.read_at = now
+                msg.status = "read"
+        db.commit()
+    except Exception as e:
+        print(f"[FONNTE_WEBHOOK] {e}", flush=True)
+    return {"ok": True}
+
+
+@app.get("/api/templates/{template_id}/stats")
+def get_template_stats(template_id: str, days: int = 30, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    msgs = db.query(BlastMessage).filter(
+        BlastMessage.template_id == template_id,
+        BlastMessage.sent_at >= cutoff,
+    ).all()
+    sent = len(msgs)
+    delivered = sum(1 for m in msgs if m.delivered_at)
+    read = sum(1 for m in msgs if m.read_at)
+    replied = sum(1 for m in msgs if m.replied_at)
+    lead_ids = [m.lead_id for m in msgs if m.replied_at]
+    closed = db.query(Lead).filter(Lead.id.in_(lead_ids), Lead.status == "Closed/Client").count() if lead_ids else 0
+    reply_rate = round(replied / sent * 100, 1) if sent else 0.0
+    conversion_rate = round(closed / sent * 100, 1) if sent else 0.0
+    return {
+        "template_id": template_id,
+        "sent": sent,
+        "delivered": delivered,
+        "read": read,
+        "replied": replied,
+        "closed": closed,
+        "reply_rate": reply_rate,
+        "conversion_rate": conversion_rate,
+    }
+
+
+@app.get("/api/blast/analytics")
+def get_blast_analytics(days: int = 30, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    msgs = db.query(BlastMessage).filter(BlastMessage.sent_at >= cutoff).all()
+
+    total_sent = len(msgs)
+    total_delivered = sum(1 for m in msgs if m.delivered_at)
+    total_read = sum(1 for m in msgs if m.read_at)
+    total_replied = sum(1 for m in msgs if m.replied_at)
+    replied_lead_ids = [m.lead_id for m in msgs if m.replied_at]
+    total_closed = db.query(Lead).filter(Lead.id.in_(replied_lead_ids), Lead.status == "Closed/Client").count() if replied_lead_ids else 0
+
+    by_template: dict[str, dict] = {}
+    for m in msgs:
+        tid = m.template_id or "unknown"
+        if tid not in by_template:
+            by_template[tid] = {"template_id": tid, "template_name": None, "sent": 0, "delivered": 0, "read": 0, "replied": 0, "closed": 0}
+        by_template[tid]["sent"] += 1
+        if m.delivered_at: by_template[tid]["delivered"] += 1
+        if m.read_at: by_template[tid]["read"] += 1
+        if m.replied_at: by_template[tid]["replied"] += 1
+
+    templates = {t.id: t.name for t in db.query(DynamicTemplate).all()}
+    for tid, row in by_template.items():
+        row["template_name"] = templates.get(tid, "Unknown")
+        s = row["sent"]
+        row["reply_rate"] = round(row["replied"] / s * 100, 1) if s else 0.0
+        row["conversion_rate"] = round(row["closed"] / s * 100, 1) if s else 0.0
+
+    ranked = sorted(by_template.values(), key=lambda x: x["reply_rate"], reverse=True)
+    top = ranked[0] if ranked else None
+
+    return {
+        "period_days": days,
+        "total": {
+            "sent": total_sent,
+            "delivered": total_delivered,
+            "read": total_read,
+            "replied": total_replied,
+            "closed": total_closed,
+            "reply_rate": round(total_replied / total_sent * 100, 1) if total_sent else 0.0,
+            "conversion_rate": round(total_closed / total_sent * 100, 1) if total_sent else 0.0,
+        },
+        "by_template": ranked,
+        "top_performer": {"template_name": top["template_name"], "reply_rate": top["reply_rate"]} if top else None,
+    }
 
 
 # ---------------------------------------------------------------------------

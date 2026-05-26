@@ -983,5 +983,34 @@ body{font-family:'Poppins',sans-serif;margin:0;padding:40px;color:#242423}
 else:
     print("= document templates sudah ada, skip seed")
 
+# ---------------------------------------------------------------------------
+# Migrasi: blast_messages table
+# ---------------------------------------------------------------------------
+cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='blast_messages'")
+if not cur.fetchone():
+    cur.execute("""
+        CREATE TABLE blast_messages (
+            id VARCHAR(36) PRIMARY KEY,
+            campaign_id VARCHAR(36) REFERENCES blast_campaigns(id),
+            lead_id INTEGER NOT NULL REFERENCES leads(id),
+            template_id VARCHAR(36) REFERENCES dynamic_templates(id),
+            phone_number VARCHAR(255) NOT NULL,
+            sent_at VARCHAR(255) NOT NULL,
+            delivered_at VARCHAR(255),
+            read_at VARCHAR(255),
+            replied_at VARCHAR(255),
+            status VARCHAR(50) NOT NULL DEFAULT 'sent',
+            error_message TEXT
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_blast_messages_lead_id ON blast_messages(lead_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_blast_messages_template_id ON blast_messages(template_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_blast_messages_phone ON blast_messages(phone_number)")
+    print("+ tabel blast_messages dibuat")
+else:
+    print("= tabel blast_messages sudah ada, skip")
+
+conn.commit()
+
 conn.close()
 print("Migrasi selesai.")
