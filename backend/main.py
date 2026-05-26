@@ -6,6 +6,7 @@ import json
 import csv
 import io
 import base64
+import hmac
 import httpx
 from search_volume_data import get_monthly_search_volume
 from fastapi import FastAPI, Query, HTTPException, Depends, BackgroundTasks, Request, Body, UploadFile, File, Form
@@ -13,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, List, Any
 import os
 from datetime import datetime, timedelta, timezone
@@ -2064,12 +2065,7 @@ PRODUCT_INTEREST_LABELS = {
 
 def _send_wa_auto_reply_sync(lead_id: int, phone: str, name: str, product_interest: str, db_url: str, jwt_secret: str):
     import httpx as _httpx
-    from sqlalchemy import create_engine as _ce
-    from sqlalchemy.orm import sessionmaker as _sm
-    _ca = {"check_same_thread": False} if "sqlite" in db_url else {}
-    _engine = _ce(db_url, connect_args=_ca, pool_recycle=60, pool_pre_ping=True, pool_size=1, max_overflow=0)
-    _Session = _sm(bind=_engine)
-    db = _Session()
+    db = SessionLocal()
     try:
         if not phone:
             return
@@ -2104,7 +2100,7 @@ def create_external_lead(request: Request, body: ExternalLeadIn, background_task
 
     api_key = request.headers.get("X-API-Key", "")
     stored_key = _get_setting("external_lead_api_key", "")
-    if not stored_key or api_key != stored_key:
+    if not stored_key or not hmac.compare_digest(api_key, stored_key):
         raise HTTPException(status_code=401, detail="Invalid API key")
 
     phone = _normalize_phone(body.phone_number)
@@ -2112,26 +2108,33 @@ def create_external_lead(request: Request, body: ExternalLeadIn, background_task
     existing = db.query(Lead).filter(Lead.phone_number == phone).first()
 
     if existing:
-        note_text = f"[{body.source}] {body.message or ''} (duplikat {datetime.now(timezone.utc).strftime('%Y-%m-%d')})"
-        existing.batch_name = (existing.batch_name or "") + f" | {note_text}"
+        note_text = f"[{body.source[:64]}] {(body.message or '')[:200]} (duplikat {datetime.now(timezone.utc).strftime('%Y-%m-%d')})"
+        existing.batch_name = (existing.batch_name or "")[-200:] + f" | {note_text}"
         if existing.status == "Scraped":
             existing.status = "Replied"
         db.commit()
         return {"lead_id": existing.id, "success": True, "duplicate": True}
 
-    lead = Lead(
-        business_name=body.business_name,
-        phone_number=phone,
-        status="Replied",
-        product_interest=body.product_interest or "",
-        batch_name="Web Form",
-        lead_score=70,
-    )
-    db.add(lead)
-    db.flush()
-    lead.lead_score, _ = calculate_lead_score(lead)
-    db.commit()
-    db.refresh(lead)
+    try:
+        lead = Lead(
+            business_name=body.business_name,
+            phone_number=phone,
+            status="Replied",
+            product_interest=body.product_interest or "",
+            batch_name="Web Form",
+            lead_score=70,
+        )
+        db.add(lead)
+        db.flush()
+        lead.lead_score, _ = calculate_lead_score(lead)
+        db.commit()
+        db.refresh(lead)
+    except Exception:
+        db.rollback()
+        existing = db.query(Lead).filter(Lead.phone_number == phone).first()
+        if existing:
+            return {"lead_id": existing.id, "success": True, "duplicate": True}
+        raise HTTPException(status_code=500, detail="Gagal membuat lead")
 
     fonnte_token = get_fonnte_token(db)
     admin_wa = _get_setting("admin_wa", ADMIN_WA)
@@ -3806,6 +3809,11 @@ async def track_open(body: TrackOpenIn, background_tasks: BackgroundTasks, db: S
 
 class ViewDurationIn(BaseModel):
     duration_seconds: int
+
+    @field_validator("duration_seconds")
+    @classmethod
+    def cap_duration(cls, v: int) -> int:
+        return max(0, min(v, 3600))
 
 
 @app.post("/api/proposals/{slug}/view-duration")
@@ -6376,7 +6384,7 @@ def delete_generated_document(did: str, current_user: User = Depends(get_current
         raise HTTPException(status_code=404, detail="Document tidak ditemukan")
     if d.file_url:
         fpath = os.path.join(os.path.dirname(__file__), d.file_url.lstrip("/"))
-        if os.path.exists(fpath):
+        if os.path.exists(fpath) and os.path.realpath(fpath).startswith(os.path.realpath(DOCUMENTS_DIR)):
             try:
                 os.remove(fpath)
             except Exception:
@@ -6411,13 +6419,10 @@ def track_pdf_open(document_id: str, db: Session = Depends(get_db)):
     try:
         doc = db.query(GeneratedDocument).filter(GeneratedDocument.id == document_id).first()
         now = datetime.now(timezone.utc).isoformat()
-        if doc and doc.target_id:
-            try:
-                lead_id = int(doc.target_id)
-                db.add(LeadActivityLog(id=str(uuid.uuid4()), lead_id=lead_id, activity_type="pdf_opened"))
-            except (ValueError, TypeError):
-                pass
-            proposal = db.query(Proposal).filter(Proposal.lead_id == int(doc.target_id) if doc.target_id.isdigit() else False).first()
+        if doc and doc.target_id and doc.target_id.isdigit():
+            lead_id = int(doc.target_id)
+            db.add(LeadActivityLog(id=str(uuid.uuid4()), lead_id=lead_id, activity_type="pdf_opened"))
+            proposal = db.query(Proposal).filter(Proposal.lead_id == lead_id).first()
             if proposal:
                 db.add(ProposalAnalytics(
                     id=str(uuid.uuid4()),

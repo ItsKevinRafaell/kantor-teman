@@ -153,7 +153,12 @@ export default function ProposalPage() {
     if (isNaN(expiresMs)) { setTimeLeft(null); return; }
     const tick = () => {
       const remaining = expiresMs - Date.now();
-      setTimeLeft(remaining > 0 ? remaining : 0);
+      if (remaining <= 0) {
+        setTimeLeft(0);
+        clearInterval(interval);
+        return;
+      }
+      setTimeLeft(remaining);
     };
     tick();
     const interval = setInterval(tick, 1000);
