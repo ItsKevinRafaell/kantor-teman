@@ -143,6 +143,7 @@ class Lead(Base):
     review_count = Column(Integer, nullable=True)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
+    last_followup_at = Column(String(255), nullable=True)
 
 
 class Contact(Base):
@@ -243,6 +244,7 @@ class ProposalAnalytics(Base):
     total_time_seconds = Column(Integer, default=0)
     sections_viewed = Column(Text, default="[]")
     event = Column(String(50), nullable=True)
+    duration_seconds = Column(Integer, nullable=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1714,6 +1716,66 @@ def calculate_lead_score(lead) -> tuple[int, dict]:
     return max(0, min(100, score)), breakdown
 
 
+def _apply_decay(score: int, breakdown: dict, lead) -> tuple[int, dict]:
+    """Apply time-based decay if last_followup_at > 30 days ago."""
+    ref = lead.last_followup_at
+    if not ref:
+        return score, breakdown
+    try:
+        ref_dt = datetime.fromisoformat(str(ref).replace("Z", "+00:00"))
+        days_since = (datetime.now(timezone.utc) - ref_dt).days
+        if days_since > 30:
+            weeks_over = (days_since - 30) // 7
+            decay = weeks_over * 5
+            if decay > 0:
+                score -= decay
+                breakdown[f"Decay ({days_since}d, -{decay})"] = -decay
+    except Exception:
+        pass
+    return max(0, min(100, score)), breakdown
+
+
+def calculate_lead_score_full(lead) -> tuple[int, dict]:
+    """Calculate score + apply decay + apply persistent signals from lead_activity_logs."""
+    score, breakdown = calculate_lead_score(lead)
+    score, breakdown = _apply_decay(score, breakdown, lead)
+    return score, breakdown
+
+
+def _apply_proposal_signal(lead_id: int, signal_type: str, points: int, db: Session, replace_signal: Optional[str] = None) -> bool:
+    """Apply a behavioral signal to a lead's score idempotently.
+    Returns True if applied, False if already applied (skip).
+    If replace_signal is set, removes its points first before applying new points.
+    """
+    existing = db.query(LeadActivityLog).filter(
+        LeadActivityLog.lead_id == lead_id,
+        LeadActivityLog.activity_type == signal_type,
+    ).first()
+    if existing:
+        return False
+
+    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    if not lead:
+        return False
+
+    if replace_signal:
+        replaced = db.query(LeadActivityLog).filter(
+            LeadActivityLog.lead_id == lead_id,
+            LeadActivityLog.activity_type == replace_signal,
+        ).first()
+        if replaced:
+            lead.lead_score = max(0, (lead.lead_score or 0) - 15)
+
+    lead.lead_score = min(100, (lead.lead_score or 0) + points)
+    db.add(LeadActivityLog(
+        id=str(uuid.uuid4()),
+        lead_id=lead_id,
+        activity_type=signal_type,
+    ))
+    db.commit()
+    return True
+
+
 def generate_batch_name(category: str, location: str) -> str:
     date_str = datetime.now().strftime("%d %b %Y")
     parts = [p for p in [category.strip(), location.strip()] if p]
@@ -2708,7 +2770,7 @@ def recalculate_all_scores(current_user: User = Depends(get_current_user), db: S
     leads = db.query(Lead).filter(Lead.is_archived == False).all()
     updated = 0
     for lead in leads:
-        new_score, _ = calculate_lead_score(lead)
+        new_score, _ = calculate_lead_score_full(lead)
         if lead.lead_score != new_score:
             lead.lead_score = new_score
             updated += 1
@@ -2721,7 +2783,7 @@ def recalculate_lead_score(lead_id: int, current_user: User = Depends(get_curren
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
-    score, breakdown = calculate_lead_score(lead)
+    score, breakdown = calculate_lead_score_full(lead)
     lead.lead_score = score
     db.commit()
     return {"lead_id": lead_id, "score": score, "breakdown": breakdown}
@@ -2756,9 +2818,10 @@ def update_lead_status(lead_id: int, body: StatusUpdate, current_user: User = De
         raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
     old_status = lead.status
     lead.status = body.status
+    lead.last_followup_at = datetime.now(timezone.utc).isoformat()
     db.commit()
     db.refresh(lead)
-    lead.lead_score, _ = calculate_lead_score(lead)
+    lead.lead_score, _ = calculate_lead_score_full(lead)
     db.commit()
     log_audit(db, current_user.name, "UPDATE", "leads", lead_id, {"field": "status", "old": old_status, "new": body.status})
     return lead
@@ -3714,6 +3777,10 @@ async def track_open(body: TrackOpenIn, background_tasks: BackgroundTasks, db: S
     admin_wa = _get_setting("admin_wa", ADMIN_WA)
     background_tasks.add_task(send_fonnte_message, admin_wa, message, fonnte_token)
 
+    # Behavioral signal: proposal viewed +15 (idempotent)
+    if lead:
+        _apply_proposal_signal(lead.id, "score_proposal_viewed", 15, db)
+
     # Re-engagement alert: if first viewed > 7 days ago
     if proposal.first_viewed_at and lead:
         try:
@@ -3735,6 +3802,36 @@ async def track_open(body: TrackOpenIn, background_tasks: BackgroundTasks, db: S
             pass
 
     return {"analytics_id": analytics.id}
+
+
+class ViewDurationIn(BaseModel):
+    duration_seconds: int
+
+
+@app.post("/api/proposals/{slug}/view-duration")
+def track_view_duration(slug: str, body: ViewDurationIn, db: Session = Depends(get_db)):
+    proposal = db.query(Proposal).filter(Proposal.slug == slug).first()
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal tidak ditemukan")
+    lead = db.query(Lead).filter(Lead.id == proposal.lead_id).first()
+
+    latest = db.query(ProposalAnalytics).filter(
+        ProposalAnalytics.proposal_id == proposal.id
+    ).order_by(ProposalAnalytics.opened_at.desc()).first()
+    if latest:
+        latest.duration_seconds = max(latest.duration_seconds or 0, body.duration_seconds)
+        db.commit()
+
+    if lead and body.duration_seconds > 180:
+        _apply_proposal_signal(
+            lead.id,
+            "score_proposal_engaged",
+            25,
+            db,
+            replace_signal="score_proposal_viewed",
+        )
+
+    return {"success": True}
 
 
 @app.post("/api/proposals/track/ping")
@@ -8411,6 +8508,25 @@ scheduler.add_job(
     args=[SessionLocal, Lead, Proposal, log_audit],
 )
 scheduler.add_job(reset_fonnte_monthly_quota, "cron", day=1, hour=0, minute=0, id="fonnte_monthly_reset")
+
+
+def daily_score_decay():
+    """Daily job: recalculate scores with decay for all active leads."""
+    db = SessionLocal()
+    try:
+        leads = db.query(Lead).filter(Lead.is_archived == False).all()
+        for lead in leads:
+            new_score, _ = calculate_lead_score_full(lead)
+            if lead.lead_score != new_score:
+                lead.lead_score = new_score
+        db.commit()
+    except Exception as e:
+        print(f"[DECAY] error: {e}", flush=True)
+    finally:
+        db.close()
+
+
+scheduler.add_job(daily_score_decay, "cron", hour=3, minute=0, id="daily_score_decay")
 
 
 @app.on_event("startup")

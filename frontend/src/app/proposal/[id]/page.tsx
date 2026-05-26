@@ -262,6 +262,43 @@ export default function ProposalPage() {
     };
   }, [proposal]);
 
+  // Track view duration: send total time on page hide/unload via sendBeacon
+  useEffect(() => {
+    if (!proposal?.slug) return;
+    const mountTime = Date.now();
+    const slug = proposal.slug;
+    let sent = false;
+
+    function sendDuration() {
+      if (sent) return;
+      sent = true;
+      const seconds = Math.round((Date.now() - mountTime) / 1000);
+      if (seconds <= 0) return;
+      const url = `${API_BASE}/api/proposals/${slug}/view-duration`;
+      const body = JSON.stringify({ duration_seconds: seconds });
+      try {
+        if (navigator.sendBeacon) {
+          const blob = new Blob([body], { type: "application/json" });
+          navigator.sendBeacon(url, blob);
+        } else {
+          fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(() => {});
+        }
+      } catch {}
+    }
+
+    function onVisibility() {
+      if (document.visibilityState === "hidden") sendDuration();
+    }
+
+    window.addEventListener("beforeunload", sendDuration);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("beforeunload", sendDuration);
+      document.removeEventListener("visibilitychange", onVisibility);
+      sendDuration();
+    };
+  }, [proposal?.slug]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">

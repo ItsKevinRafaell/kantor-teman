@@ -424,6 +424,25 @@ if "lead_score" not in lead_cols_2:
 else:
     print("= lead_score sudah ada di leads, skip")
 
+if "last_followup_at" not in lead_cols_2:
+    cur.execute("ALTER TABLE leads ADD COLUMN last_followup_at VARCHAR(255)")
+    print("+ kolom last_followup_at ditambahkan ke leads")
+else:
+    print("= leads.last_followup_at sudah ada, skip")
+
+conn.commit()
+
+# ---------------------------------------------------------------------------
+# Migrasi proposal_analytics: duration_seconds
+# ---------------------------------------------------------------------------
+cur.execute("PRAGMA table_info(proposal_analytics)")
+pa_cols2 = {row[1] for row in cur.fetchall()}
+if "duration_seconds" not in pa_cols2:
+    cur.execute("ALTER TABLE proposal_analytics ADD COLUMN duration_seconds INTEGER")
+    print("+ kolom duration_seconds ditambahkan ke proposal_analytics")
+else:
+    print("= proposal_analytics.duration_seconds sudah ada, skip")
+
 conn.commit()
 
 # ---------------------------------------------------------------------------
