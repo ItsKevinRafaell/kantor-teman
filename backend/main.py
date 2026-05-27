@@ -1233,7 +1233,7 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
 # ---------------------------------------------------------------------------
 
 NINE_ROUTER_DB = os.getenv("NINE_ROUTER_DB", "/root/.9router/db/data.sqlite")
-NINE_ROUTER_URL = os.getenv("NINE_ROUTER_URL", "http://202.6.204.179:28761/v1")
+NINE_ROUTER_URL = os.getenv("NINE_ROUTER_URL", "http://202.6.204.179:20128/v1")
 NINE_ROUTER_API_KEY = os.getenv("NINE_ROUTER_API_KEY", "dummy")
 
 COMBO_DISPLAY_NAMES: dict[str, str] = {
