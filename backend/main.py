@@ -1532,6 +1532,8 @@ class ProjectOut(BaseModel):
     end_date: Optional[str] = None
     color: Optional[str] = "yellow"
     is_archived: bool = False
+    service_type: Optional[str] = None
+    contract_months: Optional[int] = None
     model_config = {"from_attributes": True}
 
 

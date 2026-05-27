@@ -56,73 +56,53 @@ export default function WorkspaceDetailPage() {
   const [activeSheet, setActiveSheet] = useState(0);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
-  // Init form
-  const [initMode, setInitMode] = useState(false);
-  const [initService, setInitService] = useState("web_dev");
-  const [initMonths, setInitMonths] = useState(2);
-  const [initing, setIniting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const fetchWorkspace = useCallback(async () => {
+    setErrorMsg(null);
     try {
       const res = await apiFetch(`/api/workspace/${projectId}`);
       if (res.ok) {
         const data = await res.json();
         if (data.sheets && data.sheets.length > 0) {
           setWorkspace(data);
-          setInitMode(false);
           return;
         }
       }
-      // No workspace yet — check if project has service_type to auto-init
+      // No workspace yet — auto-init from project.service_type
       const projRes = await apiFetch(`/api/projects/${projectId}`);
-      if (projRes.ok) {
-        const proj = await projRes.json();
-        if (proj.service_type) {
-          // Auto-init silently from project data
-          const initRes = await apiFetch("/api/workspace/init", {
-            method: "POST",
-            body: JSON.stringify({
-              project_id: projectId,
-              service_type: proj.service_type,
-              contract_months: proj.contract_months || 1,
-            }),
-          });
-          if (initRes.ok) {
-            const initData = await initRes.json();
-            if (initData.sheets && initData.sheets.length > 0) {
-              setWorkspace({ project_id: projectId, service_type: proj.service_type, sheets: initData.sheets });
-              setInitMode(false);
-              return;
-            }
-          }
-        }
-        // No service_type — show manual form with defaults from project
-        setInitService(proj.service_type || "web_dev");
-        setInitMonths(proj.contract_months || 2);
+      if (!projRes.ok) {
+        setErrorMsg("Project tidak ditemukan.");
+        return;
       }
-      setInitMode(true);
+      const proj = await projRes.json();
+      if (!proj.service_type) {
+        setErrorMsg("Project belum punya layanan paket. Tetapkan service_type di Project Board atau accept proposal terlebih dahulu.");
+        return;
+      }
+      const initRes = await apiFetch("/api/workspace/init", {
+        method: "POST",
+        body: JSON.stringify({
+          project_id: projectId,
+          service_type: proj.service_type,
+          contract_months: proj.contract_months || 1,
+        }),
+      });
+      if (!initRes.ok) {
+        const err = await initRes.json().catch(() => ({}));
+        setErrorMsg(err.detail || "Gagal inisialisasi workspace.");
+        return;
+      }
+      const initData = await initRes.json();
+      if (initData.sheets && initData.sheets.length > 0) {
+        setWorkspace({ project_id: projectId, service_type: proj.service_type, sheets: initData.sheets });
+      } else {
+        setErrorMsg("Inisialisasi tidak menghasilkan sheet apa pun.");
+      }
     } finally { setLoading(false); }
   }, [projectId]);
 
   useEffect(() => { fetchWorkspace(); }, [fetchWorkspace]);
-
-  async function handleInit() {
-    setIniting(true);
-    try {
-      const res = await apiFetch("/api/workspace/init", {
-        method: "POST",
-        body: JSON.stringify({ project_id: projectId, service_type: initService, contract_months: initMonths }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Gagal inisialisasi");
-      }
-      setToast({ message: "Workspace berhasil dibuat!", type: "success" });
-      await fetchWorkspace();
-    } catch (e: unknown) {
-      setToast({ message: e instanceof Error ? e.message : "Gagal", type: "error" });
-    } finally { setIniting(false); }
-  }
 
   function showToast(msg: string, type: "success" | "error" = "success") {
     setToast({ message: msg, type });
@@ -130,28 +110,12 @@ export default function WorkspaceDetailPage() {
 
   if (loading) return <div className="p-8 text-sm text-gray-500">Memuat workspace...</div>;
 
-  if (initMode || !workspace) {
+  if (errorMsg || !workspace) {
     return (
-      <div className="p-6 max-w-lg mx-auto space-y-6">
-        <h1 className="text-2xl font-bold text-neutral-800 dark:text-neutral-100">Inisialisasi Workspace</h1>
-        <p className="text-sm text-gray-500">Pilih jenis layanan dan durasi kontrak untuk generate template workspace.</p>
-        <div className="space-y-4 bg-white dark:bg-neutral-900 border border-[var(--border-default)] rounded-2xl p-6">
-          <div>
-            <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">Jenis Layanan</label>
-            <select value={initService} onChange={e => { setInitService(e.target.value); setInitMonths(({ web_dev: 2, seo_gmaps: 6, sosmed: 3, maintenance: 1, web_dev_bulanan: 3, branding: 1 } as Record<string, number>)[e.target.value] || 1); }}
-              className="mt-1 w-full px-3 py-2.5 text-sm border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-800">
-              {Object.entries(SERVICE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">Durasi Kontrak (bulan)</label>
-            <input type="number" min={1} max={24} value={initMonths} onChange={e => setInitMonths(Number(e.target.value))}
-              className="mt-1 w-full px-3 py-2.5 text-sm border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-800" />
-          </div>
-          <button onClick={handleInit} disabled={initing}
-            className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl disabled:opacity-50 transition-colors">
-            {initing ? "Membuat..." : "Inisialisasi Workspace"}
-          </button>
+      <div className="p-6 max-w-lg mx-auto space-y-4">
+        <h1 className="text-2xl font-bold text-neutral-800 dark:text-neutral-100">Workspace</h1>
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-xl p-4">
+          <p className="text-sm text-amber-800 dark:text-amber-200">{errorMsg || "Workspace belum tersedia."}</p>
         </div>
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       </div>
