@@ -5711,6 +5711,14 @@ def create_project(body: ProjectIn, current_user: User = Depends(get_current_use
     return project
 
 
+@app.get("/api/projects/{project_id}", response_model=ProjectOut)
+def get_project(project_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    return project
+
+
 @app.put("/api/projects/{project_id}", response_model=ProjectOut)
 def update_project(project_id: str, body: ProjectIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()

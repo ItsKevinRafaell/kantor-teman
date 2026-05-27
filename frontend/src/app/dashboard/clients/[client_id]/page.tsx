@@ -383,23 +383,6 @@ export default function ClientDetailPage() {
                   <input type="date" value={projectForm.end_date} onChange={e => setProjectForm(f => ({ ...f, end_date: e.target.value }))} className={inputCls} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-500 uppercase mb-1">Jenis Layanan (Workspace)</label>
-                  <select value={projectForm.service_type} onChange={e => {
-                    const svc = e.target.value;
-                    const match = serviceTypes.find(s => s.value === svc);
-                    setProjectForm(f => ({ ...f, service_type: svc, contract_months: match?.default_months || 1 }));
-                  }} className={inputCls}>
-                    <option value="">— Pilih (opsional) —</option>
-                    {serviceTypes.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-500 uppercase mb-1">Durasi (Bulan)</label>
-                  <input type="number" min={1} max={24} value={projectForm.contract_months} onChange={e => setProjectForm(f => ({ ...f, contract_months: Number(e.target.value) }))} className={inputCls} disabled={!projectForm.service_type} />
-                </div>
-              </div>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setProjectModal(false)} className="btn-ghost">Batal</button>
