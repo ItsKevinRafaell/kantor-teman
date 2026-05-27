@@ -74,9 +74,14 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
   const [saving, setSaving] = useState<string | null>(null);
   const [expandedCell, setExpandedCell] = useState<{ rowId: string; colId: string; value: string } | null>(null);
   const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
+  const [usersLoading, setUsersLoading] = useState(true);
 
   useEffect(() => {
-    apiFetch("/api/users").then(r => r.ok ? r.json() : []).then(setUsers).catch(() => {});
+    apiFetch("/api/users")
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(setUsers)
+      .catch(() => { onToast("Gagal memuat daftar user. PIC diisi manual sementara.", "error"); })
+      .finally(() => setUsersLoading(false));
   }, []);
   const [addingRow, setAddingRow] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -246,13 +251,20 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
                           className="text-xs text-left text-gray-600 dark:text-gray-400 max-w-[180px] truncate hover:text-amber-600 transition-colors">
                           {(val as string) || <span className="text-gray-300 italic">Klik untuk edit...</span>}
                         </button>
-                      ) : col.column_key === "pic" && users.length > 0 ? (
-                        <select value={(val as string) || ""}
-                          onChange={e => patchCell(row.id, col.id, { value_text: e.target.value || null })}
-                          className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-amber-300 min-w-[120px]">
-                          <option value="">— PIC —</option>
-                          {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-                        </select>
+                      ) : col.column_key === "pic" ? (
+                        usersLoading ? (
+                          <div className="text-xs px-2 py-1 text-gray-400 min-w-[120px]">Memuat...</div>
+                        ) : (
+                          <select value={(val as string) || ""}
+                            onChange={e => patchCell(row.id, col.id, { value_text: e.target.value || null })}
+                            className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-amber-300 min-w-[120px]">
+                            <option value="">— PIC —</option>
+                            {users.length === 0
+                              ? <option disabled>Belum ada user terdaftar</option>
+                              : users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)
+                            }
+                          </select>
+                        )
                       ) : (
                         <input type="text" defaultValue={(val as string) || ""}
                           onBlur={e => { if (e.target.value !== (val || "")) patchCell(row.id, col.id, { value_text: e.target.value || null }); }}
