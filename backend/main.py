@@ -5680,19 +5680,20 @@ def create_project(body: ProjectIn, current_user: User = Depends(get_current_use
     db.refresh(project)
     log_audit(db, current_user.name, "CREATE", "projects", project.id, {"name": body.name, "lead_id": body.lead_id})
 
-    # Auto-init workspace if service_type provided
-    if body.service_type and body.service_type in WORKSPACE_TEMPLATES:
+    # Auto-init workspace always — use service_type template or fallback to general
+    _svc = body.service_type if (body.service_type and body.service_type in WORKSPACE_TEMPLATES) else "general"
+    if _svc:
         try:
             if contract_days and contract_days < 30:
-                sheet_defs = build_sheets_for_days(contract_days, body.service_type)
+                sheet_defs = build_sheets_for_days(contract_days, _svc)
             else:
-                sheet_defs = build_sheets_for_service(body.service_type, months)
+                sheet_defs = build_sheets_for_service(_svc, months)
             now_ws = datetime.now(timezone.utc).isoformat()
             for idx, sdef in enumerate(sheet_defs):
                 sheet = WorkspaceSheet(
                     id=str(uuid.uuid4()), project_id=project.id,
                     sheet_index=idx, sheet_label=sdef["label"],
-                    service_type=body.service_type, month_number=sdef.get("month"),
+                    service_type=_svc, month_number=sdef.get("month"),
                     created_at=now_ws,
                 )
                 db.add(sheet)
