@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "../../lib/api";
+import { getServiceLabel } from "../../lib/serviceLabels";
 import Link from "next/link";
 
 interface WorkspaceProject {
@@ -54,7 +55,7 @@ export default function WorkspaceListPage() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100 truncate">{p.name}</p>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      {p.lead_name || "—"} · {p.service_type || "—"} · {p.contract_months || 1} bulan
+                      {[p.lead_name, getServiceLabel(p.service_type), `${p.contract_months || 1} bulan`].filter(Boolean).join(" · ")}
                     </p>
                   </div>
                   <div className="flex items-center gap-3 ml-3">

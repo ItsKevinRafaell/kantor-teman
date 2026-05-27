@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { apiFetch } from "../../../lib/api";
 import WorkspaceSheet from "../../../components/workspace/WorkspaceSheet";
 import Toast from "../../../components/Toast";
+import { getServiceLabel } from "../../../lib/serviceLabels";
 
 interface SheetData {
   id: string;
@@ -38,16 +39,6 @@ interface WorkspaceData {
   service_type: string | null;
   sheets: SheetData[];
 }
-
-const SERVICE_LABELS: Record<string, string> = {
-  web_dev: "Web Development",
-  seo_gmaps: "SEO & Google Maps",
-  sosmed: "Kelola Sosial Media",
-  maintenance: "Maintenance Website",
-  web_dev_bulanan: "Web Dev (Bulanan)",
-  branding: "Desain Logo & Branding",
-  general: "General",
-};
 
 export default function WorkspaceDetailPage() {
   const params = useParams();
@@ -170,7 +161,9 @@ export default function WorkspaceDetailPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-xl font-bold text-neutral-800 dark:text-neutral-100">Workspace</h1>
-          <p className="text-xs text-gray-500">{SERVICE_LABELS[workspace.service_type || ""] || workspace.service_type}</p>
+          {getServiceLabel(workspace.service_type) && (
+            <p className="text-xs text-gray-500">{getServiceLabel(workspace.service_type)}</p>
+          )}
         </div>
       </div>
 

@@ -18,3 +18,4 @@ frontend/public/sw.js
 frontend/public/swe-worker-*.js
 frontend/public/workbox-*.js
 frontend/tsconfig.tsbuildinfo
+backend/uploads/
