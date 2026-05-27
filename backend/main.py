@@ -1233,7 +1233,8 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
 # ---------------------------------------------------------------------------
 
 NINE_ROUTER_DB = os.getenv("NINE_ROUTER_DB", "/root/.9router/db/data.sqlite")
-NINE_ROUTER_URL = os.getenv("NINE_ROUTER_URL", "http://localhost:20128/v1")
+NINE_ROUTER_URL = os.getenv("NINE_ROUTER_URL", "http://202.6.204.179:28761/v1")
+NINE_ROUTER_API_KEY = os.getenv("NINE_ROUTER_API_KEY", "dummy")
 
 COMBO_DISPLAY_NAMES: dict[str, str] = {
     "combo-kiro": "Kiro (Claude Sonnet 4.6/4.7)",
@@ -1245,15 +1246,35 @@ COMBO_DISPLAY_NAMES: dict[str, str] = {
 
 
 def _get_9router_combos() -> list[dict]:
+    # Try local SQLite first (works on dev mesin Kevin)
     try:
         import sqlite3 as _sqlite3
-        con = _sqlite3.connect(NINE_ROUTER_DB, timeout=3)
+        con = _sqlite3.connect(NINE_ROUTER_DB, timeout=2)
         rows = con.execute("SELECT name FROM combos WHERE active=1 OR active IS NULL ORDER BY name").fetchall()
         con.close()
-        return [{"name": r[0], "display_name": COMBO_DISPLAY_NAMES.get(r[0], r[0])} for r in rows]
+        if rows:
+            return [{"name": r[0], "display_name": COMBO_DISPLAY_NAMES.get(r[0], r[0])} for r in rows]
     except Exception as e:
-        print(f"[9router] combos query failed: {e}", flush=True)
-        return [{"name": k, "display_name": v} for k, v in COMBO_DISPLAY_NAMES.items()]
+        print(f"[9router] sqlite query failed: {e}", flush=True)
+
+    # Fallback: query /v1/models on remote 9router
+    try:
+        import httpx as _httpx
+        url = f"{NINE_ROUTER_URL.rstrip('/')}/models"
+        with _httpx.Client(timeout=3) as client:
+            r = client.get(url, headers={"Authorization": f"Bearer {NINE_ROUTER_API_KEY}"})
+        if r.status_code == 200:
+            data = r.json()
+            models = data.get("data") if isinstance(data, dict) else data
+            if isinstance(models, list):
+                names = [m["id"] if isinstance(m, dict) else str(m) for m in models]
+                names = [n for n in names if n.startswith("combo-")] or names
+                return [{"name": n, "display_name": COMBO_DISPLAY_NAMES.get(n, n)} for n in names]
+    except Exception as e:
+        print(f"[9router] /v1/models fallback failed: {e}", flush=True)
+
+    # Final fallback: hardcoded
+    return [{"name": k, "display_name": v} for k, v in COMBO_DISPLAY_NAMES.items()]
 
 
 def _get_active_combo(db: Session) -> str:
@@ -1270,7 +1291,7 @@ def get_9router_config(db: Session) -> dict:
     """Single source of truth for all AI calls — always routes through 9router."""
     return {
         "provider": "openai",
-        "openai_key": "dummy",
+        "openai_key": NINE_ROUTER_API_KEY,
         "base_url": _get_proxy_url(db),
         "model": _get_active_combo(db),
         "gemini_key": "",
@@ -2721,7 +2742,7 @@ async def ai_health(current_user: User = Depends(get_current_user), db: Session 
     proxy_url = _get_proxy_url(db)
     try:
         async with httpx.AsyncClient(timeout=5) as client:
-            r = await client.get(f"{proxy_url}/models", headers={"Authorization": "Bearer dummy"})
+            r = await client.get(f"{proxy_url}/models", headers={"Authorization": f"Bearer {NINE_ROUTER_API_KEY}"})
         if r.status_code < 500:
             return {"status": "connected", "proxy_url": proxy_url}
     except Exception as e:
