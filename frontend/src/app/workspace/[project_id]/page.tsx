@@ -136,6 +136,18 @@ export default function WorkspaceDetailPage() {
     } finally { setAddingSheet(false); }
   }
 
+  async function handleDeleteSheet(sheetId: string) {
+    if (!confirm("Hapus sheet ini? Semua task dan board cards terkait akan ikut terhapus.")) return;
+    const res = await apiFetch(`/api/workspace/sheet/${sheetId}`, { method: "DELETE" });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.detail || "Gagal hapus sheet", "error");
+      return;
+    }
+    setActiveSheet(0);
+    await fetchWorkspace();
+  }
+
   if (loading) return <div className="p-8 text-sm text-gray-500">Memuat workspace...</div>;
 
   if (errorMsg || !workspace) {
@@ -165,10 +177,18 @@ export default function WorkspaceDetailPage() {
       {/* Sheet tabs */}
       <div className="flex gap-1 overflow-x-auto pb-1 items-center">
         {sheets.map((s, i) => (
-          <button key={s.id} onClick={() => setActiveSheet(i)}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors ${i === activeSheet ? "bg-amber-500 text-white" : "bg-gray-100 dark:bg-neutral-800 text-gray-600 dark:text-neutral-300 hover:bg-gray-200"}`}>
-            {s.sheet_label}
-          </button>
+          <div key={s.id} className="relative group flex items-center">
+            <button onClick={() => setActiveSheet(i)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors ${i === activeSheet ? "bg-amber-500 text-white" : "bg-gray-100 dark:bg-neutral-800 text-gray-600 dark:text-neutral-300 hover:bg-gray-200"}`}>
+              {s.sheet_label}
+            </button>
+            {s.month_number === null && (
+              <button onClick={() => handleDeleteSheet(s.id)} title="Hapus sheet"
+                className="ml-0.5 opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            )}
+          </div>
         ))}
         <button onClick={() => setAddSheetModal(true)} className="px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap border border-dashed border-gray-300 dark:border-neutral-700 text-gray-500 hover:border-amber-400 hover:text-amber-600">
           + Sheet

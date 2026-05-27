@@ -8021,6 +8021,29 @@ def add_workspace_sheet(project_id: str, body: dict, current_user: User = Depend
     return {"id": sheet.id, "sheet_label": label, "sheet_index": max_idx}
 
 
+@app.delete("/api/workspace/sheet/{sheet_id}", status_code=204)
+def delete_workspace_sheet(sheet_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.id == sheet_id).first()
+    if not sheet:
+        raise HTTPException(status_code=404, detail="Sheet tidak ditemukan")
+    # Block deletion of auto-generated sheets (have month_number tied to contract)
+    if sheet.month_number is not None:
+        raise HTTPException(status_code=400, detail="Sheet auto-generated tidak bisa dihapus")
+    # Cascade: rows → cells → attachments → linked board cards
+    rows = db.query(WorkspaceRow).filter(WorkspaceRow.sheet_id == sheet_id).all()
+    row_ids = [r.id for r in rows]
+    card_ids = [r.board_card_id for r in rows if r.board_card_id]
+    if row_ids:
+        db.query(WorkspaceCell).filter(WorkspaceCell.row_id.in_(row_ids)).delete(synchronize_session=False)
+        db.query(WorkspaceAttachment).filter(WorkspaceAttachment.row_id.in_(row_ids)).delete(synchronize_session=False)
+        db.query(WorkspaceRow).filter(WorkspaceRow.sheet_id == sheet_id).delete(synchronize_session=False)
+    if card_ids:
+        db.query(BoardCard).filter(BoardCard.id.in_(card_ids)).delete(synchronize_session=False)
+    db.query(WorkspaceColumn).filter(WorkspaceColumn.sheet_id == sheet_id).delete(synchronize_session=False)
+    db.delete(sheet)
+    db.commit()
+
+
 @app.post("/api/workspace/sheet/{sheet_id}/column")
 def add_workspace_column(sheet_id: str, body: WorkspaceColumnIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.id == sheet_id).first()
