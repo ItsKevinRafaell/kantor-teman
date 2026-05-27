@@ -269,7 +269,7 @@ WORKSPACE_TEMPLATES["general"] = {
             "month": None,
             "label": "Task Board",
             "columns": [
-                {"key": "task", "label": "Task", "type": "text", "is_system": True},
+                {"key": "task_name", "label": "Task", "type": "text", "is_system": True},
                 {"key": "status", "label": "Status", "type": "status", "is_system": True,
                  "options": ["To Do", "In Progress", "Review", "Done"]},
                 {"key": "assignee", "label": "PIC", "type": "text"},
@@ -278,9 +278,9 @@ WORKSPACE_TEMPLATES["general"] = {
                 {"key": "done", "label": "Selesai", "type": "checkbox", "is_system": True},
             ],
             "default_rows": [
-                {"task": "Onboarding klien", "status": "To Do"},
-                {"task": "Kick-off meeting", "status": "To Do"},
-                {"task": "Deliverable pertama", "status": "To Do"},
+                {"task_name": "Onboarding klien", "status": "To Do"},
+                {"task_name": "Kick-off meeting", "status": "To Do"},
+                {"task_name": "Deliverable pertama", "status": "To Do"},
             ],
         }
     ],
