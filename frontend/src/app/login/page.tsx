@@ -28,7 +28,7 @@ export default function LoginPage() {
         throw new Error(body.detail ?? "Login gagal");
       }
       const data = await res.json();
-      setToken(data.access_token, data.name, data.email);
+      setToken(data.access_token, data.name, data.email, data.role || "admin");
       router.push("/dashboard");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Terjadi kesalahan.");

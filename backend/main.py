@@ -1221,6 +1221,12 @@ def get_current_user(
     return user
 
 
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Akses ditolak: hanya admin")
+    return current_user
+
+
 # ---------------------------------------------------------------------------
 # Pydantic schemas
 # ---------------------------------------------------------------------------
@@ -1254,6 +1260,7 @@ class TokenOut(BaseModel):
     token_type: str = "bearer"
     name: str
     email: str
+    role: str
 
 
 class Business(BaseModel):
@@ -2135,6 +2142,7 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
         access_token=create_token(user.id, user.email),
         name=user.name,
         email=user.email,
+        role=user.role,
     )
 
 
@@ -2143,14 +2151,14 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 
 @app.get("/api/users")
-def list_users(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def list_users(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     users = db.query(User).all()
     return [{"id": u.id, "name": u.name, "email": u.email, "role": u.role} for u in users]
 
 
 @app.get("/api/user/me")
 def get_me(current_user: User = Depends(get_current_user)):
-    return {"id": current_user.id, "name": current_user.name, "email": current_user.email}
+    return {"id": current_user.id, "name": current_user.name, "email": current_user.email, "role": current_user.role}
 
 
 @app.put("/api/user/me")
@@ -2167,7 +2175,7 @@ def update_me(body: UserUpdate, current_user: User = Depends(get_current_user), 
 
 
 @app.get("/api/settings")
-def get_settings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_settings(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     keys = ["fonnte_token", "gemini_api_key", "claude_api_key", "openai_api_key", "ai_api_key", "ai_provider", "ai_base_url", "ai_model", "google_api_key", "google_calendar_id", "google_service_account_json", "admin_wa", "admin_name", "followup_enabled", "followup_hour", "cms_url", "cms_api_token", "external_lead_api_key", "smtp_host", "smtp_port", "smtp_user", "smtp_password", "smtp_from"]
     result = {}
     for k in keys:
@@ -2179,7 +2187,7 @@ def get_settings(current_user: User = Depends(get_current_user), db: Session = D
 
 
 @app.put("/api/settings")
-def update_settings(body: SettingsUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_settings(body: SettingsUpdate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     settings_map = {
         "fonnte_token": body.fonnte_token,
         "gemini_api_key": body.gemini_api_key,
@@ -2217,7 +2225,7 @@ def update_settings(body: SettingsUpdate, current_user: User = Depends(get_curre
 
 
 @app.post("/api/settings/external-lead-key/regenerate")
-def regenerate_external_lead_key(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def regenerate_external_lead_key(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     new_key = str(uuid.uuid4())
     row = db.query(SystemSettings).filter_by(key="external_lead_api_key").first()
     if row:
@@ -2566,7 +2574,7 @@ def list_ai_models(active_only: bool = Query(False), capability: Optional[str] =
 
 
 @app.post("/api/ai-models", response_model=dict, status_code=201)
-def create_ai_model(body: AIModelIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_ai_model(body: AIModelIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     m = AIModel(
         name=body.name,
         model_id=body.model_id,
@@ -2581,7 +2589,7 @@ def create_ai_model(body: AIModelIn, current_user: User = Depends(get_current_us
 
 
 @app.put("/api/ai-models/{model_id}")
-def update_ai_model(model_id: str, body: AIModelIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_ai_model(model_id: str, body: AIModelIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     m = db.query(AIModel).filter(AIModel.id == model_id).first()
     if not m:
         raise HTTPException(status_code=404, detail="Model tidak ditemukan")
@@ -2596,7 +2604,7 @@ def update_ai_model(model_id: str, body: AIModelIn, current_user: User = Depends
 
 
 @app.delete("/api/ai-models/{model_id}", status_code=204)
-def delete_ai_model(model_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_ai_model(model_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     m = db.query(AIModel).filter(AIModel.id == model_id).first()
     if not m:
         raise HTTPException(status_code=404, detail="Model tidak ditemukan")
@@ -2605,7 +2613,7 @@ def delete_ai_model(model_id: str, current_user: User = Depends(get_current_user
 
 
 @app.post("/api/ai-models/{model_id}/set-default")
-def set_default_ai_model(model_id: str, capability: str = Query(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def set_default_ai_model(model_id: str, capability: str = Query(...), current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Set this model as default for given capability (chat, image, article, analysis)."""
     if capability not in ("chat", "image", "article", "analysis"):
         raise HTTPException(status_code=400, detail="Capability tidak valid")
@@ -2865,7 +2873,7 @@ class LeadEdit(BaseModel):
 
 
 @app.post("/api/leads", response_model=LeadOut, status_code=201)
-def create_lead_manual(body: LeadCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_lead_manual(body: LeadCreate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     existing = db.query(Lead).filter(Lead.phone_number == body.phone_number).first()
     if existing:
         raise HTTPException(status_code=400, detail=f"Nomor {body.phone_number} sudah ada di database ({existing.business_name}).")
@@ -2915,7 +2923,7 @@ def send_wa_manual(body: WaSendIn, current_user: User = Depends(get_current_user
 
 
 @app.put("/api/leads/{lead_id}", response_model=LeadOut)
-def update_lead(lead_id: int, body: LeadEdit, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_lead(lead_id: int, body: LeadEdit, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
@@ -2945,7 +2953,7 @@ def update_lead(lead_id: int, body: LeadEdit, current_user: User = Depends(get_c
 
 
 @app.delete("/api/leads/{lead_id}")
-def delete_lead(lead_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_lead(lead_id: int, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
@@ -3099,7 +3107,7 @@ def restore_lead(lead_id: int, current_user: User = Depends(get_current_user), d
 
 
 @app.delete("/api/leads/batch/{batch_name}", status_code=204)
-def delete_batch(batch_name: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_batch(batch_name: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     leads = db.query(Lead).filter(Lead.batch_name == batch_name, Lead.is_archived == False).all()
     if not leads:
         raise HTTPException(status_code=404, detail="Batch tidak ditemukan")
@@ -3231,7 +3239,7 @@ def get_random_template(
 @app.post("/api/campaign/blast")
 async def start_blast(
     body: BlastIn,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     import threading
     threading.Thread(target=run_blast_sync, args=(body.batch_name, body.product_category, body.min_rating, DATABASE_URL, JWT_SECRET, body.template_id), daemon=True).start()
@@ -4970,7 +4978,7 @@ def get_client_detail(client_id: int, current_user: User = Depends(get_current_u
 def get_audit_logs(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     total = db.query(func.count(AuditLog.id)).scalar() or 0
@@ -5696,7 +5704,7 @@ def get_projects(
 
 
 @app.post("/api/projects", response_model=ProjectOut, status_code=201)
-def create_project(body: ProjectIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_project(body: ProjectIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     if body.type not in ("FIXED", "RETAINER"):
         raise HTTPException(status_code=400, detail="Type harus 'FIXED' atau 'RETAINER'")
     if body.status not in ("ACTIVE", "COMPLETED", "HOLD"):
@@ -5820,7 +5828,7 @@ def get_project(project_id: str, current_user: User = Depends(get_current_user),
 
 
 @app.put("/api/projects/{project_id}", response_model=ProjectOut)
-def update_project(project_id: str, body: ProjectIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_project(project_id: str, body: ProjectIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project tidak ditemukan")
@@ -5841,7 +5849,7 @@ def update_project(project_id: str, body: ProjectIn, current_user: User = Depend
 
 
 @app.delete("/api/projects/{project_id}", status_code=204)
-def delete_project(project_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_project(project_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project tidak ditemukan")
@@ -5881,7 +5889,7 @@ def delete_project(project_id: str, current_user: User = Depends(get_current_use
 def archive_project(
     project_id: str,
     is_archived: bool = Body(..., embed=True),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     project = db.query(Project).filter(Project.id == project_id).first()
@@ -5896,7 +5904,7 @@ def archive_project(
 def update_project_color(
     project_id: str,
     color: str = Body(..., embed=True),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     project = db.query(Project).filter(Project.id == project_id).first()
@@ -6602,7 +6610,7 @@ def get_brand_kit_public(db: Session = Depends(get_db)):
 
 
 @app.put("/api/brand-kit")
-def update_brand_kit(body: BrandKitUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_brand_kit(body: BrandKitUpdate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     kit = _get_active_kit(db)
     if body.kit_name is not None:
         kit.kit_name = body.kit_name
@@ -6647,7 +6655,7 @@ def update_brand_asset(asset_id: str, body: BrandAssetIn, current_user: User = D
 
 
 @app.delete("/api/brand-assets/{asset_id}", status_code=204)
-def delete_brand_asset(asset_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_brand_asset(asset_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     asset = db.query(BrandAsset).filter(BrandAsset.id == asset_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset tidak ditemukan")
@@ -6661,7 +6669,7 @@ async def upload_brand_asset_file(
     asset_type: str = Form(...),
     name: str = Form(...),
     asset_id: Optional[str] = Form(None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     allowed_ext = {".png", ".jpg", ".jpeg", ".webp", ".ico"}
@@ -7485,7 +7493,7 @@ def get_blast_campaigns(current_user: User = Depends(get_current_user), db: Sess
 
 
 @app.post("/api/campaign/blast/schedule", response_model=BlastCampaignOut, status_code=201)
-def create_blast_campaign(body: BlastCampaignIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_blast_campaign(body: BlastCampaignIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     campaign = BlastCampaign(
         id=str(uuid.uuid4()),
         name=body.name,
@@ -7507,7 +7515,7 @@ def create_blast_campaign(body: BlastCampaignIn, current_user: User = Depends(ge
 
 
 @app.delete("/api/campaign/blast/schedule/{campaign_id}", status_code=204)
-def delete_blast_campaign(campaign_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_blast_campaign(campaign_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     campaign = db.query(BlastCampaign).filter(BlastCampaign.id == campaign_id).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign tidak ditemukan")
@@ -8095,7 +8103,7 @@ def add_workspace_sheet(project_id: str, body: dict, current_user: User = Depend
 
 
 @app.delete("/api/workspace/sheet/{sheet_id}", status_code=204)
-def delete_workspace_sheet(sheet_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_workspace_sheet(sheet_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.id == sheet_id).first()
     if not sheet:
         raise HTTPException(status_code=404, detail="Sheet tidak ditemukan")
