@@ -5622,16 +5622,19 @@ def create_project(body: ProjectIn, current_user: User = Depends(get_current_use
     if body.status not in ("ACTIVE", "COMPLETED", "HOLD"):
         raise HTTPException(status_code=400, detail="Status harus 'ACTIVE', 'COMPLETED', atau 'HOLD'")
 
-    # Auto-calculate contract_months from dates if not provided
+    # Auto-calculate contract_months and contract_days from dates
     months = body.contract_months
-    if (not months or months <= 0) and body.start_date and body.end_date:
+    contract_days = None
+    if body.start_date and body.end_date:
         try:
             from datetime import date as _date
             sd = _date.fromisoformat(body.start_date)
             ed = _date.fromisoformat(body.end_date)
-            months = max(1, (ed.year - sd.year) * 12 + (ed.month - sd.month))
+            contract_days = (ed - sd).days
+            if not months or months <= 0:
+                months = max(1, (ed.year - sd.year) * 12 + (ed.month - sd.month))
         except Exception:
-            months = 1
+            pass
     if not months or months <= 0:
         months = WORKSPACE_TEMPLATES.get(body.service_type or "", {}).get("default_months", 1) if body.service_type else 1
 
@@ -5674,8 +5677,10 @@ def create_project(body: ProjectIn, current_user: User = Depends(get_current_use
     # Auto-init workspace if service_type provided
     if body.service_type and body.service_type in WORKSPACE_TEMPLATES:
         try:
-            months = body.contract_months or WORKSPACE_TEMPLATES[body.service_type].get("default_months", 1)
-            sheet_defs = build_sheets_for_service(body.service_type, months)
+            if contract_days and contract_days < 30:
+                sheet_defs = build_sheets_for_days(contract_days, body.service_type)
+            else:
+                sheet_defs = build_sheets_for_service(body.service_type, months)
             now_ws = datetime.now(timezone.utc).isoformat()
             for idx, sdef in enumerate(sheet_defs):
                 sheet = WorkspaceSheet(
@@ -7531,13 +7536,14 @@ def get_blast_analytics(days: int = 30, current_user: User = Depends(get_current
 # Workspace Klien
 # ---------------------------------------------------------------------------
 
-from workspace_templates import build_sheets_for_service, WORKSPACE_TEMPLATES
+from workspace_templates import build_sheets_for_service, build_sheets_for_days, WORKSPACE_TEMPLATES
 
 
 class WorkspaceInitIn(BaseModel):
     project_id: str
     service_type: str
     contract_months: int = 1
+    contract_days: Optional[int] = None
 
 
 class WorkspaceCellUpdate(BaseModel):
@@ -7709,7 +7715,10 @@ def init_workspace(body: WorkspaceInitIn, current_user: User = Depends(get_curre
     project.service_type = body.service_type
     project.contract_months = body.contract_months
 
-    sheet_defs = build_sheets_for_service(body.service_type, body.contract_months)
+    if body.contract_days and body.contract_days < 30:
+        sheet_defs = build_sheets_for_days(body.contract_days, body.service_type)
+    else:
+        sheet_defs = build_sheets_for_service(body.service_type, body.contract_months)
     now = datetime.now(timezone.utc).isoformat()
 
     for idx, sdef in enumerate(sheet_defs):

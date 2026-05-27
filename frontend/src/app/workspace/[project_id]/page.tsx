@@ -79,12 +79,18 @@ export default function WorkspaceDetailPage() {
       const proj = await projRes.json();
       const svcType = proj.service_type || "general";
       const months = proj.contract_months || 1;
+      let contractDays: number | null = null;
+      if (proj.start_date && proj.end_date) {
+        const diff = (new Date(proj.end_date).getTime() - new Date(proj.start_date).getTime()) / (1000 * 60 * 60 * 24);
+        if (diff > 0 && diff < 30) contractDays = Math.round(diff);
+      }
       const initRes = await apiFetch("/api/workspace/init", {
         method: "POST",
         body: JSON.stringify({
           project_id: projectId,
           service_type: svcType,
           contract_months: months,
+          ...(contractDays ? { contract_days: contractDays } : {}),
         }),
       });
       if (!initRes.ok) {

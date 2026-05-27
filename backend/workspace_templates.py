@@ -342,3 +342,22 @@ def build_sheets_for_service(service_type: str, contract_months: int) -> list[di
             })
 
     return sheets
+
+
+def build_sheets_for_days(days: int, service_type: str = "general") -> list[dict]:
+    """Generate weekly sheets for short-duration projects (< 30 days)."""
+    tmpl = WORKSPACE_TEMPLATES.get(service_type, WORKSPACE_TEMPLATES["general"])
+    cols = tmpl.get("sheets", [{}])[0].get("columns", _BASE_COLS) if "sheets" in tmpl else tmpl.get("sheet_template", {}).get("columns", _BASE_COLS)
+
+    weeks = max(1, (days + 6) // 7)
+    sheets = []
+    for w in range(1, weeks + 1):
+        day_start = (w - 1) * 7 + 1
+        day_end = min(w * 7, days)
+        sheets.append({
+            "month": None,
+            "label": f"Minggu {w} (Hari {day_start}-{day_end})",
+            "columns": cols,
+            "default_rows": [],
+        })
+    return sheets
