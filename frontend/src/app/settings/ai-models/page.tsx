@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "../../../lib/api";
-import { Plus, Edit2, Trash2, X, Star } from "lucide-react";
+import { Plus, Edit2, Trash2, X, Star, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
 
 interface AIModel {
   id: string;
@@ -15,6 +15,16 @@ interface AIModel {
   is_default_image: boolean;
   is_default_article: boolean;
   is_default_analysis: boolean;
+}
+
+interface Combo {
+  name: string;
+  display_name: string;
+}
+
+interface HealthState {
+  status: "connected" | "offline" | "loading";
+  proxy_url: string;
 }
 
 const CAPABILITIES = ["chat", "image", "article", "analysis"] as const;
@@ -32,10 +42,12 @@ export default function AIModelsPage() {
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<AIModel | null>(null);
   const [form, setForm] = useState({ name: "", model_id: "", description: "", capabilities: ["chat"] as string[], is_active: true });
-  const [globalKey, setGlobalKey] = useState("");
-  const [globalBaseUrl, setGlobalBaseUrl] = useState("");
-  const [savingGlobal, setSavingGlobal] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+
+  const [combos, setCombos] = useState<Combo[]>([]);
+  const [activeCombo, setActiveCombo] = useState<string>("");
+  const [switching, setSwitching] = useState<string | null>(null);
+  const [health, setHealth] = useState<HealthState>({ status: "loading", proxy_url: "" });
 
   const fetchModels = useCallback(async () => {
     try {
@@ -44,28 +56,47 @@ export default function AIModelsPage() {
     } finally { setLoading(false); }
   }, []);
 
-  const fetchGlobalSettings = useCallback(async () => {
-    try {
-      const res = await apiFetch("/api/settings");
-      if (res.ok) {
-        const data = await res.json();
-        setGlobalKey(data.ai_api_key || data.openai_api_key || "");
-        setGlobalBaseUrl(data.ai_base_url || "");
-      }
-    } catch { /* silent */ }
+  const fetchCombos = useCallback(async () => {
+    const [combosRes, activeRes] = await Promise.all([
+      apiFetch("/api/ai/combos"),
+      apiFetch("/api/ai/active-combo"),
+    ]);
+    if (combosRes.ok) setCombos(await combosRes.json());
+    if (activeRes.ok) {
+      const data = await activeRes.json();
+      setActiveCombo(data.combo);
+    }
   }, []);
 
-  useEffect(() => { fetchModels(); fetchGlobalSettings(); }, [fetchModels, fetchGlobalSettings]);
-
-  async function saveGlobal() {
-    setSavingGlobal(true);
+  const checkHealth = useCallback(async () => {
+    setHealth(h => ({ ...h, status: "loading" }));
     try {
-      const res = await apiFetch("/api/settings", {
-        method: "PUT",
-        body: JSON.stringify({ ai_api_key: globalKey, ai_base_url: globalBaseUrl }),
+      const res = await apiFetch("/api/ai/health");
+      if (res.ok) setHealth(await res.json());
+    } catch {
+      setHealth({ status: "offline", proxy_url: "" });
+    }
+  }, []);
+
+  useEffect(() => { fetchModels(); fetchCombos(); checkHealth(); }, [fetchModels, fetchCombos, checkHealth]);
+
+  async function selectCombo(name: string) {
+    if (name === activeCombo || switching) return;
+    if (!confirm(`Ganti combo aktif ke "${name}"?`)) return;
+    setSwitching(name);
+    try {
+      const res = await apiFetch("/api/ai/active-combo", {
+        method: "POST",
+        body: JSON.stringify({ combo: name }),
       });
-      if (res.ok) showToast("Global AI config tersimpan");
-    } finally { setSavingGlobal(false); }
+      if (res.ok) {
+        setActiveCombo(name);
+        showToast(`Combo diubah ke ${name}`);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || "Gagal mengubah combo");
+      }
+    } finally { setSwitching(null); }
   }
 
   function openNew() {
@@ -124,42 +155,98 @@ export default function AIModelsPage() {
 
       <div>
         <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">AI Models</h1>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Kelola model AI dan set default per fitur. Semua model pakai 1 API key (9router).</p>
+        <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Semua AI call routes through 9router. Pilih combo aktif di bawah.</p>
       </div>
 
-      {/* Global Config */}
-      <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 space-y-3">
-        <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Global API Config</h2>
-        <p className="text-xs text-neutral-500">Satu API key untuk semua model (via 9router atau provider langsung).</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {/* Section 1: Proxy Status */}
+      <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5">
+        <div className="flex items-center justify-between">
           <div>
-            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">API Key</label>
-            <input type="password" value={globalKey} onChange={e => setGlobalKey(e.target.value)} className={inputCls} placeholder="sk-..." />
+            <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">9router Proxy</h2>
+            <p className="text-xs text-neutral-500 font-mono mt-1">{health.proxy_url || "—"}</p>
           </div>
-          <div>
-            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Base URL</label>
-            <input value={globalBaseUrl} onChange={e => setGlobalBaseUrl(e.target.value)} className={inputCls} placeholder="https://router.9router.ai/v1" />
+          <div className="flex items-center gap-3">
+            {health.status === "connected" && (
+              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded-xl text-xs font-semibold">
+                <CheckCircle2 size={14} /> Connected
+              </span>
+            )}
+            {health.status === "offline" && (
+              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-xl text-xs font-semibold">
+                <XCircle size={14} /> Offline
+              </span>
+            )}
+            {health.status === "loading" && (
+              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-500 rounded-xl text-xs font-semibold">
+                Mengecek...
+              </span>
+            )}
+            <button onClick={checkHealth} className="p-2 text-gray-400 hover:text-brand-yellow rounded-lg transition-colors" title="Refresh">
+              <RefreshCw size={14} />
+            </button>
           </div>
         </div>
-        <button onClick={saveGlobal} disabled={savingGlobal}
-          className="px-4 py-2 text-sm font-semibold bg-brand-yellow hover:bg-amber-600 text-white rounded-xl transition-colors disabled:opacity-50">
-          {savingGlobal ? "Menyimpan..." : "Simpan Config"}
-        </button>
       </div>
 
-      {/* Models List */}
+      {/* Section 2: Active Combo */}
+      <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 space-y-4">
+        <div>
+          <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Combo Aktif</h2>
+          <p className="text-xs text-neutral-500 mt-1">Klik combo untuk mengaktifkannya. Semua AI call CRM akan langsung pakai combo ini tanpa restart.</p>
+        </div>
+        {combos.length === 0 ? (
+          <div className="p-6 text-center text-sm text-neutral-400">Memuat combo...</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {combos.map(c => {
+              const isActive = c.name === activeCombo;
+              const isSwitching = switching === c.name;
+              return (
+                <button
+                  key={c.name}
+                  onClick={() => selectCombo(c.name)}
+                  disabled={isSwitching || isActive}
+                  className={`text-left p-4 rounded-xl border-2 transition-all ${
+                    isActive
+                      ? "border-[#f5a700] bg-amber-50/50 dark:bg-amber-900/10"
+                      : "border-[var(--border-subtle)] hover:border-amber-300 hover:bg-amber-50/30 dark:hover:bg-amber-900/5"
+                  } ${isSwitching ? "opacity-60" : ""}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">{c.display_name}</p>
+                      <p className="text-[11px] text-neutral-400 font-mono mt-0.5">{c.name}</p>
+                    </div>
+                    {isActive && (
+                      <span className="shrink-0 px-2 py-0.5 bg-[#f5a700] text-white text-[10px] font-bold uppercase rounded">Aktif</span>
+                    )}
+                    {isSwitching && (
+                      <span className="shrink-0 text-[10px] text-amber-600">Switching...</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Section 3: Model Registry (simplified) */}
       <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] overflow-hidden">
-        <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
-          <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Daftar Model ({models.length})</h2>
-          <button onClick={openNew} className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-yellow hover:bg-amber-600 text-white text-xs font-semibold rounded-xl transition-colors">
-            <Plus size={14} /> Tambah Model
-          </button>
+        <div className="px-5 py-4 border-b border-[var(--border-subtle)]">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Model Registry ({models.length})</h2>
+            <button onClick={openNew} className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-yellow hover:bg-amber-600 text-white text-xs font-semibold rounded-xl transition-colors">
+              <Plus size={14} /> Tambah Model
+            </button>
+          </div>
+          <p className="text-xs text-neutral-500 mt-2">Optional: override capability tertentu (image gen, dll). Kosong = pakai active combo.</p>
         </div>
 
         {loading ? (
           <div className="p-8 text-center text-sm text-neutral-400">Memuat...</div>
         ) : models.length === 0 ? (
-          <div className="p-8 text-center text-sm text-neutral-400">Belum ada model. Tambahkan model pertama.</div>
+          <div className="p-8 text-center text-sm text-neutral-400">Belum ada override. Default pakai combo aktif.</div>
         ) : (
           <div className="divide-y divide-[var(--border-subtle)]">
             {models.map(m => (
@@ -205,7 +292,7 @@ export default function AIModelsPage() {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setModal(false)} />
           <div className="relative bg-[var(--bg-surface)] rounded-2xl shadow-2xl border border-[var(--border-default)] w-full max-w-md p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-50">{editing ? "Edit Model" : "Tambah Model"}</h3>
+              <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-50">{editing ? "Edit Model" : "Tambah Model Override"}</h3>
               <button onClick={() => setModal(false)} className="p-1 text-gray-400 hover:text-gray-600"><X size={18} /></button>
             </div>
             <div className="space-y-3">
@@ -214,12 +301,12 @@ export default function AIModelsPage() {
                 <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder="Claude Haiku 4.5" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Model ID (dari provider)</label>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Model ID</label>
                 <input value={form.model_id} onChange={e => setForm(f => ({ ...f, model_id: e.target.value }))} className={inputCls} placeholder="claude-haiku-4-5-20251001" />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Deskripsi (opsional)</label>
-                <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className={inputCls} placeholder="Model cepat untuk chat" />
+                <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className={inputCls} placeholder="Override khusus untuk image gen" />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Capabilities</label>

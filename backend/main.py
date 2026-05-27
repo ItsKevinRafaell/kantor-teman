@@ -1227,6 +1227,57 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
 
+
+# ---------------------------------------------------------------------------
+# 9router helpers
+# ---------------------------------------------------------------------------
+
+NINE_ROUTER_DB = os.getenv("NINE_ROUTER_DB", "/root/.9router/db/data.sqlite")
+NINE_ROUTER_URL = os.getenv("NINE_ROUTER_URL", "http://localhost:20128/v1")
+
+COMBO_DISPLAY_NAMES: dict[str, str] = {
+    "combo-kiro": "Kiro (Claude Sonnet 4.6/4.7)",
+    "combo-mimo": "MiMo v2.5 Pro (Xiaomi)",
+    "combo-deepseek": "DeepSeek v4 Pro",
+    "combo-freemodel": "Free Model (GPT-5)",
+    "combo-test-mimo": "MiMo Test",
+}
+
+
+def _get_9router_combos() -> list[dict]:
+    try:
+        import sqlite3 as _sqlite3
+        con = _sqlite3.connect(NINE_ROUTER_DB, timeout=3)
+        rows = con.execute("SELECT name FROM combos WHERE active=1 OR active IS NULL ORDER BY name").fetchall()
+        con.close()
+        return [{"name": r[0], "display_name": COMBO_DISPLAY_NAMES.get(r[0], r[0])} for r in rows]
+    except Exception as e:
+        print(f"[9router] combos query failed: {e}", flush=True)
+        return [{"name": k, "display_name": v} for k, v in COMBO_DISPLAY_NAMES.items()]
+
+
+def _get_active_combo(db: Session) -> str:
+    row = db.query(SystemSettings).filter_by(key="ai_active_combo").first()
+    return (row.value if row and row.value else "combo-kiro")
+
+
+def _get_proxy_url(db: Session) -> str:
+    row = db.query(SystemSettings).filter_by(key="ai_proxy_url").first()
+    return (row.value if row and row.value else NINE_ROUTER_URL).rstrip("/")
+
+
+def get_9router_config(db: Session) -> dict:
+    """Single source of truth for all AI calls — always routes through 9router."""
+    return {
+        "provider": "openai",
+        "openai_key": "dummy",
+        "base_url": _get_proxy_url(db),
+        "model": _get_active_combo(db),
+        "gemini_key": "",
+        "claude_key": "",
+    }
+
+
 # ---------------------------------------------------------------------------
 # Pydantic schemas
 # ---------------------------------------------------------------------------
@@ -2632,6 +2683,50 @@ def get_default_model(db: Session, capability: str) -> Optional[AIModel]:
     """Get the default AI model for a given capability."""
     field = f"is_default_{capability}"
     return db.query(AIModel).filter(getattr(AIModel, field) == 1, AIModel.is_active == 1).first()
+
+
+# ---------------------------------------------------------------------------
+# 9router combo endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/api/ai/combos")
+def list_ai_combos(current_user: User = Depends(get_current_user)):
+    return _get_9router_combos()
+
+
+@app.get("/api/ai/active-combo")
+def get_active_combo(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return {"combo": _get_active_combo(db), "proxy_url": _get_proxy_url(db)}
+
+
+@app.post("/api/ai/active-combo")
+def set_active_combo(body: dict, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    combo = body.get("combo", "").strip()
+    if not combo:
+        raise HTTPException(status_code=400, detail="Field 'combo' wajib diisi")
+    valid = [c["name"] for c in _get_9router_combos()]
+    if combo not in valid:
+        raise HTTPException(status_code=400, detail=f"Combo '{combo}' tidak ditemukan di 9router")
+    row = db.query(SystemSettings).filter_by(key="ai_active_combo").first()
+    if row:
+        row.value = combo
+    else:
+        db.add(SystemSettings(key="ai_active_combo", value=combo))
+    db.commit()
+    return {"ok": True, "combo": combo}
+
+
+@app.get("/api/ai/health")
+async def ai_health(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    proxy_url = _get_proxy_url(db)
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.get(f"{proxy_url}/models", headers={"Authorization": "Bearer dummy"})
+        if r.status_code < 500:
+            return {"status": "connected", "proxy_url": proxy_url}
+    except Exception as e:
+        print(f"[9router health] {e}", flush=True)
+    return {"status": "offline", "proxy_url": proxy_url}
 
 
 # ---------------------------------------------------------------------------
@@ -5301,39 +5396,12 @@ def get_timeline_templates(db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 
 def get_ai_config(db: Session, capability: str = "analysis") -> dict:
-    """Get AI config. Uses new ai_models table if available, falls back to legacy settings."""
-    # Global single API key + base URL (9router)
-    api_key_row = db.query(SystemSettings).filter_by(key="ai_api_key").first()
-    base_url_row = db.query(SystemSettings).filter_by(key="ai_base_url").first()
-    api_key = api_key_row.value if api_key_row and api_key_row.value else ""
-    base_url = base_url_row.value if base_url_row and base_url_row.value else ""
-
-    # Try new model system first
+    """All AI calls route through 9router. Optional model override per capability via ai_models registry."""
+    cfg = get_9router_config(db)
     default_model = get_default_model(db, capability)
-    if default_model and api_key:
-        return {
-            "provider": "openai",
-            "openai_key": api_key,
-            "base_url": base_url or "https://router.9router.ai/v1",
-            "model": default_model.model_id,
-            "gemini_key": "",
-            "claude_key": "",
-        }
-
-    # Legacy fallback
-    provider = db.query(SystemSettings).filter_by(key="ai_provider").first()
-    gemini = db.query(SystemSettings).filter_by(key="gemini_api_key").first()
-    claude = db.query(SystemSettings).filter_by(key="claude_api_key").first()
-    openai = db.query(SystemSettings).filter_by(key="openai_api_key").first()
-    model = db.query(SystemSettings).filter_by(key="ai_model").first()
-    return {
-        "provider": (provider.value if provider else "gemini"),
-        "gemini_key": (gemini.value if gemini else ""),
-        "claude_key": (claude.value if claude else ""),
-        "openai_key": (openai.value if openai else "") or api_key,
-        "base_url": (base_url_row.value if base_url_row else "") or base_url,
-        "model": (model.value if model else ""),
-    }
+    if default_model and default_model.model_id:
+        cfg["model"] = default_model.model_id
+    return cfg
 
 
 def build_analysis_prompt(lead, product_list: str) -> str:
@@ -9808,16 +9876,11 @@ def update_conversation(conversation_id: str, body: ChatConversationUpdate, curr
 # ===========================================================================
 
 def _get_system_ai_config(db: Session) -> dict:
-    key = db.query(SystemSettings).filter_by(key="openai_api_key").first()
-    base = db.query(SystemSettings).filter_by(key="ai_base_url").first()
-    model_s = db.query(SystemSettings).filter_by(key="ai_model").first()
-    api_key = key.value if key and key.value else ""
-    if not api_key:
-        raise HTTPException(status_code=400, detail="Content Generator AI belum dikonfigurasi. Set API Key di Settings → Content Generator AI.")
+    cfg = get_9router_config(db)
     return {
-        "api_key": api_key,
-        "base_url": (base.value if base and base.value else "https://api.aimurah.com/v1").rstrip("/"),
-        "model": model_s.value if model_s and model_s.value else "claude-sonnet-4-5",
+        "api_key": cfg["openai_key"],
+        "base_url": cfg["base_url"],
+        "model": cfg["model"],
     }
 
 
