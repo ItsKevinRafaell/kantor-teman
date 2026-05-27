@@ -262,6 +262,30 @@ WORKSPACE_TEMPLATES: dict[str, Any] = {
     },
 }
 
+WORKSPACE_TEMPLATES["general"] = {
+    "default_months": 1,
+    "sheets": [
+        {
+            "month": None,
+            "label": "Task Board",
+            "columns": [
+                {"key": "task", "label": "Task", "type": "text", "is_system": True},
+                {"key": "status", "label": "Status", "type": "status", "is_system": True,
+                 "options": ["To Do", "In Progress", "Review", "Done"]},
+                {"key": "assignee", "label": "PIC", "type": "text"},
+                {"key": "due_date", "label": "Deadline", "type": "date"},
+                {"key": "notes", "label": "Catatan", "type": "textarea"},
+                {"key": "done", "label": "Selesai", "type": "checkbox", "is_system": True},
+            ],
+            "default_rows": [
+                {"task": "Onboarding klien", "status": "To Do"},
+                {"task": "Kick-off meeting", "status": "To Do"},
+                {"task": "Deliverable pertama", "status": "To Do"},
+            ],
+        }
+    ],
+}
+
 
 def build_sheets_for_service(service_type: str, contract_months: int) -> list[dict]:
     """

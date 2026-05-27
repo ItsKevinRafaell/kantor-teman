@@ -46,6 +46,7 @@ const SERVICE_LABELS: Record<string, string> = {
   maintenance: "Maintenance Website",
   web_dev_bulanan: "Web Dev (Bulanan)",
   branding: "Desain Logo & Branding",
+  general: "General",
 };
 
 export default function WorkspaceDetailPage() {
@@ -76,16 +77,14 @@ export default function WorkspaceDetailPage() {
         return;
       }
       const proj = await projRes.json();
-      if (!proj.service_type) {
-        setErrorMsg("Project belum punya layanan paket. Tetapkan service_type di Project Board atau accept proposal terlebih dahulu.");
-        return;
-      }
+      const svcType = proj.service_type || "general";
+      const months = proj.contract_months || 1;
       const initRes = await apiFetch("/api/workspace/init", {
         method: "POST",
         body: JSON.stringify({
           project_id: projectId,
-          service_type: proj.service_type,
-          contract_months: proj.contract_months || 1,
+          service_type: svcType,
+          contract_months: months,
         }),
       });
       if (!initRes.ok) {
@@ -95,7 +94,7 @@ export default function WorkspaceDetailPage() {
       }
       const initData = await initRes.json();
       if (initData.sheets && initData.sheets.length > 0) {
-        setWorkspace({ project_id: projectId, service_type: proj.service_type, sheets: initData.sheets });
+        setWorkspace({ project_id: projectId, service_type: svcType, sheets: initData.sheets });
       } else {
         setErrorMsg("Inisialisasi tidak menghasilkan sheet apa pun.");
       }
