@@ -2068,6 +2068,12 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
 # User / Settings endpoints
 # ---------------------------------------------------------------------------
 
+@app.get("/api/users")
+def list_users(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    users = db.query(User).all()
+    return [{"id": u.id, "name": u.name, "email": u.email, "role": u.role} for u in users]
+
+
 @app.get("/api/user/me")
 def get_me(current_user: User = Depends(get_current_user)):
     return {"id": current_user.id, "name": current_user.name, "email": current_user.email}
