@@ -795,14 +795,21 @@ export default function ClientsPage() {
                   <td className="px-4 py-3 font-mono text-gray-600 dark:text-gray-400 text-xs whitespace-nowrap">
                     <a href={`https://wa.me/${c.phone_number}`} target="_blank" rel="noopener noreferrer" className="text-green-600 hover:underline">+{c.phone_number}</a>
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {activeProjects.length > 0 ? activeProjects.map(p => (
-                        <span key={p.id} className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${p.type === "RETAINER" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"}`}>
-                          {p.type === "RETAINER" ? "Retainer" : "Fixed"}: {p.name}
-                        </span>
-                      )) : (
-                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500">Idle</span>
+                  <td className="px-4 py-3 max-w-[280px]">
+                    <div className="flex items-center gap-1.5 flex-nowrap">
+                      {activeProjects.length > 0 ? (
+                        <>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px] ${activeProjects[0].type === "RETAINER" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"}`} title={`${activeProjects[0].type === "RETAINER" ? "Retainer" : "Fixed"}: ${activeProjects[0].name}`}>
+                            {activeProjects[0].name}
+                          </span>
+                          {activeProjects.length > 1 && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300 whitespace-nowrap cursor-default" title={activeProjects.slice(1).map(p => p.name).join("\n")}>
+                              +{activeProjects.length - 1}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500 whitespace-nowrap">Idle</span>
                       )}
                     </div>
                   </td>
