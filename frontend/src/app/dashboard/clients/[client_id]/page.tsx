@@ -123,13 +123,20 @@ export default function ClientDetailPage() {
     else if (cat.includes("maintenance")) svcType = "maintenance";
     else if (cat.includes("logo") || cat.includes("branding") || cat.includes("desain")) svcType = "branding";
     const match = serviceTypes.find(s => s.value === svcType);
+    const months = match?.default_months || 1;
+    const startDate = new Date().toISOString().slice(0, 10);
+    const endD = new Date();
+    endD.setMonth(endD.getMonth() + months);
+    const endDate = endD.toISOString().slice(0, 10);
     setProjectForm(f => ({
       ...f,
       name: p.name,
       type: p.is_retainer ? "RETAINER" : "FIXED",
       nominal: p.base_price,
       service_type: svcType,
-      contract_months: match?.default_months || 1,
+      contract_months: months,
+      start_date: startDate,
+      end_date: endDate,
     }));
   }
 

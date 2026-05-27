@@ -5621,6 +5621,20 @@ def create_project(body: ProjectIn, current_user: User = Depends(get_current_use
         raise HTTPException(status_code=400, detail="Type harus 'FIXED' atau 'RETAINER'")
     if body.status not in ("ACTIVE", "COMPLETED", "HOLD"):
         raise HTTPException(status_code=400, detail="Status harus 'ACTIVE', 'COMPLETED', atau 'HOLD'")
+
+    # Auto-calculate contract_months from dates if not provided
+    months = body.contract_months
+    if (not months or months <= 0) and body.start_date and body.end_date:
+        try:
+            from datetime import date as _date
+            sd = _date.fromisoformat(body.start_date)
+            ed = _date.fromisoformat(body.end_date)
+            months = max(1, (ed.year - sd.year) * 12 + (ed.month - sd.month))
+        except Exception:
+            months = 1
+    if not months or months <= 0:
+        months = WORKSPACE_TEMPLATES.get(body.service_type or "", {}).get("default_months", 1) if body.service_type else 1
+
     project = Project(
         id=str(uuid.uuid4()),
         lead_id=body.lead_id,
@@ -5632,7 +5646,7 @@ def create_project(body: ProjectIn, current_user: User = Depends(get_current_use
         end_date=body.end_date,
         color=body.color or "yellow",
         service_type=body.service_type,
-        contract_months=body.contract_months or 1,
+        contract_months=months,
     )
     db.add(project)
     db.flush()  # Get project.id without committing
