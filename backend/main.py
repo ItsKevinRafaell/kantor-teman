@@ -1606,6 +1606,7 @@ class BoardCardOut(BaseModel):
     lead_id: Optional[int] = None
     lead: Optional[LeadMin] = None
     color: Optional[str] = "yellow"
+    is_workspace_linked: bool = False
     comments: list[BoardCardCommentOut] = []
     checklist: list[BoardCardChecklistOut] = []
     activity: list[BoardCardActivityOut] = []
@@ -5837,7 +5838,7 @@ def update_project_color(
 # Board API (Trello-like)
 # ---------------------------------------------------------------------------
 
-def card_to_out(card: BoardCard) -> BoardCardOut:
+def card_to_out(card: BoardCard, workspace_linked_ids: set = None) -> BoardCardOut:
     """Convert BoardCard to BoardCardOut with related data"""
     labels_list = []
     if card.labels:
@@ -5865,6 +5866,7 @@ def card_to_out(card: BoardCard) -> BoardCardOut:
         lead_id=card.lead_id,
         lead=lead_out,
         color=card.color or "yellow",
+        is_workspace_linked=bool(workspace_linked_ids and card.id in workspace_linked_ids),
         comments=[BoardCardCommentOut.model_validate(c) for c in card.comments] if hasattr(card, 'comments') else [],
         checklist=[BoardCardChecklistOut.model_validate(c) for c in card.checklist] if hasattr(card, 'checklist') else [],
         activity=[BoardCardActivityOut.model_validate(a) for a in card.activity] if hasattr(card, 'activity') else [],
@@ -5937,10 +5939,16 @@ def get_project_board(project_id: str, current_user: User = Depends(get_current_
         db.refresh(board)
 
     columns = db.query(BoardColumn).filter(BoardColumn.board_id == board.id).order_by(BoardColumn.position).all()
+    # Get workspace-linked card IDs for this project
+    sheet_ids = [s.id for s in db.query(WorkspaceSheet.id).filter(WorkspaceSheet.project_id == project_id).all()]
+    workspace_linked_ids = set()
+    if sheet_ids:
+        rows = db.query(WorkspaceRow.board_card_id).filter(WorkspaceRow.sheet_id.in_(sheet_ids), WorkspaceRow.board_card_id.isnot(None)).all()
+        workspace_linked_ids = {r[0] for r in rows if r[0]}
     column_outs = []
     for col in columns:
         cards = db.query(BoardCard).filter(BoardCard.column_id == col.id, BoardCard.is_archived == False).order_by(BoardCard.position).all()
-        card_outs = [card_to_out(c) for c in cards]
+        card_outs = [card_to_out(c, workspace_linked_ids) for c in cards]
         column_outs.append(BoardColumnOut(
             id=col.id, board_id=col.board_id, name=col.name, position=col.position, color=col.color, cards=card_outs
         ))

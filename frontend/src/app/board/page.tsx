@@ -57,6 +57,7 @@ interface BoardCard {
   assignee: string | null; due_date: string | null; labels: string[];
   position: number; is_archived: boolean; created_at: string; updated_at: string | null;
   lead_id?: number | null; lead?: Lead | null; color?: string;
+  is_workspace_linked?: boolean;
   comments: { id: string; content: string; author: string; created_at: string }[];
   checklist: { id: string; text: string; is_done: boolean }[];
   activity: { id: string; action: string; description: string; actor: string; created_at: string }[];
@@ -631,7 +632,14 @@ export default function BoardPage() {
                               {card.labels.map(label => <span key={label} className={`h-1.5 w-8 rounded-full ${LABEL_COLORS[label]}`} />)}
                             </div>
                           )}
-                          <h4 className="font-medium text-neutral-800 dark:text-neutral-200 text-sm leading-snug">{card.title}</h4>
+                          <div className="flex items-start gap-1">
+                            <h4 className="font-medium text-neutral-800 dark:text-neutral-200 text-sm leading-snug flex-1">{card.title}</h4>
+                            {card.is_workspace_linked && (
+                              <span title="Nama diatur dari Workspace" className="shrink-0 mt-0.5">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                              </span>
+                            )}
+                          </div>
                           {(card.lead?.business_name || leads.find(l => l.id === card.lead_id)?.business_name) && (
                             <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
                               {card.lead?.business_name || leads.find(l => l.id === card.lead_id)?.business_name}
@@ -681,8 +689,8 @@ export default function BoardPage() {
       <Modal open={cardModal.open} onClose={() => setCardModal({ open: false, card: null, columnId: "" })} title={cardModal.card ? "Edit Card" : "Card Baru"} size="lg">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Judul</label>
-            <input type="text" value={cardForm.title} onChange={e => setCardForm(prev => ({ ...prev, title: e.target.value }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" placeholder="Judul card..." />
+            <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Judul {cardModal.card?.is_workspace_linked && <span className="ml-1 text-[10px] text-gray-400 normal-case">(read-only — diatur dari Workspace)</span>}</label>
+            <input type="text" value={cardForm.title} onChange={e => setCardForm(prev => ({ ...prev, title: e.target.value }))} readOnly={cardModal.card?.is_workspace_linked} className={`w-full px-3 py-2 border-0 rounded-lg text-sm outline-none ${cardModal.card?.is_workspace_linked ? "bg-gray-50 dark:bg-gray-900 text-gray-500 cursor-not-allowed" : "bg-gray-100 dark:bg-gray-800 focus:ring-2 focus:ring-yellow-400"}`} placeholder="Judul card..." />
           </div>
           <div>
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Deskripsi</label>
