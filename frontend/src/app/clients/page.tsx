@@ -25,6 +25,8 @@ interface ProjectData {
   nominal: number;
   start_date: string | null;
   end_date: string | null;
+  service_type?: string | null;
+  contract_months?: number | null;
 }
 
 interface ServiceItem {
@@ -338,7 +340,7 @@ export default function ClientsPage() {
     setProjectModal({ open: true, contactId });
     if (project) {
       setEditingProject(project);
-      setProjectForm({ name: project.name, type: project.type, status: project.status, nominal: project.nominal, start_date: project.start_date || "", end_date: project.end_date || "", service_type: "", contract_months: 1 });
+      setProjectForm({ name: project.name, type: project.type, status: project.status, nominal: project.nominal, start_date: project.start_date || "", end_date: project.end_date || "", service_type: project.service_type || "", contract_months: project.contract_months || 1 });
     } else {
       setEditingProject(null);
       setProjectForm({ name: "", type: "RETAINER", status: "ACTIVE", nominal: 0, start_date: new Date().toISOString().slice(0, 10), end_date: "", service_type: "", contract_months: 1 });

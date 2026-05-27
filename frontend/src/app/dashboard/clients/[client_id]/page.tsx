@@ -23,6 +23,8 @@ interface ProjectData {
   nominal: number;
   start_date: string | null;
   end_date: string | null;
+  service_type?: string | null;
+  contract_months?: number | null;
 }
 
 interface ClientDetail {
@@ -170,7 +172,7 @@ export default function ClientDetailPage() {
 
   function openEditProject(p: ProjectData) {
     setEditingProject(p);
-    setProjectForm({ name: p.name, type: p.type, status: p.status, nominal: p.nominal, start_date: p.start_date || "", end_date: p.end_date || "", service_type: "", contract_months: 1 });
+    setProjectForm({ name: p.name, type: p.type, status: p.status, nominal: p.nominal, start_date: p.start_date || "", end_date: p.end_date || "", service_type: p.service_type || "", contract_months: p.contract_months || 1 });
     setProjectModal(true);
   }
 
