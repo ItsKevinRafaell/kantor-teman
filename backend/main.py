@@ -6040,7 +6040,11 @@ def update_board_card(card_id: str, body: BoardCardUpdate, current_user: User = 
     if not card:
         raise HTTPException(status_code=404, detail="Card tidak ditemukan")
 
-    if body.title is not None:
+    # Block title edit if card is linked to workspace row (1-way sync)
+    workspace_linked = db.query(WorkspaceRow).filter(WorkspaceRow.board_card_id == card_id).first()
+    if body.title is not None and workspace_linked:
+        pass  # ignore title change — managed by workspace
+    elif body.title is not None:
         card.title = body.title
     if body.description is not None:
         card.description = body.description
@@ -7898,6 +7902,11 @@ def update_workspace_cell(row_id: str, column_id: str, body: WorkspaceCellUpdate
 
     if col.column_key in ("status", "done"):
         sync_row_status_to_board(row_id, db)
+    elif col.column_key == "task_name" and row.board_card_id:
+        card = db.query(BoardCard).filter(BoardCard.id == row.board_card_id).first()
+        if card:
+            card.title = cell.value_text or f"Task {row.row_order}"
+            db.commit()
 
     return {"id": cell.id, "value_text": cell.value_text, "value_bool": cell.value_bool, "value_number": cell.value_number, "value_date": cell.value_date}
 
