@@ -535,7 +535,7 @@ class WorkspaceRow(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     sheet_id = Column(String(36), ForeignKey("workspace_sheets.id", ondelete="CASCADE"), nullable=False, index=True)
     row_order = Column(Integer, nullable=False, default=0)
-    board_card_id = Column(String(36), nullable=True)
+    board_card_id = Column(String(36), ForeignKey("board_cards.id", ondelete="SET NULL"), nullable=True)
     is_template = Column(Boolean, default=True)
     created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
     updated_at = Column(String(255), nullable=True)

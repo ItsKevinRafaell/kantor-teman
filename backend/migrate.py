@@ -119,6 +119,25 @@ if "mysql" in _db_url:
         else:
             print("= MySQL: projects.lead_id already nullable, skip")
 
+    # Add FK constraint workspace_rows.board_card_id → board_cards.id ON DELETE SET NULL
+    if _table_exists("workspace_rows") and _table_exists("board_cards"):
+        _cur.execute("""
+            SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'workspace_rows'
+            AND COLUMN_NAME = 'board_card_id' AND REFERENCED_TABLE_NAME = 'board_cards'
+        """)
+        if not _cur.fetchone():
+            try:
+                _cur.execute("""
+                    ALTER TABLE workspace_rows ADD CONSTRAINT fk_workspace_rows_board_card
+                    FOREIGN KEY (board_card_id) REFERENCES board_cards(id) ON DELETE SET NULL
+                """)
+                print("+ MySQL: FK workspace_rows.board_card_id → board_cards.id ON DELETE SET NULL")
+            except Exception as _e:
+                print(f"= MySQL: FK workspace_rows.board_card_id skip ({_e})")
+        else:
+            print("= MySQL: FK workspace_rows.board_card_id sudah ada, skip")
+
     _mc.commit()
     _mc.close()
     print("MySQL migration selesai.")
