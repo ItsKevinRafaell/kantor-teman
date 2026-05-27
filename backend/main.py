@@ -7,7 +7,9 @@ import csv
 import io
 import base64
 import hmac
+import time
 import httpx
+from collections import defaultdict
 from search_volume_data import get_monthly_search_volume
 from fastapi import FastAPI, Query, HTTPException, Depends, BackgroundTasks, Request, Body, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -43,19 +45,27 @@ def decrypt_password(encrypted: str) -> str:
 app = FastAPI(title="Kantor Teman API")
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://kantorteman.my.id")
-CORS_ORIGIN = os.getenv("CORS_ORIGIN", "https://kantor-teman-five.vercel.app,https://kantorteman.my.id,https://www.kantorteman.my.id")
+_DEFAULT_CORS = "https://kantorteman.my.id,https://www.kantorteman.my.id,http://localhost:3000,http://localhost:3001"
+CORS_ORIGIN = os.getenv("CORS_ORIGIN", _DEFAULT_CORS)
+_cors_list = [o.strip() for o in CORS_ORIGIN.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGIN.split(",") if CORS_ORIGIN else [
-        FRONTEND_URL,
-        "http://localhost:3000",
-        "http://localhost:3001",
-    ],
+    allow_origins=_cors_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
@@ -63,9 +73,49 @@ app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")  # boleh kosong
 PLACES_NEW_SEARCH_URL = os.environ.get("PLACES_NEW_SEARCH_URL", "https://places.googleapis.com/v1/places:searchText")
-JWT_SECRET = os.getenv("JWT_SECRET", "kantor-teman-secret-change-in-prod")
+JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET or len(JWT_SECRET) < 16:
+    raise RuntimeError(
+        "JWT_SECRET env var is required (min 16 chars). Set JWT_SECRET in .env.production."
+    )
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 24
+
+# In-memory login rate limiter (per IP). Resets on process restart.
+LOGIN_RATE_MAX = 5
+LOGIN_RATE_WINDOW = 300       # 5 minutes
+LOGIN_LOCKOUT_SECONDS = 900   # 15 minutes
+_login_attempts: dict[str, list[float]] = defaultdict(list)
+_login_locked_until: dict[str, float] = {}
+
+
+def _check_login_rate_limit(ip: str):
+    now = time.time()
+    locked_until = _login_locked_until.get(ip)
+    if locked_until and locked_until > now:
+        retry = int(locked_until - now)
+        raise HTTPException(
+            status_code=429,
+            detail=f"Terlalu banyak percobaan login. Coba lagi dalam {retry} detik.",
+            headers={"Retry-After": str(retry)},
+        )
+    if locked_until and locked_until <= now:
+        _login_locked_until.pop(ip, None)
+        _login_attempts.pop(ip, None)
+
+
+def _record_login_failure(ip: str):
+    now = time.time()
+    attempts = [t for t in _login_attempts[ip] if now - t < LOGIN_RATE_WINDOW]
+    attempts.append(now)
+    _login_attempts[ip] = attempts
+    if len(attempts) >= LOGIN_RATE_MAX:
+        _login_locked_until[ip] = now + LOGIN_LOCKOUT_SECONDS
+
+
+def _record_login_success(ip: str):
+    _login_attempts.pop(ip, None)
+    _login_locked_until.pop(ip, None)
 
 # Limit concurrent search to prevent LSAPI worker explosion
 search_semaphore = asyncio.Semaphore(1)
@@ -1179,6 +1229,25 @@ class LoginIn(BaseModel):
     email: str
     password: str
 
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", v):
+            raise ValueError("Format email tidak valid")
+        if len(v) > 254:
+            raise ValueError("Email terlalu panjang")
+        return v
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password minimal 8 karakter")
+        if len(v) > 128:
+            raise ValueError("Password terlalu panjang")
+        return v
+
 
 class TokenOut(BaseModel):
     access_token: str
@@ -2054,10 +2123,14 @@ def run_blast_sync(batch_name: str, product_category: str, min_rating: int, db_u
 # ---------------------------------------------------------------------------
 
 @app.post("/api/auth/login", response_model=TokenOut)
-def login(body: LoginIn, db: Session = Depends(get_db)):
+def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
+    ip = request.client.host if request.client else "unknown"
+    _check_login_rate_limit(ip)
     user = db.query(User).filter(User.email == body.email).first()
     if not user or not verify_password(body.password, user.hashed_password):
+        _record_login_failure(ip)
         raise HTTPException(status_code=401, detail="Email atau password salah")
+    _record_login_success(ip)
     return TokenOut(
         access_token=create_token(user.id, user.email),
         name=user.name,
@@ -8112,6 +8185,11 @@ async def upload_workspace_attachment(
     if not row:
         raise HTTPException(status_code=404, detail="Row tidak ditemukan")
     sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.id == row.sheet_id).first()
+
+    allowed_ext = {".jpg", ".jpeg", ".png", ".pdf", ".webp"}
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in allowed_ext:
+        raise HTTPException(status_code=400, detail=f"Format tidak diizinkan: {ext}. Gunakan: jpg, png, pdf, webp")
 
     contents = await file.read()
     if len(contents) > 5 * 1024 * 1024:
