@@ -39,7 +39,7 @@ interface ProductItem {
   name: string;
   base_price: number;
   features: string[];
-  category: string | null;
+  category_name: string | null;
   is_active: boolean;
   is_retainer?: boolean;
 }
@@ -349,13 +349,22 @@ export default function ClientsPage() {
     if (!productId) return;
     const p = products.find(x => x.id === productId);
     if (!p) return;
-    const cat = (p.category || "").toLowerCase();
+    const cat = (p.category_name || "").toLowerCase();
     let svcType = "";
     if (cat.includes("web")) svcType = cat.includes("bulanan") ? "web_dev_bulanan" : "web_dev";
     else if (cat.includes("seo") || cat.includes("google")) svcType = "seo_gmaps";
     else if (cat.includes("sosial") || cat.includes("sosmed") || cat.includes("kelola")) svcType = "sosmed";
     else if (cat.includes("maintenance")) svcType = "maintenance";
     else if (cat.includes("logo") || cat.includes("branding") || cat.includes("desain")) svcType = "branding";
+    // Fallback: try product name
+    if (!svcType) {
+      const nameL = p.name.toLowerCase();
+      if (nameL.includes("seo") || nameL.includes("google")) svcType = "seo_gmaps";
+      else if (nameL.includes("sosial") || nameL.includes("sosmed")) svcType = "sosmed";
+      else if (nameL.includes("maintenance")) svcType = "maintenance";
+      else if (nameL.includes("logo") || nameL.includes("branding")) svcType = "branding";
+      else if (nameL.includes("web")) svcType = nameL.includes("bulanan") ? "web_dev_bulanan" : "web_dev";
+    }
     const match = serviceTypes.find(s => s.value === svcType);
     const months = match?.default_months || 1;
     const startDate = new Date().toISOString().slice(0, 10);

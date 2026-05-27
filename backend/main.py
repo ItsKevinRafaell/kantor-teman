@@ -5746,6 +5746,8 @@ def update_project(project_id: str, body: ProjectIn, current_user: User = Depend
     project.start_date = body.start_date
     project.end_date = body.end_date
     project.color = body.color or "yellow"
+    project.service_type = body.service_type
+    project.contract_months = body.contract_months
     db.commit()
     db.refresh(project)
     log_audit(db, current_user.name, "UPDATE", "projects", project_id, {"name": body.name})

@@ -83,7 +83,7 @@ export default function ClientDetailPage() {
   const [projectForm, setProjectForm] = useState({ name: "", type: "RETAINER", status: "ACTIVE", nominal: 0, start_date: "", end_date: "", service_type: "", contract_months: 1 });
   const [editingProject, setEditingProject] = useState<ProjectData | null>(null);
   const [saving, setSaving] = useState(false);
-  const [products, setProducts] = useState<{ id: string; name: string; base_price: number; is_retainer: boolean; category?: string | null }[]>([]);
+  const [products, setProducts] = useState<{ id: string; name: string; base_price: number; is_retainer: boolean; category_name?: string | null }[]>([]);
   const [serviceTypes, setServiceTypes] = useState<{ value: string; label: string; default_months: number }[]>([]);
 
   const fetchDetail = useCallback(async () => {
@@ -115,13 +115,22 @@ export default function ClientDetailPage() {
     if (!productId) return;
     const p = products.find(x => x.id === productId);
     if (!p) return;
-    const cat = (p.category || "").toLowerCase();
+    const cat = (p.category_name || "").toLowerCase();
     let svcType = "";
     if (cat.includes("web")) svcType = cat.includes("bulanan") ? "web_dev_bulanan" : "web_dev";
     else if (cat.includes("seo") || cat.includes("google")) svcType = "seo_gmaps";
     else if (cat.includes("sosial") || cat.includes("sosmed") || cat.includes("kelola")) svcType = "sosmed";
     else if (cat.includes("maintenance")) svcType = "maintenance";
     else if (cat.includes("logo") || cat.includes("branding") || cat.includes("desain")) svcType = "branding";
+    // Fallback: try product name
+    if (!svcType) {
+      const nameL = p.name.toLowerCase();
+      if (nameL.includes("seo") || nameL.includes("google")) svcType = "seo_gmaps";
+      else if (nameL.includes("sosial") || nameL.includes("sosmed")) svcType = "sosmed";
+      else if (nameL.includes("maintenance")) svcType = "maintenance";
+      else if (nameL.includes("logo") || nameL.includes("branding")) svcType = "branding";
+      else if (nameL.includes("web")) svcType = nameL.includes("bulanan") ? "web_dev_bulanan" : "web_dev";
+    }
     const match = serviceTypes.find(s => s.value === svcType);
     const months = match?.default_months || 1;
     const startDate = new Date().toISOString().slice(0, 10);
