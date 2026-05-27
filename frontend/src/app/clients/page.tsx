@@ -6,6 +6,7 @@ import { FileText, Copy, CheckCircle, Eye, ExternalLink, Download, Plus, Trash2 
 import { formatRupiahInput, cleanRupiahInput } from "../../utils/formatter";
 import Modal from "../../components/Modal";
 import Toast from "../../components/Toast";
+import { useUserRole } from "../../lib/useUserRole";
 
 interface Contact {
   id: number;
@@ -64,6 +65,7 @@ function formatRupiah(num: number): string {
 }
 
 export default function ClientsPage() {
+  const { isAdmin } = useUserRole();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [projects, setProjects] = useState<ProjectData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -718,9 +720,11 @@ export default function ClientsPage() {
           <button onClick={exportLeadsCSV} className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-4 sm:py-2.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs sm:text-sm font-semibold rounded-xl transition-colors">
             <Download size={14} /> Export CSV
           </button>
-          <button onClick={() => setAddClientModal(true)} className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-4 sm:py-2.5 bg-brand-yellow hover:bg-amber-600 text-white text-xs sm:text-sm font-semibold rounded-xl transition-colors">
-            + Tambah Klien
-          </button>
+          {isAdmin && (
+            <button onClick={() => setAddClientModal(true)} className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-4 sm:py-2.5 bg-brand-yellow hover:bg-amber-600 text-white text-xs sm:text-sm font-semibold rounded-xl transition-colors">
+              + Tambah Klien
+            </button>
+          )}
         </div>
       </div>
 
@@ -853,14 +857,14 @@ export default function ClientsPage() {
                             className="inline-flex items-center gap-1 px-2 py-1.5 bg-brand-yellow/10 hover:bg-brand-yellow/20 text-brand-yellow text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
                             <FileText size={12} /> Proposal
                           </button>
-                          <button onClick={() => openEditClient(c)}
+                          {isAdmin && <button onClick={() => openEditClient(c)}
                             className="p-1.5 text-gray-400 hover:text-brand-yellow hover:bg-brand-yellow/10 rounded-lg transition-colors">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                          </button>
-                          <button onClick={() => setDeleteModal({ open: true, id: c.id, name: c.business_name })}
+                          </button>}
+                          {isAdmin && <button onClick={() => setDeleteModal({ open: true, id: c.id, name: c.business_name })}
                             className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" /></svg>
-                          </button>
+                          </button>}
                     </div>
                   </td>
                 </tr>

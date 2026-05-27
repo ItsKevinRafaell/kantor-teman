@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { apiFetch } from "../../lib/api";
 import { Plus, Trash2, Calendar, User, MessageSquare, CheckSquare, X, Archive, ArchiveRestore, Activity } from "lucide-react";
 import Toast from "../../components/Toast";
+import { useUserRole } from "../../lib/useUserRole";
 
 const COLORS = {
   primary: "bg-yellow-500 hover:bg-yellow-600 text-white",
@@ -115,6 +116,7 @@ function Modal({ open, onClose, title, children, size = "md" }: {
 }
 
 export default function BoardPage() {
+  const { isAdmin } = useUserRole();
   const [projects, setProjects] = useState<Project[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>("");
@@ -481,9 +483,9 @@ export default function BoardPage() {
               Tampilkan arsip
             </label>
           )}
-          <button onClick={() => { setProjectModal(true); setProjectForm({ name: "", type: "FIXED", status: "ACTIVE", nominal: 0, lead_id: null, color: "yellow" }); }} className={`px-3 py-2 text-sm rounded-lg flex items-center gap-1 ${COLORS.secondary}`}>
+          {isAdmin && <button onClick={() => { setProjectModal(true); setProjectForm({ name: "", type: "FIXED", status: "ACTIVE", nominal: 0, lead_id: null, color: "yellow" }); }} className={`px-3 py-2 text-sm rounded-lg flex items-center gap-1 ${COLORS.secondary}`}>
             <Plus className="w-4 h-4" /> Proyek Baru
-          </button>
+          </button>}
           {board && (
             <>
               <button onClick={() => setShowArchived(!showArchived)} className={`px-3 py-2 text-sm rounded-lg flex items-center gap-1 ${showArchived ? COLORS.primary : COLORS.secondary}`}>
@@ -526,7 +528,7 @@ export default function BoardPage() {
                   </h3>
                   {/* Action buttons */}
                   <div className="flex gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                    {!item.is_archived && (
+                    {isAdmin && !item.is_archived && (
                       <button title="Edit proyek" onClick={() => {
                         const p = projects.find(x => x.id === item.project_id);
                         if (p) {
@@ -537,16 +539,16 @@ export default function BoardPage() {
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                       </button>
                     )}
-                    <button title={item.is_archived ? "Pulihkan proyek" : "Arsipkan proyek"}
+                    {isAdmin && <button title={item.is_archived ? "Pulihkan proyek" : "Arsipkan proyek"}
                       onClick={() => archiveProject(item.project_id, !item.is_archived)}
                       className="p-1.5 text-neutral-400 hover:text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-lg transition-colors">
                       {item.is_archived ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
-                    </button>
-                    <button title="Hapus proyek"
+                    </button>}
+                    {isAdmin && <button title="Hapus proyek"
                       onClick={() => showConfirm("Hapus Proyek", `Proyek "${item.project_name}" beserta semua board, kolom, dan card-nya akan dihapus permanen.`, () => deleteProjectFromBoard(item.project_id, item.project_name))}
                       className="p-1.5 text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
                       <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    </button>}
                   </div>
                 </div>
 
