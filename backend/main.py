@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, Field
 from typing import Optional, List, Any
 import os
 from datetime import datetime, timedelta, timezone
@@ -1637,14 +1637,14 @@ class FinanceReportOut(BaseModel):
 
 class ProjectIn(BaseModel):
     lead_id: Optional[int] = None
-    name: str
-    type: str  # FIXED / RETAINER
-    status: str = "ACTIVE"
+    name: str = Field(..., max_length=200)
+    type: str = Field(..., max_length=20)
+    status: str = Field("ACTIVE", max_length=20)
     nominal: float = 0
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
-    color: Optional[str] = "yellow"
-    service_type: Optional[str] = None
+    start_date: Optional[str] = Field(None, max_length=30)
+    end_date: Optional[str] = Field(None, max_length=30)
+    color: Optional[str] = Field("yellow", max_length=30)
+    service_type: Optional[str] = Field(None, max_length=50)
     contract_months: Optional[int] = None
 
 
@@ -1666,8 +1666,8 @@ class ProjectOut(BaseModel):
 
 class ClientNoteIn(BaseModel):
     lead_id: int
-    category: str  # BISNIS / TEKNIS / PENTING
-    content: str
+    category: str = Field(..., max_length=20)
+    content: str = Field(..., max_length=5000)
 
 
 class ClientNoteOut(BaseModel):
@@ -2952,19 +2952,19 @@ def get_leads_map(
 
 
 class LeadCreate(BaseModel):
-    business_name: str
-    phone_number: str
-    address: Optional[str] = None
-    product_interest: Optional[str] = None
-    batch_name: Optional[str] = None
+    business_name: str = Field(..., max_length=200)
+    phone_number: str = Field(..., max_length=30)
+    address: Optional[str] = Field(None, max_length=500)
+    product_interest: Optional[str] = Field(None, max_length=100)
+    batch_name: Optional[str] = Field(None, max_length=100)
 
 
 class LeadEdit(BaseModel):
-    business_name: Optional[str] = None
-    phone_number: Optional[str] = None
-    address: Optional[str] = None
-    product_interest: Optional[str] = None
-    batch_name: Optional[str] = None
+    business_name: Optional[str] = Field(None, max_length=200)
+    phone_number: Optional[str] = Field(None, max_length=30)
+    address: Optional[str] = Field(None, max_length=500)
+    product_interest: Optional[str] = Field(None, max_length=100)
+    batch_name: Optional[str] = Field(None, max_length=100)
 
 
 @app.post("/api/leads", response_model=LeadOut, status_code=201)
