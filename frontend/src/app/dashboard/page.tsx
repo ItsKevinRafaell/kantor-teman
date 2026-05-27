@@ -18,21 +18,21 @@ const QUICK_ACTIONS = [
     href: "/scraper",
     title: "Mulai Scrape Maps",
     desc: "Cari bisnis baru dari Google Places",
-    gradient: "from-amber-500 to-yellow-600",
+    bg: "bg-amber-500",
     icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>,
   },
   {
     href: "/contacts",
     title: "Lihat Pipeline CRM",
     desc: "Kelola dan update status semua leads",
-    gradient: "from-emerald-500 to-teal-600",
+    bg: "bg-neutral-800 dark:bg-neutral-700",
     icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>,
   },
   {
     href: "/clients",
     title: "Buku Klien",
     desc: "Lihat dan kelola klien aktif",
-    gradient: "from-amber-500 to-rose-500",
+    bg: "bg-neutral-800 dark:bg-neutral-700",
     icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>,
   },
 ];
@@ -249,7 +249,7 @@ export default function DashboardPage() {
           <h2 className="text-sm font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Quick Actions</h2>
           {QUICK_ACTIONS.map((action) => (
             <Link key={action.title} href={action.href}
-              className={`bg-gradient-to-br ${action.gradient} rounded-2xl p-4 text-white flex items-center gap-4 hover:opacity-90 hover:scale-[1.01] transition-all duration-200 shadow-card hover:shadow-card-hover`}>
+              className={`${action.bg} rounded-2xl p-4 text-white flex items-center gap-4 hover:opacity-90 hover:scale-[1.01] transition-all duration-200 shadow-card hover:shadow-card-hover`}>
               <div className="bg-white/20 rounded-xl p-2 shrink-0">{action.icon}</div>
               <div>
                 <p className="font-bold text-sm leading-tight">{action.title}</p>

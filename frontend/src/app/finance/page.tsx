@@ -198,7 +198,7 @@ export default function FinancePage() {
 
       {/* Top Cards: Runway & BEP */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-5 text-white shadow-lg">
+        <div className="bg-emerald-600 rounded-2xl p-5 text-white shadow-lg">
           <div className="flex items-center gap-2 mb-2">
             <TrendingUp size={20} />
             <span className="text-sm font-medium opacity-90">Financial Runway</span>
@@ -207,7 +207,7 @@ export default function FinancePage() {
           <p className="text-xs opacity-75 mt-1">Aman sebelum kehabisan dana</p>
         </div>
 
-        <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-5 text-white shadow-lg">
+        <div className="bg-[#f5a700] rounded-2xl p-5 text-white shadow-lg">
           <div className="flex items-center gap-2 mb-2">
             <Target size={20} />
             <span className="text-sm font-medium opacity-90">BEP Bulan Ini</span>
@@ -216,7 +216,7 @@ export default function FinancePage() {
           <p className="text-xs opacity-75 mt-1">Target omzet minimum</p>
         </div>
 
-        <div className="bg-gradient-to-br from-amber-500 to-yellow-600 rounded-2xl p-5 text-white shadow-lg">
+        <div className="bg-neutral-800 rounded-2xl p-5 text-white shadow-lg">
           <div className="flex items-center gap-2 mb-2">
             <Wallet size={20} />
             <span className="text-sm font-medium opacity-90">Total Saldo</span>

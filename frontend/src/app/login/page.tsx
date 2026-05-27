@@ -38,11 +38,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-yellow-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#fcfaf7] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-amber-600 to-yellow-600 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-bold text-[#242423]">
             Kantor Teman
           </h1>
           <p className="text-gray-400 text-sm mt-2">CRM Internal · Masuk untuk melanjutkan</p>
@@ -85,7 +85,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading || !email || !password}
-              className="w-full py-3 bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-700 hover:to-yellow-700 text-white font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md text-sm"
+              className="w-full py-3 bg-[#f5a700] hover:bg-amber-600 text-white font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm hover:shadow-md text-sm"
             >
               {loading ? "Masuk..." : "Masuk"}
             </button>

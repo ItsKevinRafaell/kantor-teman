@@ -246,7 +246,7 @@ export default function SettingsPage() {
       {tab === "profile" && (
         <div className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] shadow-sm p-6 space-y-5">
           <div className="flex items-center gap-4 pb-4 border-b border-[var(--border-default)]">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-500 to-yellow-600 flex items-center justify-center text-white font-bold text-lg">
+            <div className="w-12 h-12 rounded-full bg-[#f5a700] flex items-center justify-center text-white font-bold text-lg">
               {userInfo.name.charAt(0).toUpperCase()}
             </div>
             <div>
@@ -266,7 +266,7 @@ export default function SettingsPage() {
             </div>
           </div>
           <button onClick={saveProfile} disabled={saving || !name.trim()}
-            className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-700 hover:to-yellow-700 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-all shadow-sm">
+            className="px-6 py-2.5 bg-[#f5a700] hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors shadow-sm">
             {saving ? "Menyimpan..." : "Simpan Profil"}
           </button>
         </div>
@@ -578,7 +578,7 @@ export default function SettingsPage() {
           </div>
 
           <button onClick={saveApiConfig} disabled={saving}
-            className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-700 hover:to-yellow-700 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-all shadow-sm">
+            className="px-6 py-2.5 bg-[#f5a700] hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors shadow-sm">
             {saving ? "Menyimpan..." : "Simpan Konfigurasi"}
           </button>
         </div>
