@@ -7971,6 +7971,41 @@ def delete_workspace_row(row_id: str, current_user: User = Depends(get_current_u
     db.commit()
 
 
+@app.post("/api/workspace/{project_id}/sheets")
+def add_workspace_sheet(project_id: str, body: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    label = (body.get("label") or "").strip()
+    if not label:
+        raise HTTPException(status_code=400, detail="Nama sheet wajib diisi")
+    max_idx = db.query(WorkspaceSheet).filter(WorkspaceSheet.project_id == project_id).count()
+    svc = project.service_type or "general"
+    now = datetime.now(timezone.utc).isoformat()
+    sheet = WorkspaceSheet(
+        id=str(uuid.uuid4()),
+        project_id=project_id,
+        sheet_index=max_idx,
+        sheet_label=label,
+        service_type=svc,
+        month_number=None,
+        created_at=now,
+    )
+    db.add(sheet)
+    db.flush()
+    from workspace_templates import _BASE_COLS
+    for ci, cdef in enumerate(_BASE_COLS):
+        col = WorkspaceColumn(
+            id=str(uuid.uuid4()), sheet_id=sheet.id,
+            column_key=cdef["key"], column_label=cdef["label"],
+            column_type=cdef["type"], column_options=json.dumps(cdef.get("options", [])),
+            column_order=ci, is_system=cdef.get("is_system", False), created_at=now,
+        )
+        db.add(col)
+    db.commit()
+    return {"id": sheet.id, "sheet_label": label, "sheet_index": max_idx}
+
+
 @app.post("/api/workspace/sheet/{sheet_id}/column")
 def add_workspace_column(sheet_id: str, body: WorkspaceColumnIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.id == sheet_id).first()

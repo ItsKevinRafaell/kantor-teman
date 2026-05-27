@@ -113,6 +113,29 @@ export default function WorkspaceDetailPage() {
     setToast({ message: msg, type });
   }
 
+  const [addSheetModal, setAddSheetModal] = useState(false);
+  const [newSheetLabel, setNewSheetLabel] = useState("");
+  const [addingSheet, setAddingSheet] = useState(false);
+
+  async function handleAddSheet() {
+    if (!newSheetLabel.trim()) return;
+    setAddingSheet(true);
+    try {
+      const res = await apiFetch(`/api/workspace/${projectId}/sheets`, {
+        method: "POST",
+        body: JSON.stringify({ label: newSheetLabel.trim() }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || "Gagal tambah sheet", "error");
+        return;
+      }
+      setNewSheetLabel("");
+      setAddSheetModal(false);
+      await fetchWorkspace();
+    } finally { setAddingSheet(false); }
+  }
+
   if (loading) return <div className="p-8 text-sm text-gray-500">Memuat workspace...</div>;
 
   if (errorMsg || !workspace) {
@@ -140,13 +163,16 @@ export default function WorkspaceDetailPage() {
       </div>
 
       {/* Sheet tabs */}
-      <div className="flex gap-1 overflow-x-auto pb-1">
+      <div className="flex gap-1 overflow-x-auto pb-1 items-center">
         {sheets.map((s, i) => (
           <button key={s.id} onClick={() => setActiveSheet(i)}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors ${i === activeSheet ? "bg-amber-500 text-white" : "bg-gray-100 dark:bg-neutral-800 text-gray-600 dark:text-neutral-300 hover:bg-gray-200"}`}>
             {s.sheet_label}
           </button>
         ))}
+        <button onClick={() => setAddSheetModal(true)} className="px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap border border-dashed border-gray-300 dark:border-neutral-700 text-gray-500 hover:border-amber-400 hover:text-amber-600">
+          + Sheet
+        </button>
       </div>
 
       {/* Active sheet */}
@@ -157,6 +183,23 @@ export default function WorkspaceDetailPage() {
           onRefresh={fetchWorkspace}
           onToast={showToast}
         />
+      )}
+
+      {addSheetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setAddSheetModal(false)} />
+          <div className="relative bg-white dark:bg-neutral-900 rounded-xl shadow-xl border border-gray-200 dark:border-neutral-700 w-full max-w-sm p-5 space-y-4">
+            <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-100">Tambah Sheet</h3>
+            <input value={newSheetLabel} onChange={e => setNewSheetLabel(e.target.value)} placeholder="Nama sheet..."
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800" autoFocus />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setAddSheetModal(false)} className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100 dark:bg-neutral-800 rounded-lg">Batal</button>
+              <button onClick={handleAddSheet} disabled={addingSheet || !newSheetLabel.trim()} className="px-3 py-1.5 text-xs font-semibold bg-amber-500 text-white rounded-lg disabled:opacity-50">
+                {addingSheet ? "..." : "Tambah"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
