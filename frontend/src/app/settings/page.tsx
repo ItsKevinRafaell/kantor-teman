@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getUserInfo, clearToken, apiFetch } from "../../lib/api";
 import Toast from "../../components/Toast";
@@ -15,7 +15,7 @@ const TAB_LABELS: Record<Tab, string> = {
   "audit-logs": "Audit Logs",
 };
 
-export default function SettingsPage() {
+function SettingsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get("tab") as Tab) || "profile";
@@ -398,5 +398,13 @@ export default function SettingsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="max-w-4xl p-6 text-sm text-neutral-400">Memuat...</div>}>
+      <SettingsContent />
+    </Suspense>
   );
 }
