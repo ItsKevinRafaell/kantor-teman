@@ -275,6 +275,12 @@ export default function ContentGeneratorPage() {
   const [renamingSession, setRenamingSession] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
+  // CMS config (collapsible)
+  const [cmsConfigOpen, setCmsConfigOpen] = useState(false);
+  const [cmsUrl, setCmsUrl] = useState("");
+  const [cmsApiToken, setCmsApiToken] = useState("");
+  const [savingCms, setSavingCms] = useState(false);
+
   const showToast = (msg: string, type: "success" | "error" | "info" = "success") => setToast({ msg, type });
 
   const loadSessions = useCallback(async () => {
@@ -308,6 +314,27 @@ export default function ContentGeneratorPage() {
   }
 
   useEffect(() => { loadSessions(); loadProviders(); loadGenerations(); }, [loadSessions, loadProviders, loadGenerations]);
+
+  useEffect(() => {
+    apiFetch("/api/settings").then(r => r.ok ? r.json() : null).then(d => {
+      if (!d) return;
+      setCmsUrl(d.cms_url ?? "");
+      setCmsApiToken(d.cms_api_token ?? "");
+    }).catch(() => {});
+  }, []);
+
+  async function saveCmsConfig() {
+    setSavingCms(true);
+    try {
+      const res = await apiFetch("/api/settings", {
+        method: "PUT",
+        body: JSON.stringify({ cms_url: cmsUrl, cms_api_token: cmsApiToken }),
+      });
+      if (res.ok) showToast("Konfigurasi CMS disimpan");
+      else showToast("Gagal menyimpan", "error");
+    } catch { showToast("Gagal menyimpan", "error"); }
+    finally { setSavingCms(false); }
+  }
 
   useEffect(() => { loadGenerations(selectedSession?.id, searchQuery || undefined); }, [selectedSession, loadGenerations, searchQuery]);
 
@@ -491,6 +518,38 @@ export default function ContentGeneratorPage() {
             {selectedSession.description && <span className="text-xs text-neutral-400">{selectedSession.description}</span>}
           </div>
         )}
+
+        {/* CMS Config (collapsible) */}
+        <div className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <button onClick={() => setCmsConfigOpen(o => !o)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+            <span className="text-xs font-bold text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">⚙️ Konfigurasi CMS Target</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              className={`text-neutral-400 transition-transform ${cmsConfigOpen ? "rotate-180" : ""}`}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          {cmsConfigOpen && (
+            <div className="px-4 pb-4 space-y-3 border-t border-gray-100 dark:border-gray-700 pt-3">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-500 uppercase mb-1">CMS URL</label>
+                <input type="text" value={cmsUrl} onChange={e => setCmsUrl(e.target.value)}
+                  placeholder="https://temanumkmkita.com"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-neutral-800 dark:text-gray-200 focus:ring-2 focus:ring-yellow-300 outline-none transition" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-neutral-500 uppercase mb-1">CMS API Token</label>
+                <input type="password" value={cmsApiToken} onChange={e => setCmsApiToken(e.target.value)}
+                  placeholder="Bearer token untuk CMS API"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-neutral-800 dark:text-gray-200 focus:ring-2 focus:ring-yellow-300 outline-none transition" />
+              </div>
+              <button onClick={saveCmsConfig} disabled={savingCms}
+                className="px-4 py-2 text-xs font-semibold bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg disabled:opacity-50 transition-colors">
+                {savingCms ? "Menyimpan..." : "Simpan CMS Config"}
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Tool Panels */}
         {activeTool === "seo_article" && (

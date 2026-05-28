@@ -221,7 +221,7 @@ export default function ChatPage() {
     try {
       const data = await apiFetch<{ openai_api_key: string; ai_base_url: string }>("/api/settings");
       setApiKey(data.openai_api_key || "");
-      setApiBaseUrl(data.ai_base_url || "https://api.aimurah.com/v1");
+      setApiBaseUrl(data.ai_base_url || "");
     } catch (e) {
       console.error("Failed to load API settings:", e);
     }
@@ -896,7 +896,7 @@ export default function ChatPage() {
                     type="text"
                     value={apiBaseUrl}
                     onChange={(e) => setApiBaseUrl(e.target.value)}
-                    placeholder="https://api.aimurah.com/v1"
+                    placeholder="http://localhost:20128/v1"
                     className="w-full text-sm border border-[var(--border-subtle)] rounded px-3 py-2"
                   />
                 </div>

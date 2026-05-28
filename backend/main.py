@@ -1233,7 +1233,7 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
 # ---------------------------------------------------------------------------
 
 NINE_ROUTER_DB = os.getenv("NINE_ROUTER_DB", "/root/.9router/db/data.sqlite")
-NINE_ROUTER_URL = os.getenv("NINE_ROUTER_URL", "http://202.6.204.179:20128/v1")
+NINE_ROUTER_URL = os.getenv("NINE_ROUTER_URL", "http://localhost:20128/v1")
 NINE_ROUTER_API_KEY = os.getenv("NINE_ROUTER_API_KEY", "dummy")
 
 COMBO_DISPLAY_NAMES: dict[str, str] = {
@@ -1287,13 +1287,34 @@ def _get_proxy_url(db: Session) -> str:
     return (row.value if row and row.value else NINE_ROUTER_URL).rstrip("/")
 
 
-def get_9router_config(db: Session) -> dict:
-    """Single source of truth for all AI calls — always routes through 9router."""
+def _get_feature_defaults(db: Session) -> dict:
+    row = db.query(SystemSettings).filter_by(key="ai_feature_defaults").first()
+    if row and row.value:
+        try:
+            data = json.loads(row.value)
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+    return {}
+
+
+def get_9router_config(db: Session, feature: Optional[str] = None) -> dict:
+    """Single source of truth for all AI calls — always routes through 9router.
+
+    If feature is provided, checks per-feature override first; falls back to active combo.
+    """
+    model = _get_active_combo(db)
+    if feature:
+        defaults = _get_feature_defaults(db)
+        override = (defaults.get(feature) or "").strip()
+        if override:
+            model = override
     return {
         "provider": "openai",
         "openai_key": NINE_ROUTER_API_KEY,
         "base_url": _get_proxy_url(db),
-        "model": _get_active_combo(db),
+        "model": model,
         "gemini_key": "",
         "claude_key": "",
     }
@@ -2735,6 +2756,47 @@ def set_active_combo(body: dict, current_user: User = Depends(require_admin), db
         db.add(SystemSettings(key="ai_active_combo", value=combo))
     db.commit()
     return {"ok": True, "combo": combo}
+
+
+@app.post("/api/ai/proxy-url")
+def set_proxy_url(body: dict, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    url = (body.get("url") or "").strip().rstrip("/")
+    if not url:
+        raise HTTPException(status_code=400, detail="Field 'url' wajib diisi")
+    row = db.query(SystemSettings).filter_by(key="ai_proxy_url").first()
+    if row:
+        row.value = url
+    else:
+        db.add(SystemSettings(key="ai_proxy_url", value=url))
+    db.commit()
+    return {"ok": True, "proxy_url": url}
+
+
+@app.get("/api/ai/feature-defaults")
+def get_feature_defaults(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return _get_feature_defaults(db)
+
+
+@app.post("/api/ai/feature-defaults")
+def set_feature_defaults(body: dict, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    valid_features = {"chat", "article", "image", "analysis", "caption"}
+    valid_combos = {c["name"] for c in _get_9router_combos()}
+    cleaned: dict[str, str] = {}
+    for feature, combo in (body or {}).items():
+        if feature not in valid_features:
+            continue
+        combo_str = (combo or "").strip()
+        if combo_str and combo_str not in valid_combos:
+            raise HTTPException(status_code=400, detail=f"Combo '{combo_str}' tidak valid untuk fitur '{feature}'")
+        cleaned[feature] = combo_str
+    value = json.dumps(cleaned)
+    row = db.query(SystemSettings).filter_by(key="ai_feature_defaults").first()
+    if row:
+        row.value = value
+    else:
+        db.add(SystemSettings(key="ai_feature_defaults", value=value))
+    db.commit()
+    return cleaned
 
 
 @app.get("/api/ai/health")
