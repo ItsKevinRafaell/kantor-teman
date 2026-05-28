@@ -68,7 +68,7 @@ export default function BrandKitPage() {
       const res = await fetch(`${API_BASE}/api/brand-assets/upload`, {
         method: "POST",
         body: fd,
-        headers: { Authorization: `Bearer ${document.cookie.split("kt_token=")[1]?.split(";")[0] || ""}` },
+        credentials: "include",
       });
       if (!res.ok) throw new Error();
       await fetchKit();
@@ -128,7 +128,7 @@ export default function BrandKitPage() {
               <div key={slot.type} className="border border-[var(--border-default)] rounded-xl p-4">
                 <div className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{slot.label}</div>
                 <div className="text-xs text-gray-500 mb-3">{slot.desc}</div>
-                <div className="aspect-square bg-[#fcfaf7] dark:bg-neutral-800 rounded-lg border border-dashed border-gray-300 dark:border-neutral-700 flex items-center justify-center mb-3 overflow-hidden">
+                <div className="aspect-square bg-[var(--bg-canvas)] dark:bg-neutral-800 rounded-lg border border-dashed border-gray-300 dark:border-neutral-700 flex items-center justify-center mb-3 overflow-hidden">
                   {asset?.file_url ? (
                     <img src={`${API_BASE}${asset.file_url}`} alt={slot.label} className="max-w-full max-h-full object-contain" />
                   ) : (
@@ -296,7 +296,7 @@ function FontSection({ fonts, onSave, saving }: {
                 className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 mb-3"
               />
               <div
-                className="px-4 py-3 bg-[#fcfaf7] dark:bg-neutral-800 rounded-lg text-neutral-800 dark:text-neutral-100"
+                className="px-4 py-3 bg-[var(--bg-canvas)] dark:bg-neutral-800 rounded-lg text-neutral-800 dark:text-neutral-100"
                 style={{ fontFamily: `"${f.value}", ${meta.fallback || "sans-serif"}`, fontWeight: meta.weight || 400 }}
               >
                 The quick brown fox jumps over the lazy dog

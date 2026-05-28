@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "../../lib/api";
 import Toast from "../../components/Toast";
+import ConfirmModal from "../../components/Modal";
 import { Plus, Trash2, ExternalLink, Folder, FileText, Search, Edit2, X } from "lucide-react";
 
 interface DocumentFolder {
@@ -39,10 +40,10 @@ function Modal({ open, onClose, title, children }: { open: boolean; onClose: () 
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
       <div
-        className="relative bg-white dark:bg-[#242423] rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
+        className="relative bg-white dark:bg-[var(--bg-canvas)] rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-white dark:bg-[#242423] px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between rounded-t-2xl">
+        <div className="sticky top-0 bg-white dark:bg-[var(--bg-canvas)] px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between rounded-t-2xl">
           <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-50">{title}</h2>
           <button onClick={onClose} className="p-1 text-neutral-400 hover:text-neutral-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
             <X className="w-5 h-5" />
@@ -58,11 +59,12 @@ export default function DocumentsPage() {
   const [folders, setFolders] = useState<DocumentFolder[]>([]);
   const [docs, setDocs] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedFolder, setSelectedFolder] = useState<string | null>(undefined as unknown as null);
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [showUnfoldered, setShowUnfoldered] = useState(false);
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: "doc" | "folder" } | null>(null);
 
   const [docModal, setDocModal] = useState(false);
   const [editingDoc, setEditingDoc] = useState<Document | null>(null);
@@ -193,8 +195,7 @@ export default function DocumentsPage() {
     }
   }
 
-  async function deleteFolder(id: string, e: React.MouseEvent) {
-    e.stopPropagation();
+  async function deleteFolder(id: string) {
     const res = await apiFetch(`/api/archive/folders/${id}`, { method: "DELETE" });
     if (res.ok) {
       setFolders(prev => prev.filter(f => f.id !== id));
@@ -246,6 +247,20 @@ export default function DocumentsPage() {
 
   return (
     <div className="flex flex-col md:flex-row gap-4 md:gap-6 h-full">
+      <ConfirmModal
+        open={!!deleteTarget}
+        title={deleteTarget?.type === "folder" ? "Hapus Folder?" : "Hapus Dokumen?"}
+        message={deleteTarget?.type === "folder" ? "Folder dan SEMUA dokumen di dalamnya akan dihapus permanen." : "Dokumen yang dihapus tidak bisa dikembalikan."}
+        confirmLabel="Hapus"
+        confirmClass="bg-red-600 hover:bg-red-700"
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          if (deleteTarget.type === "folder") deleteFolder(deleteTarget.id);
+          else deleteDoc(deleteTarget.id);
+          setDeleteTarget(null);
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
       {/* Sidebar */}
       <aside className="w-full md:w-48 shrink-0 flex flex-col gap-1">
         <button
@@ -284,10 +299,10 @@ export default function DocumentsPage() {
             <span className="w-2.5 h-2.5 rounded-full shrink-0 mt-px" style={{ backgroundColor: folder.color }} />
             <span className="flex-1 truncate">{folder.name}</span>
             <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-              <button onClick={e => openEditFolder(folder, e)} className="p-0.5 hover:text-yellow-500 transition-colors">
+              <button onClick={e => openEditFolder(folder, e)} className="p-0.5 hover:text-amber-500 transition-colors">
                 <Edit2 size={11} />
               </button>
-              <button onClick={e => deleteFolder(folder.id, e)} className="p-0.5 hover:text-red-500 transition-colors">
+              <button onClick={e => { e.stopPropagation(); setDeleteTarget({ id: folder.id, type: "folder" }); }} className="p-0.5 hover:text-red-500 transition-colors">
                 <Trash2 size={11} />
               </button>
             </div>
@@ -296,7 +311,7 @@ export default function DocumentsPage() {
 
         <button
           onClick={openNewFolder}
-          className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-yellow-600 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors"
+          className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-amber-600 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors"
         >
           <Plus size={13} /> Folder Baru
         </button>
@@ -308,7 +323,7 @@ export default function DocumentsPage() {
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center shrink-0">
-              <Folder size={18} className="text-yellow-500" />
+              <Folder size={18} className="text-amber-500" />
             </div>
             <div>
               <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-50 leading-tight">Dokumen</h1>
@@ -317,7 +332,7 @@ export default function DocumentsPage() {
           </div>
           <button
             onClick={openNewDoc}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold bg-yellow-500 hover:bg-yellow-600 text-white transition-colors shrink-0"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors shrink-0"
           >
             <Plus size={15} /> Tambah Dokumen
           </button>
@@ -330,7 +345,7 @@ export default function DocumentsPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Cari dokumen..."
-            className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-white dark:bg-[#242423] border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-yellow-400 outline-none"
+            className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-white dark:bg-[var(--bg-canvas)] border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-yellow-400 outline-none"
           />
         </div>
 
@@ -342,7 +357,7 @@ export default function DocumentsPage() {
               {search ? "Tidak ada dokumen yang cocok." : "Belum ada dokumen di sini."}
             </p>
             {!search && (
-              <button onClick={openNewDoc} className="mt-4 flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold bg-yellow-500 hover:bg-yellow-600 text-white transition-colors">
+              <button onClick={openNewDoc} className="mt-4 flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors">
                 <Plus size={14} /> Tambah Pertama
               </button>
             )}
@@ -356,7 +371,7 @@ export default function DocumentsPage() {
                 folderColor={folders.find(f => f.id === doc.folder_id)?.color}
                 folderName={folders.find(f => f.id === doc.folder_id)?.name}
                 onEdit={() => openEditDoc(doc)}
-                onDelete={() => deleteDoc(doc.id)}
+                onDelete={() => setDeleteTarget({ id: doc.id, type: "doc" })}
               />
             ))}
           </div>
@@ -424,7 +439,7 @@ export default function DocumentsPage() {
             <button
               onClick={saveDoc}
               disabled={saving || !docForm.title.trim()}
-              className="px-4 py-2 text-sm rounded-xl font-semibold bg-yellow-500 hover:bg-yellow-600 text-white transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-sm rounded-xl font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50"
             >
               {saving ? "Menyimpan..." : "Simpan"}
             </button>
@@ -468,7 +483,7 @@ export default function DocumentsPage() {
             <button
               onClick={saveFolder}
               disabled={saving || !folderForm.name.trim()}
-              className="px-4 py-2 text-sm rounded-xl font-semibold bg-yellow-500 hover:bg-yellow-600 text-white transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-sm rounded-xl font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50"
             >
               {saving ? "Menyimpan..." : "Simpan"}
             </button>
@@ -501,7 +516,7 @@ function DocCard({
   });
 
   return (
-    <div className="group relative bg-white dark:bg-[#242423] rounded-2xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow flex flex-col gap-2">
+    <div className="group relative bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow flex flex-col gap-2">
       {folderColor && (
         <div className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl" style={{ backgroundColor: folderColor }} />
       )}
@@ -509,7 +524,7 @@ function DocCard({
       <div className="flex items-start justify-between gap-2 mt-1">
         <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-50 leading-snug line-clamp-2 flex-1">{doc.title}</h3>
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-          <button onClick={onEdit} className="p-1.5 text-neutral-400 hover:text-yellow-500 rounded-lg transition-colors">
+          <button onClick={onEdit} className="p-1.5 text-neutral-400 hover:text-amber-500 rounded-lg transition-colors">
             <Edit2 size={13} />
           </button>
           <button onClick={onDelete} className="p-1.5 text-neutral-400 hover:text-red-500 rounded-lg transition-colors">

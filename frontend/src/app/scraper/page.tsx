@@ -191,24 +191,24 @@ export default function ScraperPage() {
       <Toast message={toast?.message ?? null} type={toast?.type} onClose={() => setToast(null)} />
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-[#fcfaf7]">Maps Scraper</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-neutral-50">Maps Scraper</h1>
         <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Cari bisnis lokal via Google Places dan simpan ke database.</p>
       </div>
 
-      <div className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] shadow-sm p-6">
+      <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-[var(--border-default)] shadow-sm p-6">
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">Kategori Bisnis</label>
               <input type="text" placeholder='Contoh: "Biro Iklan", "Salon Kecantikan"'
                 value={category} onChange={(e) => setCategory(e.target.value)} disabled={loading}
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 disabled:opacity-60 transition" />
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 disabled:opacity-60 transition" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">Lokasi</label>
               <input type="text" placeholder='Contoh: "Jakarta Selatan", "Surabaya"'
                 value={location} onChange={(e) => setLocation(e.target.value)} disabled={loading}
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 disabled:opacity-60 transition" />
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 disabled:opacity-60 transition" />
             </div>
           </div>
 
@@ -216,7 +216,7 @@ export default function ScraperPage() {
             <div>
               <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">Target Layanan</label>
               <select value={productInterest} onChange={(e) => setProductInterest(e.target.value)} disabled={loading}
-                className="px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-60 transition">
+                className="px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-60 transition">
                 {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
                 {categories.length === 0 && <option value="">— Belum ada kategori —</option>}
               </select>
@@ -224,7 +224,7 @@ export default function ScraperPage() {
             <div>
               <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">Maks. Hasil</label>
               <select value={maxResults} onChange={(e) => setMaxResults(Number(e.target.value))} disabled={loading}
-                className="px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-60 transition">
+                className="px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-60 transition">
                 {[10, 20, 40, 60].map((n) => <option key={n} value={n}>{n} hasil</option>)}
               </select>
             </div>
@@ -252,7 +252,7 @@ export default function ScraperPage() {
       </div>
 
       {loading && (
-        <div className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] shadow-card overflow-hidden">
+        <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-[var(--border-default)] shadow-card overflow-hidden">
           {[...Array(5)].map((_, i) => (
             <div key={i} className="flex gap-4 px-6 py-4 border-b border-[var(--border-subtle)] last:border-0 animate-pulse">
               <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-1/4" /><div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-1/3" />
@@ -263,9 +263,9 @@ export default function ScraperPage() {
       )}
 
       {!loading && results.length === 0 && category.trim() && (
-        <div className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] shadow-sm p-8 text-center">
+        <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-[var(--border-default)] shadow-sm p-8 text-center">
           <div className="text-4xl mb-3 text-neutral-300"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
-          <p className="text-sm font-semibold text-gray-700 dark:text-[#fcfaf7]">0 bisnis ditemukan</p>
+          <p className="text-sm font-semibold text-gray-700 dark:text-neutral-50">0 bisnis ditemukan</p>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 max-w-md mx-auto">
             Tidak ada hasil untuk &quot;{category.trim()}{location.trim() ? ` ${location.trim()}` : ""}&quot;. Coba kata kunci lain atau perluas lokasi pencarian.
           </p>
@@ -273,9 +273,9 @@ export default function ScraperPage() {
       )}
 
       {!loading && results.length > 0 && (
-        <div className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] shadow-card overflow-hidden">
+        <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-[var(--border-default)] shadow-card overflow-hidden">
           <div className="px-6 py-4 border-b border-[var(--border-default)] flex items-center justify-between">
-            <p className="text-sm font-semibold text-gray-700 dark:text-[#fcfaf7]">{results.length} bisnis ditemukan</p>
+            <p className="text-sm font-semibold text-gray-700 dark:text-neutral-50">{results.length} bisnis ditemukan</p>
             <div className="flex items-center gap-2">
               <span className="text-xs text-amber-600 font-medium bg-amber-50 px-2.5 py-1 rounded-full">{productInterest}</span>
               <span className="text-xs text-emerald-600 font-medium bg-emerald-50 px-2.5 py-1 rounded-full">Tersimpan ke DB</span>
@@ -283,7 +283,7 @@ export default function ScraperPage() {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 dark:bg-[#2a2a29] border-b border-[var(--border-default)]">
+              <thead className="bg-gray-50 dark:bg-[var(--bg-surface)] border-b border-[var(--border-default)]">
                 <tr>{["#", "Nama Bisnis", "Rating", "Alamat", "Nomor", "Website", "WhatsApp"].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">{h}</th>
                 ))}</tr>
@@ -292,7 +292,7 @@ export default function ScraperPage() {
                 {results.map((biz, i) => (
                   <tr key={i} className="hover:bg-[var(--bg-surface-hover)] transition-colors">
                     <td className="px-4 py-3 text-gray-400 text-xs">{i + 1}</td>
-                    <td className="px-4 py-3 font-medium text-gray-800 dark:text-[#fcfaf7]">{biz.name}</td>
+                    <td className="px-4 py-3 font-medium text-gray-800 dark:text-neutral-50">{biz.name}</td>
                     <td className="px-4 py-3">
                       {biz.google_rating != null ? (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold">
@@ -329,19 +329,19 @@ export default function ScraperPage() {
       )}
 
       {/* Riwayat Pencarian */}
-      <div className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] shadow-card overflow-hidden">
+      <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-[var(--border-default)] shadow-card overflow-hidden">
         <div className="px-6 py-4 border-b border-[var(--border-default)] flex items-center justify-between flex-wrap gap-3">
           <div>
-            <p className="text-sm font-semibold text-gray-700 dark:text-[#fcfaf7]">Riwayat Batch Scraping</p>
+            <p className="text-sm font-semibold text-gray-700 dark:text-neutral-50">Riwayat Batch Scraping</p>
             <p className="text-xs text-gray-400 mt-0.5">Klik batch untuk lihat leads terkait. Total: {historyTotal} batch.</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-              className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-xs bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition"
+              className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-xs bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition"
               title="Dari tanggal" />
             <span className="text-xs text-neutral-400">→</span>
             <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-              className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-xs bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition"
+              className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-xs bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition"
               title="Sampai tanggal" />
             {(dateFrom || dateTo) && (
               <button onClick={() => { setDateFrom(""); setDateTo(""); }}
@@ -351,7 +351,7 @@ export default function ScraperPage() {
             )}
             <input type="text" value={historySearchInput} onChange={(e) => setHistorySearchInput(e.target.value)}
               placeholder="Cari kategori, lokasi, atau batch..."
-              className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-xs bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition w-56" />
+              className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-xs bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition w-56" />
           </div>
         </div>
         {history.length === 0 ? (
@@ -362,7 +362,7 @@ export default function ScraperPage() {
           <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-[#2a2a29] border-b border-[var(--border-default)]">
+                <thead className="bg-gray-50 dark:bg-[var(--bg-surface)] border-b border-[var(--border-default)]">
                   <tr>{["Tanggal", "Kategori Bisnis", "Lokasi", "Target Layanan", "Hasil", "Leads"].map((h) => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">{h}</th>
                   ))}</tr>

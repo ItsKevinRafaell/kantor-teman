@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
+import Modal from "../../../components/Modal";
 import { apiFetch } from "../../../lib/api";
 import WorkspaceSheet from "../../../components/workspace/WorkspaceSheet";
 import Toast from "../../../components/Toast";
@@ -107,6 +108,7 @@ export default function WorkspaceDetailPage() {
   const [addSheetModal, setAddSheetModal] = useState(false);
   const [newSheetLabel, setNewSheetLabel] = useState("");
   const [addingSheet, setAddingSheet] = useState(false);
+  const [deleteSheetId, setDeleteSheetId] = useState<string | null>(null);
 
   async function handleAddSheet() {
     if (!newSheetLabel.trim()) return;
@@ -128,7 +130,6 @@ export default function WorkspaceDetailPage() {
   }
 
   async function handleDeleteSheet(sheetId: string) {
-    if (!confirm("Hapus sheet ini? Semua task dan board cards terkait akan ikut terhapus.")) return;
     const res = await apiFetch(`/api/workspace/sheet/${sheetId}`, { method: "DELETE" });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../../lib/api";
 import { Plus, Edit2, Trash2, X, Grid3X3 } from "lucide-react";
+import Modal from "../../../components/Modal";
+import Toast from "../../../components/Toast";
 
 interface Category {
   id: string;
@@ -17,6 +19,8 @@ export default function CategoriesPage() {
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
   const [form, setForm] = useState({ name: "", description: "", is_active: true });
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchCategories = useCallback(async () => {
@@ -28,7 +32,7 @@ export default function CategoriesPage() {
 
   useEffect(() => {
     fetchCategories();
-    intervalRef.current = setInterval(fetchCategories, 5000);
+    intervalRef.current = setInterval(fetchCategories, 30000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchCategories]);
 
@@ -50,12 +54,14 @@ export default function CategoriesPage() {
     const method = editing ? "PUT" : "POST";
     const url = editing ? `/api/categories/${editing.id}` : "/api/categories";
     const res = await apiFetch(url, { method, body: JSON.stringify(payload) });
-    if (res.ok) { setModal(false); fetchCategories(); }
+    if (res.ok) { setToast({ message: "Kategori berhasil disimpan.", type: "success" }); setModal(false); fetchCategories(); }
   }
 
   async function deleteCategory(id: string) {
     const res = await apiFetch(`/api/categories/${id}`, { method: "DELETE" });
-    if (res.ok) fetchCategories();
+    if (res.ok) { setToast({ message: "Berhasil dihapus.", type: "success" }); fetchCategories(); }
+    else { setToast({ message: "Gagal hapus.", type: "error" }); }
+    setDeleteId(null);
   }
 
   const inputCls = "w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-neutral-50 dark:bg-neutral-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-yellow/50 transition";
@@ -63,6 +69,16 @@ export default function CategoriesPage() {
   if (loading) {
     return (
       <div className="max-w-6xl space-y-6">
+      <Toast message={toast?.message ?? null} type={toast?.type} onClose={() => setToast(null)} />
+      <Modal
+        open={!!deleteId}
+        title="Hapus Kategori?"
+        message="Item yang dihapus tidak bisa dikembalikan."
+        confirmLabel="Hapus"
+        confirmClass="bg-red-600 hover:bg-red-700"
+        onConfirm={() => deleteId !== null && deleteCategory(deleteId!)}
+        onCancel={() => setDeleteId(null)}
+      />
         <div className="h-8 bg-gray-100 dark:bg-gray-800 rounded w-48 animate-pulse" />
         <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="h-16 bg-gray-100 dark:bg-gray-800 rounded-2xl animate-pulse" />)}</div>
       </div>
@@ -109,7 +125,7 @@ export default function CategoriesPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
                       <button onClick={() => openEdit(c)} className="p-1.5 text-gray-400 hover:text-brand-yellow rounded-lg transition-colors"><Edit2 size={14} /></button>
-                      <button onClick={() => deleteCategory(c.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                      <button onClick={() => setDeleteId(c.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors"><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>

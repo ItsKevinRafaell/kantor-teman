@@ -60,7 +60,7 @@ export default function TasksPage() {
       </div>
 
       {loading && (
-        <div className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
+        <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
           <div className="animate-pulse space-y-3">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="h-12 bg-gray-100 dark:bg-gray-800 rounded-xl" />
@@ -70,7 +70,7 @@ export default function TasksPage() {
       )}
 
       {!loading && jobs.length === 0 && (
-        <div className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-100 dark:border-gray-700 p-8 text-center">
+        <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-100 dark:border-gray-700 p-8 text-center">
           <p className="text-sm text-gray-400">Tidak ada background task yang sedang berjalan atau tercatat.</p>
           <p className="text-xs text-gray-400 mt-1">Task akan muncul saat kamu menjalankan AI Analisa atau WA Blast.</p>
         </div>
@@ -87,7 +87,7 @@ export default function TasksPage() {
             const color = getColor(job);
             const pct = total > 0 ? Math.round((current / total) * 100) : 0;
             return (
-              <div key={`${job.type}-${job.batch_name}`} className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-100 dark:border-gray-700 p-4 sm:p-5">
+              <div key={`${job.type}-${job.batch_name}`} className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-100 dark:border-gray-700 p-4 sm:p-5">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin text-amber-500 shrink-0" />
@@ -122,7 +122,7 @@ export default function TasksPage() {
             const { current, total } = getProgress(job);
             const color = getColor(job);
             return (
-              <div key={`${job.type}-${job.batch_name}`} className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-100 dark:border-gray-700 p-4 sm:p-5 opacity-80">
+              <div key={`${job.type}-${job.batch_name}`} className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-100 dark:border-gray-700 p-4 sm:p-5 opacity-80">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <span className="text-emerald-500 shrink-0">&#10003;</span>
@@ -151,7 +151,7 @@ export default function TasksPage() {
           {errored.map((job) => {
             const color = getColor(job);
             return (
-              <div key={`${job.type}-${job.batch_name}`} className="bg-white dark:bg-[#242423] rounded-2xl border border-red-200 dark:border-red-800 p-4 sm:p-5">
+              <div key={`${job.type}-${job.batch_name}`} className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-red-200 dark:border-red-800 p-4 sm:p-5">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <span className="text-red-500 shrink-0">&#10007;</span>

@@ -43,7 +43,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://api.kantorteman.my.
 const DEFAULT_MODELS = [
   { id: "glm-5", name: "GLM-5", description: "Model cepat dan efisien" },
   { id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Model ringan OpenAI" },
-  { id: "claude-haiku-4-5-20251001", name: "Claude Haiku", description: "Model cepat Anthropic" },
+  { id: "deepseek-chat", name: "DeepSeek Chat", description: "Model cepat dan murah" },
 ];
 
 function getToken(): string {
@@ -134,6 +134,7 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false);
   const [savingMemory, setSavingMemory] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [fullscreen, setFullscreen] = useState(false);
   const [showMobilePicker, setShowMobilePicker] = useState(false);
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [showMemoryPanel, setShowMemoryPanel] = useState(false);
@@ -566,7 +567,7 @@ export default function ChatPage() {
   const totalTokens = messages.reduce((sum, m) => sum + (m.tokens_used || 0), 0);
 
   return (
-    <div className="flex h-full bg-[var(--bg-main)]">
+    <div className={fullscreen ? "fixed inset-0 z-50 flex bg-[var(--bg-main)]" : "flex h-full bg-[var(--bg-main)]"}>
       {/* Toast */}
       {toast && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] bg-neutral-900 text-white px-4 py-2 rounded-lg text-sm shadow-lg animate-fade-in">
@@ -694,6 +695,14 @@ export default function ChatPage() {
           <a href="/dashboard" className="text-neutral-400 hover:text-neutral-600" title="Kembali ke Dashboard">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
           </a>
+          {/* Fullscreen toggle */}
+          <button onClick={() => setFullscreen(!fullscreen)} className="text-neutral-400 hover:text-neutral-600" title={fullscreen ? "Keluar fullscreen" : "Mode fullscreen"}>
+            {fullscreen ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/></svg>
+            )}
+          </button>
           {/* Mobile: open picker modal */}
           <button onClick={() => setShowMobilePicker(true)} className="lg:hidden text-neutral-400 hover:text-neutral-600">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></svg>

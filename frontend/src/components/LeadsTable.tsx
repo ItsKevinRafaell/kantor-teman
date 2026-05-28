@@ -583,7 +583,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
               <div>
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Batch</label>
                 <select value={blastBatch} onChange={(e) => setBlastBatch(e.target.value)}
-                  className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
+                  className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
                   <option value="">— Semua —</option>
                   {batches.map((b) => <option key={b} value={b}>{b}</option>)}
                 </select>
@@ -591,7 +591,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
               <div>
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Kategori</label>
                 <select value={blastCategoryId} onChange={(e) => { setBlastCategoryId(e.target.value); setBlastTemplateId(""); }}
-                  className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
+                  className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
                   <option value="">— Semua —</option>
                   {blastCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
@@ -599,7 +599,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
               <div>
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Min. Rating</label>
                 <select value={blastMinRating} onChange={(e) => setBlastMinRating(Number(e.target.value))}
-                  className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
+                  className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
                   <option value={0}>Semua</option>
                   <option value={1}>Min. 1</option>
                   <option value={2}>Min. 2</option>
@@ -611,7 +611,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
               <div>
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Template</label>
                 <select value={blastTemplateId} onChange={(e) => setBlastTemplateId(e.target.value)}
-                  className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
+                  className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
                   <option value="">— pilih —</option>
                   {blastTemplates.filter(t => !blastCategoryId || t.category_id === blastCategoryId).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
@@ -641,7 +641,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
               {blastSendMode === "scheduled" && (
                 <div className="mt-2">
                   <input type="datetime-local" value={blastScheduledFor} onChange={e => setBlastScheduledFor(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
+                    className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
                 </div>
               )}
             </div>
@@ -663,7 +663,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Cari nama, alamat, atau nomor..."
-            className="w-full pl-9 pr-3 py-1.5 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-white dark:bg-[#2a2a29] dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-300/50 transition" />
+            className="w-full pl-9 pr-3 py-1.5 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-white dark:bg-[var(--bg-surface)] dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-300/50 transition" />
         </div>
         <button onClick={() => { setLeadForm({ business_name: "", phone_number: "", address: "", product_interest: "" }); setAddLeadModal(true); }}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-yellow hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors">
@@ -692,7 +692,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
         <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-2">
           <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Batch:</span>
           <select value={filterBatch} onChange={(e) => setFilterBatch(e.target.value)}
-            className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-[#2a2a29] text-gray-700 dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition max-w-[200px] flex-1 sm:flex-none">
+            className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-[var(--bg-surface)] text-gray-700 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition max-w-[200px] flex-1 sm:flex-none">
             <option value="">Semua Batch</option>
             {batches.map((b) => <option key={b} value={b}>{b}</option>)}
           </select>
@@ -719,7 +719,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Rating:</span>
           <select value={filterRating} onChange={(e) => setFilterRating(Number(e.target.value))}
-            className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-[#2a2a29] text-gray-700 dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
+            className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-[var(--bg-surface)] text-gray-700 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
             <option value={0}>Semua</option>
             <option value={5}>5 Bintang</option>
             <option value={4}>Min. 4 Bintang</option>
@@ -745,7 +745,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
         </button>
 
         <button onClick={() => { fetchLeads(); fetchBatches(); }}
-          className="sm:ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-[#2a2a29] border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+          className="sm:ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-[var(--bg-surface)] border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
           ↻ Refresh
         </button>
 
@@ -758,7 +758,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
       {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-xl px-4 py-3 text-sm">{error}</div>}
 
       {loading && (
-        <div className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-100 dark:border-gray-700 shadow-card overflow-hidden">
+        <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-100 dark:border-gray-700 shadow-card overflow-hidden">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="flex gap-4 px-6 py-4 border-b border-gray-50 dark:border-gray-800 last:border-0 animate-pulse">
               <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-1/4" /><div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-1/3" />
@@ -769,15 +769,15 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
       )}
 
       {!loading && !error && leads.length === 0 && (
-        <div className="text-center py-12 text-gray-400 text-sm bg-white dark:bg-[#242423] rounded-2xl border border-gray-100 dark:border-gray-700">
+        <div className="text-center py-12 text-gray-400 text-sm bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-100 dark:border-gray-700">
           Belum ada leads. Gunakan <span className="font-semibold text-gray-600">Maps Scraper</span> untuk mencari bisnis.
         </div>
       )}
 
       {!loading && leads.length > 0 && (
         <div className="overflow-x-auto rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <table className="w-full min-w-[1100px] bg-white dark:bg-[#242423] text-sm">
-            <thead className="bg-gray-50 dark:bg-[#2a2a29] border-b border-gray-100 dark:border-gray-700">
+          <table className="w-full min-w-[1100px] bg-white dark:bg-[var(--bg-canvas)] text-sm">
+            <thead className="bg-gray-50 dark:bg-[var(--bg-surface)] border-b border-gray-100 dark:border-gray-700">
               <tr>
                 {["#", "Nama Bisnis", "Alamat", "Nomor WA", "Layanan", "Website", "Google Rating", "Score", "Status", "Aksi"].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
@@ -799,7 +799,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
                 return filtered.slice(start, start + LEADS_PAGE_SIZE).map((lead, i) => (
                 <tr key={lead.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${lead.is_archived ? "opacity-70" : ""} ${lead.is_ghost_viewer ? "bg-red-500/10 border-l-4 border-l-red-500 animate-pulse" : ""}`}>
                   <td className="px-4 py-3 text-gray-400 text-xs">{start + i + 1}</td>
-                  <td className="px-4 py-3 font-medium text-gray-800 dark:text-[#fcfaf7] max-w-[180px]">
+                  <td className="px-4 py-3 font-medium text-gray-800 dark:text-neutral-50 max-w-[180px]">
                     <div className="flex items-center gap-1.5">
                       <span>{lead.business_name}{lead.is_archived ? " (Archived)" : ""}</span>
                       {lead.is_ghost_viewer && (
@@ -813,7 +813,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
                   <td className="px-4 py-3">
                     <select value={lead.product_interest ?? ""} disabled={updating === lead.id || lead.is_archived}
                       onChange={(e) => updateProduct(lead.id, e.target.value)}
-                      className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-[#2a2a29] text-gray-700 dark:text-[#fcfaf7] cursor-pointer hover:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-50 transition-colors">
+                      className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-[var(--bg-surface)] text-gray-700 dark:text-neutral-50 cursor-pointer hover:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-50 transition-colors">
                       <option value="">— pilih —</option>
                       {blastCategories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
                     </select>
@@ -922,7 +922,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
             const filtered = leads.filter((l) => (filterRating === 0 || l.rating >= filterRating) && (!searchQuery || l.business_name.toLowerCase().includes(searchQuery.toLowerCase()) || (l.address || "").toLowerCase().includes(searchQuery.toLowerCase()) || l.phone_number.includes(searchQuery)));
             return <Pagination page={leadsPage} pageSize={LEADS_PAGE_SIZE} total={filtered.length} onPageChange={(p) => setLeadsPage(p)} itemLabel="lead" />;
           })()}
-          <div className="px-4 py-2 bg-gray-50 dark:bg-[#2a2a29] border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400">
+          <div className="px-4 py-2 bg-gray-50 dark:bg-[var(--bg-surface)] border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400">
             {leads.filter((l) => filterRating === 0 || l.rating >= filterRating).length} lead{leads.filter((l) => filterRating === 0 || l.rating >= filterRating).length !== 1 ? "s" : ""}
             {filterBatch && <span className="ml-2 text-amber-400">· {filterBatch}</span>}
             {filterRating > 0 && <span className="ml-2 text-amber-400">· Min. {filterRating} Bintang</span>}

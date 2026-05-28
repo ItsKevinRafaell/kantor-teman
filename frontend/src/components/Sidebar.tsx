@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useUserRole } from "../lib/useUserRole";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
 interface NavItem {
   href: string;
   label: string;
@@ -25,6 +27,16 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/dashboard",
         label: "Dashboard",
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>,
+      },
+      {
+        href: "/reports",
+        label: "Laporan & Analitik",
+        icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+      },
+      {
+        href: "/docs",
+        label: "Dokumentasi",
+        icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
       },
       {
         href: "/chat",
@@ -182,12 +194,24 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
   const { isAdmin } = useUserRole();
   const [customizing, setCustomizing] = useState(false);
   const [hiddenItems, setHiddenItems] = useState<Set<string>>(new Set());
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem("sidebar_hidden_items");
       if (stored) setHiddenItems(new Set(JSON.parse(stored)));
     } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/brand-kit/public`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.assets) return;
+        const logo = data.assets.find((a: { asset_type: string }) => a.asset_type === "logo_primary");
+        if (logo?.file_url) setLogoUrl(`${API_BASE}${logo.file_url}`);
+      })
+      .catch(() => {});
   }, []);
 
   function toggleItem(href: string) {
@@ -208,9 +232,13 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-60 shrink-0 bg-[var(--bg-surface)] dark:bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] flex flex-col h-full transform transition-transform duration-200 ease-in-out ${open ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}>
         <div className="px-6 py-5 border-b border-[var(--border-subtle)] flex items-center justify-between">
           <div>
-            <span className="text-lg font-bold text-brand-yellow tracking-tight">
-              Teman UMKM Kita
-            </span>
+            {logoUrl ? (
+              <img src={logoUrl} alt="Teman UMKM Kita" className="h-8 w-auto object-contain" />
+            ) : (
+              <span className="text-lg font-bold text-brand-yellow tracking-tight">
+                Teman UMKM Kita
+              </span>
+            )}
             <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 font-medium uppercase tracking-widest">CRM Internal</p>
           </div>
           <button onClick={onClose} className="lg:hidden p-1 text-neutral-400 hover:text-neutral-600">

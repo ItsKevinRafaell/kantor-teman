@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "../../../lib/api";
+import Modal from "../../../components/Modal";
+import Toast from "../../../components/Toast";
 import { Plus, ChevronLeft, ChevronRight, Trash2, Settings } from "lucide-react";
 
 interface ContentItem {
@@ -44,6 +46,8 @@ export default function ContentCalendarPage() {
   const [newType, setNewType] = useState({ value: "", label: "", color: "#f97316" });
   const [editingType, setEditingType] = useState<string | null>(null);
   const [editTypeForm, setEditTypeForm] = useState({ label: "", color: "" });
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -131,7 +135,9 @@ export default function ContentCalendarPage() {
 
   async function deleteSchedule(id: string) {
     const res = await apiFetch(`/api/content-schedule/${id}`, { method: "DELETE" });
-    if (res.ok) setItems(prev => prev.filter(i => i.id !== id));
+    if (res.ok) { setToast({ message: "Berhasil dihapus.", type: "success" }); setItems(prev => prev.filter(i => i.id !== id)); }
+    else { setToast({ message: "Gagal hapus.", type: "error" }); }
+    setDeleteId(null);
   }
 
   async function updateStatus(id: string, status: string) {
@@ -160,6 +166,16 @@ export default function ContentCalendarPage() {
   if (loading) {
     return (
       <div className="max-w-6xl space-y-6">
+      <Toast message={toast?.message ?? null} type={toast?.type} onClose={() => setToast(null)} />
+      <Modal
+        open={!!deleteId}
+        title="Hapus Jadwal Konten?"
+        message="Item yang dihapus tidak bisa dikembalikan."
+        confirmLabel="Hapus"
+        confirmClass="bg-red-600 hover:bg-red-700"
+        onConfirm={() => deleteId !== null && deleteSchedule(deleteId!)}
+        onCancel={() => setDeleteId(null)}
+      />
         <div className="h-8 bg-neutral-100 dark:bg-neutral-800 rounded w-48 animate-pulse" />
         <div className="h-96 bg-neutral-100 dark:bg-neutral-800 rounded-2xl animate-pulse" />
       </div>
@@ -259,7 +275,7 @@ export default function ContentCalendarPage() {
                           <option value="SCHEDULED">Scheduled</option>
                           <option value="PUBLISHED">Published</option>
                         </select>
-                        <button onClick={() => deleteSchedule(item.id)} className="text-red-300 hover:text-red-100">
+                        <button onClick={() => setDeleteId(item.id)} className="text-red-300 hover:text-red-100">
                           <Trash2 size={10} />
                         </button>
                       </div>

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "../../../lib/api";
+import Modal from "../../../components/Modal";
+import Toast from "../../../components/Toast";
 import { formatRupiahInput, cleanRupiahInput } from "../../../utils/formatter";
 import { Plus, Trash2, ExternalLink, TrendingUp, Target, DollarSign } from "lucide-react";
 
@@ -37,6 +39,8 @@ export default function AdsPage() {
   const [saving, setSaving] = useState(false);
   const [editingField, setEditingField] = useState<{ id: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
   const fetchCampaigns = useCallback(async () => {
     try {
@@ -73,7 +77,9 @@ export default function AdsPage() {
 
   async function deleteCampaign(id: string) {
     const res = await apiFetch(`/api/ads/campaigns/${id}`, { method: "DELETE" });
-    if (res.ok) setCampaigns(prev => prev.filter(c => c.id !== id));
+    if (res.ok) { setToast({ message: "Berhasil dihapus.", type: "success" }); setCampaigns(prev => prev.filter(c => c.id !== id)); }
+    else { setToast({ message: "Gagal hapus.", type: "error" }); }
+    setDeleteId(null);
   }
 
   function startEdit(id: string, field: string, currentValue: number) {
@@ -96,6 +102,16 @@ export default function AdsPage() {
   if (loading) {
     return (
       <div className="max-w-6xl space-y-6">
+      <Toast message={toast?.message ?? null} type={toast?.type} onClose={() => setToast(null)} />
+      <Modal
+        open={!!deleteId}
+        title="Hapus Campaign?"
+        message="Item yang dihapus tidak bisa dikembalikan."
+        confirmLabel="Hapus"
+        confirmClass="bg-red-600 hover:bg-red-700"
+        onConfirm={() => deleteId !== null && deleteCampaign(deleteId!)}
+        onCancel={() => setDeleteId(null)}
+      />
         <div className="h-8 bg-neutral-100 dark:bg-neutral-800 rounded w-48 animate-pulse" />
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map(i => <div key={i} className="h-28 bg-neutral-100 dark:bg-neutral-800 rounded-2xl animate-pulse" />)}
@@ -242,7 +258,7 @@ export default function AdsPage() {
                       {c.cost_per_lead ? formatRupiah(c.cost_per_lead) : "—"}
                     </td>
                     <td className="px-4 py-3">
-                      <button onClick={() => deleteCampaign(c.id)} className="p-1.5 text-neutral-400 hover:text-red-500 rounded-lg transition-colors">
+                      <button onClick={() => setDeleteId(c.id)} className="p-1.5 text-neutral-400 hover:text-red-500 rounded-lg transition-colors">
                         <Trash2 size={14} />
                       </button>
                     </td>

@@ -61,12 +61,6 @@ function escapeHtml(str: string): string {
   return div.innerHTML;
 }
 
-function applyInlineMarkdown(text: string): string {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>");
-}
-
 function applyInlineMarkdownSafe(text: string): string {
   return text
     .replace(/\*\*(.+?)\*\*/g, (_, p1) => `<strong>${escapeHtml(p1)}</strong>`)
@@ -229,8 +223,8 @@ function Modal({ open, onClose, title, children }: { open: boolean; onClose: () 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
-      <div className="relative bg-white dark:bg-[#242423] rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="sticky top-0 bg-white dark:bg-[#242423] px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between rounded-t-2xl">
+      <div className="relative bg-white dark:bg-[var(--bg-canvas)] rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="sticky top-0 bg-white dark:bg-[var(--bg-canvas)] px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between rounded-t-2xl">
           <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-50">{title}</h2>
           <button onClick={onClose} className="p-1 text-neutral-400 hover:text-neutral-600 rounded-lg">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -445,7 +439,7 @@ export default function ContentGeneratorPage() {
           {(["seo_article", "image"] as Tool[]).map(t => (
             <button key={t} onClick={() => setActiveTool(t)}
               className={`w-full text-left px-3 py-2 rounded-xl text-sm font-medium mb-1 transition-all
-                ${activeTool === t ? "bg-yellow-500 text-white shadow-sm" : "text-neutral-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-neutral-800 dark:hover:text-neutral-200"}`}>
+                ${activeTool === t ? "bg-amber-500 text-white shadow-sm" : "text-neutral-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-neutral-800 dark:hover:text-neutral-200"}`}>
               {TOOL_LABELS[t]}
             </button>
           ))}
@@ -454,7 +448,7 @@ export default function ContentGeneratorPage() {
         <div>
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Sesi</p>
-            <button onClick={() => setShowNewSessionModal(true)} className="text-xs text-yellow-600 hover:text-yellow-700 font-medium">+ Baru</button>
+            <button onClick={() => setShowNewSessionModal(true)} className="text-xs text-amber-600 hover:text-yellow-700 font-medium">+ Baru</button>
           </div>
           <button onClick={() => setSelectedSession(null)}
             className={`w-full text-left px-3 py-2 rounded-xl text-sm mb-1 transition-all
@@ -480,7 +474,7 @@ export default function ContentGeneratorPage() {
               {renamingSession !== s.id && (
                 <>
                   <button onClick={e => { e.stopPropagation(); setRenameValue(s.name); setRenamingSession(s.id); }}
-                    className="opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-yellow-600 text-xs shrink-0" title="Rename">
+                    className="opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-amber-600 text-xs shrink-0" title="Rename">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   </button>
                   <button onClick={e => { e.stopPropagation(); deleteSession(s.id); }}
@@ -502,7 +496,7 @@ export default function ContentGeneratorPage() {
 
         {activeTool === "image" && (
           <button onClick={() => { setEditingProvider(null); setProviderForm({ name: "", base_url: "", api_key: "", model: "", is_active: true }); setShowProviderModal(true); }}
-            className="text-xs text-neutral-500 hover:text-yellow-600 px-3 py-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left">
+            className="text-xs text-neutral-500 hover:text-amber-600 px-3 py-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left">
             Kelola Image Provider
           </button>
         )}
@@ -520,7 +514,7 @@ export default function ContentGeneratorPage() {
         )}
 
         {/* CMS Config (collapsible) */}
-        <div className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
           <button onClick={() => setCmsConfigOpen(o => !o)}
             className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
             <span className="text-xs font-bold text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">⚙️ Konfigurasi CMS Target</span>
@@ -544,7 +538,7 @@ export default function ContentGeneratorPage() {
                   className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-neutral-800 dark:text-gray-200 focus:ring-2 focus:ring-yellow-300 outline-none transition" />
               </div>
               <button onClick={saveCmsConfig} disabled={savingCms}
-                className="px-4 py-2 text-xs font-semibold bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg disabled:opacity-50 transition-colors">
+                className="px-4 py-2 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-lg disabled:opacity-50 transition-colors">
                 {savingCms ? "Menyimpan..." : "Simpan CMS Config"}
               </button>
             </div>
@@ -563,7 +557,7 @@ export default function ContentGeneratorPage() {
 
         {/* Viewed history result */}
         {viewResult && (
-          <div className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
+          <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-neutral-800 dark:text-neutral-200 text-base">{viewResult.title}</h3>
               <button onClick={() => setViewResult(null)} className="text-neutral-400 hover:text-neutral-600">&times;</button>
@@ -643,7 +637,7 @@ export default function ContentGeneratorPage() {
                     <p className="text-xs text-neutral-400 truncate">{p.model} · {p.base_url}</p>
                   </div>
                   <button onClick={() => { setEditingProvider(p); setProviderForm({ name: p.name, base_url: p.base_url, api_key: p.api_key || "", model: p.model, is_active: p.is_active }); }}
-                    className="text-xs text-yellow-600 hover:text-yellow-700 px-2 py-1 rounded hover:bg-yellow-50">Edit</button>
+                    className="text-xs text-amber-600 hover:text-yellow-700 px-2 py-1 rounded hover:bg-yellow-50">Edit</button>
                   <button onClick={() => deleteProvider(p.id)} className="text-xs text-red-500 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50">Hapus</button>
                 </div>
               ))}
@@ -667,7 +661,7 @@ export default function ContentGeneratorPage() {
           ))}
           <div className="flex gap-2">
             <button onClick={saveProvider} disabled={!providerForm.name || !providerForm.base_url || !providerForm.model}
-              className="flex-1 px-4 py-2 text-sm rounded-lg font-medium bg-yellow-500 hover:bg-yellow-600 text-white disabled:opacity-50">
+              className="flex-1 px-4 py-2 text-sm rounded-lg font-medium bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50">
               {editingProvider ? "Simpan Perubahan" : "Tambah Provider"}
             </button>
             {editingProvider && (
@@ -693,7 +687,7 @@ export default function ContentGeneratorPage() {
               className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
           </div>
           <button onClick={createSession} disabled={!sessionForm.name.trim()}
-            className="w-full px-4 py-2 text-sm rounded-lg font-medium bg-yellow-500 hover:bg-yellow-600 text-white disabled:opacity-50">
+            className="w-full px-4 py-2 text-sm rounded-lg font-medium bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50">
             Buat Sesi
           </button>
         </div>
@@ -841,7 +835,7 @@ function SeoArticlePanel({ sessionId, sharedContext, showToast, onResult }: {
   ];
 
   return (
-    <div className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-200 dark:border-gray-700 p-5 space-y-4">
+    <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-200 dark:border-gray-700 p-5 space-y-4">
       <h2 className="text-base font-semibold text-neutral-800 dark:text-neutral-200">SEO Article Writer</h2>
 
       <div className="grid grid-cols-2 gap-3">
@@ -884,7 +878,7 @@ function SeoArticlePanel({ sessionId, sharedContext, showToast, onResult }: {
       <div>
         <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Jumlah Kata: {wordCount}</label>
         <input type="range" min={400} max={2000} step={200} value={wordCount} onChange={e => setWordCount(Number(e.target.value))}
-          className="w-full accent-yellow-500" />
+          className="w-full accent-amber-500" />
         <div className="flex justify-between text-xs text-neutral-400 mt-1"><span>400</span><span>2000</span></div>
       </div>
 
@@ -928,7 +922,7 @@ function SeoArticlePanel({ sessionId, sharedContext, showToast, onResult }: {
                 <button key={opt.value} onClick={() => toggleSerp(opt.value)}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-all border
                     ${serpFeatures.includes(opt.value)
-                      ? "bg-yellow-500 text-white border-yellow-500"
+                      ? "bg-amber-500 text-white border-amber-500"
                       : "bg-white dark:bg-gray-800 text-neutral-500 border-gray-200 dark:border-gray-700 hover:border-yellow-300"}`}>
                   {opt.label}
                 </button>
@@ -992,7 +986,7 @@ function SeoArticlePanel({ sessionId, sharedContext, showToast, onResult }: {
       )}
 
       <button onClick={generate} disabled={loading || !keyword.trim()}
-        className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+        className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2">
         {loading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Sedang menulis artikel...</> : "✨ Generate Artikel"}
       </button>
 
@@ -1078,7 +1072,7 @@ function ImagePanel({ sessionId, sharedContext, providers, showToast, onResult }
   }
 
   return (
-    <div className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-200 dark:border-gray-700 p-5 space-y-4">
+    <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-200 dark:border-gray-700 p-5 space-y-4">
       <h2 className="text-base font-semibold text-neutral-800 dark:text-neutral-200">Image Generator</h2>
       {providers.length === 0 ? (
         <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 text-center">
@@ -1118,7 +1112,7 @@ function ImagePanel({ sessionId, sharedContext, providers, showToast, onResult }
             </div>
           </div>
           <button onClick={generate} disabled={loading || !prompt.trim() || !providerId}
-            className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+            className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2">
             {loading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Generating...</> : "✨ Generate Image"}
           </button>
           {images.length > 0 && (
@@ -1175,7 +1169,7 @@ function HistoryPanel({ generations, sharedContext, onToggleContext, searchQuery
 }) {
 
   return (
-    <div className="bg-white dark:bg-[#242423] rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
+    <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
       <div className="flex items-center gap-3 mb-3">
         <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 shrink-0">History</h3>
         <div className="flex-1 relative">

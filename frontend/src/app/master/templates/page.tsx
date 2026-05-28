@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../../lib/api";
 import { Plus, Edit2, Trash2, X, FileText, BarChart2 } from "lucide-react";
 import Pagination from "../../../components/Pagination";
+import Modal from "../../../components/Modal";
+import Toast from "../../../components/Toast";
 import Link from "next/link";
 
 interface DynTemplate {
@@ -60,6 +62,8 @@ export default function DynamicTemplatesPage() {
   const [sortBy, setSortBy] = useState<"name" | "reply_rate" | "conversion_rate">("name");
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const [page, setPage] = useState(1);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const PAGE_SIZE = 15;
 
   const fetchTemplates = useCallback(async () => {
@@ -95,7 +99,7 @@ export default function DynamicTemplatesPage() {
   useEffect(() => {
     fetchTemplates();
     fetchCategories();
-    intervalRef.current = setInterval(fetchTemplates, 5000);
+    intervalRef.current = setInterval(fetchTemplates, 30000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchTemplates, fetchCategories]);
 
@@ -112,16 +116,26 @@ export default function DynamicTemplatesPage() {
   }
 
   async function save() {
+    if (!form.name.trim()) {
+      setToast({ message: "Nama template wajib diisi.", type: "error" });
+      return;
+    }
+    if (!form.content.trim()) {
+      setToast({ message: "Konten template wajib diisi.", type: "error" });
+      return;
+    }
     const payload = { ...form, category_id: form.category_id || null };
     const method = editing ? "PUT" : "POST";
     const url = editing ? `/api/dynamic-templates/${editing.id}` : "/api/dynamic-templates";
     const res = await apiFetch(url, { method, body: JSON.stringify(payload) });
-    if (res.ok) { setModal(false); fetchTemplates(); }
+    if (res.ok) { setToast({ message: "Template berhasil disimpan.", type: "success" }); setModal(false); fetchTemplates(); }
   }
 
   async function deleteTemplate(id: string) {
     const res = await apiFetch(`/api/dynamic-templates/${id}`, { method: "DELETE" });
-    if (res.ok) fetchTemplates();
+    if (res.ok) { setToast({ message: "Berhasil dihapus.", type: "success" }); fetchTemplates(); }
+    else { setToast({ message: "Gagal hapus.", type: "error" }); }
+    setDeleteId(null);
   }
 
   const inputCls = "w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-neutral-50 dark:bg-neutral-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-yellow/50 transition";
@@ -129,6 +143,16 @@ export default function DynamicTemplatesPage() {
   if (loading) {
     return (
       <div className="max-w-6xl space-y-6">
+      <Toast message={toast?.message ?? null} type={toast?.type} onClose={() => setToast(null)} />
+      <Modal
+        open={!!deleteId}
+        title="Hapus Template?"
+        message="Item yang dihapus tidak bisa dikembalikan."
+        confirmLabel="Hapus"
+        confirmClass="bg-red-600 hover:bg-red-700"
+        onConfirm={() => deleteId !== null && deleteTemplate(deleteId!)}
+        onCancel={() => setDeleteId(null)}
+      />
         <div className="h-8 bg-gray-100 dark:bg-gray-800 rounded w-48 animate-pulse" />
         <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="h-20 bg-gray-100 dark:bg-gray-800 rounded-2xl animate-pulse" />)}</div>
       </div>
@@ -178,7 +202,7 @@ export default function DynamicTemplatesPage() {
                 </div>
                 <div className="flex items-center gap-1 shrink-0 ml-3">
                   <button onClick={() => openEdit(t)} className="p-1.5 text-gray-400 hover:text-brand-yellow rounded-lg transition-colors"><Edit2 size={14} /></button>
-                  <button onClick={() => deleteTemplate(t.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                  <button onClick={() => setDeleteId(t.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors"><Trash2 size={14} /></button>
                 </div>
               </div>
             </div>

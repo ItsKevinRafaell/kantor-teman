@@ -7,7 +7,7 @@ import Toast from "../../components/Toast";
 import { useUserRole } from "../../lib/useUserRole";
 
 const COLORS = {
-  primary: "bg-yellow-500 hover:bg-yellow-600 text-white",
+  primary: "bg-amber-500 hover:bg-amber-600 text-white",
   secondary: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700",
 };
 
@@ -47,7 +47,7 @@ const BOARD_TOP_BORDER: Record<string, string> = {
 };
 
 const LABEL_COLORS: Record<string, string> = {
-  red: "bg-red-500", orange: "bg-orange-500", yellow: "bg-yellow-500",
+  red: "bg-red-500", orange: "bg-orange-500", yellow: "bg-amber-500",
   green: "bg-green-500", blue: "bg-blue-500", purple: "bg-purple-500", pink: "bg-pink-500",
 };
 
@@ -79,12 +79,12 @@ function ConfirmModal({ open, onClose, onConfirm, title, message, danger = true 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
-      <div className="relative bg-white dark:bg-[#242423] rounded-2xl shadow-2xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
+      <div className="relative bg-white dark:bg-[var(--bg-canvas)] rounded-2xl shadow-2xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
         <h3 className="font-semibold text-neutral-900 dark:text-neutral-50 mb-2">{title}</h3>
         <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-5">{message}</p>
         <div className="flex gap-2 justify-end">
-          <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>
-          <button onClick={() => { onConfirm(); onClose(); }} className={`px-4 py-2 text-sm rounded-lg font-medium text-white ${danger ? "bg-red-500 hover:bg-red-600" : "bg-yellow-500 hover:bg-yellow-600"}`}>Ya, lanjutkan</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>
+          <button onClick={() => { onConfirm(); onClose(); }} className={`px-4 py-2 text-sm rounded-xl font-medium text-white ${danger ? "bg-red-500 hover:bg-red-600" : "bg-amber-500 hover:bg-amber-600"}`}>Ya, lanjutkan</button>
         </div>
       </div>
     </div>
@@ -100,12 +100,12 @@ function Modal({ open, onClose, title, children, size = "md" }: {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
       <div
-        className={`relative bg-white dark:bg-[#242423] rounded-2xl shadow-2xl ${sizeClass} w-full max-h-[90vh] overflow-y-auto`}
+        className={`relative bg-white dark:bg-[var(--bg-canvas)] rounded-2xl shadow-2xl ${sizeClass} w-full max-h-[90vh] overflow-y-auto`}
         onClick={e => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-white dark:bg-[#242423] px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between rounded-t-2xl">
+        <div className="sticky top-0 bg-white dark:bg-[var(--bg-canvas)] px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between rounded-t-2xl">
           <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">{title}</h2>
-          <button onClick={onClose} className="p-1 text-neutral-400 hover:text-neutral-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+          <button onClick={onClose} className="p-1 text-neutral-400 hover:text-neutral-600 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -463,7 +463,7 @@ export default function BoardPage() {
         <div>
           {viewMode === "board" && currentProject ? (
             <div>
-              <button onClick={() => setSelectedProject("")} className="flex items-center gap-1 text-sm text-neutral-500 hover:text-yellow-600 dark:hover:text-yellow-400 mb-1 transition-colors">
+              <button onClick={() => setSelectedProject("")} className="flex items-center gap-1 text-sm text-neutral-500 hover:text-amber-600 dark:hover:text-yellow-400 mb-1 transition-colors">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
                 Semua Proyek
               </button>
@@ -478,21 +478,21 @@ export default function BoardPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
           {viewMode === "overview" && (
-            <label className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
-              <input type="checkbox" checked={showArchivedProjects} onChange={e => setShowArchivedProjects(e.target.checked)} className="accent-yellow-500 w-4 h-4" />
+            <label className="flex items-center gap-2 px-3 py-2 text-sm rounded-xl cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+              <input type="checkbox" checked={showArchivedProjects} onChange={e => setShowArchivedProjects(e.target.checked)} className="accent-amber-500 w-4 h-4" />
               Tampilkan arsip
             </label>
           )}
-          {isAdmin && <button onClick={() => { setProjectModal(true); setProjectForm({ name: "", type: "FIXED", status: "ACTIVE", nominal: 0, lead_id: null, color: "yellow" }); }} className={`px-3 py-2 text-sm rounded-lg flex items-center gap-1 ${COLORS.secondary}`}>
+          {isAdmin && <button onClick={() => { setProjectModal(true); setProjectForm({ name: "", type: "FIXED", status: "ACTIVE", nominal: 0, lead_id: null, color: "yellow" }); }} className={`px-3 py-2 text-sm rounded-xl flex items-center gap-1 ${COLORS.secondary}`}>
             <Plus className="w-4 h-4" /> Proyek Baru
           </button>}
           {board && (
             <>
-              <button onClick={() => setShowArchived(!showArchived)} className={`px-3 py-2 text-sm rounded-lg flex items-center gap-1 ${showArchived ? COLORS.primary : COLORS.secondary}`}>
+              <button onClick={() => setShowArchived(!showArchived)} className={`px-3 py-2 text-sm rounded-xl flex items-center gap-1 ${showArchived ? COLORS.primary : COLORS.secondary}`}>
                 {showArchived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
                 {showArchived ? "Card Aktif" : "Card Arsip"}
               </button>
-              <button onClick={() => { setColumnModal({ open: true, column: null }); setColumnName(""); setColumnColor("yellow"); }} className={`px-3 py-2 text-sm rounded-lg flex items-center gap-1 ${COLORS.primary}`}>
+              <button onClick={() => { setColumnModal({ open: true, column: null }); setColumnName(""); setColumnColor("yellow"); }} className={`px-3 py-2 text-sm rounded-xl flex items-center gap-1 ${COLORS.primary}`}>
                 <Plus className="w-4 h-4" /> Kolom
               </button>
             </>
@@ -501,8 +501,8 @@ export default function BoardPage() {
       </div>
 
       {currentProjectLead && (
-        <div className="mb-4 px-3 py-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg w-fit flex items-center gap-2">
-          <User className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+        <div className="mb-4 px-3 py-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl w-fit flex items-center gap-2">
+          <User className="w-4 h-4 text-amber-600 dark:text-yellow-400" />
           <span className="text-sm font-medium text-yellow-700 dark:text-yellow-300">{currentProjectLead.business_name}</span>
         </div>
       )}
@@ -511,7 +511,7 @@ export default function BoardPage() {
       {viewMode === "overview" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {overview.length === 0 && (
-            <div className="col-span-full bg-white dark:bg-[#242423] rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
+            <div className="col-span-full bg-white dark:bg-[var(--bg-canvas)] rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
               <p className="text-neutral-500">Belum ada proyek dengan board.</p>
               <p className="text-xs text-neutral-400 mt-1">Klik "Proyek Baru" untuk mulai.</p>
             </div>
@@ -535,18 +535,18 @@ export default function BoardPage() {
                           setEditProjectForm({ name: p.name, type: p.type as "FIXED"|"RETAINER", status: p.status, nominal: (p as any).nominal || 0, lead_id: p.lead_id, color: p.color || "yellow" });
                           setEditProjectModal({ open: true, projectId: p.id });
                         }
-                      }} className="p-1.5 text-neutral-400 hover:text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-lg transition-colors">
+                      }} className="p-1.5 text-neutral-400 hover:text-amber-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-xl transition-colors">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                       </button>
                     )}
                     {isAdmin && <button title={item.is_archived ? "Pulihkan proyek" : "Arsipkan proyek"}
                       onClick={() => archiveProject(item.project_id, !item.is_archived)}
-                      className="p-1.5 text-neutral-400 hover:text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-lg transition-colors">
+                      className="p-1.5 text-neutral-400 hover:text-amber-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-xl transition-colors">
                       {item.is_archived ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
                     </button>}
                     {isAdmin && <button title="Hapus proyek"
                       onClick={() => showConfirm("Hapus Proyek", `Proyek "${item.project_name}" beserta semua board, kolom, dan card-nya akan dihapus permanen.`, () => deleteProjectFromBoard(item.project_id, item.project_name))}
-                      className="p-1.5 text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                      className="p-1.5 text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>}
                   </div>
@@ -554,7 +554,7 @@ export default function BoardPage() {
 
                 {/* Client name */}
                 {item.client_name && (
-                  <p className="text-xs font-medium text-yellow-600 dark:text-yellow-400 mb-2 flex items-center gap-1">
+                  <p className="text-xs font-medium text-amber-600 dark:text-yellow-400 mb-2 flex items-center gap-1">
                     <User className="w-3 h-3" /> {item.client_name}
                   </p>
                 )}
@@ -610,7 +610,7 @@ export default function BoardPage() {
                       <span className="text-xs text-neutral-400 bg-white/60 dark:bg-black/20 px-1.5 py-0.5 rounded-full">{cards.length}</span>
                     </div>
                     <div className="flex items-center gap-0.5">
-                      <button onClick={() => { setColumnModal({ open: true, column }); setColumnName(column.name); setColumnColor(column.color || "yellow"); }} className="p-1 text-neutral-400 hover:text-yellow-500 rounded text-xs">Edit</button>
+                      <button onClick={() => { setColumnModal({ open: true, column }); setColumnName(column.name); setColumnColor(column.color || "yellow"); }} className="p-1 text-neutral-400 hover:text-amber-500 rounded text-xs">Edit</button>
                       <button onClick={() => showConfirm("Hapus Kolom", `Kolom "${column.name}" dan semua card di dalamnya akan dihapus permanen.`, () => deleteColumn(column.id))} className="p-1 text-neutral-400 hover:text-red-500 rounded"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </div>
@@ -624,7 +624,7 @@ export default function BoardPage() {
                           onDragStart={() => handleDragStart(card, column.id)}
                           onDragEnd={handleDragEnd}
                           onClick={() => openEditCardModal(card, column.id)}
-                          className={`rounded-lg p-3 shadow-sm cursor-pointer select-none transition-all duration-150
+                          className={`rounded-xl p-3 shadow-sm cursor-pointer select-none transition-all duration-150
                             ${cc.bg} ${cc.accent}
                             ${card.is_archived ? "opacity-50" : ""}
                             ${isDragging ? "opacity-40 scale-95 rotate-1 shadow-xl" : "hover:shadow-md hover:-translate-y-0.5"}`}
@@ -643,7 +643,7 @@ export default function BoardPage() {
                             )}
                           </div>
                           {(card.lead?.business_name || leads.find(l => l.id === card.lead_id)?.business_name) && (
-                            <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                            <p className="text-xs text-amber-600 dark:text-yellow-400 mt-1">
                               {card.lead?.business_name || leads.find(l => l.id === card.lead_id)?.business_name}
                             </p>
                           )}
@@ -668,14 +668,14 @@ export default function BoardPage() {
 
                     {/* Drop indicator */}
                     {isDropTarget && (
-                      <div className="h-12 rounded-lg border-2 border-dashed border-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/10 flex items-center justify-center">
-                        <span className="text-xs text-yellow-500">Lepas di sini</span>
+                      <div className="h-12 rounded-xl border-2 border-dashed border-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/10 flex items-center justify-center">
+                        <span className="text-xs text-amber-500">Lepas di sini</span>
                       </div>
                     )}
 
                     {!showArchived && (
                       <button onClick={() => openNewCardModal(column.id)}
-                        className="w-full p-2 text-sm text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-white/60 dark:hover:bg-black/20 rounded-lg flex items-center justify-center gap-1 transition-colors">
+                        className="w-full p-2 text-sm text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-white/60 dark:hover:bg-black/20 rounded-xl flex items-center justify-center gap-1 transition-colors">
                         <Plus className="w-4 h-4" /> Tambah Card
                       </button>
                     )}
@@ -692,20 +692,20 @@ export default function BoardPage() {
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Judul {cardModal.card?.is_workspace_linked && <span className="ml-1 text-[10px] text-gray-400 normal-case">(read-only — diatur dari Workspace)</span>}</label>
-            <input type="text" value={cardForm.title} onChange={e => setCardForm(prev => ({ ...prev, title: e.target.value }))} readOnly={cardModal.card?.is_workspace_linked} className={`w-full px-3 py-2 border-0 rounded-lg text-sm outline-none ${cardModal.card?.is_workspace_linked ? "bg-gray-50 dark:bg-gray-900 text-gray-500 cursor-not-allowed" : "bg-gray-100 dark:bg-gray-800 focus:ring-2 focus:ring-yellow-400"}`} placeholder="Judul card..." />
+            <input type="text" value={cardForm.title} onChange={e => setCardForm(prev => ({ ...prev, title: e.target.value }))} readOnly={cardModal.card?.is_workspace_linked} className={`w-full px-3 py-2 border-0 rounded-xl text-sm outline-none ${cardModal.card?.is_workspace_linked ? "bg-gray-50 dark:bg-gray-900 text-gray-500 cursor-not-allowed" : "bg-gray-100 dark:bg-gray-800 focus:ring-2 focus:ring-yellow-400"}`} placeholder="Judul card..." />
           </div>
           <div>
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Deskripsi</label>
-            <textarea value={cardForm.description} onChange={e => setCardForm(prev => ({ ...prev, description: e.target.value }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none resize-none" rows={3} placeholder="Deskripsi..." />
+            <textarea value={cardForm.description} onChange={e => setCardForm(prev => ({ ...prev, description: e.target.value }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none resize-none" rows={3} placeholder="Deskripsi..." />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Assignee</label>
-              <input type="text" value={cardForm.assignee} onChange={e => setCardForm(prev => ({ ...prev, assignee: e.target.value }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" placeholder="Nama assignee..." />
+              <input type="text" value={cardForm.assignee} onChange={e => setCardForm(prev => ({ ...prev, assignee: e.target.value }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none" placeholder="Nama assignee..." />
             </div>
             <div>
               <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Due Date</label>
-              <input type="date" value={cardForm.due_date} onChange={e => setCardForm(prev => ({ ...prev, due_date: e.target.value }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
+              <input type="date" value={cardForm.due_date} onChange={e => setCardForm(prev => ({ ...prev, due_date: e.target.value }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
             </div>
           </div>
           <div>
@@ -722,7 +722,7 @@ export default function BoardPage() {
             <div className="flex gap-2 flex-wrap">
               {Object.keys(CARD_COLORS).map(color => (
                 <button key={color} type="button" title={color} onClick={() => setCardForm(prev => ({ ...prev, color }))}
-                  className={`w-8 h-8 rounded-lg ${CARD_COLORS[color].bg} ${CARD_COLORS[color].accent} transition-all
+                  className={`w-8 h-8 rounded-xl ${CARD_COLORS[color].bg} ${CARD_COLORS[color].accent} transition-all
                     ${cardForm.color === color ? "ring-2 ring-offset-1 ring-neutral-700 dark:ring-white scale-110" : "hover:scale-105"}`} />
               ))}
             </div>
@@ -733,13 +733,13 @@ export default function BoardPage() {
             <div>
               <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Client</label>
               {currentProject.lead_id ? (
-                <div className="px-3 py-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg text-sm flex items-center gap-2">
-                  <User className="w-4 h-4 text-yellow-600" />
+                <div className="px-3 py-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl text-sm flex items-center gap-2">
+                  <User className="w-4 h-4 text-amber-600" />
                   <span className="font-medium text-yellow-700 dark:text-yellow-300">{currentProjectLead?.business_name || `Lead #${currentProject.lead_id}`}</span>
                   <span className="text-neutral-400 text-xs">(dari proyek)</span>
                 </div>
               ) : (
-                <select value={cardForm.lead_id ?? ""} onChange={e => setCardForm(prev => ({ ...prev, lead_id: e.target.value ? Number(e.target.value) : null }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm">
+                <select value={cardForm.lead_id ?? ""} onChange={e => setCardForm(prev => ({ ...prev, lead_id: e.target.value ? Number(e.target.value) : null }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm">
                   <option value="">— Tanpa client —</option>
                   {leads.map(l => <option key={l.id} value={l.id}>{l.business_name}</option>)}
                 </select>
@@ -749,17 +749,17 @@ export default function BoardPage() {
 
           {/* Action buttons */}
           <div className="flex gap-2 pt-2">
-            <button onClick={() => cardModal.card ? updateCard(cardModal.card.id) : createCard(cardModal.columnId)} disabled={saving || !cardForm.title.trim()} className={`flex-1 px-4 py-2 text-sm rounded-lg font-medium ${COLORS.primary} disabled:opacity-50`}>
+            <button onClick={() => cardModal.card ? updateCard(cardModal.card.id) : createCard(cardModal.columnId)} disabled={saving || !cardForm.title.trim()} className={`flex-1 px-4 py-2 text-sm rounded-xl font-medium ${COLORS.primary} disabled:opacity-50`}>
               {saving ? "Menyimpan..." : cardModal.card ? "Simpan Perubahan" : "Buat Card"}
             </button>
             {cardModal.card && (
               <>
                 <button onClick={() => archiveCard(cardModal.card!.id, !cardModal.card!.is_archived)}
-                  className={`px-3 py-2 text-sm rounded-lg ${cardModal.card.is_archived ? "bg-green-100 text-green-600 hover:bg-green-200" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                  className={`px-3 py-2 text-sm rounded-xl ${cardModal.card.is_archived ? "bg-green-100 text-green-600 hover:bg-green-200" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
                   title={cardModal.card.is_archived ? "Pulihkan" : "Arsipkan"}>
                   {cardModal.card.is_archived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
                 </button>
-                <button onClick={() => showConfirm("Hapus Card", "Card ini akan dihapus permanen beserta semua checklist, komentar, dan aktivitasnya.", () => deleteCard(cardModal.card!.id))} className="px-3 py-2 text-sm rounded-lg bg-red-100 text-red-600 hover:bg-red-200" title="Hapus">
+                <button onClick={() => showConfirm("Hapus Card", "Card ini akan dihapus permanen beserta semua checklist, komentar, dan aktivitasnya.", () => deleteCard(cardModal.card!.id))} className="px-3 py-2 text-sm rounded-xl bg-red-100 text-red-600 hover:bg-red-200" title="Hapus">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </>
@@ -773,7 +773,7 @@ export default function BoardPage() {
               {/* Checklist */}
               <div>
                 <h4 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-2 flex items-center gap-2">
-                  <CheckSquare className="w-4 h-4 text-yellow-500" /> Checklist
+                  <CheckSquare className="w-4 h-4 text-amber-500" /> Checklist
                   {(cardModal.card.checklist?.length || 0) > 0 && (
                     <span className="text-xs text-neutral-400">{cardModal.card.checklist.filter(i => i.is_done).length}/{cardModal.card.checklist.length}</span>
                   )}
@@ -786,12 +786,12 @@ export default function BoardPage() {
                 <div className="space-y-1.5 mb-2">
                   {cardModal.card.checklist?.map(item => (
                     <label key={item.id} className="flex items-center gap-2 text-sm cursor-pointer group">
-                      <input type="checkbox" checked={item.is_done} onChange={e => toggleChecklist(cardModal.card!.id, item.id, e.target.checked)} className="rounded accent-yellow-500" />
+                      <input type="checkbox" checked={item.is_done} onChange={e => toggleChecklist(cardModal.card!.id, item.id, e.target.checked)} className="rounded accent-amber-500" />
                       <span className={`transition-all ${item.is_done ? "line-through text-neutral-400" : "text-neutral-700 dark:text-neutral-300"}`}>{item.text}</span>
                     </label>
                   ))}
                 </div>
-                <input type="text" placeholder="+ Tambah item checklist, Enter untuk simpan" className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none"
+                <input type="text" placeholder="+ Tambah item checklist, Enter untuk simpan" className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none"
                   onKeyDown={e => { if (e.key === "Enter") { addChecklistItem(cardModal.card!.id, (e.target as HTMLInputElement).value); (e.target as HTMLInputElement).value = ""; } }} />
               </div>
 
@@ -803,13 +803,13 @@ export default function BoardPage() {
                 </h4>
                 <div className="space-y-2 mb-2 max-h-36 overflow-y-auto">
                   {cardModal.card.comments?.map(c => (
-                    <div key={c.id} className="bg-gray-100 dark:bg-gray-800 rounded-lg p-2.5 text-sm">
+                    <div key={c.id} className="bg-gray-100 dark:bg-gray-800 rounded-xl p-2.5 text-sm">
                       <p className="text-neutral-800 dark:text-neutral-200">{c.content}</p>
                       <p className="text-xs text-neutral-400 mt-1">{c.author} · {formatDateTime(c.created_at)}</p>
                     </div>
                   ))}
                 </div>
-                <input type="text" placeholder="Tulis komentar, Enter untuk kirim" className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none"
+                <input type="text" placeholder="Tulis komentar, Enter untuk kirim" className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none"
                   onKeyDown={e => { if (e.key === "Enter") { addComment(cardModal.card!.id, (e.target as HTMLInputElement).value); (e.target as HTMLInputElement).value = ""; } }} />
               </div>
 
@@ -841,18 +841,18 @@ export default function BoardPage() {
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Nama Kolom</label>
-            <input type="text" value={columnName} onChange={e => setColumnName(e.target.value)} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" placeholder="e.g., In Progress" />
+            <input type="text" value={columnName} onChange={e => setColumnName(e.target.value)} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none" placeholder="e.g., In Progress" />
           </div>
           <div>
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-2">Warna</label>
             <div className="flex gap-2 flex-wrap">
               {Object.keys(COLUMN_COLORS).map(color => (
                 <button key={color} type="button" title={color} onClick={() => setColumnColor(color)}
-                  className={`w-8 h-8 rounded-lg ${COLUMN_COLORS[color].bg} border-2 transition-all ${columnColor === color ? "border-neutral-900 dark:border-white scale-110" : `${COLUMN_COLORS[color].border} hover:scale-105`}`} />
+                  className={`w-8 h-8 rounded-xl ${COLUMN_COLORS[color].bg} border-2 transition-all ${columnColor === color ? "border-neutral-900 dark:border-white scale-110" : `${COLUMN_COLORS[color].border} hover:scale-105`}`} />
               ))}
             </div>
           </div>
-          <button onClick={() => columnModal.column ? updateColumn(columnModal.column.id) : createColumn()} disabled={!columnName.trim()} className={`w-full px-4 py-2 text-sm rounded-lg font-medium ${COLORS.primary} disabled:opacity-50`}>
+          <button onClick={() => columnModal.column ? updateColumn(columnModal.column.id) : createColumn()} disabled={!columnName.trim()} className={`w-full px-4 py-2 text-sm rounded-xl font-medium ${COLORS.primary} disabled:opacity-50`}>
             {columnModal.column ? "Update Kolom" : "Buat Kolom"}
           </button>
         </div>
@@ -863,18 +863,18 @@ export default function BoardPage() {
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Nama Proyek</label>
-            <input type="text" value={projectForm.name} onChange={e => setProjectForm(p => ({ ...p, name: e.target.value }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" placeholder="Nama proyek..." />
+            <input type="text" value={projectForm.name} onChange={e => setProjectForm(p => ({ ...p, name: e.target.value }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none" placeholder="Nama proyek..." />
           </div>
           <div>
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Tipe</label>
-            <select value={projectForm.type} onChange={e => setProjectForm(p => ({ ...p, type: e.target.value as "FIXED" | "RETAINER" }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm">
+            <select value={projectForm.type} onChange={e => setProjectForm(p => ({ ...p, type: e.target.value as "FIXED" | "RETAINER" }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm">
               <option value="FIXED">Fixed</option>
               <option value="RETAINER">Retainer</option>
             </select>
           </div>
           <div>
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Client (opsional)</label>
-            <select value={projectForm.lead_id ?? ""} onChange={e => setProjectForm(p => ({ ...p, lead_id: e.target.value ? Number(e.target.value) : null }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm">
+            <select value={projectForm.lead_id ?? ""} onChange={e => setProjectForm(p => ({ ...p, lead_id: e.target.value ? Number(e.target.value) : null }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm">
               <option value="">— Tanpa client —</option>
               {leads.map(l => <option key={l.id} value={l.id}>{l.business_name}</option>)}
             </select>
@@ -884,11 +884,11 @@ export default function BoardPage() {
             <div className="flex gap-2 flex-wrap">
               {Object.keys(COLUMN_COLORS).map(color => (
                 <button key={color} type="button" title={color} onClick={() => setProjectForm(p => ({ ...p, color }))}
-                  className={`w-8 h-8 rounded-lg ${COLUMN_COLORS[color].bg} border-2 transition-all ${projectForm.color === color ? "border-neutral-900 dark:border-white scale-110" : `${COLUMN_COLORS[color].border} hover:scale-105`}`} />
+                  className={`w-8 h-8 rounded-xl ${COLUMN_COLORS[color].bg} border-2 transition-all ${projectForm.color === color ? "border-neutral-900 dark:border-white scale-110" : `${COLUMN_COLORS[color].border} hover:scale-105`}`} />
               ))}
             </div>
           </div>
-          <button onClick={createProject} disabled={saving || !projectForm.name.trim()} className={`w-full px-4 py-2 text-sm rounded-lg font-medium ${COLORS.primary} disabled:opacity-50`}>
+          <button onClick={createProject} disabled={saving || !projectForm.name.trim()} className={`w-full px-4 py-2 text-sm rounded-xl font-medium ${COLORS.primary} disabled:opacity-50`}>
             {saving ? "Membuat..." : "Buat Proyek"}
           </button>
         </div>
@@ -899,18 +899,18 @@ export default function BoardPage() {
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Nama Proyek</label>
-            <input type="text" value={editProjectForm.name} onChange={e => setEditProjectForm(p => ({ ...p, name: e.target.value }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
+            <input type="text" value={editProjectForm.name} onChange={e => setEditProjectForm(p => ({ ...p, name: e.target.value }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
           </div>
           <div>
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Tipe</label>
-            <select value={editProjectForm.type} onChange={e => setEditProjectForm(p => ({ ...p, type: e.target.value as "FIXED"|"RETAINER" }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm">
+            <select value={editProjectForm.type} onChange={e => setEditProjectForm(p => ({ ...p, type: e.target.value as "FIXED"|"RETAINER" }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm">
               <option value="FIXED">Fixed</option>
               <option value="RETAINER">Retainer</option>
             </select>
           </div>
           <div>
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Client (opsional)</label>
-            <select value={editProjectForm.lead_id ?? ""} onChange={e => setEditProjectForm(p => ({ ...p, lead_id: e.target.value ? Number(e.target.value) : null }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm">
+            <select value={editProjectForm.lead_id ?? ""} onChange={e => setEditProjectForm(p => ({ ...p, lead_id: e.target.value ? Number(e.target.value) : null }))} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm">
               <option value="">— Tanpa client —</option>
               {leads.map(l => <option key={l.id} value={l.id}>{l.business_name}</option>)}
             </select>
@@ -920,11 +920,11 @@ export default function BoardPage() {
             <div className="flex gap-2 flex-wrap">
               {Object.keys(COLUMN_COLORS).map(color => (
                 <button key={color} type="button" onClick={() => setEditProjectForm(p => ({ ...p, color }))}
-                  className={`w-8 h-8 rounded-lg ${COLUMN_COLORS[color].bg} border-2 transition-all ${editProjectForm.color === color ? "border-neutral-900 dark:border-white scale-110" : `${COLUMN_COLORS[color].border} hover:scale-105`}`} />
+                  className={`w-8 h-8 rounded-xl ${COLUMN_COLORS[color].bg} border-2 transition-all ${editProjectForm.color === color ? "border-neutral-900 dark:border-white scale-110" : `${COLUMN_COLORS[color].border} hover:scale-105`}`} />
               ))}
             </div>
           </div>
-          <button onClick={saveEditProject} disabled={saving || !editProjectForm.name.trim()} className={`w-full px-4 py-2 text-sm rounded-lg font-medium ${COLORS.primary} disabled:opacity-50`}>
+          <button onClick={saveEditProject} disabled={saving || !editProjectForm.name.trim()} className={`w-full px-4 py-2 text-sm rounded-xl font-medium ${COLORS.primary} disabled:opacity-50`}>
             {saving ? "Menyimpan..." : "Simpan Perubahan"}
           </button>
         </div>

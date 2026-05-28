@@ -5,6 +5,7 @@ import { apiFetch } from "../../../lib/api";
 import { Download, Trash2, Mail, FileText, Plus } from "lucide-react";
 import Link from "next/link";
 import Toast from "../../../components/Toast";
+import Modal from "../../../components/Modal";
 
 interface GeneratedDoc {
   id: string;
@@ -22,6 +23,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 export default function DocumentGeneratorPage() {
   const [docs, setDocs] = useState<GeneratedDoc[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
@@ -35,12 +37,12 @@ export default function DocumentGeneratorPage() {
   useEffect(() => { fetchDocs(); }, [fetchDocs]);
 
   async function deleteDoc(id: string) {
-    if (!confirm("Hapus dokumen ini?")) return;
     const res = await apiFetch(`/api/documents/generated/${id}`, { method: "DELETE" });
     if (res.ok || res.status === 204) {
       setDocs(prev => prev.filter(d => d.id !== id));
       setToast({ message: "Dokumen dihapus", type: "success" });
     }
+    setDeleteId(null);
   }
 
   const filtered = docs.filter(d =>
@@ -101,7 +103,7 @@ export default function DocumentGeneratorPage() {
                     <Download size={14} className="text-gray-500" />
                   </a>
                 )}
-                <button onClick={() => deleteDoc(doc.id)}
+                <button onClick={() => setDeleteId(doc.id)}
                   className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Hapus">
                   <Trash2 size={14} className="text-red-400" />
                 </button>

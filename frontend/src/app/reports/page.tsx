@@ -31,7 +31,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     fetchData();
-    intervalRef.current = setInterval(fetchData, 5000);
+    intervalRef.current = setInterval(fetchData, 30000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchData]);
 
@@ -41,14 +41,14 @@ export default function ReportsPage() {
   return (
     <div className="max-w-4xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-[#fcfaf7]">Laporan & Analytics</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-neutral-50">Laporan & Analytics</h1>
         <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Data real-time dari database CRM.</p>
       </div>
 
       {loading && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] p-5 animate-pulse">
+            <div key={i} className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-[var(--border-default)] p-5 animate-pulse">
               <div className="h-8 bg-gray-100 dark:bg-gray-800 rounded w-1/2 mb-2" /><div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-3/4" />
             </div>
           ))}
@@ -64,7 +64,7 @@ export default function ReportsPage() {
               { label: "Conversion Rate", value: `${data.conversion_rate}%`, color: "text-amber-600", bg: "bg-amber-50" },
               { label: "Kategori Aktif", value: data.leads_by_product.length, color: "text-amber-600", bg: "bg-amber-50" },
             ].map((card) => (
-              <div key={card.label} className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] shadow-sm p-5 hover:shadow-md hover:scale-[1.02] transition-all duration-200">
+              <div key={card.label} className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-[var(--border-default)] shadow-sm p-5 hover:shadow-md hover:scale-[1.02] transition-all duration-200">
                 <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
                 <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">{card.label}</p>
               </div>
@@ -72,7 +72,7 @@ export default function ReportsPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] shadow-sm p-6">
+            <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-[var(--border-default)] shadow-sm p-6">
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Layanan Paling Diminati</h2>
               {data.leads_by_product.length === 0 ? (
                 <p className="text-xs text-gray-300 italic">Belum ada data.</p>
@@ -94,7 +94,7 @@ export default function ReportsPage() {
               )}
             </div>
 
-            <div className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] shadow-sm p-6">
+            <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-[var(--border-default)] shadow-sm p-6">
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Distribusi Status Pipeline</h2>
               {data.leads_by_status.length === 0 ? (
                 <p className="text-xs text-gray-300 italic">Belum ada data.</p>
@@ -118,7 +118,7 @@ export default function ReportsPage() {
           </div>
 
           {/* Win/Loss Pattern Analysis */}
-          <div className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] shadow-sm p-6 col-span-full">
+          <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-[var(--border-default)] shadow-sm p-6 col-span-full">
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Conversion Pattern Analysis</h2>
             <PatternsSection />
           </div>

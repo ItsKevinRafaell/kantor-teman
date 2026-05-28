@@ -147,8 +147,8 @@ function SettingsContent() {
     router.push("/login");
   }
 
-  const inputCls = "w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 font-mono transition";
-  const inputClsNoMono = "w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 transition";
+  const inputCls = "w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 font-mono transition";
+  const inputClsNoMono = "w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 transition";
   const labelCls = "block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5";
 
   return (
@@ -157,7 +157,7 @@ function SettingsContent() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-[#fcfaf7]">Pengaturan</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-neutral-50">Pengaturan</h1>
           <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Kelola profil, AI engine, dan integrasi.</p>
         </div>
         <button onClick={handleLogout}
@@ -170,7 +170,7 @@ function SettingsContent() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-white dark:bg-[#242423] border border-gray-200 dark:border-gray-700 rounded-xl p-1 w-fit shadow-sm overflow-x-auto">
+      <div className="flex gap-1 bg-white dark:bg-[var(--bg-canvas)] border border-gray-200 dark:border-gray-700 rounded-xl p-1 w-fit shadow-sm overflow-x-auto">
         {(["profile", "ai-engine", "integrasi", "audit-logs"] as Tab[]).map((t) => (
           <button key={t} onClick={() => switchTab(t)}
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors whitespace-nowrap ${tab === t ? "bg-amber-600 text-white shadow-sm" : "text-neutral-500 dark:text-neutral-400 hover:text-gray-700 dark:hover:text-gray-200"}`}>
@@ -181,13 +181,13 @@ function SettingsContent() {
 
       {/* Profile tab */}
       {tab === "profile" && (
-        <div className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] shadow-sm p-6 space-y-5 max-w-2xl">
+        <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-[var(--border-default)] shadow-sm p-6 space-y-5 max-w-2xl">
           <div className="flex items-center gap-4 pb-4 border-b border-[var(--border-default)]">
-            <div className="w-12 h-12 rounded-full bg-[#f5a700] flex items-center justify-center text-white font-bold text-lg">
+            <div className="w-12 h-12 rounded-full bg-brand-yellow flex items-center justify-center text-white font-bold text-lg">
               {userInfo.name.charAt(0).toUpperCase()}
             </div>
             <div>
-              <p className="font-semibold text-gray-800 dark:text-[#fcfaf7]">{userInfo.name}</p>
+              <p className="font-semibold text-gray-800 dark:text-neutral-50">{userInfo.name}</p>
               <p className="text-sm text-gray-400">{userInfo.email}</p>
             </div>
           </div>
@@ -203,7 +203,7 @@ function SettingsContent() {
             </div>
           </div>
           <button onClick={saveProfile} disabled={saving || !name.trim()}
-            className="px-6 py-2.5 bg-[#f5a700] hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors shadow-sm">
+            className="px-6 py-2.5 bg-brand-yellow hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors shadow-sm">
             {saving ? "Menyimpan..." : "Simpan Profil"}
           </button>
         </div>
@@ -217,7 +217,7 @@ function SettingsContent() {
 
       {/* Integrasi tab */}
       {tab === "integrasi" && (
-        <div className="bg-white dark:bg-[#242423] rounded-2xl border border-[var(--border-default)] shadow-sm p-6 space-y-5 max-w-2xl">
+        <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-[var(--border-default)] shadow-sm p-6 space-y-5 max-w-2xl">
 
           {/* ── Fonnte ── */}
           <div>
@@ -253,7 +253,7 @@ function SettingsContent() {
                 <textarea value={googleServiceAccountJson} onChange={(e) => setGoogleServiceAccountJson(e.target.value)}
                   placeholder='{"type": "service_account", "project_id": "...", ...}'
                   rows={4}
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 font-mono transition resize-none" />
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 font-mono transition resize-none" />
               </div>
               <button type="button" onClick={async () => {
                 setTestingCalendar(true);
@@ -307,7 +307,7 @@ function SettingsContent() {
                 <div>
                   <label className={labelCls}>Jam Pengiriman (WIB)</label>
                   <select value={followupHour} onChange={(e) => setFollowupHour(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[#2a2a29] dark:text-[#fcfaf7] focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
+                    className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
                     {["7","8","9","10","11","13","14","16"].map(h => (
                       <option key={h} value={h}>{h.padStart(2,"0")}:00 WIB{h === "9" ? " (Recommended)" : ""}</option>
                     ))}
@@ -396,7 +396,7 @@ function SettingsContent() {
           </div>
 
           <button onClick={saveApiConfig} disabled={saving}
-            className="px-6 py-2.5 bg-[#f5a700] hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors shadow-sm">
+            className="px-6 py-2.5 bg-brand-yellow hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors shadow-sm">
             {saving ? "Menyimpan..." : "Simpan Konfigurasi"}
           </button>
         </div>

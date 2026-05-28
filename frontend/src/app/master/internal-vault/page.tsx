@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "../../../lib/api";
+import Modal from "../../../components/Modal";
+import Toast from "../../../components/Toast";
 import { Plus, Eye, EyeOff, Copy, Key, Trash2, ExternalLink } from "lucide-react";
 
 interface CredentialField {
@@ -35,6 +37,8 @@ export default function InternalVaultPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [editingCat, setEditingCat] = useState<string | null>(null);
   const [editingCatValue, setEditingCatValue] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -127,7 +131,9 @@ export default function InternalVaultPage() {
 
   async function deleteCredential(id: string) {
     const res = await apiFetch(`/api/credentials/${id}`, { method: "DELETE" });
-    if (res.ok) setCredentials(prev => prev.filter(c => c.id !== id));
+    if (res.ok) { setToast({ message: "Berhasil dihapus.", type: "success" }); setCredentials(prev => prev.filter(c => c.id !== id)); }
+    else { setToast({ message: "Gagal hapus.", type: "error" }); }
+    setDeleteId(null);
   }
 
   const filtered = credentials.filter(c =>
@@ -139,6 +145,16 @@ export default function InternalVaultPage() {
   if (loading) {
     return (
       <div className="max-w-5xl space-y-6">
+      <Toast message={toast?.message ?? null} type={toast?.type} onClose={() => setToast(null)} />
+      <Modal
+        open={!!deleteId}
+        title="Hapus Kredensial?"
+        message="Item yang dihapus tidak bisa dikembalikan."
+        confirmLabel="Hapus"
+        confirmClass="bg-red-600 hover:bg-red-700"
+        onConfirm={() => deleteId !== null && deleteCredential(deleteId!)}
+        onCancel={() => setDeleteId(null)}
+      />
         <div className="h-8 bg-neutral-100 dark:bg-neutral-800 rounded w-48 animate-pulse" />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[1, 2, 3, 4].map(i => <div key={i} className="h-40 bg-neutral-100 dark:bg-neutral-800 rounded-2xl animate-pulse" />)}
@@ -205,7 +221,7 @@ export default function InternalVaultPage() {
                   <button onClick={() => openEdit(cred)} className="p-1.5 text-neutral-400 hover:text-brand-yellow rounded-lg transition-colors">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                   </button>
-                  <button onClick={() => deleteCredential(cred.id)} className="p-1.5 text-neutral-400 hover:text-red-500 rounded-lg transition-colors">
+                  <button onClick={() => setDeleteId(cred.id)} className="p-1.5 text-neutral-400 hover:text-red-500 rounded-lg transition-colors">
                     <Trash2 size={13} />
                   </button>
                 </div>

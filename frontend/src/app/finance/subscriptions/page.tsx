@@ -5,6 +5,8 @@ import { apiFetch } from "../../../lib/api";
 import { Plus, ArrowLeft, Edit2, Trash2, X, AlertTriangle } from "lucide-react";
 import { formatRupiahInput, cleanRupiahInput } from "../../../utils/formatter";
 import Link from "next/link";
+import Modal from "../../../components/Modal";
+import Toast from "../../../components/Toast";
 
 interface WalletData {
   id: number;
@@ -44,6 +46,8 @@ export default function SubscriptionsPage() {
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<SubscriptionData | null>(null);
   const [form, setForm] = useState({ wallet_id: 0, name: "", amount: 0, billing_cycle: "monthly", next_billing_date: "", is_active: true });
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -74,10 +78,19 @@ export default function SubscriptionsPage() {
   }
 
   async function save() {
+    if (!form.name.trim()) {
+      setToast({ message: "Nama langganan wajib diisi.", type: "error" });
+      return;
+    }
+    if (!form.amount || form.amount <= 0) {
+      setToast({ message: "Jumlah harus lebih dari 0.", type: "error" });
+      return;
+    }
     const method = editing ? "PUT" : "POST";
     const url = editing ? `/api/finance/subscriptions/${editing.id}` : "/api/finance/subscriptions";
     const res = await apiFetch(url, { method, body: JSON.stringify(form) });
     if (res.ok) {
+      setToast({ message: "Berhasil disimpan.", type: "success" });
       setModal(false);
       setEditing(null);
       fetchAll();
@@ -86,14 +99,16 @@ export default function SubscriptionsPage() {
 
   async function deleteSub(id: number) {
     const res = await apiFetch(`/api/finance/subscriptions/${id}`, { method: "DELETE" });
-    if (res.ok) fetchAll();
+    if (res.ok) { setToast({ message: "Berhasil dihapus.", type: "success" }); fetchAll(); }
+    else { setToast({ message: "Gagal hapus.", type: "error" }); }
+    setDeleteId(null);
   }
 
   async function runAutoDeduct() {
     const res = await apiFetch("/api/finance/subscriptions/auto-deduct", { method: "POST" });
     if (res.ok) {
       const data = await res.json();
-      alert(`Auto-deduct selesai: ${data.deducted_count} langganan diproses.`);
+      setToast({ message: `Auto-deduct selesai: ${data.deducted_count} langganan diproses.`, type: "info" });
       fetchAll();
     }
   }
@@ -107,6 +122,16 @@ export default function SubscriptionsPage() {
   if (loading) {
     return (
       <div className="max-w-6xl space-y-6">
+      <Toast message={toast?.message ?? null} type={toast?.type} onClose={() => setToast(null)} />
+      <Modal
+        open={!!deleteId}
+        title="Hapus Langganan?"
+        message="Item yang dihapus tidak bisa dikembalikan."
+        confirmLabel="Hapus"
+        confirmClass="bg-red-600 hover:bg-red-700"
+        onConfirm={() => deleteId !== null && deleteSub(deleteId!)}
+        onCancel={() => setDeleteId(null)}
+      />
         <div className="h-8 bg-gray-100 dark:bg-gray-800 rounded w-48 animate-pulse" />
         <div className="space-y-3">
           {[1, 2, 3].map(i => <div key={i} className="h-20 bg-gray-100 dark:bg-gray-800 rounded-2xl animate-pulse" />)}
@@ -190,7 +215,7 @@ export default function SubscriptionsPage() {
                     )}
                     <span className="text-lg font-bold text-neutral-900 dark:text-neutral-50">{formatRupiah(sub.amount)}</span>
                     <button onClick={() => openEdit(sub)} className="p-1.5 text-gray-400 hover:text-brand-yellow rounded-lg transition-colors"><Edit2 size={14} /></button>
-                    <button onClick={() => deleteSub(sub.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                    <button onClick={() => setDeleteId(sub.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors"><Trash2 size={14} /></button>
                   </div>
                 </div>
               </div>

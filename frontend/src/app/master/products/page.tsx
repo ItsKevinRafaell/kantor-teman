@@ -5,6 +5,8 @@ import { apiFetch } from "../../../lib/api";
 import { Plus, Edit2, Trash2, X, Package } from "lucide-react";
 import { formatRupiahInput, cleanRupiahInput } from "../../../utils/formatter";
 import Pagination from "../../../components/Pagination";
+import Modal from "../../../components/Modal";
+import Toast from "../../../components/Toast";
 
 interface Product {
   id: string;
@@ -36,6 +38,8 @@ export default function ProductsPage() {
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState({ name: "", description: "", base_price: 0, features: "", category_id: "", is_active: true, is_retainer: false });
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchProducts = useCallback(async () => {
@@ -55,7 +59,7 @@ export default function ProductsPage() {
   useEffect(() => {
     fetchProducts();
     fetchCategories();
-    intervalRef.current = setInterval(fetchProducts, 5000);
+    intervalRef.current = setInterval(fetchProducts, 30000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchProducts]);
 
@@ -72,6 +76,14 @@ export default function ProductsPage() {
   }
 
   async function save() {
+    if (!form.name.trim()) {
+      setToast({ message: "Nama produk wajib diisi.", type: "error" });
+      return;
+    }
+    if (!form.base_price || form.base_price <= 0) {
+      setToast({ message: "Harga dasar harus lebih dari 0.", type: "error" });
+      return;
+    }
     const payload = {
       name: form.name,
       description: form.description || null,
@@ -84,12 +96,14 @@ export default function ProductsPage() {
     const method = editing ? "PUT" : "POST";
     const url = editing ? `/api/products/${editing.id}` : "/api/products";
     const res = await apiFetch(url, { method, body: JSON.stringify(payload) });
-    if (res.ok) { setModal(false); fetchProducts(); }
+    if (res.ok) { setToast({ message: "Produk berhasil disimpan.", type: "success" }); setModal(false); fetchProducts(); }
   }
 
   async function deleteProduct(id: string) {
     const res = await apiFetch(`/api/products/${id}`, { method: "DELETE" });
-    if (res.ok) fetchProducts();
+    if (res.ok) { setToast({ message: "Berhasil dihapus.", type: "success" }); fetchProducts(); }
+    else { setToast({ message: "Gagal hapus.", type: "error" }); }
+    setDeleteId(null);
   }
 
   const inputCls = "w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-neutral-50 dark:bg-neutral-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-yellow/50 transition";
@@ -97,6 +111,16 @@ export default function ProductsPage() {
   if (loading) {
     return (
       <div className="max-w-6xl space-y-6">
+      <Toast message={toast?.message ?? null} type={toast?.type} onClose={() => setToast(null)} />
+      <Modal
+        open={!!deleteId}
+        title="Hapus Produk?"
+        message="Item yang dihapus tidak bisa dikembalikan."
+        confirmLabel="Hapus"
+        confirmClass="bg-red-600 hover:bg-red-700"
+        onConfirm={() => deleteId !== null && deleteProduct(deleteId!)}
+        onCancel={() => setDeleteId(null)}
+      />
         <div className="h-8 bg-gray-100 dark:bg-gray-800 rounded w-48 animate-pulse" />
         <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="h-20 bg-gray-100 dark:bg-gray-800 rounded-2xl animate-pulse" />)}</div>
       </div>
@@ -153,7 +177,7 @@ export default function ProductsPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
                       <button onClick={() => openEdit(p)} className="p-1.5 text-gray-400 hover:text-brand-yellow rounded-lg transition-colors"><Edit2 size={14} /></button>
-                      <button onClick={() => deleteProduct(p.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                      <button onClick={() => setDeleteId(p.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors"><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>

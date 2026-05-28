@@ -14,13 +14,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     return <>{children}</>;
   }
 
-  if (pathname === "/chat" || pathname === "/chat/") {
-    return (
-      <div className="fixed inset-0 flex flex-col bg-[var(--bg-canvas)]">
-        {children}
-      </div>
-    );
-  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--bg-canvas)]">

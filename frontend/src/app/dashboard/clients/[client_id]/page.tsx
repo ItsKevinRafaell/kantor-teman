@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { apiFetch } from "../../../../lib/api";
 import { formatRupiahInput, cleanRupiahInput } from "../../../../utils/formatter";
 import { ArrowLeft, Plus, AlertTriangle, TrendingUp, CreditCard, Wallet, Eye, EyeOff, Copy, Key, FileText, ExternalLink, Trash2 } from "lucide-react";
+import Toast from "../../../../components/Toast";
+import Modal from "../../../../components/Modal";
 
 interface Profile {
   id: number;
@@ -85,6 +87,8 @@ export default function ClientDetailPage() {
   const [projectForm, setProjectForm] = useState({ name: "", type: "RETAINER", status: "ACTIVE", nominal: 0, start_date: "", end_date: "", service_type: "", contract_months: 1 });
   const [editingProject, setEditingProject] = useState<ProjectData | null>(null);
   const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: "project" | "note" | "credential" | "document" } | null>(null);
   const [products, setProducts] = useState<{ id: string; name: string; base_price: number; is_retainer: boolean; category_name?: string | null }[]>([]);
   const [serviceTypes, setServiceTypes] = useState<{ value: string; label: string; default_months: number }[]>([]);
 
@@ -184,7 +188,13 @@ export default function ClientDetailPage() {
 
   async function deleteProject(projectId: string) {
     const res = await apiFetch(`/api/projects/${projectId}`, { method: "DELETE" });
-    if (res.ok) fetchDetail();
+    if (res.ok) {
+      setToast({ message: "Project dihapus.", type: "success" });
+      fetchDetail();
+    } else {
+      setToast({ message: "Gagal hapus project.", type: "error" });
+    }
+    setDeleteTarget(null);
   }
 
   const inputCls = "input-field";
@@ -212,6 +222,16 @@ export default function ClientDetailPage() {
 
   return (
     <div className="max-w-5xl space-y-6">
+      <Toast message={toast?.message ?? null} type={toast?.type} onClose={() => setToast(null)} />
+      <Modal
+        open={deleteTarget?.type === "project"}
+        title="Hapus Project?"
+        message="Project yang dihapus tidak bisa dikembalikan."
+        confirmLabel="Hapus"
+        confirmClass="bg-red-600 hover:bg-red-700"
+        onConfirm={() => deleteTarget && deleteProject(deleteTarget.id)}
+        onCancel={() => setDeleteTarget(null)}
+      />
       {/* Header */}
       <div className="flex items-center gap-4">
         <button onClick={() => router.push("/clients")} className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl transition-all">
@@ -328,7 +348,7 @@ export default function ClientDetailPage() {
                           <button onClick={() => openEditProject(p)} className="p-1.5 text-neutral-400 hover:text-brand-yellow rounded-lg transition-colors">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                           </button>
-                          <button onClick={() => deleteProject(p.id)} className="p-1.5 text-neutral-400 hover:text-red-500 rounded-lg transition-colors">
+                          <button onClick={() => setDeleteTarget({ id: p.id, type: "project" })} className="p-1.5 text-neutral-400 hover:text-red-500 rounded-lg transition-colors">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" /></svg>
                           </button>
                         </div>
@@ -546,6 +566,8 @@ function NotesTimeline({ clientId, initialNotes }: { clientId: number; initialNo
   const [filter, setFilter] = useState<"ALL" | "BISNIS" | "TEKNIS" | "PENTING">("ALL");
   const [form, setForm] = useState({ category: "BISNIS", content: "" });
   const [submitting, setSubmitting] = useState(false);
+  const [deleteNoteId, setDeleteNoteId] = useState<string | null>(null);
+  const [noteToast, setNoteToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
   useEffect(() => { setNotes(initialNotes); }, [initialNotes]);
 
@@ -566,14 +588,30 @@ function NotesTimeline({ clientId, initialNotes }: { clientId: number; initialNo
   }
 
   async function deleteNote(noteId: string) {
-    await apiFetch(`/api/client-notes/${noteId}`, { method: "DELETE" });
-    setNotes(prev => prev.filter(n => n.id !== noteId));
+    const res = await apiFetch(`/api/client-notes/${noteId}`, { method: "DELETE" });
+    if (res.ok) {
+      setNoteToast({ message: "Catatan dihapus.", type: "success" });
+      setNotes(prev => prev.filter(n => n.id !== noteId));
+    } else {
+      setNoteToast({ message: "Gagal hapus catatan.", type: "error" });
+    }
+    setDeleteNoteId(null);
   }
 
   const filtered = filter === "ALL" ? notes : notes.filter(n => n.category === filter);
 
   return (
     <div>
+      <Toast message={noteToast?.message ?? null} type={noteToast?.type} onClose={() => setNoteToast(null)} />
+      <Modal
+        open={!!deleteNoteId}
+        title="Hapus Catatan?"
+        message="Catatan yang dihapus tidak bisa dikembalikan."
+        confirmLabel="Hapus"
+        confirmClass="bg-red-600 hover:bg-red-700"
+        onConfirm={() => deleteNoteId && deleteNote(deleteNoteId)}
+        onCancel={() => setDeleteNoteId(null)}
+      />
       <div className="px-5 py-4 border-b border-[var(--border-default)]">
         <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-50">Catatan & Timeline</h2>
         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Riwayat catatan kronologis untuk klien ini.</p>
@@ -644,7 +682,7 @@ function NotesTimeline({ clientId, initialNotes }: { clientId: number; initialNo
                   <span className="text-[10px] text-neutral-400">
                     {new Date(note.timestamp).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
                   </span>
-                  <button onClick={() => deleteNote(note.id)} className="text-[10px] text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity mt-1">
+                  <button onClick={() => setDeleteNoteId(note.id)} className="text-[10px] text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity mt-1">
                     Hapus
                   </button>
                 </div>
@@ -677,6 +715,8 @@ function CredentialsTab({ clientId }: { clientId: number }) {
   const [categories, setCategories] = useState<string[]>([]);
   const [editingCat, setEditingCat] = useState<string | null>(null);
   const [editingCatValue, setEditingCatValue] = useState("");
+  const [deleteCredId, setDeleteCredId] = useState<string | null>(null);
+  const [credToast, setCredToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -769,7 +809,13 @@ function CredentialsTab({ clientId }: { clientId: number }) {
 
   async function deleteCredential(id: string) {
     const res = await apiFetch(`/api/credentials/${id}`, { method: "DELETE" });
-    if (res.ok) setCredentials(prev => prev.filter(c => c.id !== id));
+    if (res.ok) {
+      setCredToast({ message: "Kredensial dihapus.", type: "success" });
+      setCredentials(prev => prev.filter(c => c.id !== id));
+    } else {
+      setCredToast({ message: "Gagal hapus kredensial.", type: "error" });
+    }
+    setDeleteCredId(null);
   }
 
   if (loading) {
@@ -778,6 +824,16 @@ function CredentialsTab({ clientId }: { clientId: number }) {
 
   return (
     <div>
+      <Toast message={credToast?.message ?? null} type={credToast?.type} onClose={() => setCredToast(null)} />
+      <Modal
+        open={!!deleteCredId}
+        title="Hapus Kredensial?"
+        message="Kredensial yang dihapus tidak bisa dikembalikan."
+        confirmLabel="Hapus"
+        confirmClass="bg-red-600 hover:bg-red-700"
+        onConfirm={() => deleteCredId && deleteCredential(deleteCredId)}
+        onCancel={() => setDeleteCredId(null)}
+      />
       <div className="px-5 py-4 border-b border-[var(--border-default)] flex items-center justify-between">
         <div>
           <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-50">Kredensial & Akses</h2>
@@ -805,7 +861,7 @@ function CredentialsTab({ clientId }: { clientId: number }) {
                   <button onClick={() => openEdit(cred)} className="p-1.5 text-neutral-400 hover:text-brand-yellow rounded-lg transition-colors">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                   </button>
-                  <button onClick={() => deleteCredential(cred.id)} className="p-1.5 text-neutral-400 hover:text-red-500 rounded-lg transition-colors">
+                  <button onClick={() => setDeleteCredId(cred.id)} className="p-1.5 text-neutral-400 hover:text-red-500 rounded-lg transition-colors">
                     <Trash2 size={13} />
                   </button>
                 </div>
@@ -976,6 +1032,8 @@ function DocumentsTab({ clientId }: { clientId: number }) {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ title: "", cloud_url: "" });
   const [saving, setSaving] = useState(false);
+  const [deleteDocId, setDeleteDocId] = useState<string | null>(null);
+  const [docToast, setDocToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -1004,7 +1062,13 @@ function DocumentsTab({ clientId }: { clientId: number }) {
 
   async function deleteDocument(id: string) {
     const res = await apiFetch(`/api/documents/${id}`, { method: "DELETE" });
-    if (res.ok) setDocuments(prev => prev.filter(d => d.id !== id));
+    if (res.ok) {
+      setDocToast({ message: "Dokumen dihapus.", type: "success" });
+      setDocuments(prev => prev.filter(d => d.id !== id));
+    } else {
+      setDocToast({ message: "Gagal hapus dokumen.", type: "error" });
+    }
+    setDeleteDocId(null);
   }
 
   if (loading) {
@@ -1013,6 +1077,16 @@ function DocumentsTab({ clientId }: { clientId: number }) {
 
   return (
     <div>
+      <Toast message={docToast?.message ?? null} type={docToast?.type} onClose={() => setDocToast(null)} />
+      <Modal
+        open={!!deleteDocId}
+        title="Hapus Dokumen?"
+        message="Dokumen yang dihapus tidak bisa dikembalikan."
+        confirmLabel="Hapus"
+        confirmClass="bg-red-600 hover:bg-red-700"
+        onConfirm={() => deleteDocId && deleteDocument(deleteDocId)}
+        onCancel={() => setDeleteDocId(null)}
+      />
       <div className="px-5 py-4 border-b border-[var(--border-default)] flex items-center justify-between">
         <div>
           <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-50">Dokumen & Media</h2>
@@ -1044,7 +1118,7 @@ function DocumentsTab({ clientId }: { clientId: number }) {
                 <span className="text-[10px] text-neutral-400">
                   {new Date(doc.created_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
                 </span>
-                <button onClick={() => deleteDocument(doc.id)} className="p-1.5 text-neutral-400 hover:text-red-500 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
+                <button onClick={() => setDeleteDocId(doc.id)} className="p-1.5 text-neutral-400 hover:text-red-500 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
                   <Trash2 size={13} />
                 </button>
               </div>

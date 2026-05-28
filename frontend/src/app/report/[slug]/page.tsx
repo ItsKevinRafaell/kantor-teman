@@ -342,7 +342,7 @@ export default function PublicReportPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#fcfaf7] dark:bg-zinc-950">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg-canvas)] dark:bg-zinc-950">
         <div className="animate-pulse text-zinc-400 text-lg">Memuat laporan...</div>
       </div>
     );
@@ -350,7 +350,7 @@ export default function PublicReportPage() {
 
   if (error || !report) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#fcfaf7] dark:bg-zinc-950">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg-canvas)] dark:bg-zinc-950">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-zinc-800 dark:text-zinc-100 mb-2">404</h1>
           <p className="text-zinc-500 dark:text-zinc-400">{error || "Report tidak ditemukan"}</p>

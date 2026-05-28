@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../lib/api";
 import { Search, Copy, Trash2, ArrowUpDown } from "lucide-react";
 import Toast from "../../components/Toast";
+import Modal from "../../components/Modal";
 import Pagination from "../../components/Pagination";
 
 interface ProposalRecord {
@@ -31,6 +32,7 @@ export default function ProposalsPage() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [analyticsMap, setAnalyticsMap] = useState<Record<string, { total_opens: number; total_time_seconds: number; last_opened: string | null }>>({});
   const [page, setPage] = useState(1);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const PAGE_SIZE = 20;
 
   const fetchProposals = useCallback(async () => {
@@ -58,7 +60,7 @@ export default function ProposalsPage() {
 
   useEffect(() => {
     fetchProposals(); fetchAnalytics();
-    intervalRef.current = setInterval(() => { fetchProposals(); fetchAnalytics(); }, 5000);
+    intervalRef.current = setInterval(() => { fetchProposals(); fetchAnalytics(); }, 30000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchProposals, fetchAnalytics]);
 
@@ -84,12 +86,24 @@ export default function ProposalsPage() {
     if (res.ok) {
       setProposals(prev => prev.filter(p => p.id !== id));
       setToast({ message: "Proposal berhasil dihapus.", type: "success" });
+    } else {
+      setToast({ message: "Gagal hapus proposal.", type: "error" });
     }
+    setDeleteId(null);
   }
 
   return (
     <div className="max-w-6xl space-y-6">
       <Toast message={toast?.message ?? null} type={toast?.type} onClose={() => setToast(null)} />
+      <Modal
+        open={!!deleteId}
+        title="Hapus Proposal?"
+        message="Proposal yang dihapus tidak bisa dikembalikan. Yakin ingin melanjutkan?"
+        confirmLabel="Hapus"
+        confirmClass="bg-red-600 hover:bg-red-700"
+        onConfirm={() => deleteId && deleteProposal(deleteId)}
+        onCancel={() => setDeleteId(null)}
+      />
 
       <div className="flex items-center justify-between">
         <div>
@@ -171,7 +185,7 @@ export default function ProposalsPage() {
                           <button onClick={() => copyLink(p)} className="inline-flex items-center gap-1 text-xs text-brand-yellow hover:underline font-medium">
                             <Copy size={11} /> Copy Link
                           </button>
-                          <button onClick={() => deleteProposal(p.id)} className="inline-flex items-center gap-1 text-xs text-red-400 hover:text-red-600 font-medium">
+                          <button onClick={() => setDeleteId(p.id)} className="inline-flex items-center gap-1 text-xs text-red-400 hover:text-red-600 font-medium">
                             <Trash2 size={11} /> Hapus
                           </button>
                         </div>

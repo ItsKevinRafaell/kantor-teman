@@ -22,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="theme-color" content="#f5a700" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className="bg-[#fcfaf7] dark:bg-[#242423] text-gray-900 dark:text-[#fcfaf7] antialiased">
+      <body className="bg-[var(--bg-canvas)] dark:bg-[var(--bg-canvas)] text-gray-900 dark:text-neutral-50 antialiased">
         <ThemeProvider>
           <ClientLayout>{children}</ClientLayout>
         </ThemeProvider>

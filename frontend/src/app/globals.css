@@ -59,7 +59,7 @@
 
   /* Card */
   .card {
-    @apply bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] shadow-sm;
+    @apply bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] shadow-card;
   }
   .card-hover {
     @apply card hover:shadow-md transition-all duration-200;

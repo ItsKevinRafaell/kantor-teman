@@ -306,7 +306,7 @@ export default function AIEngineTab() {
                       <p className="text-[11px] text-neutral-400 font-mono mt-0.5">{c.name}</p>
                     </div>
                     {isActive && (
-                      <span className="shrink-0 px-2 py-0.5 bg-[#f5a700] text-white text-[10px] font-bold uppercase rounded">Aktif</span>
+                      <span className="shrink-0 px-2 py-0.5 bg-brand-yellow text-white text-[10px] font-bold uppercase rounded">Aktif</span>
                     )}
                     {isSwitching && (
                       <span className="shrink-0 text-[10px] text-amber-600">Switching...</span>

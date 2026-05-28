@@ -1,4 +1,5 @@
 import re
+import html as html_mod
 import random
 import asyncio
 import uuid
@@ -1147,7 +1148,7 @@ def generate_report_for_lead(lead, db: Session, product_category: str = None) ->
         services_detail=json.dumps(services),
         total_price=sum(s["price"] for s in services),
         base_price=sum(s["price"] for s in services),
-        discount_price=round(sum(s["price"] for s in services) * 0.85),
+        discount_price=round(sum(s["price"] for s in services) * (1 - float(_get_setting("proposal_discount_percent", "15")) / 100)),
         discount_expires_at=None,
         additional_options=None,
         status="Report",
@@ -1207,11 +1208,19 @@ def create_token(user_id: int, email: str) -> str:
 
 
 def get_current_user(
-    creds: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    request: Request,
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
     db: Session = Depends(get_db),
 ) -> User:
+    token = None
+    if creds:
+        token = creds.credentials
+    else:
+        token = request.cookies.get("kt_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Token tidak ditemukan")
     try:
-        payload = jwt.decode(creds.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id = int(payload["sub"])
     except Exception:
         raise HTTPException(status_code=401, detail="Token tidak valid atau kadaluarsa")
@@ -2222,8 +2231,8 @@ def run_blast_sync(batch_name: str, product_category: str, min_rating: int, db_u
 # Auth endpoints
 # ---------------------------------------------------------------------------
 
-@app.post("/api/auth/login", response_model=TokenOut)
-def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
+@app.post("/api/auth/login")
+def login(body: LoginIn, request: Request, response: Response, db: Session = Depends(get_db)):
     ip = request.client.host if request.client else "unknown"
     _check_login_rate_limit(ip)
     user = db.query(User).filter(User.email == body.email).first()
@@ -2231,12 +2240,28 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
         _record_login_failure(ip)
         raise HTTPException(status_code=401, detail="Email atau password salah")
     _record_login_success(ip)
+    token = create_token(user.id, user.email)
+    response.set_cookie(
+        key="kt_token",
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=86400,
+        path="/",
+    )
     return TokenOut(
-        access_token=create_token(user.id, user.email),
+        access_token=token,
         name=user.name,
         email=user.email,
         role=user.role,
     )
+
+
+@app.post("/api/auth/logout")
+def logout(response: Response):
+    response.delete_cookie(key="kt_token", path="/", samesite="lax")
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
@@ -3535,11 +3560,12 @@ def create_proposal(body: ProposalIn, current_user: User = Depends(get_current_u
             raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
     services_data = [s.model_dump() for s in body.services]
     total = sum(s.price for s in body.services)
+    discount_pct = float(_get_setting("proposal_discount_percent", "15")) / 100
     discount_expires = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
     default_faqs = json.dumps([
-        {"question": "Apakah teknik SEO yang digunakan aman (White-Hat)?", "answer": "100% aman. Kami hanya menggunakan teknik White-Hat SEO yang sesuai pedoman resmi Google. Tidak ada risiko penalti atau banned untuk bisnis Anda."},
-        {"question": "Berapa lama sampai peringkat Google Maps naik?", "answer": "Estimasi 14-30 hari kerja untuk mulai terlihat peningkatan signifikan di Google Maps, tergantung tingkat kompetisi di wilayah Anda."},
-        {"question": "Kata kunci apa yang akan ditargetkan?", "answer": "Kami fokus pada kata kunci dengan Intent Membeli tinggi — yaitu kata kunci yang diketik oleh calon pelanggan yang sudah siap bertransaksi, bukan sekadar browsing."},
+        {"question": "Apakah audit ini gratis?", "answer": "Ya, audit digital ini 100% gratis dan tanpa kewajiban apapun. Kami ingin Anda melihat sendiri peluang yang selama ini terlewat."},
+        {"question": "Berapa lama sampai terlihat hasilnya?", "answer": "Dengan optimasi yang tepat, peningkatan visibilitas bisa terlihat dalam 14-30 hari kerja pertama, tergantung tingkat kompetisi."},
+        {"question": "Apa yang membedakan layanan ini?", "answer": "Kami fokus pada hasil terukur — peningkatan visibilitas, leads masuk, dan konversi. Bukan sekadar laporan tanpa aksi."},
     ])
 
     # Timeline Data: use provided data or fallback to default template
@@ -3569,7 +3595,7 @@ def create_proposal(body: ProposalIn, current_user: User = Depends(get_current_u
         services_detail=json.dumps(services_data),
         total_price=total,
         base_price=total,
-        discount_price=round(total * 0.85),
+        discount_price=round(total * (1 - discount_pct)),
         discount_expires_at=discount_expires,
         additional_options=body.additional_options,
         status="Sent",
@@ -3629,7 +3655,7 @@ def redirect_proposal_by_slug(slug: str, db: Session = Depends(get_db)):
             status_code=404,
         )
     log_audit(db, "visitor", "VIEW", "proposals", proposal.id, {"slug": slug, "via": "short_link"})
-    frontend_url = os.environ["FRONTEND_URL"]  # tidak ada fallback, harus dari env
+    frontend_url = os.environ.get("FRONTEND_URL", "https://kantorteman.my.id")
     return RedirectResponse(url=f"{frontend_url}/proposal/{proposal.id}", status_code=307)
 
 
@@ -3646,8 +3672,8 @@ def report_og_redirect(slug: str, request: Request, db: Session = Depends(get_db
     business_name = lead.business_name if lead else "Bisnis Anda"
     category = lead.product_interest if lead else ""
 
-    title = f"Hasil Audit Digital: {business_name}"
-    description = f"Kami menemukan masalah kritis pada {business_name} yang membuat calon pelanggan lari ke kompetitor. Lihat laporan lengkap dan solusi yang kami rekomendasikan."
+    title = f"Hasil Audit Digital: {html_mod.escape(business_name)}"
+    description = f"Kami menemukan masalah kritis pada {html_mod.escape(business_name)} yang membuat calon pelanggan lari ke kompetitor. Lihat laporan lengkap dan solusi yang kami rekomendasikan."
     og_image = f"https://api.kantorteman.my.id/api/og-image/{slug}"
 
     ua = (request.headers.get("user-agent") or "").lower()
@@ -3684,14 +3710,16 @@ def og_image_simple(slug: str, db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.id == proposal.lead_id).first() if proposal else None
     business_name = lead.business_name if lead else "Bisnis Anda"
     category = lead.product_interest if lead else ""
+    safe_name = html_mod.escape(business_name[:40])
+    safe_category = html_mod.escape(category)
 
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
 <rect width="1200" height="630" fill="#09090b"/>
 <rect width="1200" height="4" fill="#f59e0b"/>
 <rect y="626" width="1200" height="4" fill="#10b981"/>
 <text x="600" y="200" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" fill="#a1a1aa" letter-spacing="2">LAPORAN HASIL AUDIT DIGITAL</text>
-<text x="600" y="320" text-anchor="middle" font-family="Arial,sans-serif" font-size="52" font-weight="bold" fill="#fafafa">{business_name[:40]}</text>
-<text x="600" y="380" text-anchor="middle" font-family="Arial,sans-serif" font-size="22" fill="#71717a">{category}</text>
+<text x="600" y="320" text-anchor="middle" font-family="Arial,sans-serif" font-size="52" font-weight="bold" fill="#fafafa">{safe_name}</text>
+<text x="600" y="380" text-anchor="middle" font-family="Arial,sans-serif" font-size="22" fill="#71717a">{safe_category}</text>
 <text x="600" y="520" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" fill="#52525b">Diterbitkan oleh Teman UMKM Kita Agensi</text>
 </svg>"""
     return HTMLResponse(content=svg, status_code=200, media_type="image/svg+xml")
@@ -4634,6 +4662,17 @@ async def process_followups(current_user: User = Depends(get_current_user), db: 
             db.commit()
             continue
 
+        # Stop if lead has already replied to any message
+        has_replied = db.query(BlastMessage).filter(
+            BlastMessage.lead_id == seq.lead_id,
+            BlastMessage.replied_at.isnot(None),
+        ).first()
+        if has_replied:
+            seq.status = "STOPPED"
+            seq.stopped_reason = "lead_replied"
+            db.commit()
+            continue
+
         template_ids = json.loads(seq.template_ids) if seq.template_ids else []
         delays = json.loads(seq.delays) if seq.delays else []
 
@@ -5041,7 +5080,7 @@ def get_finance_reports(current_user: User = Depends(get_current_user), db: Sess
 
 @app.post("/api/finance/subscriptions/auto-deduct")
 def auto_deduct_subscriptions(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     subs = db.query(Subscription).filter(
         Subscription.is_active == True,
         Subscription.next_billing_date <= today,
@@ -5093,8 +5132,12 @@ def get_client_detail(client_id: int, current_user: User = Depends(get_current_u
     if not contact:
         raise HTTPException(status_code=404, detail="Klien tidak ditemukan")
 
-    # Projects
-    client_projects = db.query(Project).filter(Project.lead_id == client_id).all()
+    # Resolve lead_id via phone number (Contact has no lead_id FK; conversion link only via phone)
+    lead = db.query(Lead).filter(Lead.phone_number == contact.phone_number).first()
+    lead_id = lead.id if lead else None
+
+    # Projects (linked via lead_id, not contact_id)
+    client_projects = db.query(Project).filter(Project.lead_id == lead_id).all() if lead_id else []
     projects_out = [{
         "id": p.id, "name": p.name, "type": p.type, "status": p.status,
         "nominal": p.nominal, "start_date": p.start_date, "end_date": p.end_date,
@@ -5116,16 +5159,16 @@ def get_client_detail(client_id: int, current_user: User = Depends(get_current_u
     # Active billing (ACTIVE projects total)
     active_billing = sum(p.nominal for p in client_projects if p.status == "ACTIVE")
 
-    # Dana Talangan (unbilled linked expenses)
+    # Dana Talangan (unbilled linked expenses) — also use lead_id
     unbilled_txns = db.query(Transaction).filter(
-        Transaction.lead_id == client_id,
+        Transaction.lead_id == lead_id,
         Transaction.type == "expense",
         Transaction.is_billed == False,
-    ).all()
+    ).all() if lead_id else []
     dana_talangan = sum(t.amount for t in unbilled_txns)
 
-    # Notes
-    notes = db.query(ClientNote).filter(ClientNote.lead_id == client_id).order_by(ClientNote.id.desc()).all()
+    # Notes (also via lead_id)
+    notes = db.query(ClientNote).filter(ClientNote.lead_id == lead_id).order_by(ClientNote.id.desc()).all() if lead_id else []
     notes_out = [{
         "id": n.id, "category": n.category, "content": n.content,
         "actor": n.actor, "timestamp": n.timestamp,
@@ -5456,7 +5499,7 @@ def delete_dynamic_template(tmpl_id: str, current_user: User = Depends(get_curre
 # ---------------------------------------------------------------------------
 
 @app.get("/api/timeline-templates")
-def get_timeline_templates(db: Session = Depends(get_db)):
+def get_timeline_templates(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     templates = db.query(DynamicTemplate).filter(
         DynamicTemplate.type == "TIMELINE_TEMPLATE",
         DynamicTemplate.is_active == True,
@@ -6823,7 +6866,7 @@ async def upload_brand_asset_file(
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    allowed_ext = {".png", ".jpg", ".jpeg", ".webp", ".ico"}
+    allowed_ext = {".png", ".jpg", ".jpeg", ".webp", ".ico", ".svg"}
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in allowed_ext:
         raise HTTPException(status_code=400, detail=f"Format tidak diizinkan: {ext}")
@@ -7507,7 +7550,7 @@ def delete_content_schedule(schedule_id: str, current_user: User = Depends(get_c
         service = _get_google_calendar_service()
         if service:
             try:
-                service.events().delete(calendarId=GOOGLE_CALENDAR_ID, eventId=schedule.google_event_id).execute()
+                service.events().delete(calendarId=_get_setting("google_calendar_id", GOOGLE_CALENDAR_ID), eventId=schedule.google_event_id).execute()
             except Exception:
                 pass
 

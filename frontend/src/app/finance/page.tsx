@@ -5,6 +5,8 @@ import { apiFetch } from "../../lib/api";
 import { Plus, Wallet, TrendingUp, Target, PieChart, Edit2, Trash2, X, Download, RotateCcw } from "lucide-react";
 import { formatRupiahInput, cleanRupiahInput } from "../../utils/formatter";
 import Link from "next/link";
+import Modal from "../../components/Modal";
+import Toast from "../../components/Toast";
 
 interface WalletData {
   id: number;
@@ -64,6 +66,8 @@ export default function FinancePage() {
   const [txnModal, setTxnModal] = useState(false);
   const [txnForm, setTxnForm] = useState({ wallet_id: 0, type: "expense", amount: 0, category: "", date: new Date().toISOString().slice(0, 10), notes: "", lead_id: null as number | null, is_billed: false });
   const [linkClient, setLinkClient] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; type: "wallet" | "transaction" } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
   const fetchAll = useCallback(async () => {
     try {
@@ -88,15 +92,20 @@ export default function FinancePage() {
 
   useEffect(() => {
     fetchAll();
-    intervalRef.current = setInterval(fetchAll, 5000);
+    intervalRef.current = setInterval(fetchAll, 30000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchAll]);
 
   async function saveWallet() {
+    if (!walletForm.name.trim()) {
+      setToast({ message: "Nama dompet wajib diisi.", type: "error" });
+      return;
+    }
     const method = editingWallet ? "PUT" : "POST";
     const url = editingWallet ? `/api/finance/wallets/${editingWallet.id}` : "/api/finance/wallets";
     const res = await apiFetch(url, { method, body: JSON.stringify(walletForm) });
     if (res.ok) {
+      setToast({ message: "Dompet berhasil disimpan.", type: "success" });
       setWalletModal(false);
       setEditingWallet(null);
       fetchAll();
@@ -105,13 +114,28 @@ export default function FinancePage() {
 
   async function deleteWallet(id: number) {
     const res = await apiFetch(`/api/finance/wallets/${id}`, { method: "DELETE" });
-    if (res.ok) fetchAll();
+    if (res.ok) {
+      setToast({ message: "Dompet berhasil dihapus.", type: "success" });
+      fetchAll();
+    } else {
+      setToast({ message: "Gagal hapus dompet.", type: "error" });
+    }
+    setDeleteTarget(null);
   }
 
   async function saveTransaction() {
+    if (!txnForm.amount || txnForm.amount <= 0) {
+      setToast({ message: "Jumlah harus lebih dari 0.", type: "error" });
+      return;
+    }
+    if (!txnForm.category?.trim()) {
+      setToast({ message: "Kategori wajib diisi.", type: "error" });
+      return;
+    }
     const payload = { ...txnForm, lead_id: linkClient ? txnForm.lead_id : null };
     const res = await apiFetch("/api/finance/transactions", { method: "POST", body: JSON.stringify(payload) });
     if (res.ok) {
+      setToast({ message: "Transaksi berhasil disimpan.", type: "success" });
       setTxnModal(false);
       setTxnForm({ wallet_id: 0, type: "expense", amount: 0, category: "", date: new Date().toISOString().slice(0, 10), notes: "", lead_id: null, is_billed: false });
       setLinkClient(false);
@@ -121,7 +145,13 @@ export default function FinancePage() {
 
   async function deleteTransaction(id: number) {
     const res = await apiFetch(`/api/finance/transactions/${id}`, { method: "DELETE" });
-    if (res.ok) fetchAll();
+    if (res.ok) {
+      setToast({ message: "Transaksi berhasil dihapus.", type: "success" });
+      fetchAll();
+    } else {
+      setToast({ message: "Gagal hapus transaksi.", type: "error" });
+    }
+    setDeleteTarget(null);
   }
 
   async function restoreTransaction(id: number) {
@@ -177,6 +207,20 @@ export default function FinancePage() {
 
   return (
     <div className="max-w-6xl space-y-6">
+      <Toast message={toast?.message ?? null} type={toast?.type} onClose={() => setToast(null)} />
+      <Modal
+        open={!!deleteTarget}
+        title={deleteTarget?.type === "wallet" ? "Hapus Dompet?" : "Hapus Transaksi?"}
+        message={deleteTarget?.type === "wallet" ? "Semua data dompet ini akan dihapus permanen." : "Transaksi yang dihapus tidak bisa dikembalikan."}
+        confirmLabel="Hapus"
+        confirmClass="bg-red-600 hover:bg-red-700"
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          if (deleteTarget.type === "wallet") deleteWallet(deleteTarget.id);
+          else deleteTransaction(deleteTarget.id);
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -207,7 +251,7 @@ export default function FinancePage() {
           <p className="text-xs opacity-75 mt-1">Aman sebelum kehabisan dana</p>
         </div>
 
-        <div className="bg-[#f5a700] rounded-2xl p-5 text-white shadow-lg">
+        <div className="bg-brand-yellow rounded-2xl p-5 text-white shadow-lg">
           <div className="flex items-center gap-2 mb-2">
             <Target size={20} />
             <span className="text-sm font-medium opacity-90">BEP Bulan Ini</span>
@@ -251,7 +295,7 @@ export default function FinancePage() {
                   </div>
                   <div className="flex gap-1">
                     <button onClick={() => openEditWallet(w)} className="p-1.5 text-gray-400 hover:text-brand-yellow rounded-lg transition-colors"><Edit2 size={13} /></button>
-                    <button onClick={() => deleteWallet(w.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors"><Trash2 size={13} /></button>
+                    <button onClick={() => setDeleteTarget({ id: w.id, type: "wallet" })} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors"><Trash2 size={13} /></button>
                   </div>
                 </div>
                 <p className={`text-xl font-bold ${w.balance >= 0 ? "text-neutral-900 dark:text-neutral-50" : "text-red-500"}`}>{formatRupiah(w.balance)}</p>
@@ -325,7 +369,7 @@ export default function FinancePage() {
                   {t.is_archived ? (
                     <button onClick={() => restoreTransaction(t.id)} className="p-1 text-blue-400 hover:text-blue-600 transition-colors" title="Restore"><RotateCcw size={13} /></button>
                   ) : (
-                    <button onClick={() => deleteTransaction(t.id)} className="p-1 text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={13} /></button>
+                    <button onClick={() => setDeleteTarget({ id: t.id, type: "transaction" })} className="p-1 text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={13} /></button>
                   )}
                 </div>
               </div>

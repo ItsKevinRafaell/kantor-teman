@@ -70,6 +70,8 @@ export default function ClientsPage() {
   const [projects, setProjects] = useState<ProjectData[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: number | null; name: string }>({ open: false, id: null, name: "" });
+  const [deleteProjectId, setDeleteProjectId] = useState<string | null>(null);
+  const [deleteNoteId, setDeleteNoteId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<"business_name" | "id">("id");
@@ -170,7 +172,7 @@ export default function ClientsPage() {
   useEffect(() => {
     fetchContacts();
     fetchServices();
-    intervalRef.current = setInterval(() => { fetchContacts(); fetchServices(); }, 5000);
+    intervalRef.current = setInterval(() => { fetchContacts(); fetchServices(); }, 30000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchContacts, fetchServices]);
 
@@ -404,6 +406,7 @@ export default function ClientsPage() {
   async function deleteProject(id: string) {
     const res = await apiFetch(`/api/projects/${id}`, { method: "DELETE" });
     if (res.ok) { fetchContacts(); setToast({ message: "Project dihapus.", type: "success" }); }
+    setDeleteProjectId(null);
   }
 
   // Notes
@@ -432,6 +435,7 @@ export default function ClientsPage() {
     await apiFetch(`/api/client-notes/${noteId}`, { method: "DELETE" });
     const r = await apiFetch(`/api/client-notes?lead_id=${notesModal.contact.id}`);
     if (r.ok) setClientNotes(await r.json());
+    setDeleteNoteId(null);
   }
 
   const inputCls = "w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-neutral-50 dark:bg-neutral-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-yellow/50 transition";
@@ -443,6 +447,14 @@ export default function ClientsPage() {
         message={`Hapus "${deleteModal.name}" dari buku klien?`}
         confirmLabel="Hapus" confirmClass="bg-red-600 hover:bg-red-700"
         onConfirm={confirmDelete} onCancel={() => setDeleteModal({ open: false, id: null, name: "" })} />
+      <Modal open={!!deleteProjectId} title="Hapus Project?"
+        message="Project yang dihapus tidak bisa dikembalikan."
+        confirmLabel="Hapus" confirmClass="bg-red-600 hover:bg-red-700"
+        onConfirm={() => deleteProjectId && deleteProject(deleteProjectId)} onCancel={() => setDeleteProjectId(null)} />
+      <Modal open={!!deleteNoteId} title="Hapus Catatan?"
+        message="Catatan yang dihapus tidak bisa dikembalikan."
+        confirmLabel="Hapus" confirmClass="bg-red-600 hover:bg-red-700"
+        onConfirm={() => deleteNoteId && deleteNote(deleteNoteId)} onCancel={() => setDeleteNoteId(null)} />
 
       {/* Proposal Form Modal */}
       <Modal open={proposalModal.open} title="Buat Proposal"
@@ -451,7 +463,7 @@ export default function ClientsPage() {
         onConfirm={submitProposal}
         onCancel={() => { setProposalModal({ open: false, contact: null }); setSelectedServices([]); setAdditionalOptions(""); setTimelinePhases([]); setTimelineDropdownOpen(false); }}>
         <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-          <p className="text-xs text-neutral-500 dark:text-neutral-400">Proposal untuk: <span className="font-semibold text-gray-700 dark:text-[#fcfaf7]">{proposalModal.contact?.business_name}</span></p>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">Proposal untuk: <span className="font-semibold text-gray-700 dark:text-neutral-50">{proposalModal.contact?.business_name}</span></p>
           {unbilledTotal > 0 && (
             <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
@@ -463,7 +475,7 @@ export default function ClientsPage() {
           )}
           <div>
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">Pilih Layanan (Multi-Select)</label>
-            <div className="border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-[#2a2a29] p-2 space-y-1 max-h-44 overflow-y-auto">
+            <div className="border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-[var(--bg-surface)] p-2 space-y-1 max-h-44 overflow-y-auto">
               {products.length === 0 && services.length === 0 && <p className="text-xs text-gray-400 px-2 py-1">Belum ada produk. Tambahkan di <a href="/master/products" className="underline text-brand-yellow">Katalog Produk</a>.</p>}
               {products.length > 0 && <p className="text-[10px] text-gray-400 uppercase tracking-wide px-2 pt-1 font-semibold">Katalog Produk</p>}
               {products.map((prod) => {
@@ -496,9 +508,9 @@ export default function ClientsPage() {
             <div className="space-y-3">
               <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Detail Layanan Terpilih</p>
               {selectedServices.map((svc) => (
-                <div key={svc.id} className="border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-2 bg-white dark:bg-[#2a2a29]">
+                <div key={svc.id} className="border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-2 bg-white dark:bg-[var(--bg-surface)]">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-gray-800 dark:text-[#fcfaf7]">{svc.name}</span>
+                    <span className="text-sm font-semibold text-gray-800 dark:text-neutral-50">{svc.name}</span>
                     <button type="button" onClick={() => setSelectedServices((prev) => prev.filter((s) => s.id !== svc.id))}
                       className="text-xs text-red-400 hover:text-red-600">Hapus</button>
                   </div>
@@ -523,7 +535,7 @@ export default function ClientsPage() {
 
           <div>
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">Konfigurasi Timeline Proyeksi Masa Depan</label>
-            <div className="border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-[#2a2a29] p-3 space-y-2">
+            <div className="border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-[var(--bg-surface)] p-3 space-y-2">
               <div className="flex items-center gap-2 mb-2">
                 <button type="button" onClick={() => setTimelinePhases((prev) => [...prev, { sequence: prev.length + 1, title: "", description: "" }])}
                   className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors">
@@ -591,7 +603,7 @@ export default function ClientsPage() {
                 <div>
                   <label className="block text-[10px] text-zinc-500 font-semibold mb-1">Periode Retainer (jika ada layanan bulanan)</label>
                   <select value={retainerPeriod} onChange={(e) => setRetainerPeriod(Number(e.target.value))}
-                    className="w-full text-xs px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-[#2a2a29] dark:text-[#fcfaf7] outline-none focus:ring-1 focus:ring-amber-300">
+                    className="w-full text-xs px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-[var(--bg-surface)] dark:text-neutral-50 outline-none focus:ring-1 focus:ring-amber-300">
                     <option value={0}>Tidak ada retainer (sekali bayar)</option>
                     <option value={3}>3 Bulan</option>
                     <option value={6}>6 Bulan</option>
@@ -1021,7 +1033,7 @@ export default function ClientsPage() {
                       </div>
                       <div className="flex gap-1">
                         <button onClick={() => openProjectModal(projectModal.contactId!, p)} className="text-[10px] text-brand-yellow hover:underline">Edit</button>
-                        <button onClick={() => deleteProject(p.id)} className="text-[10px] text-red-400 hover:underline">Hapus</button>
+                        <button onClick={() => setDeleteProjectId(p.id)} className="text-[10px] text-red-400 hover:underline">Hapus</button>
                       </div>
                     </div>
                   ))}
@@ -1072,7 +1084,7 @@ export default function ClientsPage() {
                             <p className="text-xs text-gray-700 dark:text-gray-300">{n.content}</p>
                             <div className="flex items-center justify-between mt-1">
                               <span className="text-[10px] text-gray-400">{n.actor} · {new Date(n.timestamp).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}</span>
-                              <button onClick={() => deleteNote(n.id)} className="text-[10px] text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">Hapus</button>
+                              <button onClick={() => setDeleteNoteId(n.id)} className="text-[10px] text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">Hapus</button>
                             </div>
                           </div>
                         ))}
