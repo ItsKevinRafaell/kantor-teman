@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getUserInfo, clearToken, apiFetch } from "../../lib/api";
 import Toast from "../../components/Toast";
 import AIEngineTab from "./AIEngineTab";
+import AuditLogsTab from "./AuditLogsTab";
 
 type Tab = "profile" | "ai-engine" | "integrasi" | "audit-logs";
 
@@ -71,10 +72,6 @@ function SettingsContent() {
   }, []);
 
   function switchTab(t: Tab) {
-    if (t === "audit-logs") {
-      router.push("/settings/audit-logs");
-      return;
-    }
     setTab(t);
     router.replace(`/settings?tab=${t}`, { scroll: false });
   }
@@ -214,6 +211,9 @@ function SettingsContent() {
 
       {/* AI Engine tab */}
       {tab === "ai-engine" && <AIEngineTab />}
+
+      {/* Audit Logs tab */}
+      {tab === "audit-logs" && <AuditLogsTab />}
 
       {/* Integrasi tab */}
       {tab === "integrasi" && (
