@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { getUserInfo, clearToken, apiFetch } from "../../lib/api";
 import Toast from "../../components/Toast";
 import AIEngineTab from "./AIEngineTab";
@@ -17,10 +17,14 @@ const TAB_LABELS: Record<Tab, string> = {
 
 function SettingsContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const initialTab = (searchParams.get("tab") as Tab) || "profile";
-  const [tab, setTab] = useState<Tab>(initialTab);
+  const [tab, setTab] = useState<Tab>("profile");
   const [userInfo, setUserInfo] = useState({ name: "", email: "" });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get("tab") as Tab | null;
+    if (t && t in TAB_LABELS) setTab(t);
+  }, []);
   const [name, setName] = useState("");
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
@@ -402,9 +406,5 @@ function SettingsContent() {
 }
 
 export default function SettingsPage() {
-  return (
-    <Suspense fallback={<div className="max-w-4xl p-6 text-sm text-neutral-400">Memuat...</div>}>
-      <SettingsContent />
-    </Suspense>
-  );
+  return <SettingsContent />;
 }
