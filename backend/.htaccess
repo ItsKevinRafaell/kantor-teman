@@ -2,13 +2,6 @@ PassengerAppRoot "/home/qqwtlphb/backend"
 PassengerBaseURI "/"
 PassengerPython "/home/qqwtlphb/virtualenv/backend/3.13/bin/python"
 
-<IfModule mod_headers.c>
-    Header always set Access-Control-Allow-Origin "https://kantorteman.my.id"
-    Header always set Access-Control-Allow-Methods "POST, GET, OPTIONS, PUT, DELETE, PATCH"
-    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Accept, Origin"
-    Header always set Access-Control-Allow-Credentials "true"
-</IfModule>
-
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteCond %{REQUEST_METHOD} OPTIONS
