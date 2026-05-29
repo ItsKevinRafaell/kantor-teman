@@ -118,6 +118,23 @@ def _record_login_success(ip: str):
     _login_attempts.pop(ip, None)
     _login_locked_until.pop(ip, None)
 
+
+# Generic soft rate limiter (sliding window, no lockout)
+_rate_buckets: dict[str, list[float]] = defaultdict(list)
+
+def _check_simple_rate_limit(key: str, max_requests: int, window_seconds: int):
+    now = time.time()
+    bucket = [t for t in _rate_buckets[key] if now - t < window_seconds]
+    if len(bucket) >= max_requests:
+        retry = int(window_seconds - (now - bucket[0]))
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit tercapai. Coba lagi dalam {retry} detik.",
+            headers={"Retry-After": str(max(retry, 1))},
+        )
+    bucket.append(now)
+    _rate_buckets[key] = bucket
+
 # Limit concurrent search to prevent LSAPI worker explosion
 search_semaphore = asyncio.Semaphore(1)
 
@@ -172,6 +189,7 @@ class AIProxy(Base):
     base_url = Column(String(500), nullable=False)
     api_key = Column(String(500), default="")
     model = Column(String(255), default="")
+    feature = Column(String(50), nullable=True, index=True)  # chat|agent|content|analysis|followup, NULL=fallback
     is_active = Column(Boolean, default=False)
     created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
 
@@ -1317,6 +1335,14 @@ def _get_feature_defaults(db: Session) -> dict:
     return {}
 
 
+def get_proxy_for_feature(db: Session, feature: str) -> Optional["AIProxy"]:
+    """Return active AIProxy for a specific feature, fallback to NULL-feature active proxy."""
+    proxy = db.query(AIProxy).filter(AIProxy.feature == feature, AIProxy.is_active == True).first()
+    if not proxy:
+        proxy = db.query(AIProxy).filter(AIProxy.is_active == True, AIProxy.feature.is_(None)).first()
+    return proxy
+
+
 def get_9router_config(db: Session, feature: Optional[str] = None) -> dict:
     """Single source of truth for all AI calls — always routes through 9router.
 
@@ -2174,7 +2200,7 @@ def run_blast_sync(batch_name: str, product_category: str, min_rating: int, db_u
                         pass
                     db = _Session()
 
-            frontend_url = _get_setting("frontend_url", os.environ["FRONTEND_URL"])
+            frontend_url = _get_setting("frontend_url", os.environ.get("FRONTEND_URL", "https://kantorteman.my.id"))
             report_slug = generate_report_for_lead(lead, db)
             report_link = f"{FRONTEND_URL}/r/{report_slug}"
 
@@ -2303,13 +2329,28 @@ def update_me(body: UserUpdate, current_user: User = Depends(get_current_user), 
     return {"id": user.id, "name": user.name, "email": user.email}
 
 
+SENSITIVE_SETTING_KEYS = {
+    "fonnte_token", "gemini_api_key", "claude_api_key", "openai_api_key",
+    "ai_api_key", "google_api_key", "google_service_account_json",
+    "cms_api_token", "external_lead_api_key", "smtp_password",
+}
+
+def _mask_secret(value: str) -> str:
+    if not value:
+        return ""
+    if len(value) <= 4:
+        return "****"
+    return "****" + value[-4:]
+
+
 @app.get("/api/settings")
 def get_settings(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     keys = ["fonnte_token", "gemini_api_key", "claude_api_key", "openai_api_key", "ai_api_key", "ai_provider", "ai_base_url", "ai_model", "google_api_key", "google_calendar_id", "google_service_account_json", "admin_wa", "admin_name", "followup_enabled", "followup_hour", "cms_url", "cms_api_token", "external_lead_api_key", "smtp_host", "smtp_port", "smtp_user", "smtp_password", "smtp_from"]
     result = {}
     for k in keys:
         row = db.query(SystemSettings).filter_by(key=k).first()
-        result[k] = row.value if row else ""
+        raw = row.value if row else ""
+        result[k] = _mask_secret(raw) if k in SENSITIVE_SETTING_KEYS else raw
     if not result["ai_provider"]:
         result["ai_provider"] = "gemini"
     return result
@@ -2344,6 +2385,8 @@ def update_settings(body: SettingsUpdate, current_user: User = Depends(require_a
     }
     for key, value in settings_map.items():
         if value is not None:
+            if key in SENSITIVE_SETTING_KEYS and isinstance(value, str) and value.startswith("****"):
+                continue
             row = db.query(SystemSettings).filter_by(key=key).first()
             if row:
                 row.value = value
@@ -2441,6 +2484,8 @@ def create_external_lead(request: Request, body: ExternalLeadIn, background_task
     stored_key = _get_setting("external_lead_api_key", "")
     if not stored_key or not hmac.compare_digest(api_key, stored_key):
         raise HTTPException(status_code=401, detail="Invalid API key")
+
+    _check_simple_rate_limit(f"external_lead:{api_key[:16]}", 30, 60)
 
     phone = _normalize_phone(body.phone_number)
 
@@ -2975,11 +3020,17 @@ def get_scrape_history(
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
-# ---------------------------------------------------------------------------
-# Leads
-# ---------------------------------------------------------------------------
+def _score_to_action(score: int) -> str:
+    if score >= 80:
+        return "personal_wa"
+    if score >= 65:
+        return "blast_ready"
+    if score >= 50:
+        return "warm"
+    return "low_priority"
 
-@app.get("/api/leads")
+
+
 def get_leads(
     status: Optional[str] = Query(None),
     batch_name: Optional[str] = Query(None),
@@ -3028,6 +3079,7 @@ def get_leads(
             "is_archived": lead.is_archived,
             "deleted_at": lead.deleted_at,
             "lead_score": lead.lead_score or 0,
+            "action_recommendation": _score_to_action(lead.lead_score or 0),
             "is_ghost_viewer": lead.id in ghost_lead_ids,
             "google_rating": lead.google_rating,
             "review_count": lead.review_count,
@@ -3672,7 +3724,7 @@ def redirect_proposal_by_slug(slug: str, db: Session = Depends(get_db)):
 
 @app.get("/r/{slug}")
 def report_og_redirect(slug: str, request: Request, db: Session = Depends(get_db)):
-    frontend_url = _get_setting("frontend_url", os.environ["FRONTEND_URL"])
+    frontend_url = _get_setting("frontend_url", os.environ.get("FRONTEND_URL", "https://kantorteman.my.id"))
     report_url = f"{frontend_url}/report/{slug}"
 
     proposal = db.query(Proposal).filter(Proposal.slug == slug, Proposal.status == "Report").first()
@@ -3928,8 +3980,37 @@ def accept_proposal(slug: str, body: ProposalAcceptIn, db: Session = Depends(get
     db.add(board)
     db.flush()
 
+    todo_col_id = None
     for i, (col_name, col_color) in enumerate([("To Do", "yellow"), ("In Progress", "blue"), ("Review", "purple"), ("Done", "green")]):
-        db.add(BoardColumn(id=str(uuid.uuid4()), board_id=board.id, name=col_name, position=i, color=col_color))
+        col = BoardColumn(id=str(uuid.uuid4()), board_id=board.id, name=col_name, position=i, color=col_color)
+        db.add(col)
+        if col_name == "To Do":
+            todo_col_id = col.id
+
+    _ONBOARDING_BASE = [
+        "Kick-off call dengan klien",
+        "Kumpulkan requirement & brief",
+        "Approval timeline & milestone",
+        "Kirim deliverable pertama",
+    ]
+    _ONBOARDING_SERVICE = {
+        "web_dev":   ["Setup domain & hosting", "Wireframe approval", "Development sprint 1"],
+        "seo_gmaps": ["Audit website awal", "Riset keyword", "On-page optimization"],
+        "sosmed":    ["Content calendar approval", "Desain template feed", "Posting perdana"],
+        "maintenance": ["Inventarisasi aset klien", "Setup monitoring", "Laporan kondisi awal"],
+    }
+    if todo_col_id:
+        now_cards = datetime.now(timezone.utc).isoformat()
+        card_titles = _ONBOARDING_BASE + _ONBOARDING_SERVICE.get(detected_service_type or "", [])
+        for pos, title in enumerate(card_titles):
+            db.add(BoardCard(
+                id=str(uuid.uuid4()),
+                column_id=todo_col_id,
+                title=title,
+                labels=json.dumps(["onboarding"]),
+                position=pos,
+                updated_at=now_cards,
+            ))
 
     db.commit()
 
@@ -5609,8 +5690,19 @@ def get_timeline_templates(current_user: User = Depends(get_current_user), db: S
 # ---------------------------------------------------------------------------
 
 def get_ai_config(db: Session, capability: str = "analysis") -> dict:
-    """All AI calls route through 9router. Optional model override per capability via ai_models registry."""
-    cfg = get_9router_config(db)
+    """Per-feature AIProxy first, fallback to 9router. Optional model override per capability via ai_models registry."""
+    proxy = get_proxy_for_feature(db, capability)
+    if proxy:
+        cfg = {
+            "provider": "openai",
+            "openai_key": proxy.api_key,
+            "base_url": proxy.base_url.rstrip("/"),
+            "model": proxy.model,
+            "gemini_key": "",
+            "claude_key": "",
+        }
+    else:
+        cfg = get_9router_config(db)
     default_model = get_default_model(db, capability)
     if default_model and default_model.model_id:
         cfg["model"] = default_model.model_id
@@ -5781,7 +5873,7 @@ def generate_report_endpoint(lead_id: int, current_user: User = Depends(get_curr
     if not lead:
         raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
     slug = generate_report_for_lead(lead, db)
-    frontend_url = _get_setting("frontend_url", os.environ["FRONTEND_URL"])
+    frontend_url = _get_setting("frontend_url", os.environ.get("FRONTEND_URL", "https://kantorteman.my.id"))
     return {"slug": slug, "report_url": f"https://api.kantorteman.my.id/r/{slug}"}
 
 
@@ -8816,7 +8908,7 @@ async def process_pending_blasts():
                 sent = 0
                 failed = 0
                 for lead in leads:
-                    frontend_url = _get_setting("frontend_url", os.environ["FRONTEND_URL"])
+                    frontend_url = _get_setting("frontend_url", os.environ.get("FRONTEND_URL", "https://kantorteman.my.id"))
                     report_slug = generate_report_for_lead(lead, db)
                     report_link = f"{FRONTEND_URL}/r/{report_slug}"
 
@@ -9012,6 +9104,7 @@ class AIProxyIn(BaseModel):
     base_url: str
     api_key: str = ""
     model: str = ""
+    feature: Optional[str] = None
 
 class AIProxyOut(BaseModel):
     id: str
@@ -9019,6 +9112,7 @@ class AIProxyOut(BaseModel):
     base_url: str
     api_key: str = ""
     model: str = ""
+    feature: Optional[str] = None
     is_active: bool
     created_at: str
     model_config = {"from_attributes": True}
@@ -9281,6 +9375,91 @@ AGENT_TOOLS = [
                 "required": ["lead_id", "business_name", "services"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_project_board",
+            "description": "Ambil board kanban sebuah proyek + list kolom. WAJIB panggil sebelum manipulasi card.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project_id": {"type": "string", "description": "ID proyek (uuid)"},
+                    "lead_id": {"type": "integer", "description": "Alternatif: cari board via lead_id"}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_board_cards",
+            "description": "List card di board atau column tertentu. Filter is_archived.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "board_id": {"type": "string", "description": "ID board"},
+                    "column_id": {"type": "string", "description": "ID column (alternatif filter)"},
+                    "include_archived": {"type": "boolean", "description": "Sertakan card yang sudah archived", "default": False}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_board_card",
+            "description": "Buat card baru di kolom. Gunakan untuk assign tugas baru ke tim.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "column_id": {"type": "string", "description": "ID column tempat card dibuat"},
+                    "title": {"type": "string", "description": "Judul task"},
+                    "assignee": {"type": "string", "description": "Nama orang yang ditugaskan (opsional)"},
+                    "due_date": {"type": "string", "description": "Tanggal deadline ISO format (YYYY-MM-DD)"},
+                    "description": {"type": "string", "description": "Detail task"},
+                    "labels": {"type": "array", "items": {"type": "string"}, "description": "Labels/tags"}
+                },
+                "required": ["column_id", "title"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "move_board_card",
+            "description": "Pindah card ke kolom lain. Done/Revisi/Selesai hanya bisa oleh admin.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "card_id": {"type": "string", "description": "ID card"},
+                    "column_id": {"type": "string", "description": "ID kolom tujuan"},
+                    "position": {"type": "integer", "description": "Posisi di kolom baru (opsional, default akhir)"}
+                },
+                "required": ["card_id", "column_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_board_card",
+            "description": "Update detail card (title, assignee, due_date, description, labels).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "card_id": {"type": "string", "description": "ID card"},
+                    "title": {"type": "string"},
+                    "assignee": {"type": "string"},
+                    "due_date": {"type": "string", "description": "ISO format YYYY-MM-DD"},
+                    "description": {"type": "string"},
+                    "labels": {"type": "array", "items": {"type": "string"}}
+                },
+                "required": ["card_id"]
+            }
+        }
     }
 ]
 
@@ -9536,8 +9715,157 @@ def execute_tool_call(tool_name: str, tool_args: dict, db: Session, current_user
                 }
             }
 
+        elif tool_name == "get_project_board":
+            project = None
+            if tool_args.get("project_id"):
+                project = db.query(Project).filter(Project.id == tool_args["project_id"]).first()
+            elif tool_args.get("lead_id"):
+                project = db.query(Project).filter(Project.lead_id == tool_args["lead_id"]).order_by(Project.id.desc()).first()
+            if not project:
+                return {"success": False, "error": "Project tidak ditemukan"}
+            board = db.query(Board).filter(Board.project_id == project.id).first()
+            if not board:
+                return {"success": False, "error": f"Board belum ada untuk project '{project.name}'"}
+            columns = db.query(BoardColumn).filter(BoardColumn.board_id == board.id).order_by(BoardColumn.position).all()
+            return {
+                "success": True,
+                "result": {
+                    "board_id": board.id,
+                    "project_id": project.id,
+                    "project_name": project.name,
+                    "columns": [{
+                        "id": col.id,
+                        "name": col.name,
+                        "position": col.position,
+                        "card_count": db.query(BoardCard).filter(BoardCard.column_id == col.id, BoardCard.is_archived == False).count()
+                    } for col in columns]
+                }
+            }
+
+        elif tool_name == "list_board_cards":
+            query = db.query(BoardCard)
+            if tool_args.get("column_id"):
+                query = query.filter(BoardCard.column_id == tool_args["column_id"])
+            elif tool_args.get("board_id"):
+                col_ids = [c.id for c in db.query(BoardColumn).filter(BoardColumn.board_id == tool_args["board_id"]).all()]
+                query = query.filter(BoardCard.column_id.in_(col_ids))
+            else:
+                return {"success": False, "error": "board_id atau column_id wajib diisi"}
+            if not tool_args.get("include_archived"):
+                query = query.filter(BoardCard.is_archived == False)
+            cards = query.order_by(BoardCard.position).limit(50).all()
+            col_map = {}
+            for card in cards:
+                if card.column_id not in col_map:
+                    col = db.query(BoardColumn).filter(BoardColumn.id == card.column_id).first()
+                    col_map[card.column_id] = col.name if col else ""
+            return {
+                "success": True,
+                "result": [{
+                    "id": c.id,
+                    "title": c.title,
+                    "assignee": c.assignee,
+                    "due_date": c.due_date,
+                    "column_name": col_map.get(c.column_id, ""),
+                    "labels": json.loads(c.labels) if c.labels else [],
+                    "is_archived": c.is_archived,
+                } for c in cards],
+                "count": len(cards)
+            }
+
+        elif tool_name == "create_board_card":
+            column = db.query(BoardColumn).filter(BoardColumn.id == tool_args["column_id"]).first()
+            if not column:
+                return {"success": False, "error": "Column tidak ditemukan"}
+            position = db.query(BoardCard).filter(BoardCard.column_id == column.id).count()
+            card = BoardCard(
+                id=str(uuid.uuid4()),
+                column_id=column.id,
+                title=tool_args["title"],
+                description=tool_args.get("description", ""),
+                assignee=tool_args.get("assignee") or current_user.name,
+                due_date=tool_args.get("due_date"),
+                labels=json.dumps(tool_args.get("labels", [])),
+                position=position,
+                color="yellow",
+            )
+            db.add(card)
+            activity = BoardCardActivity(
+                id=str(uuid.uuid4()), card_id=card.id,
+                action="created", description=f"Card created: {card.title}", actor=current_user.name,
+            )
+            db.add(activity)
+            db.commit()
+            log_audit(db, current_user.name, "CREATE", "board_cards", card.id, {"title": card.title, "column": column.name})
+            return {
+                "success": True,
+                "result": {"card_id": card.id, "title": card.title, "assignee": card.assignee, "column": column.name}
+            }
+
+        elif tool_name == "move_board_card":
+            card = db.query(BoardCard).filter(BoardCard.id == tool_args["card_id"]).first()
+            if not card:
+                return {"success": False, "error": "Card tidak ditemukan"}
+            target_col = db.query(BoardColumn).filter(BoardColumn.id == tool_args["column_id"]).first()
+            if not target_col:
+                return {"success": False, "error": "Column tujuan tidak ditemukan"}
+            target_name = (target_col.name or "").strip().lower()
+            if target_name in {"done", "revisi", "selesai"} and (current_user.role or "").lower() != "admin":
+                return {"success": False, "error": f"Hanya admin yang bisa pindahin card ke '{target_col.name}'"}
+            old_col = db.query(BoardColumn).filter(BoardColumn.id == card.column_id).first()
+            card.column_id = target_col.id
+            if tool_args.get("position") is not None:
+                card.position = tool_args["position"]
+            else:
+                card.position = db.query(BoardCard).filter(BoardCard.column_id == target_col.id).count()
+            activity = BoardCardActivity(
+                id=str(uuid.uuid4()), card_id=card.id,
+                action="moved", description=f"Moved: {old_col.name if old_col else '?'} → {target_col.name}", actor=current_user.name,
+            )
+            db.add(activity)
+            db.commit()
+            log_audit(db, current_user.name, "UPDATE", "board_cards", card.id, {"action": "move", "to": target_col.name})
+            return {
+                "success": True,
+                "result": {"card_id": card.id, "title": card.title, "moved_to": target_col.name}
+            }
+
+        elif tool_name == "update_board_card":
+            card = db.query(BoardCard).filter(BoardCard.id == tool_args["card_id"]).first()
+            if not card:
+                return {"success": False, "error": "Card tidak ditemukan"}
+            changes = {}
+            if "title" in tool_args:
+                linked = db.query(WorkspaceRow).filter(WorkspaceRow.board_card_id == card.id).first() if hasattr(WorkspaceRow, 'board_card_id') else None
+                if not linked:
+                    changes["title"] = {"old": card.title, "new": tool_args["title"]}
+                    card.title = tool_args["title"]
+            if "assignee" in tool_args:
+                changes["assignee"] = {"old": card.assignee, "new": tool_args["assignee"]}
+                card.assignee = tool_args["assignee"]
+            if "due_date" in tool_args:
+                changes["due_date"] = {"old": card.due_date, "new": tool_args["due_date"]}
+                card.due_date = tool_args["due_date"]
+            if "description" in tool_args:
+                card.description = tool_args["description"]
+            if "labels" in tool_args:
+                card.labels = json.dumps(tool_args["labels"])
+            card.updated_at = datetime.now(timezone.utc).isoformat()
+            activity = BoardCardActivity(
+                id=str(uuid.uuid4()), card_id=card.id,
+                action="updated", description=f"Updated: {', '.join(changes.keys()) or 'details'}", actor=current_user.name,
+            )
+            db.add(activity)
+            db.commit()
+            log_audit(db, current_user.name, "UPDATE", "board_cards", card.id, changes)
+            return {
+                "success": True,
+                "result": {"card_id": card.id, "title": card.title, "assignee": card.assignee, "due_date": card.due_date}
+            }
+
         else:
-            return {"success": False, "error": f"Unknown tool: {tool_name}"}
+            available = ", ".join(t["function"]["name"] for t in AGENT_TOOLS)
+            return {"success": False, "error": f"Tool '{tool_name}' belum tersedia. Tools yang ada: {available}. Sampaikan ke user kalau fitur ini belum didukung."}
 
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -9822,17 +10150,83 @@ def get_business_context(query: str, db: Session) -> str:
     return "\n".join(context_parts) if context_parts else "Tidak ada data relevan ditemukan."
 
 
+def get_business_partner_context(query: str, db: Session) -> str:
+    """Enhanced RAG: always-on business metrics + hot prospects + health + keyword detail."""
+    from sqlalchemy import func as sa_func
+    parts = []
+
+    # Block A: Dashboard metrics (always)
+    total_leads = db.query(Lead).filter(Lead.is_archived == False).count()
+    clients = db.query(Lead).filter(Lead.status == "Closed/Client").count()
+    conv_rate = (clients / total_leads * 100) if total_leads else 0
+    mrr = db.query(sa_func.sum(Project.nominal)).filter(
+        Project.status == "ACTIVE", Project.is_archived == False
+    ).scalar() or 0
+    pipeline = db.query(sa_func.sum(Proposal.total_price)).filter(
+        Proposal.status == "Sent"
+    ).scalar() or 0
+    active_proj = db.query(Project).filter(Project.status == "ACTIVE", Project.is_archived == False).count()
+    parts.append(
+        f"[METRICS] total_leads={total_leads} clients={clients} "
+        f"conversion={conv_rate:.1f}% MRR=Rp{mrr:,.0f} "
+        f"pipeline_value=Rp{pipeline:,.0f} active_projects={active_proj}"
+    )
+
+    # Block B: Hot prospects (always, top 5)
+    hot = db.query(Lead).filter(
+        Lead.lead_score > 65,
+        Lead.status.notin_(["Closed/Client", "Closed/Lost"]),
+        Lead.is_archived == False,
+    ).order_by(Lead.lead_score.desc()).limit(5).all()
+    if hot:
+        hot_lines = []
+        for l in hot:
+            hot_lines.append(
+                f"  #{l.id} {l.business_name} score={l.lead_score} "
+                f"status={l.status} last_fu={l.last_followup_at or 'never'}"
+            )
+        parts.append("[HOT PROSPECTS]\n" + "\n".join(hot_lines))
+
+    # Block C: Project health (overdue cards)
+    today_iso = datetime.now(timezone.utc).date().isoformat()
+    overdue = db.query(BoardCard).filter(
+        BoardCard.due_date < today_iso,
+        BoardCard.due_date.isnot(None),
+        BoardCard.is_archived == False,
+    ).count()
+    due_soon = db.query(BoardCard).filter(
+        BoardCard.due_date >= today_iso,
+        BoardCard.due_date <= (datetime.now(timezone.utc).date() + timedelta(days=3)).isoformat(),
+        BoardCard.is_archived == False,
+    ).count()
+    parts.append(f"[HEALTH] overdue_cards={overdue} due_within_3days={due_soon}")
+
+    # Block D: Recent activity (7 days)
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    recent_proposals = db.query(Proposal).filter(Proposal.created_at >= cutoff).count()
+    recent_blasts = db.query(BlastMessage).filter(BlastMessage.sent_at >= cutoff).count() if db.query(BlastMessage).first() is not None else 0
+    parts.append(f"[7D ACTIVITY] proposals_sent={recent_proposals} wa_blasts={recent_blasts}")
+
+    # Block E: Keyword-triggered detail (existing RAG)
+    detail = get_business_context(query, db)
+    if detail and "Tidak ada data" not in detail:
+        parts.append(detail)
+
+    return "\n".join(parts)
+
+
 @app.post("/api/chat/conversations/{conversation_id}/chat")
 async def chat(conversation_id: str, body: ChatRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
+        _check_simple_rate_limit(f"chat:{current_user.id}", 20, 60)
         conversation = db.query(ChatConversation).filter(ChatConversation.id == conversation_id, ChatConversation.user_id == current_user.id).first()
         if not conversation:
             raise HTTPException(status_code=404, detail="Conversation tidak ditemukan")
 
         project = db.query(ChatProject).filter(ChatProject.id == conversation.project_id).first()
 
-        # Get API config from active proxy
-        active_proxy = db.query(AIProxy).filter_by(is_active=True).first()
+        # Get API config from feature-specific active proxy (agent vs chat), fallback to NULL-feature proxy
+        active_proxy = get_proxy_for_feature(db, "agent" if body.agent_mode else "chat")
         if not active_proxy:
             raise HTTPException(status_code=400, detail="Tidak ada AI proxy aktif. Tambahkan proxy di Settings.")
 
@@ -9908,6 +10302,11 @@ Tools:
 - get_products: list produk
 - get_wa_templates: list template WA
 - get_business_summary: ringkasan bisnis
+- get_project_board: lihat board kanban proyek (kolom + jumlah card)
+- list_board_cards: list task/card di board atau kolom tertentu
+- create_board_card: buat task baru + assign ke orang
+- move_board_card: pindah task antar kolom (Done/Revisi hanya admin)
+- update_board_card: update detail task (assignee, due_date, labels, dll)
 
 WORKFLOW KHUSUS:
 - Untuk tawarkan produk ke klien baru:
@@ -9917,10 +10316,19 @@ WORKFLOW KHUSUS:
   4. get_wa_templates (pilih template yang cocok)
   5. send_whatsapp dengan template_id + replacements (termasuk proposal_link dari step 3)
 
+- Untuk manage task di board:
+  1. get_client_projects (cari project_id)
+  2. get_project_board (ambil board_id + column ids)
+  3. list_board_cards / create_board_card / move_board_card / update_board_card
+
 Contoh benar:
 User: "Update proyek SEO jadi 1.5jt"
 AI: [panggil get_client_projects] -> [panggil update_project dengan nominal 1500000]
 Output: "Proyek SEO PT Wijaya diupdate jadi Rp 1.500.000/bulan"
+
+User: "Buat task 'Design logo' assign ke Kevin di proyek MLS"
+AI: [get_client_projects lead MLS] -> [get_project_board] -> [create_board_card di kolom To Do]
+Output: "Task 'Design logo' dibuat di To Do, assigned ke Kevin"
 
 Contoh SALAH (JANGAN):
 User: "Update proyek SEO jadi 1.5jt"
@@ -9928,9 +10336,18 @@ AI: "Baik saya akan update proyeknya. Proyek berhasil diupdate..." (tanpa panggi
 
         # Layer 2: Business Data (RAG) - skip for agent mode to force tool usage
         if not body.agent_mode:
-            business_context = get_business_context(body.message, db)
+            business_context = get_business_partner_context(body.message, db)
             if business_context:
                 messages.append({"role": "system", "content": f"Data Bisnis Saat Ini:\n{business_context}"})
+            # Business partner persona
+            partner_prompt = (
+                "Kamu adalah business partner strategis, bukan AI generic. "
+                "Jawab pertanyaan user dengan data konkret dari konteks di atas. "
+                "Kalau data nunjukin pattern actionable (lead score tinggi belum dikontak, "
+                "overdue tasks, pipeline stagnan) — tambahkan 1-2 saran spesifik berbasis data "
+                "(sebut nama lead, angka, deadline). Skip saran kalau tidak ada pattern jelas."
+            )
+            messages.insert(0, {"role": "system", "content": partner_prompt})
 
         # Layer 3: Memories (Persistent)
         memories = db.query(ChatMemory).filter(ChatMemory.project_id == conversation.project_id).all()
@@ -9985,8 +10402,8 @@ AI: "Baik saya akan update proyeknya. Proyek berhasil diupdate..." (tanpa panggi
                 # Add tools if agent mode enabled
                 if body.agent_mode:
                     request_body["tools"] = AGENT_TOOLS
-                    # Force tool usage in agent mode - AI must call a tool
-                    request_body["tool_choice"] = "required"
+                    # auto: let AI respond with text if no tool matches (avoids hallucinated tool loops)
+                    request_body["tool_choice"] = "auto"
 
                 resp = await client.post(
                     f"{api_base.rstrip('/')}/chat/completions",
@@ -10275,6 +10692,13 @@ def update_conversation(conversation_id: str, body: ChatConversationUpdate, curr
 # ===========================================================================
 
 def _get_system_ai_config(db: Session) -> dict:
+    proxy = get_proxy_for_feature(db, "content")
+    if proxy:
+        return {
+            "api_key": proxy.api_key,
+            "base_url": proxy.base_url.rstrip("/"),
+            "model": proxy.model,
+        }
     cfg = get_9router_config(db)
     return {
         "api_key": cfg["openai_key"],
@@ -10362,7 +10786,7 @@ def list_ai_proxies(current_user: User = Depends(get_current_user), db: Session 
 
 @app.post("/api/ai-proxies", response_model=AIProxyOut, status_code=201)
 def create_ai_proxy(body: AIProxyIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    proxy = AIProxy(name=body.name, base_url=body.base_url.rstrip("/"), api_key=body.api_key, model=body.model)
+    proxy = AIProxy(name=body.name, base_url=body.base_url.rstrip("/"), api_key=body.api_key, model=body.model, feature=body.feature)
     db.add(proxy)
     db.commit()
     db.refresh(proxy)
@@ -10377,6 +10801,7 @@ def update_ai_proxy(proxy_id: str, body: AIProxyIn, current_user: User = Depends
     proxy.base_url = body.base_url.rstrip("/")
     proxy.api_key = body.api_key
     proxy.model = body.model
+    proxy.feature = body.feature
     db.commit()
     db.refresh(proxy)
     return proxy
@@ -10386,7 +10811,7 @@ def activate_ai_proxy(proxy_id: str, current_user: User = Depends(get_current_us
     proxy = db.query(AIProxy).filter_by(id=proxy_id).first()
     if not proxy:
         raise HTTPException(status_code=404, detail="Proxy tidak ditemukan")
-    db.query(AIProxy).update({"is_active": False})
+    db.query(AIProxy).filter(AIProxy.feature == proxy.feature).update({"is_active": False})
     proxy.is_active = True
     db.commit()
     db.refresh(proxy)

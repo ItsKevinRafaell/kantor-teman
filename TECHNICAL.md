@@ -8,14 +8,14 @@
 | Backend | FastAPI (Python), SQLAlchemy ORM, SQLite |
 | Auth | JWT (HS256), bcrypt password hashing |
 | Deployment | LiteSpeed WSGI via `passenger_wsgi.py`, static Next.js build |
-| AI | Anthropic Claude (via AIMurah proxy), Semuts.sh API (OpenAI-compatible) |
+| AI | 9router (local OpenAI-compatible proxy → Claude Sonnet 4.6/4.7, DeepSeek v4, MiMo v2.5, GPT-5) |
 
 ---
 
 ## Struktur Direktori
 
 ```
-gmaps-lead-gen/
+kantorteman/
 ├── backend/
 │   ├── main.py          # FastAPI app, semua model & endpoint
 │   ├── migrate.py       # Migration script SQLite (idempotent)
@@ -45,8 +45,15 @@ gmaps-lead-gen/
 | `board_card_activities` | Activity log per card |
 | `client_notes` | Catatan interaksi per klien |
 | `client_credentials` | Kredensial akses klien (terenkripsi Fernet) |
-| `blast_campaigns` | Kampanye WhatsApp blast |
+| `blast_campaigns` / `blast_messages` | Kampanye & pesan WhatsApp blast |
+| `follow_up_sequences` | Sequence followup per lead (template + delay) |
+| `reengagement_alerts` | Alert re-engagement otomatis |
 | `chat_projects` / `chat_conversations` | AI Chat dengan memory |
+| `content_sessions` / `content_generations` | Content generator sessions & hasil |
+| `workspaces` / `workspace_sheets` | Spreadsheet per project |
+| `client_documents` / `document_templates` | Dokumen & template HTML |
+| `ai_proxies` | Konfigurasi proxy AI (9router) |
+| `provider_configs` | Konfigurasi provider & quota (Fonnte, Claude, dll) |
 | `audit_logs` | Log semua aksi CRUD user |
 
 ---
@@ -91,8 +98,26 @@ PATCH  /api/projects/{id}/archive
 
 ### AI Chat
 - Multi-project, multi-conversation dengan memory bank
-- Provider: Semuts.sh (OpenAI-compatible), model selector
+- Provider: 9router (OpenAI-compatible), model selector per conversation
 - Export chat, markdown rendering
+
+### Content Generator
+- Generate IG Carousel, IG Reels, SEO Article, TikTok, YouTube via AI
+- Provider: 9router combo (configurable per feature via feature-defaults)
+- Schedule content, track generation history
+
+### Followup & Outreach Lifecycle
+- Followup sequences per lead: configurable template + delay intervals
+- Outreach lifecycle state machine (jalan tiap 1 jam): auto-escalate BLASTED → FOLLOWUP_QUEUE, REPORT_VIEWED → WARM_STAGNANT
+- Enable via Settings: `followup_enabled=true`, `followup_hour=<jam WIB>`
+
+### Workspace Sheets
+- Spreadsheet per project, auto-init template per service type
+- CRUD: init, sheets, rows, columns, cells
+
+### Documents
+- Generate dokumen dari template HTML (invoice, dll)
+- Download, email ke klien
 
 ### WhatsApp Blast
 - Integrasi Fonnte API
@@ -132,5 +157,27 @@ npm run build
 
 ## Branch
 
-- `main` — stable
-- `ai` — branch aktif (AI Chat + Project Board features)
+- `main` — stable + active development
+
+---
+
+## AI Routing (9router)
+
+Semua panggilan AI dirutekan via 9router (proxy lokal OpenAI-compatible). Default `base_url`: `http://localhost:20128/v1` (override via env `NINE_ROUTER_URL` atau setting `ai_proxy_url`).
+
+### Combos
+| Combo | Model |
+|---|---|
+| `combo-kiro` | Claude Sonnet 4.6/4.7 |
+| `combo-mimo` | MiMo v2.5 Pro (Xiaomi) |
+| `combo-deepseek` | DeepSeek v4 Pro |
+| `combo-freemodel` | GPT-5 (free) |
+| `combo-test-mimo` | MiMo Test |
+
+### Per-feature override
+`ai_feature_defaults` (JSON di SystemSettings): map `feature → combo`. Fitur valid: `chat`, `article`, `image`, `analysis`, `caption`. Fallback ke active combo jika kosong.
+
+### Endpoint
+- `GET /api/ai/proxy-url` / `POST /api/ai/proxy-url` — set proxy URL
+- `GET /api/ai/feature-defaults` / `POST /api/ai/feature-defaults` — per-feature combo override
+- `GET /api/ai/health` — cek konektivitas proxy

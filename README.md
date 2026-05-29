@@ -1,76 +1,89 @@
-# GMaps Lead Gen
+# Kantor Teman — CRM Internal untuk Agensi Digital
 
-Aplikasi web untuk mencari bisnis lokal via Google Places API dan mengekstrak kontak WhatsApp.
+CRM all-in-one untuk agensi digital skala kecil-menengah. Dari scraping leads → blast WhatsApp → proposal publik → project board kanban — semua dalam satu dashboard.
 
-## Struktur Folder
+## Fitur Utama
 
-```
-gmaps-lead-gen/
-├── backend/
-│   ├── main.py
-│   ├── requirements.txt
-│   └── .env.example
-└── frontend/
-    ├── src/app/
-    │   ├── page.tsx
-    │   ├── layout.tsx
-    │   └── globals.css
-    ├── package.json
-    ├── tsconfig.json
-    └── .env.local.example
-```
+- **Lead Generation** — scrape Google Maps by category + lokasi, auto-score 0–85
+- **WhatsApp Blast** — Fonnte API integration, template dengan variabel personalisasi
+- **Report Page Publik** — `/report/{slug}` dengan Pain Box, ROI Slider, FOMO Timer, lead scoring
+- **Proposal Multi-Service** — link publik `/p/{slug}`, accept/reject flow, analytics waktu baca
+- **Project Board** — kanban Trello-like dengan kolom, card, checklist, comments, drag & drop
+- **Workspace Sheets** — spreadsheet per project dengan auto-init template per service type
+- **Finance Tracker** — wallet, transaksi, subscription, auto-deduct
+- **AI Chat** — multi-project, multi-conversation dengan memory bank
+- **Brand Kit** — colors, fonts, logos, public API endpoint
+- **Audit Log** — semua aksi CRUD ter-record
 
-## Cara Menjalankan
+## Stack
 
-### 1. Backend (FastAPI)
+| Layer | Tech |
+|---|---|
+| Frontend | Next.js 14 (App Router), TypeScript, Tailwind CSS |
+| Backend | FastAPI, SQLAlchemy, SQLite |
+| Auth | JWT (HS256) + bcrypt |
+| Deploy | LiteSpeed WSGI |
+| AI | 9router (local OpenAI-compatible proxy → Claude, DeepSeek, MiMo, GPT-5) |
+| WhatsApp | Fonnte API |
+
+## Quick Start (Development)
+
+### Backend
 
 ```bash
 cd backend
 
-# Salin dan isi API key
+# Setup env
 cp .env.example .env
-# Edit .env, isi GOOGLE_API_KEY dengan key dari Google Cloud Console
+# Edit .env: GOOGLE_API_KEY, JWT_SECRET, SECRET_ENCRYPTION_KEY, FONNTE_TOKEN
 
-# Buat virtual environment
+# Virtualenv + deps
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Install dependencies
+source venv/bin/activate
 pip install -r requirements.txt
 
-# Jalankan server
+# DB migration + seed
+python migrate.py
+python seed.py
+
+# Run dev server
 uvicorn main:app --reload --port 8000
 ```
 
-Backend berjalan di: http://localhost:8000  
-Docs API: http://localhost:8000/docs
+Backend: http://localhost:8000  
+API docs: http://localhost:8000/docs
 
-### 2. Frontend (Next.js)
+### Frontend
 
 ```bash
 cd frontend
 
-# Salin env
 cp .env.local.example .env.local
+# Edit: NEXT_PUBLIC_API_URL, NEXT_PUBLIC_ADMIN_WA
 
-# Install dependencies
 npm install
-
-# Jalankan dev server
 npm run dev
 ```
 
-Frontend berjalan di: http://localhost:3000
+Frontend: http://localhost:3000
 
-## Setup Google Places API
+### Default Login
 
-1. Buka [Google Cloud Console](https://console.cloud.google.com)
-2. Buat project baru atau pilih yang sudah ada
-3. Aktifkan **Places API**
-4. Buat API Key di **Credentials**
-5. Isi key tersebut di `backend/.env`
+```
+Email: admin@kantorteman.com
+Password: admin123
+```
 
-## Catatan
+> Ganti password segera setelah login pertama.
 
-- Setiap pencarian memanggil Places Text Search + Place Details per bisnis (untuk nomor telepon), sehingga mengonsumsi kuota API.
-- Nomor telepon dikonversi otomatis ke format internasional Indonesia (`62xxx`) untuk link WhatsApp.
+## Dokumentasi
+
+- [OVERVIEW.md](./OVERVIEW.md) — gambaran produk untuk user
+- [TECHNICAL.md](./TECHNICAL.md) — referensi teknis (models, endpoints, deployment)
+- [PRODUCTION.md](./PRODUCTION.md) — production launch guide
+- [MARKETING_FLOW.md](./MARKETING_FLOW.md) — end-to-end marketing automation flow
+- [BACKLOG_REVIEW.md](./BACKLOG_REVIEW.md) — backlog progress
+
+## Lisensi
+
+Internal use — Kantor Teman.

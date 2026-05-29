@@ -17,6 +17,17 @@ interface AIModel {
   is_default_analysis: boolean;
 }
 
+interface AIProxy {
+  id: string;
+  name: string;
+  base_url: string;
+  api_key: string;
+  model: string;
+  feature: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
 interface Combo {
   name: string;
   display_name: string;
@@ -70,6 +81,21 @@ export default function AIEngineTab() {
   const [featureDefaults, setFeatureDefaults] = useState<Record<string, string>>({});
   const [savingDefaults, setSavingDefaults] = useState(false);
 
+  const [proxies, setProxies] = useState<AIProxy[]>([]);
+  const [proxyModal, setProxyModal] = useState(false);
+  const [editingProxy, setEditingProxy] = useState<AIProxy | null>(null);
+  const [proxyForm, setProxyForm] = useState({ name: "", base_url: "", api_key: "", model: "", feature: "" });
+  const [activatingProxy, setActivatingProxy] = useState<string | null>(null);
+
+  const PROXY_FEATURES = [
+    { key: "", label: "Fallback (semua fitur)" },
+    { key: "chat", label: "Chat (Business Partner)" },
+    { key: "agent", label: "Agent (Task Executor)" },
+    { key: "content", label: "Content Generator" },
+    { key: "analysis", label: "Lead Analysis" },
+    { key: "followup", label: "Followup Otomatis" },
+  ];
+
   const fetchModels = useCallback(async () => {
     try {
       const res = await apiFetch("/api/ai-models");
@@ -111,7 +137,50 @@ export default function AIEngineTab() {
     } catch {}
   }, []);
 
-  useEffect(() => { fetchModels(); fetchCombos(); checkHealth(); fetchFeatureDefaults(); }, [fetchModels, fetchCombos, checkHealth, fetchFeatureDefaults]);
+  const fetchProxies = useCallback(async () => {
+    try {
+      const res = await apiFetch("/api/ai-proxies");
+      if (res.ok) setProxies(await res.json());
+    } catch {}
+  }, []);
+
+  useEffect(() => { fetchModels(); fetchCombos(); checkHealth(); fetchFeatureDefaults(); fetchProxies(); }, [fetchModels, fetchCombos, checkHealth, fetchFeatureDefaults, fetchProxies]);
+
+  function openProxyModal(p: AIProxy | null) {
+    setEditingProxy(p);
+    setProxyForm(p
+      ? { name: p.name, base_url: p.base_url, api_key: "", model: p.model, feature: p.feature || "" }
+      : { name: "", base_url: "", api_key: "", model: "", feature: "" });
+    setProxyModal(true);
+  }
+
+  async function saveProxy() {
+    if (!proxyForm.name || !proxyForm.base_url) { showToast("Nama dan Base URL wajib diisi"); return; }
+    const payload = { ...proxyForm, feature: proxyForm.feature || null };
+    const res = editingProxy
+      ? await apiFetch(`/api/ai-proxies/${editingProxy.id}`, { method: "PUT", body: JSON.stringify(payload) })
+      : await apiFetch("/api/ai-proxies", { method: "POST", body: JSON.stringify(payload) });
+    if (res.ok) { setProxyModal(false); fetchProxies(); showToast(editingProxy ? "Proxy diupdate" : "Proxy ditambahkan"); }
+    else showToast("Gagal simpan proxy");
+  }
+
+  async function deleteProxy(id: string) {
+    if (!confirm("Hapus proxy ini?")) return;
+    const res = await apiFetch(`/api/ai-proxies/${id}`, { method: "DELETE" });
+    if (res.ok) { fetchProxies(); showToast("Proxy dihapus"); }
+  }
+
+  async function activateProxy(id: string) {
+    setActivatingProxy(id);
+    try {
+      const res = await apiFetch(`/api/ai-proxies/${id}/activate`, { method: "POST" });
+      if (res.ok) { fetchProxies(); showToast("Proxy diaktifkan"); }
+    } finally { setActivatingProxy(null); }
+  }
+
+  function featureLabel(f: string | null) {
+    return PROXY_FEATURES.find(x => x.key === (f || ""))?.label || f || "Fallback";
+  }
 
   function comboDisplayName(name: string) {
     return COMBO_LABELS[name] || name;
@@ -405,6 +474,73 @@ export default function AIEngineTab() {
           </div>
         )}
       </div>
+
+      {/* Section 5: AI Proxies (Per-Feature) */}
+      <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">AI Proxies ({proxies.length})</h2>
+            <p className="text-xs text-neutral-500 mt-0.5">Provider per fitur — setiap fitur bisa pakai model berbeda</p>
+          </div>
+          <button onClick={() => openProxyModal(null)} className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-yellow hover:bg-amber-600 text-white text-xs font-semibold rounded-xl transition-colors">
+            <Plus size={14} /> Tambah
+          </button>
+        </div>
+
+        {proxies.length === 0 ? (
+          <p className="text-sm text-neutral-400 text-center py-4">Belum ada proxy. Tambah proxy untuk koneksi ke AI provider.</p>
+        ) : (
+          <div className="space-y-2">
+            {proxies.map(p => (
+              <div key={p.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors ${p.is_active ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-900/10" : "border-[var(--border-default)]"}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">{p.name}</span>
+                    {p.is_active && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">AKTIF</span>}
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500">{featureLabel(p.feature)}</span>
+                  </div>
+                  <p className="text-xs text-neutral-400 truncate mt-0.5">{p.base_url} • {p.model || "default"}</p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {!p.is_active && (
+                    <button onClick={() => activateProxy(p.id)} disabled={activatingProxy === p.id} className="px-2.5 py-1.5 text-[11px] font-semibold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors disabled:opacity-50">
+                      {activatingProxy === p.id ? "..." : "Aktifkan"}
+                    </button>
+                  )}
+                  <button onClick={() => openProxyModal(p)} className="p-1.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"><Edit2 size={14} /></button>
+                  <button onClick={() => deleteProxy(p.id)} className="p-1.5 text-neutral-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Proxy Modal */}
+      {proxyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setProxyModal(false)} />
+          <div className="relative bg-[var(--bg-surface)] rounded-2xl shadow-2xl border border-[var(--border-default)] w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-neutral-900 dark:text-neutral-50">{editingProxy ? "Edit Proxy" : "Tambah Proxy"}</h3>
+              <button onClick={() => setProxyModal(false)} className="text-neutral-400 hover:text-neutral-700"><X size={18} /></button>
+            </div>
+            <div className="space-y-3">
+              <input value={proxyForm.name} onChange={e => setProxyForm({...proxyForm, name: e.target.value})} placeholder="Nama (misal: Claude Direct)" className={inputCls} />
+              <input value={proxyForm.base_url} onChange={e => setProxyForm({...proxyForm, base_url: e.target.value})} placeholder="Base URL (misal: https://api.anthropic.com/v1)" className={inputCls} />
+              <input value={proxyForm.api_key} onChange={e => setProxyForm({...proxyForm, api_key: e.target.value})} placeholder={editingProxy ? "API Key (kosongkan jika tidak berubah)" : "API Key"} type="password" className={inputCls} />
+              <input value={proxyForm.model} onChange={e => setProxyForm({...proxyForm, model: e.target.value})} placeholder="Model ID (misal: claude-sonnet-4-6-20250514)" className={inputCls} />
+              <select value={proxyForm.feature} onChange={e => setProxyForm({...proxyForm, feature: e.target.value})} className={inputCls}>
+                {PROXY_FEATURES.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => setProxyModal(false)} className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl transition-colors">Batal</button>
+              <button onClick={saveProxy} className="px-4 py-2 text-sm font-semibold bg-brand-yellow hover:bg-amber-600 text-white rounded-xl transition-colors">Simpan</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       {modal && (

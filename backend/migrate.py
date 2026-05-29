@@ -57,6 +57,7 @@ if "mysql" in _db_url:
         ("provider_configs", "monthly_quota", "ALTER TABLE provider_configs ADD COLUMN monthly_quota FLOAT NOT NULL DEFAULT 0"),
         ("scrape_history", "batch_name", "ALTER TABLE scrape_history ADD COLUMN batch_name VARCHAR(255) NULL"),
         ("users", "role", "ALTER TABLE users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT 'admin'"),
+        ("ai_proxies", "feature", "ALTER TABLE ai_proxies ADD COLUMN feature VARCHAR(50) NULL"),
     ]
 
     # Create ai_models table if not exists
@@ -1163,6 +1164,23 @@ if "contract_months" not in proj_cols_ws:
     print("+ kolom contract_months ditambahkan ke projects")
 else:
     print("= projects.contract_months sudah ada, skip")
+
+conn.commit()
+
+# ---------------------------------------------------------------------------
+# Migrasi ai_proxies: tambah kolom feature (per-feature routing)
+# ---------------------------------------------------------------------------
+cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='ai_proxies'")
+if cur.fetchone():
+    cur.execute("PRAGMA table_info(ai_proxies)")
+    proxy_cols = {row[1] for row in cur.fetchall()}
+    if "feature" not in proxy_cols:
+        cur.execute("ALTER TABLE ai_proxies ADD COLUMN feature VARCHAR(50)")
+        print("+ kolom feature ditambahkan ke ai_proxies")
+    else:
+        print("= ai_proxies.feature sudah ada, skip")
+else:
+    print("= ai_proxies belum ada, akan dibuat oleh SQLAlchemy")
 
 conn.commit()
 

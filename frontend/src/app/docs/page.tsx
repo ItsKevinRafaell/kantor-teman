@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Book, Users, FileText, Briefcase, Wallet, Megaphone, FolderOpen, Settings, Sparkles, ChevronRight } from "lucide-react";
+import { Search, Book, Users, FileText, Briefcase, Wallet, Megaphone, FolderOpen, Settings, Sparkles, ChevronRight, GitBranch } from "lucide-react";
 
 interface DocSection {
   id: string;
@@ -684,7 +684,235 @@ const SECTIONS: DocSection[] = [
 
 const CATEGORIES = ["Mulai", "Akuisisi Leads", "Sales", "Klien", "Delivery", "Operasional", "Marketing", "AI Tools", "Dokumen", "Master Data", "System"];
 
+const PIPELINE_STAGES = [
+  {
+    id: "scrape", label: "Scrape", sub: "Google Maps", emoji: "🗺️",
+    colorClass: "text-blue-500", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/30",
+    trigger: "Manual — admin pilih kategori + kota di Maps Scraper",
+    output: "Leads baru: nama bisnis, nomor WA, alamat, rating Google",
+    ai: "Auto-score 40–85 berdasarkan rating, ada/tidaknya website, jumlah review",
+    manual: "Pilih kategori, lokasi, max results, product interest",
+    badge: null, link: "/scraper",
+  },
+  {
+    id: "leads", label: "Leads", sub: "CRM Pipeline", emoji: "👥",
+    colorClass: "text-purple-500", bgClass: "bg-purple-500/10", borderClass: "border-purple-500/30",
+    trigger: "Auto dari scraper atau input manual",
+    output: "Lead dengan status: Scraped → Contacted → HOT_PROSPECT → Closed/Client",
+    ai: "Lead scoring otomatis + AI analysis (pain points, suggested product)",
+    manual: "Update status, rating, product interest",
+    badge: "Auto-score", link: "/contacts",
+  },
+  {
+    id: "blast", label: "Blast WA", sub: "Fonnte API", emoji: "📱",
+    colorClass: "text-green-500", bgClass: "bg-green-500/10", borderClass: "border-green-500/30",
+    trigger: "Manual — admin pilih template + filter leads",
+    output: "WA terkirim dengan link report publik, status → BLASTED",
+    ai: "Template personalisasi {{business_name}}, {{proposal_link}}",
+    manual: "Pilih template, filter leads, klik blast",
+    badge: "Followup auto", link: "/marketing/blast-analytics",
+  },
+  {
+    id: "report", label: "Report", sub: "Halaman Publik", emoji: "📊",
+    colorClass: "text-orange-500", bgClass: "bg-orange-500/10", borderClass: "border-orange-500/30",
+    trigger: "Lead klik link report di pesan WA",
+    output: "Lead score naik, status → REPORT_VIEWED → HOT_PROSPECT",
+    ai: "Pain Box, ROI Slider, FOMO Timer 24 jam, Ghost Viewer detection",
+    manual: "Tidak ada — fully automated tracking",
+    badge: "Ghost viewer", link: "/proposals",
+  },
+  {
+    id: "proposal", label: "Proposal", sub: "Multi-service", emoji: "📋",
+    colorClass: "text-amber-500", bgClass: "bg-amber-500/10", borderClass: "border-amber-500/30",
+    trigger: "Admin buat proposal dari halaman Klien",
+    output: "Link publik /p/{slug} + analytics waktu baca per section",
+    ai: "Auto-detect service type, contract months, nama project",
+    manual: "Pilih layanan, set harga, kirim link ke prospect",
+    badge: null, link: "/proposals",
+  },
+  {
+    id: "close", label: "Close", sub: "Accept → Project", emoji: "🤝",
+    colorClass: "text-red-500", bgClass: "bg-red-500/10", borderClass: "border-red-500/30",
+    trigger: "Klien klik Accept di halaman proposal publik",
+    output: "Contact + Project + Board kanban auto-created",
+    ai: "Auto-detect project type, service type, contract months",
+    manual: "Tidak ada — fully automated saat accept",
+    badge: "Auto-project", link: "/clients",
+  },
+  {
+    id: "board", label: "Board", sub: "Kanban", emoji: "🗂️",
+    colorClass: "text-indigo-500", bgClass: "bg-indigo-500/10", borderClass: "border-indigo-500/30",
+    trigger: "Auto-created saat proposal accepted",
+    output: "Board kanban: To Do, In Progress, Review, Done",
+    ai: "AI Agent bisa create/move/assign card lewat chat (agent mode)",
+    manual: "Drag & drop card, assign, set due date, checklist",
+    badge: "AI Agent", link: "/board",
+  },
+  {
+    id: "deliver", label: "Deliver", sub: "Workspace + Docs", emoji: "📦",
+    colorClass: "text-teal-500", bgClass: "bg-teal-500/10", borderClass: "border-teal-500/30",
+    trigger: "Project aktif",
+    output: "Spreadsheet workspace, dokumen (invoice, kontrak, proposal PDF)",
+    ai: "Content generator: IG carousel, SEO article, TikTok, caption",
+    manual: "Isi workspace, generate dokumen, kirim ke klien",
+    badge: null, link: "/workspace",
+  },
+  {
+    id: "retain", label: "Retain", sub: "Followup + Invoice", emoji: "🔄",
+    colorClass: "text-emerald-500", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30",
+    trigger: "Project aktif + followup_enabled=true",
+    output: "WA followup otomatis, invoice bulanan, upsell pipeline",
+    ai: "AI Chat business partner untuk analisis retensi & upsell",
+    manual: "Enable followup di Settings, input data finance",
+    badge: "Auto-invoice", link: "/finance",
+  },
+];
+
+const AI_FEATURES = [
+  { name: "Chat", sub: "Business Partner", feature: "chat", color: "text-amber-500" },
+  { name: "Agent", sub: "Task Executor", feature: "agent", color: "text-red-500" },
+  { name: "Content", sub: "IG / SEO / TikTok", feature: "content", color: "text-blue-500" },
+  { name: "Analysis", sub: "Lead Insights", feature: "analysis", color: "text-purple-500" },
+];
+
+const AI_PROVIDERS = [
+  { name: "Claude", sub: "Sonnet 4.6/4.7", color: "text-orange-500", bg: "bg-orange-500/10" },
+  { name: "DeepSeek", sub: "v4 Pro", color: "text-blue-500", bg: "bg-blue-500/10" },
+  { name: "MiMo", sub: "v2.5 Pro", color: "text-purple-500", bg: "bg-purple-500/10" },
+  { name: "Qwen", sub: "Direct API", color: "text-green-500", bg: "bg-green-500/10" },
+  { name: "GPT-5", sub: "Free Model", color: "text-neutral-500", bg: "bg-neutral-500/10" },
+];
+
+function WorkflowMap() {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const stage = PIPELINE_STAGES.find(s => s.id === expanded);
+
+  return (
+    <div className="space-y-10">
+      {/* Business Pipeline */}
+      <div>
+        <div className="mb-4">
+          <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-50">Pipeline Bisnis</h2>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Klik tiap node untuk lihat trigger, output, fitur AI, dan aksi manual di tahap itu</p>
+        </div>
+
+        <div className="overflow-x-auto pb-2">
+          <div className="flex items-start gap-1 min-w-max px-1">
+            {PIPELINE_STAGES.map((s, i) => (
+              <div key={s.id} className="flex items-start gap-1">
+                <div className="flex flex-col items-center gap-2">
+                  <button
+                    onClick={() => setExpanded(expanded === s.id ? null : s.id)}
+                    className={`relative flex flex-col items-center gap-1.5 px-3 py-3 rounded-2xl border-2 transition-all w-28 ${
+                      expanded === s.id
+                        ? `${s.bgClass} ${s.borderClass} shadow-lg scale-105`
+                        : "bg-[var(--bg-surface)] border-[var(--border-default)] hover:shadow-md"
+                    }`}
+                  >
+                    <span className="text-2xl">{s.emoji}</span>
+                    <span className={`text-xs font-bold ${expanded === s.id ? s.colorClass : "text-neutral-700 dark:text-neutral-300"}`}>{s.label}</span>
+                    <span className="text-[10px] text-neutral-400 text-center leading-tight">{s.sub}</span>
+                  </button>
+                  {s.badge && (
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${s.bgClass} ${s.colorClass} border ${s.borderClass} whitespace-nowrap`}>
+                      ⚡ {s.badge}
+                    </span>
+                  )}
+                </div>
+                {i < PIPELINE_STAGES.length - 1 && (
+                  <div className="flex items-center mt-6 px-0.5">
+                    <div className="w-5 h-0.5 bg-neutral-300 dark:bg-neutral-700" />
+                    <div className="w-0 h-0 border-t-4 border-b-4 border-l-[6px] border-transparent border-l-neutral-300 dark:border-l-neutral-700" />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {stage && (
+          <div className={`mt-3 p-5 rounded-2xl border-2 ${stage.bgClass} ${stage.borderClass}`}>
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-3xl">{stage.emoji}</span>
+              <div>
+                <h3 className={`font-bold text-base ${stage.colorClass}`}>{stage.label}</h3>
+                <p className="text-xs text-neutral-500">{stage.sub}</p>
+              </div>
+              <a href={stage.link} className={`ml-auto text-xs font-semibold px-3 py-1.5 rounded-xl ${stage.bgClass} ${stage.colorClass} border ${stage.borderClass} hover:opacity-80 transition-opacity`}>
+                Buka halaman →
+              </a>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Trigger</p>
+                <p className="text-neutral-700 dark:text-neutral-300">{stage.trigger}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Output</p>
+                <p className="text-neutral-700 dark:text-neutral-300">{stage.output}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">🤖 Fitur AI</p>
+                <p className="text-neutral-700 dark:text-neutral-300">{stage.ai}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">👤 Aksi Manual</p>
+                <p className="text-neutral-700 dark:text-neutral-300">{stage.manual}</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* AI System Map */}
+      <div>
+        <div className="mb-4">
+          <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-50">Sistem AI</h2>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Tiap fitur bisa pakai model berbeda — routing otomatis lewat per-feature proxy</p>
+        </div>
+
+        <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl p-6">
+          <div className="flex flex-wrap gap-3 justify-center mb-2">
+            {AI_FEATURES.map(f => (
+              <div key={f.feature} className="flex flex-col items-center gap-0.5 px-5 py-3 rounded-2xl bg-neutral-100 dark:bg-neutral-800 border border-[var(--border-default)]">
+                <span className={`text-sm font-bold ${f.color}`}>{f.name}</span>
+                <span className="text-[10px] text-neutral-400">{f.sub}</span>
+                <span className="text-[9px] font-mono text-neutral-400 mt-0.5">feature=&quot;{f.feature}&quot;</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-center">
+            <div className="flex flex-col items-center">
+              <div className="w-0.5 h-6 bg-neutral-300 dark:bg-neutral-700" />
+              <div className="px-6 py-2.5 rounded-xl bg-brand-yellow/10 border-2 border-brand-yellow/40 text-center">
+                <p className="text-xs font-bold text-brand-yellow font-mono">get_proxy_for_feature()</p>
+                <p className="text-[10px] text-neutral-500 mt-0.5">feature-specific → NULL fallback → 9router</p>
+              </div>
+              <div className="w-0.5 h-6 bg-neutral-300 dark:bg-neutral-700" />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3 justify-center">
+            {AI_PROVIDERS.map(p => (
+              <div key={p.name} className={`flex flex-col items-center gap-0.5 px-4 py-2.5 rounded-xl ${p.bg} border border-[var(--border-default)]`}>
+                <span className={`text-sm font-bold ${p.color}`}>{p.name}</span>
+                <span className="text-[10px] text-neutral-400">{p.sub}</span>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-center text-[11px] text-neutral-400 mt-5">
+            Tambah provider baru di <span className="font-semibold text-neutral-500 dark:text-neutral-300">Settings → AI Engine → AI Proxies</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DocsPage() {
+  const [view, setView] = useState<"docs" | "workflow">("docs");
   const [search, setSearch] = useState("");
   const [activeId, setActiveId] = useState<string>(SECTIONS[0].id);
 
@@ -700,7 +928,38 @@ export default function DocsPage() {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-120px)]">
+      {/* Tab toggle */}
+      <div className="flex items-center gap-2 mb-5">
+        <button
+          onClick={() => setView("docs")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+            view === "docs"
+              ? "bg-brand-yellow/10 text-brand-yellow border border-brand-yellow/30"
+              : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+          }`}
+        >
+          <Book size={14} />
+          Dokumentasi
+        </button>
+        <button
+          onClick={() => setView("workflow")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+            view === "workflow"
+              ? "bg-brand-yellow/10 text-brand-yellow border border-brand-yellow/30"
+              : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+          }`}
+        >
+          <GitBranch size={14} />
+          Alur Kerja
+        </button>
+      </div>
+
+      {view === "workflow" ? (
+        <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-6 sm:p-8 overflow-y-auto h-[calc(100vh-180px)]">
+          <WorkflowMap />
+        </div>
+      ) : (
+      <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-180px)]">
         {/* Sidebar */}
         <aside className="lg:w-72 shrink-0 flex flex-col gap-4">
           <div>
@@ -816,6 +1075,7 @@ export default function DocsPage() {
           )}
         </main>
       </div>
+      )}
     </div>
   );
 }

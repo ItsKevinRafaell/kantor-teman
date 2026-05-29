@@ -69,6 +69,8 @@ Saya sudah buatkan laporan lengkap + kalkulator proyeksi omzet di sini:
 
 ⚠️ Harga spesial di laporan ini hanya berlaku 24 jam karena slot optimasi wilayah Anda terbatas bulan ini.
 
+
+
 Bisa saya jelaskan lebih detail, Pak?
 ```
 
@@ -113,7 +115,7 @@ Silakan dibuka, Pak. Gratis tanpa komitmen.
 
 #### Follow-Up: Belum Buka Link
 ```
-Halo Pak, saya notice laporan audit digital untuk {business_name} belum dibuka. 
+Halo Pak, saya notice laporan audit digital untuk {{business_name}} belum dibuka. 
 Laporan ini ada timer 24 jam untuk harga spesial. Mau saya kirim ulang linknya sekarang?
 ```
 
@@ -139,7 +141,7 @@ Bisa saya jelaskan lebih detail, Pak?
 | Variabel | Deskripsi | Contoh Output |
 |----------|-----------|---------------|
 | `{{business_name}}` | Nama bisnis lead | PT Kaliman Karya Jaya |
-| `{{proposal_link}}` | Link report audit publik | http://localhost:3000/report/pt-kaliman-karya-jaya |
+| `{{proposal_link}}` | Link report audit publik | `{{app_base_url}}/report/{slug}` |
 | `{{client_name}}` | Alias dari business_name | PT Kaliman Karya Jaya |
 | `{{product_name}}` | Kategori produk/jasa lead | SEO |
 
@@ -154,7 +156,7 @@ Bisa saya jelaskan lebih detail, Pak?
 | SHARE_PARTNER_CLICKED | +20 | Klik tombol share ke partner |
 | IS_MOBILE | +10 | Buka dari HP (bukan desktop) |
 
-**Maksimal skor: 100**
+**Maksimal skor: 85**
 
 ### Anti-Bot Filter
 Skor TIDAK dihitung jika request dari:

@@ -34,6 +34,7 @@ interface Lead {
   is_archived: boolean;
   deleted_at: string | null;
   lead_score: number;
+  action_recommendation?: string;
   is_ghost_viewer: boolean;
   website_url?: string | null;
   google_rating?: number | null;
@@ -852,6 +853,12 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
                           <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                             <div className={`h-full ${color} transition-all`} style={{ width: `${score}%` }}></div>
                           </div>
+                          {lead.action_recommendation === "personal_wa" && (
+                            <div className="mt-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">🔥 Personal WA</div>
+                          )}
+                          {lead.action_recommendation === "blast_ready" && (
+                            <div className="mt-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">📨 Siap Blast</div>
+                          )}
                           {breakdown.length > 0 && (
                             <div className="absolute left-0 top-full mt-1 z-20 hidden group-hover:block bg-gray-900 text-white text-[10px] rounded-lg px-3 py-2 shadow-xl whitespace-nowrap min-w-[180px]">
                               <div className="font-bold mb-1">Breakdown:</div>

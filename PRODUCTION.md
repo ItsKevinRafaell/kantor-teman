@@ -15,6 +15,15 @@ python reset_data.py
 
 Jalankan berurutan. Jangan skip step.
 
+### Default Admin Login
+
+```
+Email: admin@kantorteman.com
+Password: admin123
+```
+
+> ⚠️ Ganti password segera setelah login pertama via Pengaturan → Profil.
+
 ---
 
 ## Konfigurasi Post-Launch (via UI)
@@ -26,14 +35,34 @@ Jalankan berurutan. Jangan skip step.
 4. Scheduler akan auto-reset `remaining_quota` ke `monthly_quota` setiap tanggal 1 jam 00:00
 
 ### API Keys
-Pastikan sudah diisi di **Pengaturan → API**:
-- `FONNTE_TOKEN`
-- `GEMINI_API_KEY` (atau Claude / OpenAI sesuai kebutuhan)
+Pastikan sudah diisi di **Pengaturan → API** (isi sesuai provider yang dipilih, tidak harus semua):
+- `FONNTE_TOKEN` — wajib untuk WhatsApp blast
+- `GEMINI_API_KEY` — opsional, jika pakai Gemini sebagai AI provider
+- `CLAUDE_API_KEY` — opsional, jika pakai Claude sebagai AI provider
+- `OPENAI_API_KEY` — opsional, jika pakai OpenAI/compatible sebagai AI provider
+
+> Pilih satu AI provider di Settings → AI Config. Hanya API key provider yang dipilih yang perlu diisi.
 
 ### Wallet Saldo Awal
 1. Buka **Keuangan → Wallet**
 2. Set saldo awal **Rekening Utama** sesuai saldo rekening saat ini
 3. Set saldo awal **Dana Darurat** sesuai dana darurat saat ini
+
+### Followup Otomatis
+1. Buka **Pengaturan → Otomasi**
+2. Toggle **Followup Enabled** = ON
+3. Set **Followup Hour** = jam WIB (misal `9` untuk jam 09:00 WIB)
+
+> Scheduler jalan tiap jam, hanya kirim followup pas `current_hour == followup_hour`. Tanpa flag ini, sequence followup tidak dieksekusi.
+
+### AI Proxy (9router)
+1. Pastikan 9router running di server (default port `20128`)
+2. Buka **Pengaturan → AI Config**
+3. Set **Proxy URL** ke endpoint 9router (contoh: `http://localhost:20128/v1` atau remote tunnel)
+4. Pilih **Active Combo** (default `combo-kiro` = Claude Sonnet)
+5. Cek health via tombol "Test Connection"
+
+> Jika 9router down, semua fitur AI (chat, content gen, lead analysis) akan gagal. Verifikasi `GET /api/ai/health` return ok.
 
 ---
 
