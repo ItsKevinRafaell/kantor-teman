@@ -41,6 +41,25 @@ export default function DocumentNewPage() {
     setVariables(vars);
   }
 
+  async function fetchAndApplyDefaults(template: DocTemplate, lead: Lead | null) {
+    try {
+      const params = new URLSearchParams({ target_type: "lead" });
+      if (lead) params.set("target_id", String(lead.id));
+      const res = await apiFetch(`/api/document-templates/${template.id}/defaults?${params}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const defs: Record<string, string> = data.defaults || {};
+      setVariables(prev => {
+        const merged: Record<string, string> = { ...prev };
+        for (const [k, v] of Object.entries(defs)) {
+          if (k in merged && merged[k] === "") merged[k] = v as string;
+          else if (!(k in merged)) merged[k] = v as string;
+        }
+        return merged;
+      });
+    } catch { /* silent */ }
+  }
+
   function autoFillFromLead(lead: Lead) {
     setSelectedLead(lead);
     setVariables(prev => ({
@@ -51,6 +70,7 @@ export default function DocumentNewPage() {
       layanan: lead.product_interest || "",
       phone: lead.phone_number,
     }));
+    if (selectedTemplate) fetchAndApplyDefaults(selectedTemplate, lead);
   }
 
   async function handleGenerate() {
@@ -172,7 +192,10 @@ export default function DocumentNewPage() {
             <button onClick={() => setStep(0)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-gray-600 border border-gray-200 rounded-xl">
               <ChevronLeft size={16} /> Kembali
             </button>
-            <button onClick={() => setStep(2)}
+            <button onClick={() => {
+                if (selectedTemplate) fetchAndApplyDefaults(selectedTemplate, selectedLead);
+                setStep(2);
+              }}
               className="flex items-center gap-1.5 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl">
               Lanjut <ChevronRight size={16} />
             </button>

@@ -7,6 +7,7 @@ import { apiFetch } from "../../../lib/api";
 import WorkspaceSheet from "../../../components/workspace/WorkspaceSheet";
 import Toast from "../../../components/Toast";
 import { getServiceLabel } from "../../../lib/serviceLabels";
+import Breadcrumb from "../../../components/Breadcrumb";
 
 interface SheetData {
   id: string;
@@ -37,6 +38,7 @@ interface RowData {
 
 interface WorkspaceData {
   project_id: string;
+  project_name?: string;
   service_type: string | null;
   sheets: SheetData[];
 }
@@ -159,9 +161,13 @@ export default function WorkspaceDetailPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-[1400px] mx-auto space-y-4">
+      <Breadcrumb items={[
+        { label: "Workspace Klien", href: "/workspace" },
+        { label: workspace.project_name || "Project" },
+      ]} />
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-xl font-bold text-neutral-800 dark:text-neutral-100">Workspace</h1>
+          <h1 className="text-xl font-bold text-neutral-800 dark:text-neutral-100">{workspace.project_name || "Workspace"}</h1>
           {getServiceLabel(workspace.service_type) && (
             <p className="text-xs text-gray-500">{getServiceLabel(workspace.service_type)}</p>
           )}

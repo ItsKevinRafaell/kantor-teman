@@ -119,6 +119,8 @@ export default function ClientsPage() {
   const [detailTab, setDetailTab] = useState<"profil" | "aktivitas" | "proposal">("profil");
   const [clientProposals, setClientProposals] = useState<ProposalRecord[]>([]);
   const [loadingProposals, setLoadingProposals] = useState(false);
+  const [timeline, setTimeline] = useState<{ type: string; icon: string; label: string; timestamp: string }[]>([]);
+  const [loadingTimeline, setLoadingTimeline] = useState(false);
 
   // Unbilled dana talangan warning
   const [unbilledTotal, setUnbilledTotal] = useState(0);
@@ -292,13 +294,20 @@ export default function ClientsPage() {
   async function openDetail(contact: Contact) {
     setDetailModal({ open: true, contact });
     setDetailTab("profil");
+    setTimeline([]);
     setLoadingProposals(true);
+    setLoadingTimeline(true);
     try {
       const res = await apiFetch(`/api/proposals/client/${contact.id}?source=contact`);
       if (res.ok) setClientProposals(await res.json());
       else setClientProposals([]);
     } catch { setClientProposals([]); }
     finally { setLoadingProposals(false); }
+    try {
+      const res = await apiFetch(`/api/clients/${contact.id}/activity-timeline`);
+      if (res.ok) setTimeline(await res.json());
+    } catch { /* silent */ }
+    finally { setLoadingTimeline(false); }
   }
 
   function copyProposalLink(id: string, slug?: string | null) {
@@ -672,8 +681,24 @@ export default function ClientsPage() {
                 </div>
               )}
               {detailTab === "aktivitas" && (
-                <div className="text-center py-8 text-gray-400 text-sm">
-                  Fitur riwayat aktivitas akan segera hadir.
+                <div>
+                  {loadingTimeline ? (
+                    <div className="text-center py-8 text-gray-400 text-sm animate-pulse">Memuat aktivitas...</div>
+                  ) : timeline.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400 text-sm">Belum ada aktivitas tercatat untuk klien ini.</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {timeline.map((ev, i) => (
+                        <div key={i} className="flex items-start gap-3 px-3 py-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-700">
+                          <span className="text-base shrink-0">{ev.icon}</span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm text-neutral-800 dark:text-neutral-200">{ev.label}</p>
+                            <p className="text-[10px] text-neutral-400 mt-0.5">{ev.timestamp ? new Date(ev.timestamp).toLocaleString("id-ID") : "—"}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               {detailTab === "proposal" && (

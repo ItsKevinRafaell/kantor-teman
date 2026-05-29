@@ -75,6 +75,12 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
   const [expandedCell, setExpandedCell] = useState<{ rowId: string; colId: string; value: string } | null>(null);
   const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
+  const [milestoneModal, setMilestoneModal] = useState<{
+    percent: number; amount: number; amount_formatted: string; task_name: string;
+    project_name: string; client_name: string; lead_id: number | null;
+    project_id: string | null; template_id: string | null;
+  } | null>(null);
+  const [generatingInvoice, setGeneratingInvoice] = useState(false);
 
   useEffect(() => {
     apiFetch("/api/users")
@@ -110,14 +116,52 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error();
+      const data = await res.json();
       setRows(prev => prev.map(r => {
         if (r.id !== rowId) return r;
         const existing = r.cells[colId] || { id: "", value_text: null, value_bool: null, value_number: null, value_date: null };
         return { ...r, cells: { ...r.cells, [colId]: { ...existing, ...payload } } };
       }));
+      if (data.billing_milestone_triggered && data.milestone_data) {
+        setMilestoneModal(data.milestone_data);
+      }
     } catch {
       onToast("Gagal simpan", "error");
     } finally { setSaving(null); }
+  }
+
+  async function generateMilestoneInvoice() {
+    if (!milestoneModal || !milestoneModal.template_id) {
+      onToast("Template invoice tidak ditemukan. Buat template type=invoice dulu.", "error");
+      return;
+    }
+    setGeneratingInvoice(true);
+    try {
+      const res = await apiFetch("/api/documents/generate", {
+        method: "POST",
+        body: JSON.stringify({
+          template_id: milestoneModal.template_id,
+          target_type: milestoneModal.lead_id ? "lead" : null,
+          target_id: milestoneModal.lead_id ? String(milestoneModal.lead_id) : null,
+          variables: {
+            klien: milestoneModal.client_name,
+            nama: milestoneModal.client_name,
+            total: milestoneModal.amount_formatted,
+            amount: milestoneModal.amount_formatted,
+            items_rows: `<tr><td>${milestoneModal.task_name} — ${milestoneModal.project_name}</td><td>1</td><td>${milestoneModal.amount_formatted}</td><td>${milestoneModal.amount_formatted}</td></tr>`,
+          },
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "Generate gagal");
+      }
+      const data = await res.json();
+      onToast(`Invoice ${data.display_filename || data.template_name} berhasil dibuat`, "success");
+      setMilestoneModal(null);
+    } catch (e: unknown) {
+      onToast(e instanceof Error ? e.message : "Gagal generate invoice", "error");
+    } finally { setGeneratingInvoice(false); }
   }
 
   async function addRow() {
@@ -320,6 +364,34 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
       )}
 
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
+
+      {milestoneModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl p-6 w-full max-w-md shadow-xl">
+            <h3 className="text-base font-bold text-neutral-800 dark:text-neutral-100 mb-2">💰 Milestone Invoice</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Task <span className="font-semibold">&quot;{milestoneModal.task_name}&quot;</span> selesai.
+              Generate invoice otomatis?
+            </p>
+            <div className="space-y-2 bg-neutral-50 dark:bg-neutral-800 rounded-xl p-4 mb-4">
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Klien</span><span className="font-semibold text-neutral-800 dark:text-neutral-200">{milestoneModal.client_name || "—"}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Proyek</span><span className="font-semibold text-neutral-800 dark:text-neutral-200">{milestoneModal.project_name}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Persentase</span><span className="font-semibold text-neutral-800 dark:text-neutral-200">{milestoneModal.percent}%</span></div>
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Nominal</span><span className="font-bold text-amber-600">{milestoneModal.amount_formatted}</span></div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setMilestoneModal(null)}
+                className="flex-1 px-4 py-2.5 text-sm font-semibold text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-neutral-700 rounded-xl hover:bg-gray-50 dark:hover:bg-neutral-800">
+                Nanti
+              </button>
+              <button onClick={generateMilestoneInvoice} disabled={generatingInvoice}
+                className="flex-1 px-4 py-2.5 text-sm font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl disabled:opacity-50">
+                {generatingInvoice ? "Generating..." : "Generate Invoice"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

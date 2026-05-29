@@ -90,6 +90,28 @@ if "mysql" in _db_url:
         else:
             print(f"= MySQL: {table}.{col} sudah ada, skip")
 
+    # generated_documents.display_filename
+    if _table_exists("generated_documents") and not _col_exists("generated_documents", "display_filename"):
+        _cur.execute("ALTER TABLE generated_documents ADD COLUMN display_filename VARCHAR(500) NULL")
+        print("+ MySQL: generated_documents.display_filename ditambahkan")
+    elif _table_exists("generated_documents"):
+        print("= MySQL: generated_documents.display_filename sudah ada, skip")
+
+    # document_sequences table
+    if not _table_exists("document_sequences"):
+        _cur.execute("""
+            CREATE TABLE document_sequences (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                target_id VARCHAR(255) NOT NULL,
+                template_type VARCHAR(50) NOT NULL,
+                last_seq INT NOT NULL DEFAULT 0,
+                UNIQUE KEY uniq_target_type (target_id, template_type)
+            )
+        """)
+        print("+ MySQL: tabel document_sequences dibuat")
+    else:
+        print("= MySQL: tabel document_sequences sudah ada, skip")
+
     # Make projects.lead_id nullable (was NOT NULL, breaks create-project-without-lead)
     if _table_exists("projects") and _col_exists("projects", "lead_id"):
         _cur.execute("""
@@ -877,6 +899,7 @@ if not cur.fetchone():
             target_id VARCHAR(255),
             variables_used TEXT,
             file_url VARCHAR(500),
+            display_filename VARCHAR(500),
             generated_at VARCHAR(255) NOT NULL,
             generated_by VARCHAR(255)
         )
@@ -884,6 +907,31 @@ if not cur.fetchone():
     print("+ tabel generated_documents dibuat")
 else:
     print("= tabel generated_documents sudah ada, skip")
+
+# Add display_filename to generated_documents
+cur.execute("PRAGMA table_info(generated_documents)")
+gd_cols = {row[1] for row in cur.fetchall()}
+if gd_cols and "display_filename" not in gd_cols:
+    cur.execute("ALTER TABLE generated_documents ADD COLUMN display_filename VARCHAR(500)")
+    print("+ generated_documents.display_filename ditambahkan")
+elif gd_cols:
+    print("= generated_documents.display_filename sudah ada, skip")
+
+# document_sequences: per-target per-type counter for filename auto-naming
+cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='document_sequences'")
+if not cur.fetchone():
+    cur.execute("""
+        CREATE TABLE document_sequences (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            target_id VARCHAR(255) NOT NULL,
+            template_type VARCHAR(50) NOT NULL,
+            last_seq INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+    cur.execute("CREATE UNIQUE INDEX idx_doc_seq_target_type ON document_sequences(target_id, template_type)")
+    print("+ tabel document_sequences dibuat")
+else:
+    print("= tabel document_sequences sudah ada, skip")
 
 conn.commit()
 

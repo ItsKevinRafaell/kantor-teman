@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "../../lib/api";
+import { getScoreColor, getScoreIcon, getScoreLabel } from "../../lib/leadScore";
 
 interface Analytics {
   total_leads: number;
@@ -156,13 +157,14 @@ export default function DashboardPage() {
           <div className="space-y-2 max-h-72 overflow-y-auto">
             {topScoredLeads.map((lead) => {
               const score = lead.lead_score ?? 0;
-              const color = score >= 71 ? "bg-green-500" : score >= 41 ? "bg-orange-500" : "bg-red-500";
-              const tier = score >= 80 ? "🔥" : score >= 50 ? "🌤️" : "❄️";
+              const color = getScoreColor(score);
+              const tier = getScoreIcon(score);
+              const tierLabel = getScoreLabel(score);
               const waMsg = `Halo ${lead.business_name}, saya dari Teman UMKM Kita. Ingin diskusi soal kebutuhan ${lead.product_interest || "digital"} bisnis Anda. Apakah ada waktu sebentar?`;
               return (
                 <div key={lead.id} className="flex items-center justify-between py-2 px-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-700">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <span className="text-lg shrink-0">{tier}</span>
+                    <span className="text-lg shrink-0" title={tierLabel}>{tier}</span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">{lead.business_name}</p>
@@ -172,7 +174,7 @@ export default function DashboardPage() {
                         <div className="h-1 w-24 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                           <div className={`h-full ${color}`} style={{ width: `${score}%` }}></div>
                         </div>
-                        <p className="text-[10px] text-neutral-400 truncate">{lead.product_interest || "—"} · {lead.status}</p>
+                        <p className="text-[10px] text-neutral-400 truncate">{tierLabel} · {lead.product_interest || "—"}</p>
                       </div>
                     </div>
                   </div>

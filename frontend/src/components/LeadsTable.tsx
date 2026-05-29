@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../lib/api";
 import StarRating from "./StarRating";
+import { getScoreLabel, getScoreColor, getScoreIcon } from "../lib/leadScore";
 import { Search, Download, Plus, Pencil, Trash2 } from "lucide-react";
 
 import Modal from "./Modal";
@@ -731,7 +732,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Score:</span>
-          {([["", "Semua"], ["hot", "HOT (≥80)"], ["warm", "WARM (50-79)"], ["cold", "COLD (<50)"]] as const).map(([val, label]) => (
+          {([["", "Semua"], ["hot", "🎯 Siap Closing"], ["warm", "📞 Perlu Pendekatan"], ["cold", "💤 Belum Match"]] as const).map(([val, label]) => (
             <button key={val} onClick={() => setFilterScore(val as typeof filterScore)}
               className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${filterScore === val ? "bg-amber-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"}`}>
               {label}
@@ -837,15 +838,17 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
                   <td className="px-4 py-3 text-xs">
                     {(() => {
                       const score = lead.lead_score ?? 0;
-                      const color = score >= 71 ? "bg-green-500" : score >= 41 ? "bg-orange-500" : "bg-red-500";
-                      const label = score >= 80 ? "🔥" : score >= 50 ? "🌤️" : "❄️";
+                      const color = getScoreColor(score);
+                      const icon = getScoreIcon(score);
+                      const tierLabel = getScoreLabel(score);
                       const breakdown = getScoreBreakdown(lead);
                       return (
-                        <div className="group relative w-24">
+                        <div className="group relative w-28">
                           <div className="flex items-center gap-1.5 mb-1">
-                            <span>{label}</span>
+                            <span>{icon}</span>
                             <span className="font-bold tabular-nums">{score}</span>
                           </div>
+                          <div className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 truncate" title={tierLabel}>{tierLabel}</div>
                           <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                             <div className={`h-full ${color} transition-all`} style={{ width: `${score}%` }}></div>
                           </div>

@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../lib/api";
-import { Search, Copy, Trash2, ArrowUpDown } from "lucide-react";
+import { Search, Copy, Trash2, ArrowUpDown, Plus } from "lucide-react";
+import Link from "next/link";
 import Toast from "../../components/Toast";
 import Modal from "../../components/Modal";
 import Pagination from "../../components/Pagination";
@@ -110,6 +111,10 @@ export default function ProposalsPage() {
           <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">Riwayat Proposal</h1>
           <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Semua proposal yang pernah dibuat untuk klien.</p>
         </div>
+        <Link href="/clients" className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl shadow-sm transition-colors">
+          <Plus size={16} />
+          Proposal Baru
+        </Link>
       </div>
 
       <div className="space-y-4">

@@ -862,9 +862,18 @@ class GeneratedDocument(Base):
     target_id = Column(String(255), nullable=True)
     variables_used = Column(Text, nullable=True)
     file_url = Column(String(500), nullable=True)
+    display_filename = Column(String(500), nullable=True)
     generated_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
     generated_by = Column(String(255), nullable=True)
     template = relationship("DocumentTemplate", backref="generated_docs")
+
+
+class DocumentSequence(Base):
+    __tablename__ = "document_sequences"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    target_id = Column(String(255), nullable=False)
+    template_type = Column(String(50), nullable=False)
+    last_seq = Column(Integer, nullable=False, default=0)
 
 
 Base.metadata.create_all(bind=engine)
@@ -4377,7 +4386,6 @@ def track_view_duration(slug: str, body: ViewDurationIn, db: Session = Depends(g
     proposal = db.query(Proposal).filter(Proposal.slug == slug).first()
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal tidak ditemukan")
-    lead = db.query(Lead).filter(Lead.id == proposal.lead_id).first()
 
     latest = db.query(ProposalAnalytics).filter(
         ProposalAnalytics.proposal_id == proposal.id
@@ -4385,15 +4393,6 @@ def track_view_duration(slug: str, body: ViewDurationIn, db: Session = Depends(g
     if latest:
         latest.duration_seconds = max(latest.duration_seconds or 0, body.duration_seconds)
         db.commit()
-
-    if lead and body.duration_seconds > 180:
-        _apply_proposal_signal(
-            lead.id,
-            "score_proposal_engaged",
-            25,
-            db,
-            replace_signal="score_proposal_viewed",
-        )
 
     return {"success": True}
 
@@ -4405,13 +4404,29 @@ def track_ping(body: TrackPingIn, db: Session = Depends(get_db)):
     if not analytics:
         raise HTTPException(status_code=404, detail="Analytics record tidak ditemukan")
     analytics.last_ping = datetime.now(timezone.utc).isoformat()
-    analytics.total_time_seconds = (analytics.total_time_seconds or 0) + body.seconds
+    prev_total = analytics.total_time_seconds or 0
+    analytics.total_time_seconds = prev_total + body.seconds
     existing_sections = json.loads(analytics.sections_viewed or "[]")
     for s in body.sections_viewed:
         if s not in existing_sections:
             existing_sections.append(s)
     analytics.sections_viewed = json.dumps(existing_sections)
     db.commit()
+
+    # Apply engaged signal once when total crosses 180s
+    if prev_total <= 180 and analytics.total_time_seconds > 180:
+        proposal = db.query(Proposal).filter(Proposal.id == analytics.proposal_id).first()
+        if proposal:
+            lead = db.query(Lead).filter(Lead.id == proposal.lead_id).first()
+            if lead:
+                _apply_proposal_signal(
+                    lead.id,
+                    "score_proposal_engaged",
+                    25,
+                    db,
+                    replace_signal="score_proposal_viewed",
+                )
+
     return {"ok": True, "total_time_seconds": analytics.total_time_seconds}
 
 
@@ -5191,6 +5206,76 @@ def get_client_detail(client_id: int, current_user: User = Depends(get_current_u
         "projects": projects_out,
         "notes": notes_out,
     }
+
+
+@app.get("/api/clients/{client_id}/activity-timeline")
+def get_client_activity_timeline(client_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    contact = db.query(Contact).filter(Contact.id == client_id).first()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Klien tidak ditemukan")
+
+    lead = db.query(Lead).filter(Lead.phone_number == contact.phone_number).first()
+    lead_id = lead.id if lead else None
+
+    events = []
+
+    # LeadActivityLog
+    if lead_id:
+        for log in db.query(LeadActivityLog).filter(LeadActivityLog.lead_id == lead_id).order_by(LeadActivityLog.created_at.desc()).limit(50).all():
+            label_map = {
+                "WA_REPLIED": "Membalas pesan WA",
+                "pdf_opened": "Membuka dokumen PDF",
+                "pdf_downloaded": "Mengunduh dokumen PDF",
+                "PROPOSAL_VIEWED": "Membuka proposal",
+                "PROPOSAL_ENGAGED": "Membaca proposal >3 menit",
+                "HOT_PROSPECT": "Melihat bagian ROI proposal",
+            }
+            events.append({
+                "type": "activity",
+                "icon": "💬" if "WA" in log.activity_type else "📄",
+                "label": label_map.get(log.activity_type, log.activity_type),
+                "timestamp": log.created_at,
+            })
+
+    # ProposalAnalytics
+    if lead_id:
+        proposals = db.query(Proposal).filter(Proposal.lead_id == lead_id).all()
+        for p in proposals:
+            for pa in db.query(ProposalAnalytics).filter(ProposalAnalytics.proposal_id == p.id).order_by(ProposalAnalytics.opened_at.desc()).limit(10).all():
+                secs = pa.total_time_seconds or 0
+                dur = f"{secs // 60}m {secs % 60}s" if secs >= 60 else f"{secs}s"
+                events.append({
+                    "type": "proposal_view",
+                    "icon": "👁️",
+                    "label": f"Membuka proposal — durasi {dur}",
+                    "timestamp": pa.opened_at,
+                })
+
+    # Transactions tagged to lead
+    if lead_id:
+        for txn in db.query(Transaction).filter(Transaction.lead_id == lead_id, Transaction.deleted_at == None).order_by(Transaction.date.desc()).limit(20).all():
+            sign = "+" if txn.type == "income" else "-"
+            events.append({
+                "type": "transaction",
+                "icon": "💰",
+                "label": f"{txn.category or txn.type} {sign}Rp {txn.amount:,.0f}" + (f" — {txn.notes}" if txn.notes else ""),
+                "timestamp": txn.date,
+            })
+
+    # AuditLog for this contact record
+    for al in db.query(AuditLog).filter(
+        AuditLog.table_name.in_(["contacts", "leads", "projects"]),
+        AuditLog.record_id == str(client_id),
+    ).order_by(AuditLog.timestamp.desc()).limit(20).all():
+        events.append({
+            "type": "audit",
+            "icon": "📝",
+            "label": f"{al.action} oleh {al.actor}",
+            "timestamp": al.timestamp,
+        })
+
+    events.sort(key=lambda e: e["timestamp"] or "", reverse=True)
+    return events[:60]
 
 
 # ---------------------------------------------------------------------------
@@ -7065,6 +7150,78 @@ def _build_brand_context(db: Session) -> dict:
     return ctx
 
 
+def _build_default_vars(db: Session, template_type: str, target_type: Optional[str], target_id: Optional[str]) -> dict:
+    today = datetime.now(timezone.utc)
+    brand = _build_brand_context(db)
+
+    defaults: dict = {
+        "tanggal": today.strftime("%d %B %Y"),
+        "logo": brand.get("logo", ""),
+        "tagline": brand.get("tagline", ""),
+    }
+
+    settings_map = {
+        "nama_perusahaan": "company_name",
+        "alamat_perusahaan": "company_address",
+        "phone_perusahaan": "company_phone",
+        "email_perusahaan": "company_email",
+    }
+    for var_key, setting_key in settings_map.items():
+        val = _get_setting(setting_key, "")
+        if val:
+            defaults[var_key] = val
+
+    lead = None
+    if target_id and target_type in ("lead", "contact") and target_id.isdigit():
+        lead = db.query(Lead).filter(Lead.id == int(target_id)).first()
+    if lead:
+        defaults["klien"] = lead.business_name or ""
+        defaults["nama"] = lead.business_name or ""
+        defaults["alamat"] = lead.address or ""
+        defaults["phone"] = lead.phone_number or ""
+        defaults["layanan"] = lead.product_interest or ""
+
+    if template_type == "invoice":
+        yyyymm = today.strftime("%Y%m")
+        seq_preview = (db.query(DocumentSequence).filter(
+            DocumentSequence.target_id == (target_id or "GLOBAL"),
+            DocumentSequence.template_type == "invoice",
+        ).first().last_seq if db.query(DocumentSequence).filter(
+            DocumentSequence.target_id == (target_id or "GLOBAL"),
+            DocumentSequence.template_type == "invoice",
+        ).first() else 0) + 1
+        defaults["nomor_invoice"] = f"INV/{yyyymm}/{seq_preview:03d}"
+        defaults["no_invoice"] = defaults["nomor_invoice"]
+        defaults["due_date"] = (today + timedelta(days=14)).strftime("%d %B %Y")
+        defaults["terms"] = "Pembayaran dalam 14 hari setelah invoice diterima."
+
+    elif template_type == "proposal_pdf":
+        defaults["valid_until"] = (today + timedelta(days=14)).strftime("%d %B %Y")
+        defaults["validity"] = defaults["valid_until"]
+
+    elif template_type == "kontrak":
+        defaults["tanggal_mulai"] = today.strftime("%d %B %Y")
+        if target_id and target_type == "project":
+            project = db.query(Project).filter(Project.id == target_id).first()
+            if project:
+                defaults["durasi"] = f"{project.contract_months or 1} bulan"
+                defaults["nilai_kontrak"] = f"Rp {project.nominal:,.0f}" if project.nominal else ""
+
+    elif template_type == "surat_penawaran":
+        yyyymm = today.strftime("%Y%m")
+        seq_preview = (db.query(DocumentSequence).filter(
+            DocumentSequence.target_id == (target_id or "GLOBAL"),
+            DocumentSequence.template_type == "surat_penawaran",
+        ).first().last_seq if db.query(DocumentSequence).filter(
+            DocumentSequence.target_id == (target_id or "GLOBAL"),
+            DocumentSequence.template_type == "surat_penawaran",
+        ).first() else 0) + 1
+        defaults["nomor"] = f"SP/{yyyymm}/{seq_preview:03d}"
+        defaults["perihal"] = f"Penawaran Jasa {lead.product_interest if lead else ''}".strip()
+
+    return defaults
+
+
 TRACKING_PIXEL_PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
 
 
@@ -7098,6 +7255,77 @@ def track_pdf_open(document_id: str):
     )
 
 
+_DOC_TYPE_PREFIX = {
+    "invoice": "INV",
+    "proposal_pdf": "PROP",
+    "kontrak": "KTR",
+    "surat_penawaran": "SP",
+    "custom": "DOC",
+}
+
+
+def _slugify_name(name: str, max_len: int = 30) -> str:
+    if not name:
+        return "Klien"
+    s = re.sub(r"[^A-Za-z0-9\s-]", "", name).strip()
+    s = re.sub(r"\s+", "-", s)
+    return s[:max_len] or "Klien"
+
+
+def _resolve_target_name(db: Session, target_type: Optional[str], target_id: Optional[str]) -> str:
+    if not target_id:
+        return "Umum"
+    if target_type in ("lead", "contact") and target_id.isdigit():
+        lead = db.query(Lead).filter(Lead.id == int(target_id)).first()
+        if lead and lead.business_name:
+            return lead.business_name
+    if target_type == "project":
+        project = db.query(Project).filter(Project.id == target_id).first()
+        if project and project.lead_id:
+            lead = db.query(Lead).filter(Lead.id == project.lead_id).first()
+            if lead and lead.business_name:
+                return lead.business_name
+    return "Umum"
+
+
+def _next_doc_sequence(db: Session, target_id: str, template_type: str) -> int:
+    key_target = target_id or "GLOBAL"
+    seq = db.query(DocumentSequence).filter(
+        DocumentSequence.target_id == key_target,
+        DocumentSequence.template_type == template_type,
+    ).first()
+    if not seq:
+        seq = DocumentSequence(target_id=key_target, template_type=template_type, last_seq=0)
+        db.add(seq)
+    seq.last_seq = (seq.last_seq or 0) + 1
+    db.commit()
+    return seq.last_seq
+
+
+def _generate_document_filename(db: Session, template_type: str, target_type: Optional[str], target_id: Optional[str]) -> str:
+    prefix = _DOC_TYPE_PREFIX.get(template_type, "DOC")
+    name = _resolve_target_name(db, target_type, target_id)
+    slug = _slugify_name(name)
+    seq = _next_doc_sequence(db, target_id or "GLOBAL", template_type)
+    yyyymm = datetime.now(timezone.utc).strftime("%Y%m")
+    return f"{prefix}_{slug}_{seq:03d}_{yyyymm}"
+
+
+@app.get("/api/document-templates/{template_id}/defaults")
+def get_template_defaults(
+    template_id: str,
+    target_type: Optional[str] = None,
+    target_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    template = db.query(DocumentTemplate).filter(DocumentTemplate.id == template_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="Template tidak ditemukan")
+    defaults = _build_default_vars(db, template.type or "custom", target_type, target_id)
+    return {"defaults": defaults, "template_type": template.type}
+
+
 @app.post("/api/documents/generate")
 def generate_document(body: DocumentGenerateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     template = db.query(DocumentTemplate).filter(DocumentTemplate.id == body.template_id).first()
@@ -7127,6 +7355,8 @@ def generate_document(body: DocumentGenerateIn, current_user: User = Depends(get
     pdf_filename = f"{file_id}.pdf"
     pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
 
+    display_name = _generate_document_filename(db, template.type or "custom", body.target_type, body.target_id)
+
     base_url = _get_setting("app_base_url", "") or os.getenv("APP_BASE_URL", "https://api.kantorteman.my.id")
     tracking_pixel = f'<img src="{base_url.rstrip("/")}/api/pixel/{file_id}" width="1" height="1" style="position:absolute;opacity:0;" alt="" />'
     if "</body>" in rendered_html:
@@ -7151,12 +7381,13 @@ def generate_document(body: DocumentGenerateIn, current_user: User = Depends(get
         target_id=body.target_id,
         variables_used=json.dumps(body.variables),
         file_url=file_url,
+        display_filename=display_name,
         generated_by=current_user.name,
     )
     db.add(doc)
     db.commit()
 
-    return {"document_id": doc.id, "file_url": file_url, "template_name": template.name}
+    return {"document_id": doc.id, "file_url": file_url, "template_name": template.name, "display_filename": display_name}
 
 
 @app.get("/api/documents/{did}/download")
@@ -7174,7 +7405,8 @@ def download_document(did: str, current_user: User = Depends(get_current_user), 
         except Exception:
             pass
     from fastapi.responses import FileResponse
-    return FileResponse(fpath, media_type="application/pdf", filename=f"{doc.template_name or 'document'}.pdf")
+    fname = doc.display_filename or (doc.template_name or "document")
+    return FileResponse(fpath, media_type="application/pdf", filename=f"{fname}.pdf")
 
 
 @app.post("/api/documents/{did}/email")
@@ -8194,6 +8426,45 @@ def update_workspace_cell(row_id: str, column_id: str, body: WorkspaceCellUpdate
 
     if col.column_key in ("status", "done"):
         sync_row_status_to_board(row_id, db)
+
+        # Billing milestone detection
+        new_val = body.value_text or ""
+        is_done = new_val.lower() in ("done", "selesai") or body.value_bool is True
+        if is_done:
+            task_name_col = db.query(WorkspaceColumn).filter(
+                WorkspaceColumn.sheet_id == col.sheet_id,
+                WorkspaceColumn.column_key == "task_name",
+            ).first()
+            if task_name_col:
+                task_cell = db.query(WorkspaceCell).filter(
+                    WorkspaceCell.row_id == row_id,
+                    WorkspaceCell.column_id == task_name_col.id,
+                ).first()
+                task_name = task_cell.value_text if task_cell else ""
+                m = re.search(r"Invoice\s+pembayaran\s+(\d+)%", task_name or "", re.IGNORECASE)
+                if m:
+                    percent = int(m.group(1))
+                    sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.id == col.sheet_id).first()
+                    project = db.query(Project).filter(Project.id == sheet.project_id).first() if sheet else None
+                    lead = db.query(Lead).filter(Lead.id == project.lead_id).first() if project and project.lead_id else None
+                    amount = (project.nominal or 0) * percent / 100 if project else 0
+                    invoice_template = db.query(DocumentTemplate).filter(DocumentTemplate.type == "invoice", DocumentTemplate.is_active == True).first()
+                    return {
+                        "id": cell.id, "value_text": cell.value_text, "value_bool": cell.value_bool,
+                        "value_number": cell.value_number, "value_date": cell.value_date,
+                        "billing_milestone_triggered": True,
+                        "milestone_data": {
+                            "percent": percent,
+                            "amount": amount,
+                            "amount_formatted": f"Rp {amount:,.0f}",
+                            "task_name": task_name,
+                            "project_name": project.name if project else "",
+                            "client_name": lead.business_name if lead else "",
+                            "lead_id": lead.id if lead else None,
+                            "project_id": project.id if project else None,
+                            "template_id": invoice_template.id if invoice_template else None,
+                        },
+                    }
     elif col.column_key == "task_name" and row.board_card_id:
         card = db.query(BoardCard).filter(BoardCard.id == row.board_card_id).first()
         if card:
