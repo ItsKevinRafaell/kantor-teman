@@ -2246,9 +2246,10 @@ def login(body: LoginIn, request: Request, response: Response, db: Session = Dep
         value=token,
         httponly=True,
         secure=True,
-        samesite="lax",
+        samesite="none",
         max_age=86400,
         path="/",
+        domain=".kantorteman.my.id",
     )
     return TokenOut(
         access_token=token,
@@ -2260,6 +2261,7 @@ def login(body: LoginIn, request: Request, response: Response, db: Session = Dep
 
 @app.post("/api/auth/logout")
 def logout(response: Response):
+    response.delete_cookie(key="kt_token", path="/", samesite="none", domain=".kantorteman.my.id", secure=True)
     response.delete_cookie(key="kt_token", path="/", samesite="lax")
     return {"ok": True}
 

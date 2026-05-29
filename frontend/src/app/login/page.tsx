@@ -77,6 +77,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={loading}
+                autoComplete="email"
                 className="w-full px-4 py-3 border border-gray-200 dark:border-neutral-700 rounded-xl text-sm bg-gray-50 dark:bg-neutral-800 dark:text-gray-100 focus:bg-white dark:focus:bg-neutral-900 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 disabled:opacity-60 transition"
                 placeholder="admin@kantorteman.com"
               />
@@ -90,6 +91,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 disabled={loading}
+                autoComplete="current-password"
                 className="w-full px-4 py-3 border border-gray-200 dark:border-neutral-700 rounded-xl text-sm bg-gray-50 dark:bg-neutral-800 dark:text-gray-100 focus:bg-white dark:focus:bg-neutral-900 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 disabled:opacity-60 transition"
                 placeholder="••••••••"
               />
