@@ -14,16 +14,25 @@ interface Analytics {
   leads_by_status: { status: string; count: number }[];
 }
 
+const STATUS_COLORS: Record<string, string> = {
+  Scraped: "bg-gray-400",
+  Contacted: "bg-blue-500",
+  Replied: "bg-yellow-500",
+  Closed: "bg-emerald-500",
+  "Closed/Client": "bg-amber-500",
+  "Contacted/Sent": "bg-teal-500",
+};
+
 const QUICK_ACTIONS = [
   {
-    href: "/scraper",
+    href: "/leads?tab=scrape",
     title: "Mulai Scrape Maps",
     desc: "Cari bisnis baru dari Google Places",
     bg: "bg-amber-500",
     icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>,
   },
   {
-    href: "/contacts",
+    href: "/leads",
     title: "Lihat Pipeline CRM",
     desc: "Kelola dan update status semua leads",
     bg: "bg-neutral-800 dark:bg-neutral-700",
@@ -38,6 +47,63 @@ const QUICK_ACTIONS = [
   },
 ];
 
+function PatternsSection() {
+  const [patterns, setPatterns] = useState<{ by_category: { segment: string; total: number; converted: number; rate: number }[]; by_city: { segment: string; total: number; converted: number; rate: number }[]; by_rating: { segment: string; total: number; converted: number; rate: number }[]; recommendation: string } | null>(null);
+
+  useEffect(() => {
+    apiFetch("/api/analytics/patterns").then(r => r.json()).then(setPatterns).catch(() => {});
+  }, []);
+
+  if (!patterns) return <p className="text-xs text-gray-400 italic">Memuat data...</p>;
+
+  return (
+    <div className="space-y-4">
+      {patterns.recommendation && (
+        <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3">
+          <p className="text-xs text-amber-800 dark:text-amber-300 font-semibold">{patterns.recommendation}</p>
+        </div>
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <p className="text-[10px] text-zinc-500 uppercase tracking-wide font-bold mb-2">Per Kategori</p>
+          <div className="space-y-1.5">
+            {patterns.by_category.slice(0, 5).map(p => (
+              <div key={p.segment} className="flex justify-between items-center text-xs">
+                <span className="text-zinc-700 dark:text-zinc-300 truncate max-w-[120px]">{p.segment}</span>
+                <span className={`font-bold ${p.rate > 10 ? "text-green-600" : p.rate > 0 ? "text-amber-600" : "text-zinc-400"}`}>{p.rate}%</span>
+              </div>
+            ))}
+            {patterns.by_category.length === 0 && <p className="text-[10px] text-zinc-400 italic">Belum cukup data</p>}
+          </div>
+        </div>
+        <div>
+          <p className="text-[10px] text-zinc-500 uppercase tracking-wide font-bold mb-2">Per Kota</p>
+          <div className="space-y-1.5">
+            {patterns.by_city.slice(0, 5).map(p => (
+              <div key={p.segment} className="flex justify-between items-center text-xs">
+                <span className="text-zinc-700 dark:text-zinc-300 truncate max-w-[120px]">{p.segment}</span>
+                <span className={`font-bold ${p.rate > 10 ? "text-green-600" : p.rate > 0 ? "text-amber-600" : "text-zinc-400"}`}>{p.rate}%</span>
+              </div>
+            ))}
+            {patterns.by_city.length === 0 && <p className="text-[10px] text-zinc-400 italic">Belum cukup data</p>}
+          </div>
+        </div>
+        <div>
+          <p className="text-[10px] text-zinc-500 uppercase tracking-wide font-bold mb-2">Per Rating</p>
+          <div className="space-y-1.5">
+            {patterns.by_rating.map(p => (
+              <div key={p.segment} className="flex justify-between items-center text-xs">
+                <span className="text-zinc-700 dark:text-zinc-300">{p.segment}</span>
+                <span className={`font-bold ${p.rate > 10 ? "text-green-600" : p.rate > 0 ? "text-amber-600" : "text-zinc-400"}`}>{p.rate}% <span className="text-zinc-400 font-normal">({p.converted}/{p.total})</span></span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
@@ -45,6 +111,7 @@ export default function DashboardPage() {
   const [hotLeads, setHotLeads] = useState<{ lead_id: number; business_name: string; phone_number: string; category: string | null; status: string; last_active: string; total_opens: number; proposal_slug: string | null }[]>([]);
   const [topScoredLeads, setTopScoredLeads] = useState<{ id: number; business_name: string; phone_number: string; lead_score: number; status: string; product_interest: string | null; address: string | null }[]>([]);
   const [alerts, setAlerts] = useState<{ id: string; lead_id: number; business_name: string; phone_number: string; category: string | null; triggered_at: string; days_since_first_view: number; proposal_slug: string | null }[]>([]);
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -80,6 +147,7 @@ export default function DashboardPage() {
   }, [fetchAnalytics]);
 
   const maxProduct = analytics ? Math.max(...(analytics.leads_by_product ?? []).map((p) => p.count), 1) : 1;
+  const maxStatus = analytics ? Math.max(...(analytics.leads_by_status ?? []).map((s) => s.count), 1) : 1;
 
   const STAT_CARDS = [
     { label: "Total Leads", value: loading ? "—" : analytics?.total_leads ?? 0, sub: "Semua prospek tersimpan", color: "text-amber-600", bg: "bg-amber-50" },
@@ -97,8 +165,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {STAT_CARDS.map((card) => (
-          <div key={card.label}
-            className="card-hover p-5 flex flex-col gap-3 cursor-default">
+          <div key={card.label} className="card-hover p-5 flex flex-col gap-3 cursor-default">
             <div className={`w-10 h-10 rounded-xl ${card.bg} dark:bg-opacity-20 ${card.color} flex items-center justify-center`}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
@@ -113,7 +180,6 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Hot Leads */}
       {hotLeads.length > 0 && (
         <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
@@ -143,7 +209,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Hot Leads by Score */}
       {topScoredLeads.length > 0 && (
         <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
@@ -188,7 +253,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Re-engagement Alerts */}
       {alerts.length > 0 && (
         <div className="card p-5 border-l-4 border-amber-500">
           <div className="flex items-center justify-between mb-4">
@@ -259,6 +323,55 @@ export default function DashboardPage() {
             </Link>
           ))}
         </div>
+      </div>
+
+      {/* Analitik Detail — collapsible */}
+      <div className="card overflow-hidden">
+        <button
+          onClick={() => setShowAnalytics(v => !v)}
+          className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
+        >
+          <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Analitik Detail</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            className={`text-neutral-400 transition-transform duration-200 ${showAnalytics ? "rotate-180" : ""}`}>
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+
+        {showAnalytics && (
+          <div className="px-6 pb-6 space-y-6 border-t border-[var(--border-subtle)]">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-5">
+              <div>
+                <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-4">Distribusi Status Pipeline</h3>
+                {loading ? (
+                  <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-6 bg-neutral-100 dark:bg-neutral-800 rounded animate-pulse" />)}</div>
+                ) : analytics?.leads_by_status.length === 0 ? (
+                  <p className="text-xs text-neutral-400 italic">Belum ada data.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {analytics?.leads_by_status.map((s) => (
+                      <div key={s.status}>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="font-medium text-neutral-700 dark:text-neutral-300">{s.status}</span>
+                          <span className="text-neutral-400">{s.count}</span>
+                        </div>
+                        <div className="h-2 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all duration-500 ${STATUS_COLORS[s.status] ?? "bg-gray-400"}`}
+                            style={{ width: `${(s.count / maxStatus) * 100}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-4">Conversion Pattern Analysis</h3>
+                <PatternsSection />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
