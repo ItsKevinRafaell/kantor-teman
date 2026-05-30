@@ -1,30 +1,28 @@
 "use client";
 
-import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import dynamic from "next/dynamic";
+import { useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-const LeadsTable = dynamic(() => import("../../components/LeadsTable"), { ssr: false });
-
-function ContactsContent() {
+function ContactsRedirect() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const initialBatch = searchParams.get("batch") || undefined;
+  const batch = searchParams.get("batch");
+  const highlight = searchParams.get("highlight");
 
-  return (
-    <div className="max-w-6xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-neutral-50">Semua Kontak</h1>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Kelola semua leads dan update status follow-up.</p>
-      </div>
-      <LeadsTable initialBatch={initialBatch} />
-    </div>
-  );
+  useEffect(() => {
+    const params = new URLSearchParams({ tab: "tabel" });
+    if (batch) params.set("batch", batch);
+    if (highlight) params.set("highlight", highlight);
+    router.replace(`/leads?${params}`);
+  }, [router, batch, highlight]);
+
+  return <div className="p-6 text-sm text-neutral-400">Mengalihkan...</div>;
 }
 
 export default function ContactsPage() {
   return (
     <Suspense fallback={<div className="p-6 text-sm text-neutral-400">Memuat...</div>}>
-      <ContactsContent />
+      <ContactsRedirect />
     </Suspense>
   );
 }
