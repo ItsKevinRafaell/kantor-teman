@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { Search, Book, Users, FileText, Briefcase, Wallet, Megaphone, FolderOpen, Settings, Sparkles, ChevronRight, GitBranch } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search, Book, Users, FileText, Briefcase, Wallet, Megaphone, FolderOpen, Settings, Sparkles, ChevronRight, GitBranch, Send, ClipboardList, CheckCircle2, LayoutGrid, Package, RefreshCw, Zap } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { apiFetch } from "../../lib/api";
 
 interface DocSection {
   id: string;
@@ -684,86 +686,110 @@ const SECTIONS: DocSection[] = [
 
 const CATEGORIES = ["Mulai", "Akuisisi Leads", "Sales", "Klien", "Delivery", "Operasional", "Marketing", "AI Tools", "Dokumen", "Master Data", "System"];
 
-const PIPELINE_STAGES = [
+const PIPELINE_STAGES: {
+  id: string; label: string; sub: string; Icon: LucideIcon;
+  colorClass: string; bgClass: string; borderClass: string;
+  trigger: string; output: string; ai: string; manual: string;
+  flow: string; nextHint: string;
+  badge: string | null; link: string;
+}[] = [
   {
-    id: "scrape", label: "Scrape", sub: "Google Maps", emoji: "🗺️",
+    id: "scrape", label: "Scrape", sub: "Google Maps", Icon: Search,
     colorClass: "text-blue-500", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/30",
     trigger: "Manual — admin pilih kategori + kota di Maps Scraper",
     output: "Leads baru: nama bisnis, nomor WA, alamat, rating Google",
     ai: "Auto-score 40–85 berdasarkan rating, ada/tidaknya website, jumlah review",
     manual: "Pilih kategori, lokasi, max results, product interest",
+    flow: "Mulai dari sini saat butuh prospek baru. Pilih kategori bisnis (mis. 'klinik gigi') + kota target, sistem scrape Google Maps → simpan ke daftar Leads. Setiap lead langsung dapat skor AI awal.",
+    nextHint: "Lanjut ke Leads untuk filter & kelola hasil scrape.",
     badge: null, link: "/scraper",
   },
   {
-    id: "leads", label: "Leads", sub: "CRM Pipeline", emoji: "👥",
+    id: "leads", label: "Leads", sub: "CRM Pipeline", Icon: Users,
     colorClass: "text-purple-500", bgClass: "bg-purple-500/10", borderClass: "border-purple-500/30",
     trigger: "Auto dari scraper atau input manual",
     output: "Lead dengan status: Scraped → Contacted → HOT_PROSPECT → Closed/Client",
     ai: "Lead scoring otomatis + AI analysis (pain points, suggested product)",
     manual: "Update status, rating, product interest",
+    flow: "Tahap kurasi. Filter lead skor tinggi (≥80 = Siap Closing), baca pain points hasil AI, tandai produk yang relevan. Lead yang sudah 'matang' dikirim WA Blast atau langsung dibuatkan proposal.",
+    nextHint: "Cold lead → kirim WA Blast atau Audit Report dulu. Warm lead → langsung Proposal.",
     badge: "Auto-score", link: "/contacts",
   },
   {
-    id: "blast", label: "Blast WA", sub: "Fonnte API", emoji: "📱",
+    id: "blast", label: "Blast WA", sub: "Fonnte API", Icon: Send,
     colorClass: "text-green-500", bgClass: "bg-green-500/10", borderClass: "border-green-500/30",
     trigger: "Manual — admin pilih template + filter leads",
     output: "WA terkirim dengan link report publik, status → BLASTED",
     ai: "Template personalisasi {{business_name}}, {{proposal_link}}",
     manual: "Pilih template, filter leads, klik blast",
+    flow: "Outreach awal. Pilih segmen lead, pilih template (variabel auto-isi nama bisnis), kirim. Sistem track delivery, read, dan reply. Lead yang reply pindah otomatis ke status REPLIED. Followup sequence auto-stop kalau lead sudah balas.",
+    nextHint: "Yang buka Audit Report = sinyal hangat → siapkan Proposal.",
     badge: "Followup auto", link: "/marketing/blast-analytics",
   },
   {
-    id: "report", label: "Report", sub: "Halaman Publik", emoji: "📊",
+    id: "report", label: "Report", sub: "Halaman Publik", Icon: FileText,
     colorClass: "text-orange-500", bgClass: "bg-orange-500/10", borderClass: "border-orange-500/30",
     trigger: "Lead klik link report di pesan WA",
     output: "Lead score naik, status → REPORT_VIEWED → HOT_PROSPECT",
     ai: "Pain Box, ROI Slider, FOMO Timer 24 jam, Ghost Viewer detection",
     manual: "Tidak ada — fully automated tracking",
+    flow: "Hook value sebelum jual. Audit digital singkat untuk lead cold yang belum kenal. Semua engagement (durasi baca, scroll depth) tercatat. Skor lead naik otomatis kalau report dibuka.",
+    nextHint: "Setelah report dibuka 1–2 kali, lanjut ke Proposal.",
     badge: "Ghost viewer", link: "/proposals",
   },
   {
-    id: "proposal", label: "Proposal", sub: "Multi-service", emoji: "📋",
+    id: "proposal", label: "Proposal", sub: "Multi-service", Icon: ClipboardList,
     colorClass: "text-amber-500", bgClass: "bg-amber-500/10", borderClass: "border-amber-500/30",
     trigger: "Admin buat proposal dari halaman Klien",
     output: "Link publik /p/{slug} + analytics waktu baca per section",
     ai: "Auto-detect service type, contract months, nama project",
     manual: "Pilih layanan, set harga, kirim link ke prospect",
-    badge: null, link: "/proposals",
+    flow: "Penawaran resmi. Dua jalur: (1) Proposal interaktif dengan tombol Accept — klien klik, sistem auto-create Project + Board + Workspace. (2) Surat penawaran legal manual — generate PDF dari Document Generator, tanda tangan, lalu admin buat workspace manual setelah deal.",
+    nextHint: "Klien Accept → otomatis lompat ke tahap Close. Manual deal → buat project di /clients sendiri.",
+    badge: "2 jalur", link: "/proposals",
   },
   {
-    id: "close", label: "Close", sub: "Accept → Project", emoji: "🤝",
+    id: "close", label: "Close", sub: "Accept → Project", Icon: CheckCircle2,
     colorClass: "text-red-500", bgClass: "bg-red-500/10", borderClass: "border-red-500/30",
     trigger: "Klien klik Accept di halaman proposal publik",
     output: "Contact + Project + Board kanban auto-created",
     ai: "Auto-detect project type, service type, contract months",
     manual: "Tidak ada — fully automated saat accept",
+    flow: "Titik konversi. Begitu klien Accept, sistem buat Contact (klien), Project (FIXED/RETAINER), Board kanban kosong, dan Workspace dari template service_type. Admin dapat notifikasi WA. Tidak perlu klik apapun.",
+    nextHint: "Setelah ini langsung ke Board / Workspace untuk eksekusi.",
     badge: "Auto-project", link: "/clients",
   },
   {
-    id: "board", label: "Board", sub: "Kanban", emoji: "🗂️",
+    id: "board", label: "Board", sub: "Kanban", Icon: LayoutGrid,
     colorClass: "text-indigo-500", bgClass: "bg-indigo-500/10", borderClass: "border-indigo-500/30",
     trigger: "Auto-created saat proposal accepted",
     output: "Board kanban: To Do, In Progress, Review, Done",
     ai: "AI Agent bisa create/move/assign card lewat chat (agent mode)",
     manual: "Drag & drop card, assign, set due date, checklist",
+    flow: "Eksekusi visual ala Trello. Card di Board sinkron 2-arah dengan row Workspace — ubah status di salah satu, pasangannya ikut update. AI Agent bisa diperintah lewat chat untuk bikin/pindah card.",
+    nextHint: "Detail data per task → buka Workspace sheet.",
     badge: "AI Agent", link: "/board",
   },
   {
-    id: "deliver", label: "Deliver", sub: "Workspace + Docs", emoji: "📦",
+    id: "deliver", label: "Deliver", sub: "Workspace + Docs", Icon: Package,
     colorClass: "text-teal-500", bgClass: "bg-teal-500/10", borderClass: "border-teal-500/30",
     trigger: "Project aktif",
     output: "Spreadsheet workspace, dokumen (invoice, kontrak, proposal PDF)",
     ai: "Content generator: IG carousel, SEO article, TikTok, caption",
     manual: "Isi workspace, generate dokumen, kirim ke klien",
+    flow: "Pengerjaan harian. Workspace = spreadsheet per project (multi-sheet untuk retainer per bulan). Tandai task milestone 'Invoice 30%/40%' jadi Done → modal auto-generate invoice. Dokumen lain (kontrak, surat) dibuat dari Document Generator pakai brand kit.",
+    nextHint: "Project selesai → invoice final → masuk fase Retain (atau archive).",
     badge: null, link: "/workspace",
   },
   {
-    id: "retain", label: "Retain", sub: "Followup + Invoice", emoji: "🔄",
+    id: "retain", label: "Retain", sub: "Followup + Invoice", Icon: RefreshCw,
     colorClass: "text-emerald-500", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30",
     trigger: "Project aktif + followup_enabled=true",
     output: "WA followup otomatis, invoice bulanan, upsell pipeline",
     ai: "AI Chat business partner untuk analisis retensi & upsell",
     manual: "Enable followup di Settings, input data finance",
+    flow: "Pasca-deal. Untuk retainer: invoice tiap bulan, followup WA otomatis ke klien tidak aktif, AI Chat dipakai untuk analisis kesehatan akun & saran upsell. Loop balik ke Proposal kalau ada layanan tambahan.",
+    nextHint: "Klien butuh layanan baru → balik ke tahap Proposal.",
     badge: "Auto-invoice", link: "/finance",
   },
 ];
@@ -775,17 +801,19 @@ const AI_FEATURES = [
   { name: "Analysis", sub: "Lead Insights", feature: "analysis", color: "text-purple-500" },
 ];
 
-const AI_PROVIDERS = [
-  { name: "Claude", sub: "Sonnet 4.6/4.7", color: "text-orange-500", bg: "bg-orange-500/10" },
-  { name: "DeepSeek", sub: "v4 Pro", color: "text-blue-500", bg: "bg-blue-500/10" },
-  { name: "MiMo", sub: "v2.5 Pro", color: "text-purple-500", bg: "bg-purple-500/10" },
-  { name: "Qwen", sub: "Direct API", color: "text-green-500", bg: "bg-green-500/10" },
-  { name: "GPT-5", sub: "Free Model", color: "text-neutral-500", bg: "bg-neutral-500/10" },
-];
-
 function WorkflowMap() {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [proxies, setProxies] = useState<{ id: string; name: string; model: string; feature: string | null; is_active: boolean }[]>([]);
+  const [proxiesLoading, setProxiesLoading] = useState(true);
   const stage = PIPELINE_STAGES.find(s => s.id === expanded);
+
+  useEffect(() => {
+    apiFetch("/api/ai-proxies")
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setProxies(data))
+      .catch(() => {})
+      .finally(() => setProxiesLoading(false));
+  }, []);
 
   return (
     <div className="space-y-10">
@@ -793,7 +821,7 @@ function WorkflowMap() {
       <div>
         <div className="mb-4">
           <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-50">Pipeline Bisnis</h2>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Klik tiap node untuk lihat trigger, output, fitur AI, dan aksi manual di tahap itu</p>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Klik tiap node untuk lihat alur lengkap, trigger, output, dan aksi di tahap itu</p>
         </div>
 
         <div className="overflow-x-auto pb-2">
@@ -809,13 +837,13 @@ function WorkflowMap() {
                         : "bg-[var(--bg-surface)] border-[var(--border-default)] hover:shadow-md"
                     }`}
                   >
-                    <span className="text-2xl">{s.emoji}</span>
+                    <s.Icon size={24} className={expanded === s.id ? s.colorClass : "text-neutral-500"} />
                     <span className={`text-xs font-bold ${expanded === s.id ? s.colorClass : "text-neutral-700 dark:text-neutral-300"}`}>{s.label}</span>
                     <span className="text-[10px] text-neutral-400 text-center leading-tight">{s.sub}</span>
                   </button>
                   {s.badge && (
                     <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${s.bgClass} ${s.colorClass} border ${s.borderClass} whitespace-nowrap`}>
-                      ⚡ {s.badge}
+                      <Zap size={8} className="inline -mt-0.5 mr-0.5" />{s.badge}
                     </span>
                   )}
                 </div>
@@ -833,7 +861,7 @@ function WorkflowMap() {
         {stage && (
           <div className={`mt-3 p-5 rounded-2xl border-2 ${stage.bgClass} ${stage.borderClass}`}>
             <div className="flex items-center gap-3 mb-4">
-              <span className="text-3xl">{stage.emoji}</span>
+              <stage.Icon size={28} className={stage.colorClass} />
               <div>
                 <h3 className={`font-bold text-base ${stage.colorClass}`}>{stage.label}</h3>
                 <p className="text-xs text-neutral-500">{stage.sub}</p>
@@ -842,6 +870,12 @@ function WorkflowMap() {
                 Buka halaman →
               </a>
             </div>
+
+            <div className="mb-4 p-4 rounded-xl bg-white/60 dark:bg-neutral-900/40 border border-[var(--border-subtle)]">
+              <p className="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed">{stage.flow}</p>
+              <p className="text-xs text-neutral-500 mt-2 font-medium">{stage.nextHint}</p>
+            </div>
+
             <div className="grid sm:grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Trigger</p>
@@ -852,11 +886,11 @@ function WorkflowMap() {
                 <p className="text-neutral-700 dark:text-neutral-300">{stage.output}</p>
               </div>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">🤖 Fitur AI</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Fitur AI</p>
                 <p className="text-neutral-700 dark:text-neutral-300">{stage.ai}</p>
               </div>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">👤 Aksi Manual</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Aksi Manual</p>
                 <p className="text-neutral-700 dark:text-neutral-300">{stage.manual}</p>
               </div>
             </div>
@@ -868,7 +902,7 @@ function WorkflowMap() {
       <div>
         <div className="mb-4">
           <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-50">Sistem AI</h2>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Tiap fitur bisa pakai model berbeda — routing otomatis lewat per-feature proxy</p>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Tiap fitur bisa pakai model berbeda — routing otomatis lewat per-feature proxy yang dikonfigurasi di Settings</p>
         </div>
 
         <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl p-6">
@@ -887,20 +921,27 @@ function WorkflowMap() {
               <div className="w-0.5 h-6 bg-neutral-300 dark:bg-neutral-700" />
               <div className="px-6 py-2.5 rounded-xl bg-brand-yellow/10 border-2 border-brand-yellow/40 text-center">
                 <p className="text-xs font-bold text-brand-yellow font-mono">get_proxy_for_feature()</p>
-                <p className="text-[10px] text-neutral-500 mt-0.5">feature-specific → NULL fallback → 9router</p>
+                <p className="text-[10px] text-neutral-500 mt-0.5">feature-specific → fallback → default endpoint</p>
               </div>
               <div className="w-0.5 h-6 bg-neutral-300 dark:bg-neutral-700" />
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3 justify-center">
-            {AI_PROVIDERS.map(p => (
-              <div key={p.name} className={`flex flex-col items-center gap-0.5 px-4 py-2.5 rounded-xl ${p.bg} border border-[var(--border-default)]`}>
-                <span className={`text-sm font-bold ${p.color}`}>{p.name}</span>
-                <span className="text-[10px] text-neutral-400">{p.sub}</span>
-              </div>
-            ))}
-          </div>
+          {proxiesLoading ? (
+            <p className="text-center text-sm text-neutral-400 py-4">Memuat proxy...</p>
+          ) : proxies.length === 0 ? (
+            <p className="text-center text-sm text-neutral-400 py-4">Belum ada proxy. Tambah di Settings → AI Engine → AI Proxies.</p>
+          ) : (
+            <div className="flex flex-wrap gap-3 justify-center">
+              {proxies.map(p => (
+                <div key={p.id} className={`flex flex-col items-center gap-0.5 px-4 py-2.5 rounded-xl border border-[var(--border-default)] ${p.is_active ? "bg-emerald-500/10" : "bg-neutral-500/10"}`}>
+                  <span className={`text-sm font-bold ${p.is_active ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-500"}`}>{p.name}</span>
+                  <span className="text-[10px] text-neutral-400">{p.model || "default"}</span>
+                  {p.feature && <span className="text-[9px] font-mono text-neutral-400">{p.feature}</span>}
+                </div>
+              ))}
+            </div>
+          )}
 
           <p className="text-center text-[11px] text-neutral-400 mt-5">
             Tambah provider baru di <span className="font-semibold text-neutral-500 dark:text-neutral-300">Settings → AI Engine → AI Proxies</span>

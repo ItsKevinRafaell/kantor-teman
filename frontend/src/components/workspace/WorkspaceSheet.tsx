@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { apiFetch } from "../../lib/api";
 import { Plus, Trash2, Upload, ExternalLink } from "lucide-react";
+import ConfirmModal from "../ConfirmModal";
 
 interface ColumnData {
   id: string;
@@ -92,6 +93,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
   const [addingRow, setAddingRow] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<{ rowId: string; colId: string } | null>(null);
+  const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; message: string; onConfirm: () => void }>({ open: false, title: "", message: "", onConfirm: () => {} });
 
   const colById = Object.fromEntries(sheet.columns.map(c => [c.id, c]));
 
@@ -180,11 +182,17 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
 
   async function deleteRow(rowId: string, isTemplate: boolean) {
     if (isTemplate) { onToast("Row template tidak dapat dihapus", "error"); return; }
-    if (!confirm("Hapus row ini?")) return;
-    const res = await apiFetch(`/api/workspace/row/${rowId}`, { method: "DELETE" });
-    if (res.ok || res.status === 204) {
-      setRows(prev => prev.filter(r => r.id !== rowId));
-    }
+    setConfirmState({
+      open: true,
+      title: "Hapus Row",
+      message: "Yakin mau hapus row ini?",
+      onConfirm: async () => {
+        const res = await apiFetch(`/api/workspace/row/${rowId}`, { method: "DELETE" });
+        if (res.ok || res.status === 204) {
+          setRows(prev => prev.filter(r => r.id !== rowId));
+        }
+      },
+    });
   }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -392,6 +400,13 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
           </div>
         </div>
       )}
+      <ConfirmModal
+        open={confirmState.open}
+        onClose={() => setConfirmState(s => ({ ...s, open: false }))}
+        onConfirm={confirmState.onConfirm}
+        title={confirmState.title}
+        message={confirmState.message}
+      />
     </div>
   );
 }

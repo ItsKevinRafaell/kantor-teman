@@ -1,13 +1,11 @@
 "use client";
 
 import { useState, useEffect, FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { setToken } from "../../lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -42,7 +40,9 @@ export default function LoginPage() {
       }
       const data = await res.json();
       setToken(data.access_token, data.name, data.email, data.role || "admin");
-      router.push("/dashboard");
+      // Full reload so layout re-reads auth state (cookie + localStorage) — router.push alone leaves stale state
+      window.location.href = "/dashboard";
+      return;
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Terjadi kesalahan.");
     } finally {

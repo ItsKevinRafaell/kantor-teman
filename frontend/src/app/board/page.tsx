@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { apiFetch } from "../../lib/api";
 import { Plus, Trash2, Calendar, User, MessageSquare, CheckSquare, X, Archive, ArchiveRestore, Activity } from "lucide-react";
 import Toast from "../../components/Toast";
+import ConfirmModal from "../../components/ConfirmModal";
 import { useUserRole } from "../../lib/useUserRole";
 
 const COLORS = {
@@ -70,25 +71,6 @@ interface BoardOverview {
   cards_count: number; columns_count: number; client_name?: string;
   overdue_cards?: string[]; due_soon_cards?: string[];
   color?: string; project_lead_id?: number | null; is_archived?: boolean;
-}
-
-function ConfirmModal({ open, onClose, onConfirm, title, message, danger = true }: {
-  open: boolean; onClose: () => void; onConfirm: () => void; title: string; message: string; danger?: boolean;
-}) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
-      <div className="relative bg-white dark:bg-[var(--bg-canvas)] rounded-2xl shadow-2xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
-        <h3 className="font-semibold text-neutral-900 dark:text-neutral-50 mb-2">{title}</h3>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-5">{message}</p>
-        <div className="flex gap-2 justify-end">
-          <button onClick={onClose} className="px-4 py-2 text-sm rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>
-          <button onClick={() => { onConfirm(); onClose(); }} className={`px-4 py-2 text-sm rounded-xl font-medium text-white ${danger ? "bg-red-500 hover:bg-red-600" : "bg-amber-500 hover:bg-amber-600"}`}>Ya, lanjutkan</button>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function Modal({ open, onClose, title, children, size = "md" }: {

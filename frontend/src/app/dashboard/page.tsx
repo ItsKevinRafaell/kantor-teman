@@ -48,8 +48,7 @@ export default function DashboardPage() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const match = document.cookie.match(/(?:^|;\s*)kt_token=([^;]*)/);
-    if (!match) router.replace("/login");
+    if (!localStorage.getItem("kt_email")) router.replace("/login");
   }, [router]);
 
   const fetchAnalytics = useCallback(() => {

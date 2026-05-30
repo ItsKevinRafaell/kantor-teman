@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "../../../../lib/api";
 import { Plus, Pencil, Trash2, X } from "lucide-react";
 import Toast from "../../../../components/Toast";
+import ConfirmModal from "../../../../components/ConfirmModal";
 
 interface DocTemplate {
   id: string;
@@ -31,6 +32,7 @@ export default function DocumentTemplatesPage() {
   const [form, setForm] = useState({ name: "", type: "invoice", html_template: "", variables: "" });
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; message: string; onConfirm: () => void }>({ open: false, title: "", message: "", onConfirm: () => {} });
 
   const fetchTemplates = useCallback(async () => {
     try {
@@ -71,12 +73,18 @@ export default function DocumentTemplatesPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Hapus template ini?")) return;
-    const res = await apiFetch(`/api/document-templates/${id}`, { method: "DELETE" });
-    if (res.ok || res.status === 204) {
-      setTemplates(prev => prev.filter(t => t.id !== id));
-      setToast({ message: "Template dihapus", type: "success" });
-    }
+    setConfirmState({
+      open: true,
+      title: "Hapus Template",
+      message: "Yakin mau hapus template ini?",
+      onConfirm: async () => {
+        const res = await apiFetch(`/api/document-templates/${id}`, { method: "DELETE" });
+        if (res.ok || res.status === 204) {
+          setTemplates(prev => prev.filter(t => t.id !== id));
+          setToast({ message: "Template dihapus", type: "success" });
+        }
+      },
+    });
   }
 
   return (
@@ -161,6 +169,13 @@ export default function DocumentTemplatesPage() {
       )}
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      <ConfirmModal
+        open={confirmState.open}
+        onClose={() => setConfirmState(s => ({ ...s, open: false }))}
+        onConfirm={confirmState.onConfirm}
+        title={confirmState.title}
+        message={confirmState.message}
+      />
     </div>
   );
 }

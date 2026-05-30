@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../lib/api";
 import StarRating from "./StarRating";
-import { getScoreLabel, getScoreColor, getScoreIcon } from "../lib/leadScore";
+import { getScoreLabel, getScoreColor } from "../lib/leadScore";
 import { Search, Download, Plus, Pencil, Trash2 } from "lucide-react";
 
 import Modal from "./Modal";
@@ -840,13 +840,11 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
                     {(() => {
                       const score = lead.lead_score ?? 0;
                       const color = getScoreColor(score);
-                      const icon = getScoreIcon(score);
                       const tierLabel = getScoreLabel(score);
                       const breakdown = getScoreBreakdown(lead);
                       return (
                         <div className="group relative w-28">
                           <div className="flex items-center gap-1.5 mb-1">
-                            <span>{icon}</span>
                             <span className="font-bold tabular-nums">{score}</span>
                           </div>
                           <div className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 truncate" title={tierLabel}>{tierLabel}</div>

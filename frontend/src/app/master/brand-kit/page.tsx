@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "../../../lib/api";
 import { Plus, Trash2, Copy, Upload, Check, Download } from "lucide-react";
+import ConfirmModal from "../../../components/ConfirmModal";
 
 interface BrandAsset {
   id: string;
@@ -36,6 +37,7 @@ export default function BrandKitPage() {
   const [saving, setSaving] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; message: string; onConfirm: () => void }>({ open: false, title: "", message: "", onConfirm: () => {} });
 
   const fetchKit = useCallback(async () => {
     try {
@@ -88,13 +90,19 @@ export default function BrandKitPage() {
   }
 
   async function deleteAsset(id: string) {
-    if (!confirm("Hapus asset ini?")) return;
-    try {
-      const res = await apiFetch(`/api/brand-assets/${id}`, { method: "DELETE" });
-      if (!res.ok && res.status !== 204) throw new Error();
-      await fetchKit();
-      showToast("Dihapus");
-    } catch { showToast("Gagal hapus", "error"); }
+    setConfirmState({
+      open: true,
+      title: "Hapus Asset",
+      message: "Yakin mau hapus asset ini?",
+      onConfirm: async () => {
+        try {
+          const res = await apiFetch(`/api/brand-assets/${id}`, { method: "DELETE" });
+          if (!res.ok && res.status !== 204) throw new Error();
+          await fetchKit();
+          showToast("Dihapus");
+        } catch { showToast("Gagal hapus", "error"); }
+      },
+    });
   }
 
   function copy(value: string, id: string) {
@@ -192,6 +200,13 @@ export default function BrandKitPage() {
           {toast.message}
         </div>
       )}
+      <ConfirmModal
+        open={confirmState.open}
+        onClose={() => setConfirmState(s => ({ ...s, open: false }))}
+        onConfirm={confirmState.onConfirm}
+        title={confirmState.title}
+        message={confirmState.message}
+      />
     </div>
   );
 }

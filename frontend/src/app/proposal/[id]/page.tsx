@@ -142,6 +142,7 @@ export default function ProposalPage() {
   const [acceptNotes, setAcceptNotes] = useState("");
   const [rejectReason, setRejectReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [clientCount, setClientCount] = useState<number>(0);
   const analyticsIdRef = useRef<string | null>(null);
@@ -191,7 +192,8 @@ export default function ProposalPage() {
       await refreshProposal();
       setAcceptModal(false);
     } catch {
-      alert("Gagal mengirim. Silakan coba lagi.");
+      setToastMsg("Gagal mengirim. Silakan coba lagi.");
+      setTimeout(() => setToastMsg(null), 4000);
     } finally {
       setSubmitting(false);
     }
@@ -210,7 +212,8 @@ export default function ProposalPage() {
       await refreshProposal();
       setRejectModal(false);
     } catch {
-      alert("Gagal mengirim. Silakan coba lagi.");
+      setToastMsg("Gagal mengirim. Silakan coba lagi.");
+      setTimeout(() => setToastMsg(null), 4000);
     } finally {
       setSubmitting(false);
     }
@@ -335,6 +338,11 @@ export default function ProposalPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-zinc-950 bg-[radial-gradient(#e4e4e7_1px,transparent_1px)] dark:bg-[radial-gradient(#27272a_1px,transparent_1px)] [background-size:20px_20px] text-zinc-900 dark:text-zinc-100 print:bg-white print:text-black print:bg-none">
+      {toastMsg && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[80] bg-red-500 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium">
+          {toastMsg}
+        </div>
+      )}
       <div className="max-w-3xl mx-auto px-5 py-12 md:py-16">
 
         {/* ============================================================ */}

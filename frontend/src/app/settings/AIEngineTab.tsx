@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "../../lib/api";
 import { Plus, Edit2, Trash2, X, Star, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
+import ConfirmModal from "../../components/ConfirmModal";
 
 interface AIModel {
   id: string;
@@ -84,6 +85,11 @@ export default function AIEngineTab() {
   const [proxies, setProxies] = useState<AIProxy[]>([]);
   const [proxyModal, setProxyModal] = useState(false);
   const [editingProxy, setEditingProxy] = useState<AIProxy | null>(null);
+  const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; message: string; onConfirm: () => void }>({ open: false, title: "", message: "", onConfirm: () => {} });
+
+  function openConfirm(title: string, message: string, onConfirm: () => void) {
+    setConfirmState({ open: true, title, message, onConfirm });
+  }
   const [proxyForm, setProxyForm] = useState({ name: "", base_url: "", api_key: "", model: "", feature: "" });
   const [activatingProxy, setActivatingProxy] = useState<string | null>(null);
 
@@ -165,9 +171,10 @@ export default function AIEngineTab() {
   }
 
   async function deleteProxy(id: string) {
-    if (!confirm("Hapus proxy ini?")) return;
-    const res = await apiFetch(`/api/ai-proxies/${id}`, { method: "DELETE" });
-    if (res.ok) { fetchProxies(); showToast("Proxy dihapus"); }
+    openConfirm("Hapus Proxy", "Yakin mau hapus proxy ini?", async () => {
+      const res = await apiFetch(`/api/ai-proxies/${id}`, { method: "DELETE" });
+      if (res.ok) { fetchProxies(); showToast("Proxy dihapus"); }
+    });
   }
 
   async function activateProxy(id: string) {
@@ -188,21 +195,22 @@ export default function AIEngineTab() {
 
   async function selectCombo(name: string) {
     if (name === activeCombo || switching) return;
-    if (!confirm(`Ganti combo aktif ke "${comboDisplayName(name)}"?`)) return;
-    setSwitching(name);
-    try {
-      const res = await apiFetch("/api/ai/active-combo", {
-        method: "POST",
-        body: JSON.stringify({ combo: name }),
-      });
-      if (res.ok) {
-        setActiveCombo(name);
-        showToast(`Combo diubah ke ${comboDisplayName(name)}`);
-      } else {
-        const err = await res.json().catch(() => ({}));
-        showToast(err.detail || "Gagal mengubah combo");
-      }
-    } finally { setSwitching(null); }
+    openConfirm("Ganti Combo", `Ganti combo aktif ke "${comboDisplayName(name)}"?`, async () => {
+      setSwitching(name);
+      try {
+        const res = await apiFetch("/api/ai/active-combo", {
+          method: "POST",
+          body: JSON.stringify({ combo: name }),
+        });
+        if (res.ok) {
+          setActiveCombo(name);
+          showToast(`Combo diubah ke ${comboDisplayName(name)}`);
+        } else {
+          const err = await res.json().catch(() => ({}));
+          showToast(err.detail || "Gagal mengubah combo");
+        }
+      } finally { setSwitching(null); }
+    });
   }
 
   async function saveProxyUrl() {
@@ -301,11 +309,12 @@ export default function AIEngineTab() {
         </div>
       )}
 
-      {/* Section 1: 9router Proxy Status */}
+      {/* Section 1: AI Model Endpoint */}
       <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">9router Proxy</h2>
+            <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">AI Model Endpoint</h2>
+            <p className="text-xs text-neutral-500 mt-0.5">Endpoint OpenAI-compatible — bisa router multi-model atau direct API provider</p>
           </div>
           <div className="flex items-center gap-3">
             {health.status === "connected" && (
@@ -587,6 +596,14 @@ export default function AIEngineTab() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={confirmState.open}
+        onClose={() => setConfirmState(s => ({ ...s, open: false }))}
+        onConfirm={confirmState.onConfirm}
+        title={confirmState.title}
+        message={confirmState.message}
+      />
     </div>
   );
 }

@@ -46,30 +46,18 @@ const DEFAULT_MODELS = [
   { id: "deepseek-chat", name: "DeepSeek Chat", description: "Model cepat dan murah" },
 ];
 
-function getToken(): string {
-  if (typeof document === "undefined") return "";
-  const match = document.cookie.match(/(?:^|;\s*)kt_token=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : "";
-}
-
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = getToken();
-  if (!token) throw new Error("No token");
-
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
       ...options?.headers,
     },
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Request failed" }));
-    // Check for authentication errors
-    if (res.status === 401 || err.detail?.includes("Token") || err.detail?.includes("token")) {
-      // Clear invalid cookie and redirect to login
-      document.cookie = "kt_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+    if (res.status === 401) {
       window.location.href = "/login";
       throw new Error("Session expired");
     }
@@ -170,8 +158,7 @@ export default function ChatPage() {
   };
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
+    if (!localStorage.getItem("kt_email")) {
       router.push("/login");
       return;
     }
