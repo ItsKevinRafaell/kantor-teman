@@ -46,7 +46,7 @@ def decrypt_password(encrypted: str) -> str:
 app = FastAPI(title="Kantor Teman API")
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://kantorteman.my.id")
-_DEFAULT_CORS = "https://kantorteman.my.id,https://www.kantorteman.my.id,https://office.kantorteman.my.id,http://localhost:3000,http://localhost:3001,http://localhost:3002"
+_DEFAULT_CORS = "https://kantorteman.my.id,https://www.kantorteman.my.id,https://office.kantorteman.my.id,https://office-kantor-teman.vercel.app,http://localhost:3000,http://localhost:3001,http://localhost:3002"
 CORS_ORIGIN = os.getenv("CORS_ORIGIN", _DEFAULT_CORS)
 _cors_list = [o.strip() for o in CORS_ORIGIN.split(",") if o.strip()]
 
@@ -72,22 +72,37 @@ async def security_headers(request: Request, call_next):
 from fastapi.responses import JSONResponse as _JSONResponse
 
 
+@app.middleware("http")
+async def cors_error_safety(request: Request, call_next):
+    """Catch ALL exceptions and ensure CORS headers are present so frontend gets the real error."""
+    try:
+        return await call_next(request)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        origin = request.headers.get("origin", "")
+        headers = {}
+        if origin in _cors_list:
+            headers["Access-Control-Allow-Origin"] = origin
+            headers["Access-Control-Allow-Credentials"] = "true"
+            headers["Vary"] = "Origin"
+        detail = f"{type(e).__name__}: {str(e) or 'unknown error'}"
+        return _JSONResponse(status_code=500, content={"detail": detail}, headers=headers)
+
+
 @app.exception_handler(Exception)
 async def _global_exception_handler(request: Request, exc: Exception):
-    """Ensure CORS headers are present on 500 errors so frontend gets the actual error message."""
+    """Backup handler for any exception that escapes middleware."""
     origin = request.headers.get("origin", "")
     headers = {}
     if origin in _cors_list:
         headers["Access-Control-Allow-Origin"] = origin
         headers["Access-Control-Allow-Credentials"] = "true"
+        headers["Vary"] = "Origin"
     import traceback
     traceback.print_exc()
-    detail = str(exc) or exc.__class__.__name__
-    return _JSONResponse(
-        status_code=500,
-        content={"detail": detail},
-        headers=headers,
-    )
+    detail = f"{type(exc).__name__}: {str(exc) or 'unknown error'}"
+    return _JSONResponse(status_code=500, content={"detail": detail}, headers=headers)
 
 UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
@@ -380,6 +395,17 @@ class Subscription(Base):
     next_billing_date = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True)
     wallet = relationship("Wallet", back_populates="subscriptions")
+
+
+class PaymentMethod(Base):
+    __tablename__ = "payment_methods"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)  # e.g. "Bank BCA", "GoPay"
+    account_number = Column(String(255), nullable=True)  # rekening / nomor
+    account_name = Column(String(255), nullable=True)  # atas nama
+    notes = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    position = Column(Integer, default=0)
 
 
 # ---------------------------------------------------------------------------
@@ -1664,6 +1690,26 @@ class SubscriptionOut(BaseModel):
     next_billing_date: str
     is_active: bool
     wallet_name: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+
+class PaymentMethodIn(BaseModel):
+    name: str = Field(..., max_length=255)
+    account_number: Optional[str] = Field(None, max_length=255)
+    account_name: Optional[str] = Field(None, max_length=255)
+    notes: Optional[str] = None
+    is_active: bool = True
+    position: int = 0
+
+
+class PaymentMethodOut(BaseModel):
+    id: int
+    name: str
+    account_number: Optional[str] = None
+    account_name: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: bool
+    position: int
     model_config = {"from_attributes": True}
 
 
@@ -5243,6 +5289,45 @@ def get_client_unbilled(lead_id: int, current_user: User = Depends(get_current_u
     return {"lead_id": lead_id, "unbilled_total": total, "count": len(transactions)}
 
 
+# ---------------------------------------------------------------------------
+# Finance - Payment Methods
+# ---------------------------------------------------------------------------
+
+@app.get("/api/finance/payment-methods", response_model=list[PaymentMethodOut])
+def list_payment_methods(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(PaymentMethod).order_by(PaymentMethod.position, PaymentMethod.id).all()
+
+
+@app.post("/api/finance/payment-methods", response_model=PaymentMethodOut, status_code=201)
+def create_payment_method(body: PaymentMethodIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    pm = PaymentMethod(**body.model_dump())
+    db.add(pm)
+    db.commit()
+    db.refresh(pm)
+    return pm
+
+
+@app.put("/api/finance/payment-methods/{pm_id}", response_model=PaymentMethodOut)
+def update_payment_method(pm_id: int, body: PaymentMethodIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    pm = db.query(PaymentMethod).filter(PaymentMethod.id == pm_id).first()
+    if not pm:
+        raise HTTPException(status_code=404, detail="Metode pembayaran tidak ditemukan")
+    for k, v in body.model_dump().items():
+        setattr(pm, k, v)
+    db.commit()
+    db.refresh(pm)
+    return pm
+
+
+@app.delete("/api/finance/payment-methods/{pm_id}", status_code=204)
+def delete_payment_method(pm_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    pm = db.query(PaymentMethod).filter(PaymentMethod.id == pm_id).first()
+    if not pm:
+        raise HTTPException(status_code=404, detail="Metode pembayaran tidak ditemukan")
+    db.delete(pm)
+    db.commit()
+
+
 @app.get("/api/clients/detail/{client_id}")
 def get_client_detail(client_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     contact = db.query(Contact).filter(Contact.id == client_id).first()
@@ -7274,9 +7359,10 @@ def set_invoice_sequence(body: InvoiceSequenceIn, current_user: User = Depends(r
 
 def _build_brand_context(db: Session) -> dict:
     kit = db.query(BrandKit).filter(BrandKit.is_active == True).first() or db.query(BrandKit).first()
-    ctx = {"logo": "", "colors": {}, "fonts": {}, "tagline": ""}
+    ctx = {"logo": "", "colors": {}, "fonts": {}, "tagline": "", "brand_name": "", "alamat_perusahaan": "", "phone_perusahaan": "", "email_perusahaan": ""}
     if not kit:
         return ctx
+    ctx["brand_name"] = kit.name or ""
     assets = db.query(BrandAsset).filter(BrandAsset.kit_id == kit.id).all()
     for a in assets:
         if a.asset_type == "logo_primary" and a.file_url:
@@ -7288,6 +7374,12 @@ def _build_brand_context(db: Session) -> dict:
             ctx["fonts"][a.name.lower().replace(" ", "_")] = a.value or ""
         elif a.asset_type == "tagline" and a.value:
             ctx["tagline"] = a.value
+        elif a.asset_type == "company_address" and a.value:
+            ctx["alamat_perusahaan"] = a.value
+        elif a.asset_type == "company_phone" and a.value:
+            ctx["phone_perusahaan"] = a.value
+        elif a.asset_type == "company_email" and a.value:
+            ctx["email_perusahaan"] = a.value
     return ctx
 
 
@@ -7301,18 +7393,20 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
         "tagline": brand.get("tagline", ""),
     }
 
-    settings_map = {
-        "nama_perusahaan": "company_name",
-        "alamat_perusahaan": "company_address",
-        "phone_perusahaan": "company_phone",
-        "email_perusahaan": "company_email",
+    # Company info: prefer Brand Kit, fall back to settings for backward compat
+    company_map = {
+        "nama_perusahaan": ("brand_name", "company_name"),
+        "alamat_perusahaan": ("alamat_perusahaan", "company_address"),
+        "phone_perusahaan": ("phone_perusahaan", "company_phone"),
+        "email_perusahaan": ("email_perusahaan", "company_email"),
     }
-    for var_key, setting_key in settings_map.items():
-        val = _get_setting(setting_key, "")
+    for var_key, (brand_key, setting_key) in company_map.items():
+        val = brand.get(brand_key) or _get_setting(setting_key, "")
         if val:
             defaults[var_key] = val
 
     lead = None
+    contact = None
     if target_id and target_id.isdigit():
         if target_type == "contact":
             contact = db.query(Contact).filter(Contact.id == int(target_id)).first()
@@ -7331,6 +7425,13 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
                 defaults["phone"] = lead.phone_number or ""
                 defaults["layanan"] = lead.product_interest or ""
 
+    # Resolve the service/product name for either target kind
+    service_name = ""
+    if lead:
+        service_name = lead.product_interest or ""
+    elif contact:
+        service_name = contact.purchased_product or ""
+
     if template_type == "invoice":
         yyyymm = today.strftime("%Y%m")
         seq_preview = (db.query(DocumentSequence).filter(
@@ -7344,18 +7445,45 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
         defaults["no_invoice"] = defaults["nomor_invoice"]
         defaults["due_date"] = (today + timedelta(days=14)).strftime("%d %B %Y")
         defaults["terms"] = "Pembayaran dalam 14 hari setelah invoice diterima."
+        pms = db.query(PaymentMethod).filter(PaymentMethod.is_active == True).order_by(PaymentMethod.position).all()
+        if pms:
+            pm_lines = []
+            for pm in pms:
+                line = pm.name
+                if pm.account_number:
+                    line += f" — {pm.account_number}"
+                if pm.account_name:
+                    line += f" (a.n. {pm.account_name})"
+                pm_lines.append(line)
+            defaults["payment_info"] = "\n".join(pm_lines)
 
     elif template_type == "proposal_pdf":
         defaults["valid_until"] = (today + timedelta(days=14)).strftime("%d %B %Y")
         defaults["validity"] = defaults["valid_until"]
+        defaults.setdefault("scope", "")
 
     elif template_type == "kontrak":
         defaults["tanggal_mulai"] = today.strftime("%d %B %Y")
+        defaults["scope"] = ""
+        defaults["terms"] = (
+            "1. Pembayaran sesuai kesepakatan kedua belah pihak.\n"
+            "2. Perubahan lingkup pekerjaan harus disepakati tertulis.\n"
+            "3. Kerahasiaan data klien dijaga selama dan setelah kontrak."
+        )
+        durasi_months = 1
         if target_id and target_type == "project":
             project = db.query(Project).filter(Project.id == target_id).first()
             if project:
-                defaults["durasi"] = f"{project.contract_months or 1} bulan"
+                durasi_months = project.contract_months or 1
                 defaults["nilai_kontrak"] = f"Rp {project.nominal:,.0f}" if project.nominal else ""
+        defaults["durasi"] = f"{durasi_months} bulan"
+        defaults.setdefault("nilai_kontrak", "")
+        # tanggal_akhir = tanggal_mulai + durasi months
+        end_month = (today.month - 1 + durasi_months) % 12 + 1
+        end_year = today.year + (today.month - 1 + durasi_months) // 12
+        from calendar import monthrange
+        end_day = min(today.day, monthrange(end_year, end_month)[1])
+        defaults["tanggal_akhir"] = today.replace(year=end_year, month=end_month, day=end_day).strftime("%d %B %Y")
 
     elif template_type == "surat_penawaran":
         yyyymm = today.strftime("%Y%m")
@@ -7367,7 +7495,8 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
             DocumentSequence.template_type == "surat_penawaran",
         ).first() else 0) + 1
         defaults["nomor"] = f"SP/{yyyymm}/{seq_preview:03d}"
-        defaults["perihal"] = f"Penawaran Jasa {lead.product_interest if lead else ''}".strip()
+        defaults["perihal"] = f"Penawaran Jasa {service_name}".strip()
+        defaults["terms"] = "Penawaran ini berlaku 14 hari sejak tanggal surat. Harga belum termasuk pajak kecuali disebutkan lain."
 
     return defaults
 
@@ -7476,12 +7605,42 @@ def get_template_defaults(
     return {"defaults": defaults, "template_type": template.type}
 
 
+_PDF_FONT_CSS = """
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap');
+* { font-family: 'Noto Sans', Arial, Helvetica, sans-serif !important; }
+"""
+
+def _inject_pdf_font(html: str) -> str:
+    font_tag = f"<style>{_PDF_FONT_CSS}</style>"
+    if "<head>" in html:
+        return html.replace("<head>", f"<head>{font_tag}", 1)
+    if "<html>" in html:
+        return html.replace("<html>", f"<html><head>{font_tag}</head>", 1)
+    return f"<html><head>{font_tag}</head><body>{html}</body></html>"
+
+
+def _build_pdf_display_name(db, template_type: str, target_type, target_id, full_vars: dict) -> str:
+    # Try to build: TYPE_ClientName_InvoiceNo or TYPE_ClientName_seq_YYYYMM
+    client_name = full_vars.get("klien") or full_vars.get("nama") or ""
+    invoice_no = full_vars.get("nomor_invoice") or full_vars.get("no_invoice") or full_vars.get("nomor") or ""
+
+    prefix = _DOC_TYPE_PREFIX.get(template_type, "DOC")
+    client_slug = _slugify_name(client_name) if client_name else "Dokumen"
+
+    if invoice_no:
+        # Clean invoice number for filename: INV/202605/005 → INV-202605-005
+        inv_slug = invoice_no.replace("/", "-").replace(" ", "-")
+        return f"{prefix}_{client_slug}_{inv_slug}"
+
+    # Fallback to seq-based name
+    return _generate_document_filename(db, template_type, target_type, target_id)
+
+
 @app.post("/api/documents/generate")
 def generate_document(body: DocumentGenerateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     template = db.query(DocumentTemplate).filter(DocumentTemplate.id == body.template_id).first()
     if not template:
         raise HTTPException(status_code=404, detail="Template tidak ditemukan")
-
     brand_ctx = _build_brand_context(db)
     full_vars = {**brand_ctx, **body.variables}
     if "logo" not in body.variables:
@@ -7505,7 +7664,11 @@ def generate_document(body: DocumentGenerateIn, current_user: User = Depends(get
     pdf_filename = f"{file_id}.pdf"
     pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
 
-    display_name = _generate_document_filename(db, template.type or "custom", body.target_type, body.target_id)
+    # Ensure a usable font exists even on servers with no system fonts (prevents garbage/box glyphs)
+    rendered_html = _inject_pdf_font(rendered_html)
+
+    # Filename: prefer invoice number + client name when available
+    display_name = _build_pdf_display_name(db, template.type or "custom", body.target_type, body.target_id, full_vars)
 
     base_url = _get_setting("app_base_url", "") or os.getenv("APP_BASE_URL", "https://api.kantorteman.my.id")
     tracking_pixel = f'<img src="{base_url.rstrip("/")}/api/pixel/{file_id}" width="1" height="1" style="position:absolute;opacity:0;" alt="" />'
@@ -8950,8 +9113,10 @@ def get_workspace_report_data(project_id: str, month: int = 1, current_user: Use
 # ---------------------------------------------------------------------------
 
 _REPORT_BASE_CSS = """
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap');
 @page { size: A4; margin: 1.5cm; }
-body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2937; line-height: 1.5; }
+body { font-family: 'Noto Sans', Arial, Helvetica, sans-serif; color: #1f2937; line-height: 1.5; }
+* { font-family: 'Noto Sans', Arial, Helvetica, sans-serif; }
 .header { border-bottom: 3px solid #f59e0b; padding-bottom: 12px; margin-bottom: 20px; }
 .header .brand { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 1.5px; }
 .header h1 { margin: 4px 0 2px; font-size: 22px; color: #111827; }
@@ -8994,7 +9159,7 @@ def _render_monthly_report_html(data: dict, brand: dict) -> str:
     service_type = project.get("service_type") or "general"
     month = data["month_number"]
 
-    brand_name = brand.get("brand_name") or "Kantor Teman"
+    brand_name = brand.get("brand_name") or "Teman UMKM Kita"
 
     service_label_map = {
         "seo_gmaps": "Laporan Bulanan SEO & Google Maps",
