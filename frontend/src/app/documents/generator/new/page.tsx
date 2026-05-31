@@ -11,7 +11,7 @@ interface DocTemplate { id: string; name: string; type: string; variables: strin
 interface Lead { id: number; business_name: string; phone_number: string; address: string | null; product_interest: string | null; }
 interface Contact { id: number; business_name: string; owner_name: string | null; phone_number: string; purchased_product: string | null; }
 interface Product { id: string; name: string; description: string | null; base_price: number; features: string[]; }
-interface GeneratedDoc { id: string; file_url: string; template_name: string; }
+interface GeneratedDoc { id: string; file_url: string; template_name: string; display_filename?: string; }
 
 interface LineItem {
   id: string;
@@ -311,7 +311,7 @@ export default function DocumentNewPage() {
         throw new Error(err.detail || "Generate gagal");
       }
       const data = await res.json();
-      setGeneratedDoc({ id: data.document_id, file_url: data.file_url, template_name: data.template_name });
+      setGeneratedDoc({ id: data.document_id, file_url: data.file_url, template_name: data.template_name, display_filename: data.display_filename });
       setStep(4);
     } catch (e: unknown) {
       setToast({ message: e instanceof Error ? e.message : "Generate gagal", type: "error" });
@@ -777,7 +777,7 @@ export default function DocumentNewPage() {
           <h2 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">PDF Berhasil Dibuat!</h2>
           <p className="text-sm text-gray-500">{generatedDoc.template_name}</p>
           <div className="flex gap-3 justify-center pt-2">
-            <a href={`${API_BASE}${generatedDoc.file_url}`} download target="_blank" rel="noopener noreferrer"
+            <a href={`${API_BASE}/api/documents/${generatedDoc.id}/download`} target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl">
               <Download size={16} /> Download PDF
             </a>
