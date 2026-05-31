@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from "react";
 import { apiFetch } from "../../lib/api";
+import { Star, X } from "lucide-react";
 
 interface LeadMap {
   id: number;
@@ -46,8 +47,14 @@ function getStatusLabel(status: string): string {
 
 function StarRating({ rating }: { rating: number | null }) {
   if (rating === null) return <span className="text-gray-400">-</span>;
-  const stars = "★".repeat(Math.round(rating)) + "☆".repeat(5 - Math.round(rating));
-  return <span className="text-yellow-500">{stars}</span>;
+  const filled = Math.round(rating);
+  return (
+    <span className="inline-flex items-center gap-0.5 text-yellow-500">
+      {[1,2,3,4,5].map(i => (
+        <Star key={i} size={11} fill={i <= filled ? "currentColor" : "none"} className={i <= filled ? "" : "text-gray-300"} />
+      ))}
+    </span>
+  );
 }
 
 interface Props {
@@ -227,7 +234,7 @@ export default function LeadsMap({ height = "calc(100vh - 220px)", onShowDetail 
                   onClick={() => setSelectedLead(null)}
                   className="text-gray-400 hover:text-gray-600"
                 >
-                  ✕
+                  <X size={14} />
                 </button>
               </div>
               <div className="space-y-1 text-sm">

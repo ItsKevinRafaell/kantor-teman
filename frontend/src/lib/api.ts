@@ -36,7 +36,14 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string> ?? {}),
   };
-  return fetch(`${API_BASE}${path}`, { ...options, headers, credentials: "include" });
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: "include" });
+  if (res.status === 401 && typeof window !== "undefined" && !path.includes("/auth/")) {
+    localStorage.removeItem("kt_name");
+    localStorage.removeItem("kt_email");
+    localStorage.removeItem("kt_role");
+    window.location.href = "/login";
+  }
+  return res;
 }
 
 export async function apiFetchJson<T>(path: string, options: RequestInit = {}): Promise<T> {

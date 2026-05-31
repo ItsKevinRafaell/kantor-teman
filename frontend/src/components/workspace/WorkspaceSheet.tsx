@@ -376,7 +376,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
       {milestoneModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-neutral-900 rounded-2xl p-6 w-full max-w-md shadow-xl">
-            <h3 className="text-base font-bold text-neutral-800 dark:text-neutral-100 mb-2">💰 Milestone Invoice</h3>
+            <h3 className="text-base font-bold text-neutral-800 dark:text-neutral-100 mb-2">Milestone Invoice</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Task <span className="font-semibold">&quot;{milestoneModal.task_name}&quot;</span> selesai.
               Generate invoice otomatis?

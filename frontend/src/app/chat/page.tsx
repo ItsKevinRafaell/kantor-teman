@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { Pencil } from "lucide-react";
 
 interface ChatProject {
   id: string;
@@ -604,7 +605,7 @@ export default function ChatPage() {
                         className="opacity-0 group-hover:opacity-100 px-1 text-neutral-400 hover:text-neutral-600"
                         title="Rename"
                       >
-                        ✎
+                        <Pencil size={12} />
                       </button>
                       <button
                         onClick={() => setShowDeleteConversationModal(c.id)}

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../lib/api";
 import StarRating from "./StarRating";
 import { getScoreLabel, getScoreColor } from "../lib/leadScore";
-import { Search, Download, Plus, Pencil, Trash2 } from "lucide-react";
+import { Search, Download, Plus, Pencil, Trash2, Target, Phone, Moon, Flame, Mail, Star, RefreshCw } from "lucide-react";
 
 import Modal from "./Modal";
 import Toast from "./Toast";
@@ -17,8 +17,8 @@ const STATUS_COLORS: Record<Status, string> = {
   Scraped: "bg-gray-100 text-gray-700",
   Contacted: "bg-blue-100 text-blue-700",
   Replied: "bg-yellow-100 text-yellow-700",
-  "Closed/Lost": "bg-green-100 text-green-700",
-  "Closed/Client": "bg-amber-100 text-amber-700",
+  "Closed/Lost": "bg-red-100 text-red-700",
+  "Closed/Client": "bg-green-100 text-green-700",
 };
 
 interface Lead {
@@ -733,7 +733,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Score:</span>
-          {([["", "Semua"], ["hot", "🎯 Siap Closing"], ["warm", "📞 Perlu Pendekatan"], ["cold", "💤 Belum Match"]] as const).map(([val, label]) => (
+          {([["", "Semua"], ["hot", "Siap Closing"], ["warm", "Perlu Pendekatan"], ["cold", "Belum Match"]] as const).map(([val, label]) => (
             <button key={val} onClick={() => setFilterScore(val as typeof filterScore)}
               className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${filterScore === val ? "bg-amber-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"}`}>
               {label}
@@ -748,7 +748,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
 
         <button onClick={() => { fetchLeads(); fetchBatches(); }}
           className="sm:ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-[var(--bg-surface)] border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-          ↻ Refresh
+          <RefreshCw size={12} className="inline -mt-0.5 mr-1" />Refresh
         </button>
 
         <label className="flex items-center gap-2 cursor-pointer">
@@ -830,7 +830,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
                   <td className="px-4 py-3 text-xs">
                     {lead.google_rating ? (
                       <div className="flex items-center gap-1">
-                        <span className="text-yellow-500">★</span>
+                        <Star size={12} fill="currentColor" className="text-yellow-500" />
                         <span className="font-medium">{lead.google_rating.toFixed(1)}</span>
                         {lead.review_count && <span className="text-gray-400">({lead.review_count})</span>}
                       </div>
@@ -852,10 +852,10 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
                             <div className={`h-full ${color} transition-all`} style={{ width: `${score}%` }}></div>
                           </div>
                           {lead.action_recommendation === "personal_wa" && (
-                            <div className="mt-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">🔥 Personal WA</div>
+                            <div className="mt-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"><Flame size={10} className="inline" /> Personal WA</div>
                           )}
                           {lead.action_recommendation === "blast_ready" && (
-                            <div className="mt-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">📨 Siap Blast</div>
+                            <div className="mt-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"><Mail size={10} className="inline" /> Siap Blast</div>
                           )}
                           {breakdown.length > 0 && (
                             <div className="absolute left-0 top-full mt-1 z-20 hidden group-hover:block bg-gray-900 text-white text-[10px] rounded-lg px-3 py-2 shadow-xl whitespace-nowrap min-w-[180px]">

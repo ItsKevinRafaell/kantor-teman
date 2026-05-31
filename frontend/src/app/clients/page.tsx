@@ -776,7 +776,7 @@ export default function ClientsPage() {
         </select>
         <button onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")}
           className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-semibold bg-neutral-50 dark:bg-neutral-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-          {sortDir === "asc" ? "↑ A-Z" : "↓ Z-A"}
+          {sortDir === "asc" ? "A-Z" : "Z-A"}
         </button>
       </div>
 

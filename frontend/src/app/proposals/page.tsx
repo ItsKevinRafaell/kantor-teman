@@ -161,8 +161,8 @@ export default function ProposalsPage() {
                     <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">{p.services_detail.map((s) => s.name).join(", ")}</td>
                     <td className="px-4 py-3 text-xs font-semibold text-brand-yellow">{formatRupiah(p.total_price)}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${p.status === "Accepted" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : p.status === "Rejected" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"}`}>
-                        {p.status}
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${p.status === "accepted" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : p.status === "rejected" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"}`}>
+                        {p.status ? p.status.charAt(0).toUpperCase() + p.status.slice(1) : "—"}
                       </span>
                     </td>
                     <td className="px-4 py-3">

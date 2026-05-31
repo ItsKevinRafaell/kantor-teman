@@ -705,7 +705,7 @@ export default function ProposalPage() {
               {clientCount > 0 && (
                 <div className="text-center py-2">
                   <p className="text-sm text-zinc-600 dark:text-zinc-400 font-medium">
-                    <span className="mr-1">🤝</span>{clientCount} klien sudah menggunakan layanan ini
+                    {clientCount} klien sudah menggunakan layanan ini
                   </p>
                 </div>
               )}

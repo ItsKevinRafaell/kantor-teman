@@ -96,7 +96,7 @@ export default function BlastAnalyticsPage() {
           {data.top_performer && data.total.sent > 0 && (
             <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-4">
               <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-                🏆 Top performer: <span className="font-black">{data.top_performer.template_name}</span> — {data.top_performer.reply_rate}% reply rate
+                Top performer: <span className="font-black">{data.top_performer.template_name}</span> — {data.top_performer.reply_rate}% reply rate
               </p>
             </div>
           )}
@@ -163,7 +163,7 @@ export default function BlastAnalyticsPage() {
                   {sorted.map((row, i) => (
                     <tr key={row.template_id} className="hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors">
                       <td className="px-4 py-3 font-medium text-neutral-800 dark:text-neutral-200 max-w-[200px] truncate">
-                        {i === 0 && <span className="mr-1">🏆</span>}{row.template_name}
+                        {i === 0 && <span className="mr-1 text-amber-500 font-bold">#1</span>}{row.template_name}
                       </td>
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{row.sent}</td>
                       <td className="px-4 py-3 text-blue-600">{row.delivered}</td>

@@ -22,7 +22,7 @@ interface ContentGeneration {
   error_msg?: string; created_at: string;
 }
 
-type Tool = "seo_article" | "image";
+type Tool = "seo_article" | "image" | "caption";
 type ToastState = { msg: string; type: "success" | "error" | "info" } | null;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -30,11 +30,13 @@ type ToastState = { msg: string; type: "success" | "error" | "info" } | null;
 const TOOL_LABELS: Record<Tool, string> = {
   seo_article: "SEO Article",
   image: "Image Generator",
+  caption: "Caption Sosmed",
 };
 
 const TOOL_COLORS: Record<Tool, string> = {
   seo_article: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
   image: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
+  caption: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
 };
 
 function formatDate(d: string) {
@@ -436,7 +438,7 @@ export default function ContentGeneratorPage() {
       <aside className="w-full md:w-52 shrink-0 flex flex-col gap-3 overflow-x-auto md:overflow-y-auto">
         <div>
           <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">Tools</p>
-          {(["seo_article", "image"] as Tool[]).map(t => (
+          {(["seo_article", "image", "caption"] as Tool[]).map(t => (
             <button key={t} onClick={() => setActiveTool(t)}
               className={`w-full text-left px-3 py-2 rounded-xl text-sm font-medium mb-1 transition-all
                 ${activeTool === t ? "bg-amber-500 text-white shadow-sm" : "text-neutral-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-neutral-800 dark:hover:text-neutral-200"}`}>
@@ -517,7 +519,7 @@ export default function ContentGeneratorPage() {
         <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
           <button onClick={() => setCmsConfigOpen(o => !o)}
             className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-            <span className="text-xs font-bold text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">⚙️ Konfigurasi CMS Target</span>
+            <span className="text-xs font-bold text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">Konfigurasi CMS Target</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
               className={`text-neutral-400 transition-transform ${cmsConfigOpen ? "rotate-180" : ""}`}>
               <polyline points="6 9 12 15 18 9" />
@@ -553,6 +555,10 @@ export default function ContentGeneratorPage() {
         {activeTool === "image" && (
           <ImagePanel sessionId={selectedSession?.id || null} sharedContext={sharedContext}
             providers={imageProviders} showToast={showToast} onResult={onResult} />
+        )}
+        {activeTool === "caption" && (
+          <CaptionPanel sessionId={selectedSession?.id || null} sharedContext={sharedContext}
+            showToast={showToast} onResult={onResult} />
         )}
 
         {/* Viewed history result */}
@@ -987,7 +993,7 @@ function SeoArticlePanel({ sessionId, sharedContext, showToast, onResult }: {
 
       <button onClick={generate} disabled={loading || !keyword.trim()}
         className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2">
-        {loading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Sedang menulis artikel...</> : "✨ Generate Artikel"}
+        {loading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Sedang menulis artikel...</> : "Generate Artikel"}
       </button>
 
       {result && (
@@ -1113,7 +1119,7 @@ function ImagePanel({ sessionId, sharedContext, providers, showToast, onResult }
           </div>
           <button onClick={generate} disabled={loading || !prompt.trim() || !providerId}
             className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2">
-            {loading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Generating...</> : "✨ Generate Image"}
+            {loading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Generating...</> : "Generate Image"}
           </button>
           {images.length > 0 && (
             <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-gray-700">
@@ -1143,6 +1149,120 @@ function ImagePanel({ sessionId, sharedContext, providers, showToast, onResult }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Caption Panel
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function CaptionPanel({ sessionId, sharedContext, showToast, onResult }: {
+  sessionId: string | null; sharedContext: string[];
+  showToast: (m: string, t?: "success"|"error"|"info") => void;
+  onResult: (g: ContentGeneration) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [topic, setTopic] = useState("");
+  const [platform, setPlatform] = useState("instagram");
+  const [tone, setTone] = useState("casual");
+  const [keywords, setKeywords] = useState("");
+  const [result, setResult] = useState<{ caption: string; hashtags: string[]; notes: string } | null>(null);
+
+  async function generate() {
+    if (!topic.trim()) return;
+    setLoading(true); setResult(null);
+    try {
+      const res = await apiFetch("/api/content/generate/caption", {
+        method: "POST",
+        body: JSON.stringify({
+          topic,
+          platform,
+          tone,
+          keywords: keywords ? keywords.split(",").map(k => k.trim()).filter(Boolean) : [],
+          session_id: sessionId,
+          context_from: sharedContext,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setResult({ caption: data.caption || "", hashtags: data.hashtags || [], notes: data.notes || "" });
+        onResult({ id: data.id, session_id: sessionId || undefined, tool_type: "caption",
+          input_data: { topic, platform, tone }, output_data: data, status: "done", created_at: data.created_at });
+        showToast("Caption berhasil dibuat!");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || "Gagal generate caption", "error");
+      }
+    } catch { showToast("Gagal generate caption", "error"); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-200 dark:border-gray-700 p-5 space-y-4">
+      <h2 className="text-base font-semibold text-neutral-800 dark:text-neutral-200">Caption Sosial Media</h2>
+      <div>
+        <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Topik / Deskripsi *</label>
+        <textarea value={topic} onChange={e => setTopic(e.target.value)} rows={3}
+          placeholder="Contoh: Promo diskon 50% untuk jasa pembuatan website UMKM..."
+          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm resize-none focus:ring-2 focus:ring-yellow-400 outline-none" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Platform</label>
+          <select value={platform} onChange={e => setPlatform(e.target.value)}
+            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none">
+            <option value="instagram">Instagram</option>
+            <option value="tiktok">TikTok</option>
+            <option value="facebook">Facebook</option>
+            <option value="linkedin">LinkedIn</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Tone</label>
+          <select value={tone} onChange={e => setTone(e.target.value)}
+            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none">
+            <option value="casual">Casual</option>
+            <option value="profesional">Profesional</option>
+            <option value="fun">Fun / Playful</option>
+            <option value="edukatif">Edukatif</option>
+            <option value="persuasif">Persuasif</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Keywords (pisahkan koma)</label>
+        <input type="text" value={keywords} onChange={e => setKeywords(e.target.value)}
+          placeholder="website, UMKM, diskon"
+          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
+      </div>
+      <button onClick={generate} disabled={loading || !topic.trim()}
+        className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+        {loading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Generating...</> : "Generate Caption"}
+      </button>
+      {result && (
+        <div className="space-y-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4">
+            <p className="text-sm text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap">{result.caption}</p>
+          </div>
+          {result.hashtags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {result.hashtags.map((tag, i) => (
+                <span key={i} className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded-full">{tag}</span>
+              ))}
+            </div>
+          )}
+          {result.notes && (
+            <p className="text-xs text-neutral-400 italic">{result.notes}</p>
+          )}
+          <div className="flex gap-2">
+            <button onClick={() => copyToClipboard(`${result.caption}\n\n${result.hashtags.join(" ")}`)}
+              className="flex-1 py-2 text-xs rounded-lg bg-gray-100 dark:bg-gray-800 text-neutral-600 hover:bg-gray-200 dark:hover:bg-gray-700">Copy Caption + Hashtags</button>
+            <button onClick={() => copyToClipboard(result.caption)}
+              className="flex-1 py-2 text-xs rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 hover:bg-blue-100">Copy Caption Only</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // History Panel
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1153,6 +1273,9 @@ function getGenerationPreview(g: ContentGeneration): string {
   if (g.tool_type === "image") {
     const inp = g.input_data as Record<string, unknown>;
     return String(inp.prompt || "").slice(0, 100) || "gambar";
+  }
+  if (g.tool_type === "caption") {
+    return String(out.caption || "").slice(0, 100) || "caption";
   }
   return "—";
 }

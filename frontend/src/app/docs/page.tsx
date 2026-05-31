@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Book, Users, FileText, Briefcase, Wallet, Megaphone, FolderOpen, Settings, Sparkles, ChevronRight, GitBranch, Send, ClipboardList, CheckCircle2, LayoutGrid, Package, RefreshCw, Zap } from "lucide-react";
+import { Search, Book, Users, FileText, Briefcase, Wallet, Megaphone, FolderOpen, Settings, Sparkles, ChevronRight, GitBranch, Send, ClipboardList, CheckCircle2, LayoutGrid, Package, RefreshCw, Zap, Check } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 
@@ -1083,7 +1083,7 @@ export default function DocsPage() {
             <ul className="grid sm:grid-cols-2 gap-2">
               {active.content.fitur.map((f, i) => (
                 <li key={i} className="flex gap-2 text-sm text-neutral-700 dark:text-neutral-300">
-                  <span className="text-emerald-500 mt-0.5">✓</span>
+                  <Check size={14} className="text-emerald-500 mt-0.5 shrink-0" />
                   <span>{f}</span>
                 </li>
               ))}

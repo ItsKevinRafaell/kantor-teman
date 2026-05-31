@@ -497,7 +497,7 @@ export default function PublicReportPage() {
           <div className="bg-zinc-100 dark:bg-zinc-800 border-2 border-zinc-200 dark:border-zinc-700 rounded-2xl p-5 space-y-4 transition-all duration-300 ease-in-out">
             <div className="flex items-center justify-between">
               <p className="text-[10px] uppercase tracking-widest text-zinc-600 dark:text-zinc-400 font-bold">Kondisi Saat Ini</p>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-200 border-2 border-zinc-300 text-[10px] font-bold text-zinc-600">🔴 Masalah Kritis</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-200 border-2 border-zinc-300 text-[10px] font-bold text-zinc-600">Masalah Kritis</span>
             </div>
             <h3 className="text-sm font-bold text-zinc-800">{report.nama_usaha}</h3>
             <div className="space-y-3">
@@ -544,13 +544,13 @@ export default function PublicReportPage() {
             <div className="rounded-xl border-2 border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3.5 space-y-1.5">
               <div className="flex items-center gap-1.5">
                 <div className="w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center">
-                  <span className="text-white text-[7px] font-bold">✓</span>
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                 </div>
                 <span className="text-[10px] text-zinc-600">kantorteman.com › {report.slug}</span>
               </div>
               <p className="text-sm font-bold text-blue-700">{report.nama_usaha} — Solusi Terpercaya di {city}</p>
               <div className="flex items-center gap-1">
-                <span className="text-amber-500 text-xs">★★★★★</span>
+                <span className="text-amber-500 text-xs flex items-center gap-0.5"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></span>
                 <span className="text-[10px] text-zinc-600">5.0 · Terverifikasi</span>
               </div>
               <p className="text-[11px] text-zinc-600">Layanan profesional {report.category || "bisnis"} terbaik di {city}.</p>
@@ -558,19 +558,19 @@ export default function PublicReportPage() {
 
             <div className="space-y-2.5">
               <div className="flex items-center gap-2">
-                <span className="text-amber-600 text-sm font-bold">✓</span>
+                <span className="text-amber-600 text-sm font-bold"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="inline"><polyline points="20 6 9 17 4 12"/></svg></span>
                 <p className="text-sm text-zinc-900">Kecepatan Web: <span className="text-amber-600 font-bold">98/100</span></p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-amber-600 text-sm font-bold">✓</span>
+                <span className="text-amber-600 text-sm font-bold"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="inline"><polyline points="20 6 9 17 4 12"/></svg></span>
                 <p className="text-sm text-zinc-900">Google Maps: <span className="text-amber-600 font-bold">Peringkat 1 di {city}</span></p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-amber-600 text-sm font-bold">✓</span>
+                <span className="text-amber-600 text-sm font-bold"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="inline"><polyline points="20 6 9 17 4 12"/></svg></span>
                 <p className="text-sm text-zinc-900">SEO Lokal: <span className="text-amber-600 font-bold">Fully Optimized</span></p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-amber-600 text-sm font-bold">✓</span>
+                <span className="text-amber-600 text-sm font-bold"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="inline"><polyline points="20 6 9 17 4 12"/></svg></span>
                 <p className="text-sm text-zinc-900">Konversi: <span className="text-amber-600 font-bold">8-12%</span></p>
               </div>
             </div>
@@ -634,7 +634,7 @@ export default function PublicReportPage() {
                 onChange={(e) => setSliderValue(Number(e.target.value))}
                 className="w-full h-3 -mt-3 relative z-10 appearance-none bg-transparent cursor-pointer touch-none accent-amber-500 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-7 [&::-webkit-slider-thumb]:w-7 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-amber-500 [&::-webkit-slider-thumb]:border-4 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:ring-2 [&::-webkit-slider-thumb]:ring-amber-600 [&::-moz-range-thumb]:h-7 [&::-moz-range-thumb]:w-7 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-amber-500 [&::-moz-range-thumb]:border-4 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-lg [&::-moz-range-thumb]:ring-2 [&::-moz-range-thumb]:ring-amber-600 [&::-webkit-slider-runnable-track]:bg-transparent [&::-moz-range-track]:bg-transparent"
               />
-              <p className="text-center text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-1">← Geser untuk melihat proyeksi →</p>
+              <p className="text-center text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-1">Geser untuk melihat proyeksi</p>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-amber-50 dark:bg-amber-950/30 border-2 border-amber-200 dark:border-amber-800 rounded-xl p-3 text-center">

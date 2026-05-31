@@ -111,6 +111,25 @@ export default function WorkspaceDetailPage() {
   const [newSheetLabel, setNewSheetLabel] = useState("");
   const [addingSheet, setAddingSheet] = useState(false);
   const [deleteSheetId, setDeleteSheetId] = useState<string | null>(null);
+  const [reportMonth, setReportMonth] = useState(1);
+  const [generatingReport, setGeneratingReport] = useState(false);
+
+  async function handleGenerateReport() {
+    setGeneratingReport(true);
+    try {
+      const res = await apiFetch(`/api/workspace/${projectId}/generate-monthly-report?month=${reportMonth}`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+        window.open(`${API_BASE}${data.file_url}`, "_blank");
+        showToast(`Laporan bulan ${reportMonth} berhasil dibuat.`);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || "Gagal generate laporan", "error");
+      }
+    } catch { showToast("Gagal generate laporan", "error"); }
+    finally { setGeneratingReport(false); }
+  }
 
   async function handleAddSheet() {
     if (!newSheetLabel.trim()) return;
@@ -171,6 +190,22 @@ export default function WorkspaceDetailPage() {
           {getServiceLabel(workspace.service_type) && (
             <p className="text-xs text-gray-500">{getServiceLabel(workspace.service_type)}</p>
           )}
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={reportMonth}
+            onChange={e => setReportMonth(Number(e.target.value))}
+            className="px-2 py-1.5 text-xs border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-gray-700 dark:text-gray-300">
+            {Array.from({ length: workspace.sheets.filter(s => s.month_number !== null).length || 12 }, (_, i) => i + 1).map(m => (
+              <option key={m} value={m}>Bulan {m}</option>
+            ))}
+          </select>
+          <button
+            onClick={handleGenerateReport}
+            disabled={generatingReport}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-lg disabled:opacity-50 transition-colors">
+            {generatingReport ? "Membuat..." : "Generate Laporan"}
+          </button>
         </div>
       </div>
 

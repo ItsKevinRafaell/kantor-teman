@@ -191,11 +191,11 @@ export default function DynamicTemplatesPage() {
                     <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2 font-mono whitespace-pre-wrap">{t.content}</p>
                     {t.type === "WA_BLAST" && stats[t.id] && (
                       <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[10px] font-semibold">
-                        <span className="text-gray-500">📤 Sent: {stats[t.id].sent}</span>
-                        <span className="text-blue-600">✓ Delivered: {stats[t.id].delivered}</span>
-                        <span className="text-purple-600">👁 Read: {stats[t.id].read}</span>
-                        <span className="text-amber-600">💬 Replied: {stats[t.id].replied} ({stats[t.id].reply_rate}%)</span>
-                        <span className="text-green-600">🎯 Closed: {stats[t.id].closed} ({stats[t.id].conversion_rate}%)</span>
+                        <span className="text-gray-500">Sent: {stats[t.id].sent}</span>
+                        <span className="text-blue-600">Delivered: {stats[t.id].delivered}</span>
+                        <span className="text-purple-600">Read: {stats[t.id].read}</span>
+                        <span className="text-amber-600">Replied: {stats[t.id].replied} ({stats[t.id].reply_rate}%)</span>
+                        <span className="text-green-600">Closed: {stats[t.id].closed} ({stats[t.id].conversion_rate}%)</span>
                       </div>
                     )}
                   </div>
