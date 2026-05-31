@@ -24,6 +24,230 @@ const TYPES = [
   { value: "custom", label: "Custom" },
 ];
 
+const STARTER_VARIABLES: Record<string, string> = {
+  invoice: "logo, nomor_invoice, tanggal, due_date, klien, alamat, phone, items_rows, total, terms",
+  proposal_pdf: "logo, tanggal, valid_until, klien, alamat, phone, layanan, items_rows, total, scope",
+  surat_penawaran: "logo, nomor, tanggal, klien, alamat, perihal, items_rows, total, terms",
+  kontrak: "logo, tanggal_mulai, tanggal_akhir, klien, alamat, phone, layanan, durasi, nilai_kontrak, scope, terms",
+  custom: "",
+};
+
+const STARTER_TEMPLATES: Record<string, string> = {
+  invoice: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap');
+@page { size: A4; margin: 2cm; }
+* { font-family: 'Noto Sans', sans-serif; box-sizing: border-box; }
+body { color: #1f2937; line-height: 1.6; font-size: 12px; }
+.header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #f59e0b; padding-bottom: 16px; margin-bottom: 24px; }
+.header .logo { max-height: 50px; }
+.header .info { text-align: right; }
+.header .info h1 { font-size: 24px; color: #f59e0b; margin: 0; }
+.meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+.meta-box h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin: 0 0 4px; }
+.meta-box p { margin: 2px 0; font-size: 12px; }
+.items { margin: 20px 0; }
+.terms { margin-top: 24px; padding: 12px; background: #f9fafb; border-radius: 8px; font-size: 11px; color: #4b5563; }
+.footer { margin-top: 40px; text-align: center; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 12px; }
+</style></head><body>
+<div class="header">
+  <div>{{logo}}</div>
+  <div class="info">
+    <h1>INVOICE</h1>
+    <p><strong>{{nomor_invoice}}</strong></p>
+    <p>Tanggal: {{tanggal}}</p>
+    <p>Jatuh Tempo: {{due_date}}</p>
+  </div>
+</div>
+<div class="meta-grid">
+  <div class="meta-box">
+    <h3>Dari</h3>
+    <p><strong>{{nama_perusahaan}}</strong></p>
+    <p>{{alamat_perusahaan}}</p>
+    <p>{{phone_perusahaan}} · {{email_perusahaan}}</p>
+  </div>
+  <div class="meta-box">
+    <h3>Kepada</h3>
+    <p><strong>{{klien}}</strong></p>
+    <p>{{alamat}}</p>
+    <p>{{phone}}</p>
+  </div>
+</div>
+<div class="items">
+  {{items_rows}}
+</div>
+<div class="terms">
+  <strong>Syarat & Ketentuan:</strong><br/>
+  {{terms}}
+</div>
+<div class="footer">{{nama_perusahaan}} · {{tagline}}</div>
+</body></html>`,
+
+  proposal_pdf: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap');
+@page { size: A4; margin: 2cm; }
+* { font-family: 'Noto Sans', sans-serif; box-sizing: border-box; }
+body { color: #1f2937; line-height: 1.6; font-size: 12px; }
+.header { border-bottom: 3px solid #f59e0b; padding-bottom: 16px; margin-bottom: 24px; }
+.header h1 { font-size: 22px; color: #111827; margin: 8px 0 4px; }
+.header .subtitle { font-size: 11px; color: #6b7280; }
+.section { margin: 20px 0; }
+.section h2 { font-size: 13px; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; margin-bottom: 10px; }
+.meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+.meta-box h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin: 0 0 4px; }
+.meta-box p { margin: 2px 0; font-size: 12px; }
+.validity { background: #fef3c7; padding: 10px 14px; border-radius: 8px; font-size: 11px; color: #92400e; margin-top: 20px; }
+.footer { margin-top: 40px; text-align: center; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 12px; }
+</style></head><body>
+<div class="header">
+  {{logo}}
+  <h1>PROPOSAL PENAWARAN</h1>
+  <div class="subtitle">{{tanggal}} · Berlaku hingga {{valid_until}}</div>
+</div>
+<div class="meta-grid">
+  <div class="meta-box">
+    <h3>Dari</h3>
+    <p><strong>{{nama_perusahaan}}</strong></p>
+    <p>{{alamat_perusahaan}}</p>
+    <p>{{phone_perusahaan}} · {{email_perusahaan}}</p>
+  </div>
+  <div class="meta-box">
+    <h3>Kepada</h3>
+    <p><strong>{{klien}}</strong></p>
+    <p>{{alamat}}</p>
+    <p>{{phone}}</p>
+  </div>
+</div>
+<div class="section">
+  <h2>Layanan yang Ditawarkan</h2>
+  {{items_rows}}
+</div>
+<div class="section">
+  <h2>Lingkup Pekerjaan</h2>
+  <p>{{scope}}</p>
+</div>
+<div class="validity">Proposal ini berlaku hingga <strong>{{valid_until}}</strong>. Setelah tanggal tersebut, harga dan ketersediaan dapat berubah.</div>
+<div class="footer">{{nama_perusahaan}} · {{tagline}}</div>
+</body></html>`,
+
+  surat_penawaran: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap');
+@page { size: A4; margin: 2cm; }
+* { font-family: 'Noto Sans', sans-serif; box-sizing: border-box; }
+body { color: #1f2937; line-height: 1.6; font-size: 12px; }
+.kop { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f59e0b; padding-bottom: 12px; margin-bottom: 20px; }
+.kop .company { text-align: right; font-size: 11px; color: #4b5563; }
+.nomor { font-size: 11px; color: #6b7280; margin-bottom: 16px; }
+.perihal { font-size: 13px; font-weight: 700; margin: 16px 0 8px; }
+.recipient { margin: 16px 0; padding: 12px; background: #f9fafb; border-radius: 8px; }
+.recipient p { margin: 2px 0; }
+.items { margin: 20px 0; }
+.terms { margin-top: 20px; font-size: 11px; color: #4b5563; padding: 12px; background: #f9fafb; border-radius: 8px; }
+.signature { margin-top: 50px; }
+.signature .line { margin-top: 60px; border-top: 1px solid #1f2937; width: 200px; padding-top: 4px; font-size: 11px; }
+.footer { margin-top: 40px; text-align: center; font-size: 10px; color: #9ca3af; }
+</style></head><body>
+<div class="kop">
+  <div>{{logo}}</div>
+  <div class="company">
+    <strong>{{nama_perusahaan}}</strong><br/>
+    {{alamat_perusahaan}}<br/>
+    {{phone_perusahaan}} · {{email_perusahaan}}
+  </div>
+</div>
+<div class="nomor">No: {{nomor}}<br/>Tanggal: {{tanggal}}</div>
+<div class="recipient">
+  <p>Kepada Yth,</p>
+  <p><strong>{{klien}}</strong></p>
+  <p>{{alamat}}</p>
+</div>
+<p class="perihal">Perihal: {{perihal}}</p>
+<p>Dengan hormat, bersama surat ini kami mengajukan penawaran jasa sebagai berikut:</p>
+<div class="items">
+  {{items_rows}}
+</div>
+<div class="terms">
+  <strong>Syarat & Ketentuan:</strong><br/>
+  {{terms}}
+</div>
+<div class="signature">
+  <p>Hormat kami,</p>
+  <div class="line">{{nama_perusahaan}}</div>
+</div>
+</body></html>`,
+
+  kontrak: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap');
+@page { size: A4; margin: 2cm; }
+* { font-family: 'Noto Sans', sans-serif; box-sizing: border-box; }
+body { color: #1f2937; line-height: 1.8; font-size: 12px; }
+.header { text-align: center; border-bottom: 3px solid #f59e0b; padding-bottom: 16px; margin-bottom: 24px; }
+.header h1 { font-size: 20px; margin: 8px 0 4px; }
+.header .subtitle { font-size: 11px; color: #6b7280; }
+.section { margin: 20px 0; }
+.section h2 { font-size: 13px; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; margin-bottom: 10px; }
+.parties { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 16px 0; }
+.party { padding: 12px; background: #f9fafb; border-radius: 8px; }
+.party h3 { font-size: 10px; text-transform: uppercase; color: #6b7280; margin: 0 0 6px; }
+.party p { margin: 2px 0; }
+.highlight { background: #fef3c7; padding: 10px 14px; border-radius: 8px; font-size: 12px; margin: 12px 0; }
+.terms { font-size: 11px; color: #374151; }
+.terms ol { padding-left: 20px; }
+.terms li { margin-bottom: 6px; }
+.signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 60px; text-align: center; }
+.sig-box { padding-top: 80px; border-top: 1px solid #1f2937; font-size: 11px; }
+</style></head><body>
+<div class="header">
+  {{logo}}
+  <h1>PERJANJIAN KERJA SAMA</h1>
+  <div class="subtitle">Nomor: KTR/{{tanggal_mulai}}</div>
+</div>
+<p>Pada hari ini, {{tanggal_mulai}}, telah disepakati perjanjian kerja sama antara:</p>
+<div class="parties">
+  <div class="party">
+    <h3>Pihak Pertama (Penyedia Jasa)</h3>
+    <p><strong>{{nama_perusahaan}}</strong></p>
+    <p>{{alamat_perusahaan}}</p>
+    <p>{{phone_perusahaan}}</p>
+  </div>
+  <div class="party">
+    <h3>Pihak Kedua (Klien)</h3>
+    <p><strong>{{klien}}</strong></p>
+    <p>{{alamat}}</p>
+    <p>{{phone}}</p>
+  </div>
+</div>
+<div class="section">
+  <h2>Lingkup Pekerjaan</h2>
+  <p>Layanan: <strong>{{layanan}}</strong></p>
+  <p>{{scope}}</p>
+</div>
+<div class="highlight">
+  <strong>Durasi:</strong> {{durasi}} · <strong>Nilai Kontrak:</strong> {{nilai_kontrak}} · <strong>Mulai:</strong> {{tanggal_mulai}} s/d {{tanggal_akhir}}
+</div>
+<div class="section">
+  <h2>Syarat & Ketentuan</h2>
+  <div class="terms">{{terms}}</div>
+</div>
+<div class="signatures">
+  <div>
+    <div class="sig-box">{{nama_perusahaan}}<br/><em>Pihak Pertama</em></div>
+  </div>
+  <div>
+    <div class="sig-box">{{klien}}<br/><em>Pihak Kedua</em></div>
+  </div>
+</div>
+</body></html>`,
+
+  custom: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap');
+@page { size: A4; margin: 2cm; }
+* { font-family: 'Noto Sans', sans-serif; box-sizing: border-box; }
+body { color: #1f2937; line-height: 1.6; font-size: 12px; }
+</style></head><body>
+<p>Tulis konten dokumen di sini...</p>
+</body></html>`,
+};
+
 export default function DocumentTemplatesPage() {
   const [templates, setTemplates] = useState<DocTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +269,7 @@ export default function DocumentTemplatesPage() {
 
   function openNew() {
     setEditing(null);
-    setForm({ name: "", type: "invoice", html_template: "", variables: "" });
+    setForm({ name: "", type: "invoice", html_template: STARTER_TEMPLATES["invoice"], variables: STARTER_VARIABLES["invoice"] });
     setModal(true);
   }
 
@@ -53,6 +277,20 @@ export default function DocumentTemplatesPage() {
     setEditing(t);
     setForm({ name: t.name, type: t.type, html_template: t.html_template, variables: t.variables.join(", ") });
     setModal(true);
+  }
+
+  function handleTypeChange(newType: string) {
+    setForm(prev => ({
+      ...prev,
+      type: newType,
+      // Only auto-fill if HTML is still the starter or empty
+      html_template: (!prev.html_template.trim() || Object.values(STARTER_TEMPLATES).includes(prev.html_template))
+        ? (STARTER_TEMPLATES[newType] || "")
+        : prev.html_template,
+      variables: (!prev.variables.trim() || Object.values(STARTER_VARIABLES).includes(prev.variables))
+        ? (STARTER_VARIABLES[newType] || "")
+        : prev.variables,
+    }));
   }
 
   async function handleSave() {
@@ -138,7 +376,7 @@ export default function DocumentTemplatesPage() {
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">Type</label>
-                  <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}
+                  <select value={form.type} onChange={e => handleTypeChange(e.target.value)}
                     className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800">
                     {TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                   </select>
@@ -151,7 +389,16 @@ export default function DocumentTemplatesPage() {
                   className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 font-mono" />
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">HTML Template</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">HTML Template</label>
+                  {STARTER_TEMPLATES[form.type] && (
+                    <button type="button"
+                      onClick={() => setForm(prev => ({ ...prev, html_template: STARTER_TEMPLATES[form.type], variables: STARTER_VARIABLES[form.type] || prev.variables }))}
+                      className="text-[11px] text-amber-600 hover:text-amber-700 font-semibold">
+                      Reset ke Starter Template
+                    </button>
+                  )}
+                </div>
                 <textarea value={form.html_template} onChange={e => setForm({ ...form, html_template: e.target.value })}
                   rows={16}
                   className="mt-1 w-full px-3 py-2 text-xs border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 font-mono resize-y" />
