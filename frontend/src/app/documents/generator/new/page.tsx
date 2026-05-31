@@ -26,6 +26,7 @@ const STEPS = ["Pilih Template", "Pilih Target", "Isi Variabel", "Preview", "Sel
 const DATE_KEY_PATTERNS = ["tanggal", "due_date", "valid_until", "tanggal_mulai", "tanggal_akhir", "expired", "expiry"];
 const INVOICE_NUMBER_KEYS = ["nomor_invoice", "no_invoice", "nomor"];
 const LINE_ITEM_KEYS = ["items_rows", "items_table", "line_items", "items"];
+const TOTAL_KEYS = ["total", "total_harga", "grand_total", "total_bayar", "total_amount", "jumlah_total", "total_tagihan"];
 const LARGE_TEXT_PATTERNS = ["html", "body", "scope", "terms", "rows"];
 
 function isDateKey(key: string): boolean {
@@ -40,6 +41,10 @@ function isInvoiceNumberKey(key: string): boolean {
 function isLineItemKey(key: string): boolean {
   const k = key.toLowerCase();
   return LINE_ITEM_KEYS.includes(k);
+}
+
+function isTotalKey(key: string): boolean {
+  return TOTAL_KEYS.includes(key.toLowerCase());
 }
 
 function isLargeTextKey(key: string): boolean {
@@ -179,6 +184,17 @@ export default function DocumentNewPage() {
   }
 
   // Line items helpers
+  function syncTotalVariable(items: LineItem[]) {
+    const total = items.reduce((s, it) => s + it.qty * it.price, 0);
+    setVariables(v => {
+      const updated = { ...v };
+      for (const k of Object.keys(updated)) {
+        if (isTotalKey(k)) updated[k] = formatRupiah(total);
+      }
+      return updated;
+    });
+  }
+
   function addLineItemFromProduct(key: string, product: Product) {
     const newItem: LineItem = {
       id: crypto.randomUUID(),
@@ -191,6 +207,7 @@ export default function DocumentNewPage() {
       const items = [...(prev[key] || []), newItem];
       const html = lineItemsToHtml(items);
       setVariables(v => ({ ...v, [key]: html }));
+      syncTotalVariable(items);
       return { ...prev, [key]: items };
     });
     setProductPickerForKey(null);
@@ -203,6 +220,7 @@ export default function DocumentNewPage() {
       const items = [...(prev[key] || []), newItem];
       const html = lineItemsToHtml(items);
       setVariables(v => ({ ...v, [key]: html }));
+      syncTotalVariable(items);
       return { ...prev, [key]: items };
     });
   }
@@ -212,6 +230,7 @@ export default function DocumentNewPage() {
       const items = (prev[key] || []).map(it => it.id === id ? { ...it, ...patch } : it);
       const html = lineItemsToHtml(items);
       setVariables(v => ({ ...v, [key]: html }));
+      syncTotalVariable(items);
       return { ...prev, [key]: items };
     });
   }
@@ -221,6 +240,7 @@ export default function DocumentNewPage() {
       const items = (prev[key] || []).filter(it => it.id !== id);
       const html = lineItemsToHtml(items);
       setVariables(v => ({ ...v, [key]: html }));
+      syncTotalVariable(items);
       return { ...prev, [key]: items };
     });
   }
@@ -468,179 +488,209 @@ export default function DocumentNewPage() {
           <h2 className="text-sm font-bold text-neutral-700 dark:text-neutral-300">Isi Variabel</h2>
           {Object.keys(variables).length === 0 && <p className="text-sm text-gray-400">Template ini tidak punya variabel.</p>}
           <div className="space-y-4">
-            {Object.entries(variables).map(([key, val]) => {
-              const label = key.replace(/_/g, " ");
+            {(() => {
+              // Dedupe invoice keys: only show the first one as editable
+              const allKeys = Object.keys(variables);
+              const invoiceKeys = allKeys.filter(k => isInvoiceNumberKey(k));
+              const primaryInvoiceKey = invoiceKeys[0] || null;
+              const renderedKeys = new Set<string>();
 
-              // Date field
-              if (isDateKey(key)) {
-                const isoVal = formatDateForInput(val);
-                return (
-                  <div key={key}>
-                    <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
-                    <input
-                      type="date"
-                      value={isoVal}
-                      onChange={e => setVariables(prev => ({ ...prev, [key]: e.target.value ? formatDateForDisplay(e.target.value) : "" }))}
-                      className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800"
-                    />
-                    {val && <p className="text-xs text-gray-400 mt-1">Tampil: {val}</p>}
-                  </div>
-                );
-              }
+              return Object.entries(variables).map(([key, val]) => {
+                if (renderedKeys.has(key)) return null;
+                // Skip duplicate invoice keys
+                if (isInvoiceNumberKey(key) && key !== primaryInvoiceKey) return null;
+                renderedKeys.add(key);
 
-              // Invoice number with sequence editor
-              if (isInvoiceNumberKey(key)) {
-                return (
-                  <div key={key}>
-                    <div className="flex items-center justify-between">
+                const label = key.replace(/_/g, " ");
+
+                // Date field
+                if (isDateKey(key)) {
+                  const isoVal = formatDateForInput(val);
+                  return (
+                    <div key={key}>
                       <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
-                      <button
-                        type="button"
-                        onClick={() => { setShowSeqEditor(true); loadCurrentSequence(); }}
-                        className="text-[11px] text-amber-600 hover:text-amber-700 font-semibold">
-                        Atur nomor awal
-                      </button>
+                      <input
+                        type="date"
+                        value={isoVal}
+                        onChange={e => setVariables(prev => ({ ...prev, [key]: e.target.value ? formatDateForDisplay(e.target.value) : "" }))}
+                        className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800"
+                      />
+                      {val && <p className="text-xs text-gray-400 mt-1">Tampil: {val}</p>}
                     </div>
-                    <input
-                      type="text"
-                      value={val}
-                      onChange={e => setVariables(prev => ({ ...prev, [key]: e.target.value }))}
-                      placeholder={`{{${key}}}`}
-                      className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 font-mono"
-                    />
-                  </div>
-                );
-              }
+                  );
+                }
 
-              // Line item editor
-              if (isLineItemKey(key)) {
-                const items = lineItems[key] || [];
-                const total = items.reduce((s, it) => s + it.qty * it.price, 0);
-                return (
-                  <div key={key}>
-                    <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
-                    <div className="mt-1 border border-gray-200 dark:border-neutral-700 rounded-xl overflow-hidden">
-                      <table className="w-full text-xs">
-                        <thead className="bg-gray-50 dark:bg-neutral-800">
-                          <tr>
-                            <th className="text-left p-2 w-8">#</th>
-                            <th className="text-left p-2">Item</th>
-                            <th className="text-left p-2">Deskripsi</th>
-                            <th className="text-center p-2 w-16">Qty</th>
-                            <th className="text-right p-2 w-32">Harga</th>
-                            <th className="text-right p-2 w-32">Subtotal</th>
-                            <th className="w-8"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {items.length === 0 && (
-                            <tr><td colSpan={7} className="text-center p-4 text-gray-400">Belum ada item. Tambah dari paket atau manual.</td></tr>
-                          )}
-                          {items.map((it, idx) => (
-                            <tr key={it.id} className="border-t border-gray-100 dark:border-neutral-800">
-                              <td className="p-2 text-gray-500">{idx + 1}</td>
-                              <td className="p-2">
-                                <input
-                                  type="text"
-                                  value={it.name}
-                                  onChange={e => updateLineItem(key, it.id, { name: e.target.value })}
-                                  className="w-full px-2 py-1 text-xs border border-gray-200 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900"
-                                />
-                              </td>
-                              <td className="p-2">
-                                <input
-                                  type="text"
-                                  value={it.description}
-                                  onChange={e => updateLineItem(key, it.id, { description: e.target.value })}
-                                  className="w-full px-2 py-1 text-xs border border-gray-200 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900"
-                                />
-                              </td>
-                              <td className="p-2">
+                // Invoice number with sequence editor + auto-sync to other invoice keys
+                if (isInvoiceNumberKey(key)) {
+                  return (
+                    <div key={key}>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">Nomor Invoice</label>
+                        <button
+                          type="button"
+                          onClick={() => { setShowSeqEditor(true); loadCurrentSequence(); }}
+                          className="text-[11px] text-amber-600 hover:text-amber-700 font-semibold">
+                          Atur nomor awal
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={val}
+                        onChange={e => {
+                          const newVal = e.target.value;
+                          setVariables(prev => {
+                            const updated = { ...prev };
+                            for (const k of invoiceKeys) updated[k] = newVal;
+                            return updated;
+                          });
+                        }}
+                        placeholder={`{{${key}}}`}
+                        className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 font-mono"
+                      />
+                    </div>
+                  );
+                }
+
+                // Total — read-only, auto-calculated from line items
+                if (isTotalKey(key)) {
+                  return (
+                    <div key={key}>
+                      <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label} (otomatis)</label>
+                      <input
+                        type="text"
+                        value={val}
+                        readOnly
+                        placeholder="Akan terisi otomatis dari line items"
+                        className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-gray-50 dark:bg-neutral-800/50 text-amber-700 font-bold"
+                      />
+                    </div>
+                  );
+                }
+
+                // Line item editor — card-based: row of inputs + description below
+                if (isLineItemKey(key)) {
+                  const items = lineItems[key] || [];
+                  const total = items.reduce((s, it) => s + it.qty * it.price, 0);
+                  return (
+                    <div key={key}>
+                      <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
+                      <div className="mt-1 space-y-2">
+                        {items.length === 0 && (
+                          <div className="border border-dashed border-gray-200 dark:border-neutral-700 rounded-xl p-6 text-center text-sm text-gray-400">
+                            Belum ada item. Tambah dari paket atau manual.
+                          </div>
+                        )}
+                        {items.map((it, idx) => (
+                          <div key={it.id} className="border border-gray-200 dark:border-neutral-700 rounded-xl p-3 space-y-2 bg-white dark:bg-neutral-900">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-gray-400 w-6 shrink-0">#{idx + 1}</span>
+                              <input
+                                type="text"
+                                value={it.name}
+                                placeholder="Nama item"
+                                onChange={e => updateLineItem(key, it.id, { name: e.target.value })}
+                                className="flex-1 px-2 py-1.5 text-xs border border-gray-200 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900"
+                              />
+                              <button onClick={() => deleteLineItem(key, it.id)} className="text-gray-400 hover:text-red-500 shrink-0 p-1">
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase">Qty</label>
                                 <input
                                   type="number"
                                   min="1"
                                   value={it.qty}
                                   onChange={e => updateLineItem(key, it.id, { qty: Math.max(1, parseInt(e.target.value) || 1) })}
-                                  className="w-full px-2 py-1 text-xs border border-gray-200 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900 text-center"
+                                  className="w-full mt-0.5 px-2 py-1.5 text-xs border border-gray-200 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900 text-center"
                                 />
-                              </td>
-                              <td className="p-2">
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase">Harga Satuan</label>
                                 <input
                                   type="number"
                                   min="0"
                                   value={it.price}
                                   onChange={e => updateLineItem(key, it.id, { price: Math.max(0, parseInt(e.target.value) || 0) })}
-                                  className="w-full px-2 py-1 text-xs border border-gray-200 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900 text-right"
+                                  className="w-full mt-0.5 px-2 py-1.5 text-xs border border-gray-200 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900 text-right"
                                 />
-                              </td>
-                              <td className="p-2 text-right font-semibold">{formatRupiah(it.qty * it.price)}</td>
-                              <td className="p-2">
-                                <button onClick={() => deleteLineItem(key, it.id)} className="text-gray-400 hover:text-red-500">
-                                  <Trash2 size={14} />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase">Subtotal</label>
+                                <div className="w-full mt-0.5 px-2 py-1.5 text-xs border border-gray-200 dark:border-neutral-700 rounded bg-gray-50 dark:bg-neutral-800/50 text-right font-semibold text-amber-700">
+                                  {formatRupiah(it.qty * it.price)}
+                                </div>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-gray-400 uppercase">Deskripsi</label>
+                              <textarea
+                                value={it.description}
+                                placeholder="Deskripsi paket / fitur..."
+                                onChange={e => updateLineItem(key, it.id, { description: e.target.value })}
+                                rows={2}
+                                className="w-full mt-0.5 px-2 py-1.5 text-xs border border-gray-200 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900 resize-y"
+                              />
+                            </div>
+                          </div>
+                        ))}
                         {items.length > 0 && (
-                          <tfoot className="bg-amber-50 dark:bg-amber-950/20">
-                            <tr>
-                              <td colSpan={5} className="p-2 text-right font-bold">Total</td>
-                              <td className="p-2 text-right font-bold text-amber-700">{formatRupiah(total)}</td>
-                              <td></td>
-                            </tr>
-                          </tfoot>
+                          <div className="flex items-center justify-between bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-2.5">
+                            <span className="text-sm font-bold text-amber-800 dark:text-amber-200">TOTAL</span>
+                            <span className="text-base font-bold text-amber-700 dark:text-amber-300">{formatRupiah(total)}</span>
+                          </div>
                         )}
-                      </table>
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setProductPickerForKey(key)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-lg">
+                          <Plus size={14} /> Tambah dari Paket
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addEmptyLineItem(key)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-gray-200 dark:border-neutral-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800">
+                          <Plus size={14} /> Item Manual
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex gap-2 mt-2">
-                      <button
-                        type="button"
-                        onClick={() => setProductPickerForKey(key)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-lg">
-                        <Plus size={14} /> Tambah dari Paket
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => addEmptyLineItem(key)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-gray-200 dark:border-neutral-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800">
-                        <Plus size={14} /> Item Manual
-                      </button>
-                    </div>
-                  </div>
-                );
-              }
+                  );
+                }
 
-              // Large text → textarea
-              if (isLargeTextKey(key)) {
+                // Large text → textarea
+                if (isLargeTextKey(key)) {
+                  return (
+                    <div key={key}>
+                      <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
+                      <textarea
+                        value={val}
+                        onChange={e => setVariables(prev => ({ ...prev, [key]: e.target.value }))}
+                        rows={4}
+                        placeholder={`{{${key}}}`}
+                        className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 resize-y"
+                      />
+                    </div>
+                  );
+                }
+
+                // Default: text input
                 return (
                   <div key={key}>
                     <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
-                    <textarea
+                    <input
+                      type="text"
                       value={val}
                       onChange={e => setVariables(prev => ({ ...prev, [key]: e.target.value }))}
-                      rows={4}
                       placeholder={`{{${key}}}`}
-                      className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 resize-y"
+                      className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800"
                     />
                   </div>
                 );
-              }
-
-              // Default: text input
-              return (
-                <div key={key}>
-                  <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
-                  <input
-                    type="text"
-                    value={val}
-                    onChange={e => setVariables(prev => ({ ...prev, [key]: e.target.value }))}
-                    placeholder={`{{${key}}}`}
-                    className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800"
-                  />
-                </div>
-              );
-            })}
+              });
+            })()}
           </div>
           <div className="flex justify-between pt-2">
             <button onClick={() => setStep(1)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-gray-600 border border-gray-200 rounded-xl">
