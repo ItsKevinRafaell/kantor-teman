@@ -33,19 +33,24 @@ const RUPIAH_PATTERNS = ["nilai", "harga", "amount", "nominal", "bayar", "biaya"
 const PHONE_PATTERNS = ["phone", "telepon", "telp", "hp", "whatsapp", "wa"];
 const EMAIL_PATTERNS = ["email", "mail"];
 const READONLY_COMPANY_KEYS = ["nama_perusahaan", "alamat_perusahaan", "phone_perusahaan", "email_perusahaan", "tagline"];
+const LAYANAN_KEYS = ["layanan", "service", "jenis_layanan"];
 
 const FIELD_HINTS: Record<string, string> = {
-  klien: "Nama klien / bisnis",
-  nama: "Nama lengkap",
-  alamat: "Alamat lengkap",
+  klien: "Nama klien / bisnis penerima dokumen",
+  nama: "Nama lengkap penerima",
+  alamat: "Alamat lengkap klien",
   phone: "Contoh: 0812-3456-7890",
   email: "Contoh: klien@email.com",
-  layanan: "Jenis layanan yang diberikan",
-  perihal: "Topik / judul surat",
-  scope: "Uraikan lingkup pekerjaan secara detail",
-  terms: "Syarat & ketentuan yang berlaku",
-  durasi: "Contoh: 3 bulan",
+  layanan: "Jenis layanan yang diberikan (mis. Pembuatan Website, SEO Bulanan)",
+  perihal: "Topik / judul surat (mis. Penawaran Jasa Pembuatan Website)",
+  scope: "Rincian pekerjaan yang dikerjakan — apa saja yang termasuk dan tidak termasuk",
+  terms: "Syarat & ketentuan: pembayaran, revisi, kerahasiaan, dll",
+  durasi: "Lama kontrak berlaku (mis. 3 bulan, 1 tahun)",
   nilai_kontrak: "Nilai total kontrak dalam Rupiah",
+  tanggal_mulai: "Tanggal kontrak mulai berlaku",
+  tanggal_akhir: "Tanggal kontrak berakhir",
+  valid_until: "Batas akhir penawaran berlaku",
+  due_date: "Tanggal jatuh tempo pembayaran",
 };
 
 function isDateKey(key: string): boolean {
@@ -74,6 +79,10 @@ function isEmailKey(key: string): boolean {
 
 function isReadonlyCompanyKey(key: string): boolean {
   return READONLY_COMPANY_KEYS.includes(key.toLowerCase());
+}
+
+function isLayananKey(key: string): boolean {
+  return LAYANAN_KEYS.includes(key.toLowerCase());
 }
 
 function parseRupiah(val: string): number {
@@ -141,6 +150,7 @@ export default function DocumentNewPage() {
   const [variables, setVariables] = useState<Record<string, string>>({});
   const [lineItems, setLineItems] = useState<Record<string, LineItem[]>>({});
   const [productPickerForKey, setProductPickerForKey] = useState<string | null>(null);
+  const [productPickerMode, setProductPickerMode] = useState<"line_item" | "single">("line_item");
   const [productSearch, setProductSearch] = useState("");
   const [showSeqEditor, setShowSeqEditor] = useState(false);
   const [seqStartFrom, setSeqStartFrom] = useState("");
@@ -173,6 +183,8 @@ export default function DocumentNewPage() {
     });
     setVariables(vars);
     setLineItems(items);
+    // Auto-fill defaults immediately when template is picked
+    fetchAndApplyDefaults(t, "empty", null);
   }
 
   async function fetchAndApplyDefaults(template: DocTemplate, ttype: "lead" | "contact" | "empty", tid: number | null) {
@@ -272,6 +284,18 @@ export default function DocumentNewPage() {
       return { ...prev, [key]: items };
     });
     setProductPickerForKey(null);
+    setProductSearch("");
+  }
+
+  function pickProductForSingleField(key: string, product: Product) {
+    setVariables(prev => ({ ...prev, [key]: product.name }));
+    setProductPickerForKey(null);
+    setProductSearch("");
+  }
+
+  function openProductPicker(key: string, mode: "line_item" | "single") {
+    setProductPickerMode(mode);
+    setProductPickerForKey(key);
     setProductSearch("");
   }
 
@@ -812,6 +836,31 @@ export default function DocumentNewPage() {
                   );
                 }
 
+                // Layanan field — text input + "Pilih Paket" button
+                if (isLayananKey(key)) {
+                  return (
+                    <div key={key}>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
+                        <button
+                          type="button"
+                          onClick={() => openProductPicker(key, "single")}
+                          className="flex items-center gap-1 text-[11px] text-amber-600 hover:text-amber-700 font-semibold">
+                          <Plus size={12} /> Pilih dari Paket
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={val}
+                        onChange={e => setVariables(prev => ({ ...prev, [key]: e.target.value }))}
+                        placeholder="Ketik manual atau pilih dari paket"
+                        className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800"
+                      />
+                      <p className="text-[11px] text-gray-400 mt-1">{FIELD_HINTS[key.toLowerCase()] || "Jenis layanan yang diberikan"}</p>
+                    </div>
+                  );
+                }
+
                 // Large text → textarea
                 if (isLargeTextKey(key)) {
                   return (
@@ -921,7 +970,10 @@ export default function DocumentNewPage() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-neutral-900 rounded-2xl p-6 w-full max-w-lg shadow-xl max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Pilih dari Paket</h3>
+              <div>
+                <h3 className="text-lg font-bold text-neutral-800 dark:text-neutral-100">Pilih dari Paket</h3>
+                <p className="text-xs text-gray-400 mt-0.5">{productPickerMode === "single" ? "Klik paket untuk mengisi field layanan" : "Klik paket untuk menambah ke daftar item"}</p>
+              </div>
               <button onClick={() => { setProductPickerForKey(null); setProductSearch(""); }} className="text-gray-400 hover:text-gray-600">
                 <X size={20} />
               </button>
@@ -942,7 +994,9 @@ export default function DocumentNewPage() {
               {filteredProducts.map(p => (
                 <button
                   key={p.id}
-                  onClick={() => addLineItemFromProduct(productPickerForKey, p)}
+                  onClick={() => productPickerMode === "single"
+                    ? pickProductForSingleField(productPickerForKey, p)
+                    : addLineItemFromProduct(productPickerForKey, p)}
                   className="w-full text-left p-3 rounded-xl border border-[var(--border-default)] bg-white dark:bg-neutral-900 hover:border-amber-300 transition-colors">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{p.name}</p>
