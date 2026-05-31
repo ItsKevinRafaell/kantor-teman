@@ -46,7 +46,7 @@ def decrypt_password(encrypted: str) -> str:
 app = FastAPI(title="Kantor Teman API")
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://kantorteman.my.id")
-_DEFAULT_CORS = "https://kantorteman.my.id,https://www.kantorteman.my.id,http://localhost:3000,http://localhost:3001"
+_DEFAULT_CORS = "https://kantorteman.my.id,https://www.kantorteman.my.id,https://office.kantorteman.my.id,http://localhost:3000,http://localhost:3001,http://localhost:3002"
 CORS_ORIGIN = os.getenv("CORS_ORIGIN", _DEFAULT_CORS)
 _cors_list = [o.strip() for o in CORS_ORIGIN.split(",") if o.strip()]
 
@@ -7222,7 +7222,33 @@ def delete_generated_document(did: str, current_user: User = Depends(get_current
     db.commit()
 
 
-def _build_brand_context(db: Session) -> dict:
+class InvoiceSequenceIn(BaseModel):
+    start_from: int = Field(..., ge=1)
+    template_type: str = "invoice"
+
+
+@app.get("/api/documents/invoice-sequence")
+def get_invoice_sequence(template_type: str = "invoice", current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    seq = db.query(DocumentSequence).filter(
+        DocumentSequence.target_id == "GLOBAL",
+        DocumentSequence.template_type == template_type,
+    ).first()
+    last = seq.last_seq if seq else 0
+    return {"template_type": template_type, "last_seq": last, "next_seq": last + 1}
+
+
+@app.put("/api/documents/invoice-sequence")
+def set_invoice_sequence(body: InvoiceSequenceIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    seq = db.query(DocumentSequence).filter(
+        DocumentSequence.target_id == "GLOBAL",
+        DocumentSequence.template_type == body.template_type,
+    ).first()
+    if not seq:
+        seq = DocumentSequence(target_id="GLOBAL", template_type=body.template_type, last_seq=0)
+        db.add(seq)
+    seq.last_seq = body.start_from - 1
+    db.commit()
+    return {"template_type": body.template_type, "last_seq": seq.last_seq, "next_seq": seq.last_seq + 1}
     kit = db.query(BrandKit).filter(BrandKit.is_active == True).first() or db.query(BrandKit).first()
     ctx = {"logo": "", "colors": {}, "fonts": {}, "tagline": ""}
     if not kit:
@@ -7262,14 +7288,23 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
             defaults[var_key] = val
 
     lead = None
-    if target_id and target_type in ("lead", "contact") and target_id.isdigit():
-        lead = db.query(Lead).filter(Lead.id == int(target_id)).first()
-    if lead:
-        defaults["klien"] = lead.business_name or ""
-        defaults["nama"] = lead.business_name or ""
-        defaults["alamat"] = lead.address or ""
-        defaults["phone"] = lead.phone_number or ""
-        defaults["layanan"] = lead.product_interest or ""
+    if target_id and target_id.isdigit():
+        if target_type == "contact":
+            contact = db.query(Contact).filter(Contact.id == int(target_id)).first()
+            if contact:
+                defaults["klien"] = contact.business_name or ""
+                defaults["nama"] = contact.business_name or ""
+                defaults["alamat"] = ""
+                defaults["phone"] = contact.phone_number or ""
+                defaults["layanan"] = contact.purchased_product or ""
+        elif target_type == "lead":
+            lead = db.query(Lead).filter(Lead.id == int(target_id)).first()
+            if lead:
+                defaults["klien"] = lead.business_name or ""
+                defaults["nama"] = lead.business_name or ""
+                defaults["alamat"] = lead.address or ""
+                defaults["phone"] = lead.phone_number or ""
+                defaults["layanan"] = lead.product_interest or ""
 
     if template_type == "invoice":
         yyyymm = today.strftime("%Y%m")
@@ -10224,3 +10259,59 @@ def _archive_doc_to_dict(doc: Document) -> dict:
         "created_at": doc.created_at,
         "updated_at": doc.updated_at,
     }
+
+
+# ===========================================================================
+# Hermes Office Proxy
+# ===========================================================================
+
+HERMES_GATEWAY_URL = os.getenv("HERMES_GATEWAY_URL", "")
+HERMES_GATEWAY_TOKEN = os.getenv("HERMES_GATEWAY_TOKEN", "")
+
+
+class OfficeChatRequest(BaseModel):
+    message: str
+    session_id: Optional[str] = None
+
+
+def _hermes_headers() -> dict:
+    return {"X-Gateway-Token": HERMES_GATEWAY_TOKEN, "Content-Type": "application/json"}
+
+
+@app.post("/api/office/chat/{profile}")
+async def office_chat(profile: str, body: OfficeChatRequest, current_user: User = Depends(get_current_user)):
+    if not HERMES_GATEWAY_URL:
+        raise HTTPException(status_code=503, detail="Hermes gateway not configured")
+    async with httpx.AsyncClient(timeout=130) as client:
+        resp = await client.post(
+            f"{HERMES_GATEWAY_URL}/chat/{profile}",
+            headers=_hermes_headers(),
+            json={"message": body.message, "session_id": body.session_id},
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"Hermes error: {resp.text[:200]}")
+    return resp.json()
+
+
+@app.get("/api/office/status")
+async def office_status(current_user: User = Depends(get_current_user)):
+    if not HERMES_GATEWAY_URL:
+        return {}
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            resp = await client.get(f"{HERMES_GATEWAY_URL}/status", headers=_hermes_headers())
+            return resp.json()
+        except Exception:
+            return {}
+
+
+@app.get("/api/office/history/{profile}")
+async def office_history(profile: str, current_user: User = Depends(get_current_user)):
+    if not HERMES_GATEWAY_URL:
+        return []
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            resp = await client.get(f"{HERMES_GATEWAY_URL}/history/{profile}", headers=_hermes_headers())
+            return resp.json()
+        except Exception:
+            return []
