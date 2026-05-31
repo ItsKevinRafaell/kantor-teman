@@ -27,6 +27,7 @@ const DATE_KEY_PATTERNS = ["tanggal", "due_date", "valid_until", "tanggal_mulai"
 const INVOICE_NUMBER_KEYS = ["nomor_invoice", "no_invoice", "nomor"];
 const LINE_ITEM_KEYS = ["items_rows", "items_table", "line_items", "items"];
 const TOTAL_KEYS = ["total", "total_harga", "grand_total", "total_bayar", "total_amount", "jumlah_total", "total_tagihan"];
+const LOGO_KEYS = ["logo", "logo_perusahaan", "company_logo"];
 const LARGE_TEXT_PATTERNS = ["html", "body", "scope", "terms", "rows"];
 
 function isDateKey(key: string): boolean {
@@ -47,9 +48,18 @@ function isTotalKey(key: string): boolean {
   return TOTAL_KEYS.includes(key.toLowerCase());
 }
 
+function isLogoKey(key: string): boolean {
+  return LOGO_KEYS.includes(key.toLowerCase());
+}
+
 function isLargeTextKey(key: string): boolean {
   const k = key.toLowerCase();
   return LARGE_TEXT_PATTERNS.some(p => k.includes(p));
+}
+
+function extractImgSrc(html: string): string {
+  const m = html.match(/src=["']([^"']+)["']/i);
+  return m ? m[1] : "";
 }
 
 function formatRupiah(num: number): string {
@@ -502,6 +512,27 @@ export default function DocumentNewPage() {
                 renderedKeys.add(key);
 
                 const label = key.replace(/_/g, " ");
+
+                // Logo field — show image preview from brand kit
+                if (isLogoKey(key)) {
+                  const logoSrc = extractImgSrc(val);
+                  return (
+                    <div key={key}>
+                      <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">Logo</label>
+                      <div className="mt-1 flex items-center gap-4 p-3 border border-gray-200 dark:border-neutral-700 rounded-xl bg-gray-50 dark:bg-neutral-800/50">
+                        {logoSrc ? (
+                          <img src={logoSrc} alt="Logo" className="h-12 w-auto object-contain rounded" />
+                        ) : (
+                          <div className="h-12 w-20 bg-gray-200 dark:bg-neutral-700 rounded flex items-center justify-center text-xs text-gray-400">No logo</div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500">Logo dari Brand Kit (otomatis)</p>
+                          <p className="text-[10px] text-gray-400 truncate mt-0.5">{logoSrc || "Belum ada logo di Brand Kit"}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
 
                 // Date field
                 if (isDateKey(key)) {
