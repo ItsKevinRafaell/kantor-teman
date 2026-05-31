@@ -68,6 +68,27 @@ async def security_headers(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
+
+from fastapi.responses import JSONResponse as _JSONResponse
+
+
+@app.exception_handler(Exception)
+async def _global_exception_handler(request: Request, exc: Exception):
+    """Ensure CORS headers are present on 500 errors so frontend gets the actual error message."""
+    origin = request.headers.get("origin", "")
+    headers = {}
+    if origin in _cors_list:
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+    import traceback
+    traceback.print_exc()
+    detail = str(exc) or exc.__class__.__name__
+    return _JSONResponse(
+        status_code=500,
+        content={"detail": detail},
+        headers=headers,
+    )
+
 UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
@@ -7249,6 +7270,9 @@ def set_invoice_sequence(body: InvoiceSequenceIn, current_user: User = Depends(r
     seq.last_seq = body.start_from - 1
     db.commit()
     return {"template_type": body.template_type, "last_seq": seq.last_seq, "next_seq": seq.last_seq + 1}
+
+
+def _build_brand_context(db: Session) -> dict:
     kit = db.query(BrandKit).filter(BrandKit.is_active == True).first() or db.query(BrandKit).first()
     ctx = {"logo": "", "colors": {}, "fonts": {}, "tagline": ""}
     if not kit:
@@ -7256,7 +7280,8 @@ def set_invoice_sequence(body: InvoiceSequenceIn, current_user: User = Depends(r
     assets = db.query(BrandAsset).filter(BrandAsset.kit_id == kit.id).all()
     for a in assets:
         if a.asset_type == "logo_primary" and a.file_url:
-            ctx["logo"] = f'<img src="{FRONTEND_URL.rstrip("/")}{a.file_url}" alt="logo" style="max-height:60px"/>'
+            api_base = _get_setting("app_base_url", "") or os.getenv("APP_BASE_URL", "https://api.kantorteman.my.id")
+            ctx["logo"] = f'<img src="{api_base.rstrip("/")}{a.file_url}" alt="logo" style="max-height:60px"/>'
         elif a.asset_type == "color":
             ctx["colors"][a.name.lower().replace(" ", "_")] = a.value or ""
         elif a.asset_type == "font":
@@ -10315,3 +10340,117 @@ async def office_history(profile: str, current_user: User = Depends(get_current_
             return resp.json()
         except Exception:
             return []
+
+
+# ---------- HR Desk: agent CRUD proxy ----------
+
+class OfficeAgentCreate(BaseModel):
+    name: str
+    display_name: Optional[str] = None
+    description: Optional[str] = None
+    model: Optional[str] = None
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+    soul: Optional[str] = None
+    telegram_token: Optional[str] = None
+    telegram_allowed_users: Optional[str] = None
+
+
+class OfficeSoulUpdate(BaseModel):
+    soul: str
+
+
+class OfficeEnvUpdate(BaseModel):
+    telegram_token: Optional[str] = None
+    telegram_allowed_users: Optional[str] = None
+
+
+class OfficeConfigUpdate(BaseModel):
+    model: Optional[str] = None
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+
+
+def _require_gateway():
+    if not HERMES_GATEWAY_URL:
+        raise HTTPException(status_code=503, detail="Hermes gateway not configured")
+
+
+@app.get("/api/office/agents")
+async def office_list_agents(current_user: User = Depends(get_current_user)):
+    _require_gateway()
+    async with httpx.AsyncClient(timeout=15) as client:
+        try:
+            resp = await client.get(f"{HERMES_GATEWAY_URL}/agents", headers=_hermes_headers())
+            return resp.json()
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/api/office/agents")
+async def office_create_agent(body: OfficeAgentCreate, current_user: User = Depends(get_current_user)):
+    _require_gateway()
+    async with httpx.AsyncClient(timeout=90) as client:
+        resp = await client.post(
+            f"{HERMES_GATEWAY_URL}/agents",
+            headers=_hermes_headers(),
+            json=body.model_dump(exclude_none=True),
+        )
+    if resp.status_code not in (200, 201):
+        raise HTTPException(status_code=resp.status_code, detail=resp.text[:300])
+    return resp.json()
+
+
+@app.delete("/api/office/agents/{profile}")
+async def office_delete_agent(profile: str, current_user: User = Depends(get_current_user)):
+    _require_gateway()
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.delete(
+            f"{HERMES_GATEWAY_URL}/agents/{profile}",
+            headers=_hermes_headers(),
+        )
+    if resp.status_code not in (200, 204):
+        raise HTTPException(status_code=resp.status_code, detail=resp.text[:300])
+    return resp.json()
+
+
+@app.put("/api/office/agents/{profile}/soul")
+async def office_update_soul(profile: str, body: OfficeSoulUpdate, current_user: User = Depends(get_current_user)):
+    _require_gateway()
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.put(
+            f"{HERMES_GATEWAY_URL}/agents/{profile}/soul",
+            headers=_hermes_headers(),
+            json={"soul": body.soul},
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text[:300])
+    return resp.json()
+
+
+@app.put("/api/office/agents/{profile}/env")
+async def office_update_env(profile: str, body: OfficeEnvUpdate, current_user: User = Depends(get_current_user)):
+    _require_gateway()
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.put(
+            f"{HERMES_GATEWAY_URL}/agents/{profile}/env",
+            headers=_hermes_headers(),
+            json=body.model_dump(exclude_none=True),
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text[:300])
+    return resp.json()
+
+
+@app.put("/api/office/agents/{profile}/config")
+async def office_update_config(profile: str, body: OfficeConfigUpdate, current_user: User = Depends(get_current_user)):
+    _require_gateway()
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.put(
+            f"{HERMES_GATEWAY_URL}/agents/{profile}/config",
+            headers=_hermes_headers(),
+            json=body.model_dump(exclude_none=True),
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text[:300])
+    return resp.json()
