@@ -170,6 +170,9 @@ export default function BrandKitPage() {
         </div>
       </section>
 
+      {/* COMPANY INFO */}
+      <CompanyInfoSection assets={kit.assets} onSave={saveAsset} saving={saving} />
+
       {/* COLOR PALETTE */}
       <ColorSection
         colors={colors}
@@ -208,6 +211,65 @@ export default function BrandKitPage() {
         message={confirmState.message}
       />
     </div>
+  );
+}
+
+function CompanyInfoSection({ assets, onSave, saving }: {
+  assets: BrandAsset[];
+  onSave: (a: Partial<BrandAsset> & { asset_type: string; name: string }, id?: string) => Promise<void>;
+  saving: boolean;
+}) {
+  const FIELDS = [
+    { type: "company_address", label: "Alamat Perusahaan", placeholder: "Jl. Contoh No. 1, Jakarta", multiline: true },
+    { type: "company_phone", label: "Telepon Perusahaan", placeholder: "+62 812 3456 7890", multiline: false },
+    { type: "company_email", label: "Email Perusahaan", placeholder: "hello@perusahaan.com", multiline: false },
+  ];
+
+  async function handleBlur(type: string, label: string, newVal: string) {
+    const existing = assets.find(a => a.asset_type === type);
+    if (existing) {
+      if (newVal !== (existing.value || "")) await onSave({ asset_type: type, name: label, value: newVal, position: existing.position }, existing.id);
+    } else if (newVal.trim()) {
+      await onSave({ asset_type: type, name: label, value: newVal, position: 0 });
+    }
+  }
+
+  return (
+    <section className="bg-white dark:bg-neutral-900 rounded-2xl border border-[var(--border-default)] p-6">
+      <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-1">Info Perusahaan</h2>
+      <p className="text-xs text-gray-500 mb-4">Digunakan otomatis di semua dokumen PDF (invoice, kontrak, proposal, dll).</p>
+      <div className="grid md:grid-cols-3 gap-4">
+        {FIELDS.map(f => {
+          const asset = assets.find(a => a.asset_type === f.type);
+          return (
+            <div key={f.type}>
+              <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{f.label}</label>
+              {f.multiline ? (
+                <textarea
+                  key={asset?.value}
+                  defaultValue={asset?.value || ""}
+                  onBlur={e => handleBlur(f.type, f.label, e.target.value)}
+                  placeholder={f.placeholder}
+                  rows={3}
+                  disabled={saving}
+                  className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-800 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+                />
+              ) : (
+                <input
+                  key={asset?.value}
+                  type="text"
+                  defaultValue={asset?.value || ""}
+                  onBlur={e => handleBlur(f.type, f.label, e.target.value)}
+                  placeholder={f.placeholder}
+                  disabled={saving}
+                  className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

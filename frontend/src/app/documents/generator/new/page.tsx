@@ -873,7 +873,7 @@ export default function DocumentNewPage() {
               <div>
                 <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">Subject (opsional)</label>
                 <input type="text" value={emailSubject} onChange={e => setEmailSubject(e.target.value)}
-                  placeholder={`${generatedDoc?.template_name} dari Kantor Teman`}
+                  placeholder={`${generatedDoc?.template_name} dari Teman UMKM Kita`}
                   className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800" />
               </div>
             </div>

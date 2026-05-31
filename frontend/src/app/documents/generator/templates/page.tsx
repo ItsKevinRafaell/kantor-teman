@@ -25,10 +25,10 @@ const TYPES = [
 ];
 
 const STARTER_VARIABLES: Record<string, string> = {
-  invoice: "logo, nomor_invoice, tanggal, due_date, klien, alamat, phone, items_rows, total, terms",
-  proposal_pdf: "logo, tanggal, valid_until, klien, alamat, phone, layanan, items_rows, total, scope",
-  surat_penawaran: "logo, nomor, tanggal, klien, alamat, perihal, items_rows, total, terms",
-  kontrak: "logo, tanggal_mulai, tanggal_akhir, klien, alamat, phone, layanan, durasi, nilai_kontrak, scope, terms",
+  invoice: "logo, nomor_invoice, tanggal, due_date, klien, alamat, phone, items_rows, total, terms, nama_perusahaan, alamat_perusahaan, phone_perusahaan, email_perusahaan, tagline",
+  proposal_pdf: "logo, tanggal, valid_until, klien, alamat, phone, layanan, items_rows, total, scope, nama_perusahaan, alamat_perusahaan, phone_perusahaan, email_perusahaan, tagline",
+  surat_penawaran: "logo, nomor, tanggal, klien, alamat, phone, perihal, items_rows, total, terms, nama_perusahaan, alamat_perusahaan, phone_perusahaan, email_perusahaan",
+  kontrak: "logo, tanggal_mulai, tanggal_akhir, klien, alamat, phone, layanan, durasi, nilai_kontrak, scope, terms, nama_perusahaan, alamat_perusahaan, phone_perusahaan, email_perusahaan, tagline",
   custom: "",
 };
 
@@ -39,14 +39,14 @@ const STARTER_TEMPLATES: Record<string, string> = {
 * { font-family: 'Noto Sans', sans-serif; box-sizing: border-box; }
 body { color: #1f2937; line-height: 1.6; font-size: 12px; }
 .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #f59e0b; padding-bottom: 16px; margin-bottom: 24px; }
-.header .logo { max-height: 50px; }
 .header .info { text-align: right; }
-.header .info h1 { font-size: 24px; color: #f59e0b; margin: 0; }
+.header .info h1 { font-size: 24px; color: #f59e0b; margin: 0 0 4px; }
+.header .info p { margin: 2px 0; font-size: 11px; color: #4b5563; }
 .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
-.meta-box h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin: 0 0 4px; }
+.meta-box h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin: 0 0 6px; font-weight: 700; }
 .meta-box p { margin: 2px 0; font-size: 12px; }
 .items { margin: 20px 0; }
-.terms { margin-top: 24px; padding: 12px; background: #f9fafb; border-radius: 8px; font-size: 11px; color: #4b5563; }
+.terms { margin-top: 20px; padding: 12px 16px; background: #f9fafb; border-left: 3px solid #f59e0b; border-radius: 0 8px 8px 0; font-size: 11px; color: #4b5563; }
 .footer { margin-top: 40px; text-align: center; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 12px; }
 </style></head><body>
 <div class="header">
@@ -63,7 +63,8 @@ body { color: #1f2937; line-height: 1.6; font-size: 12px; }
     <h3>Dari</h3>
     <p><strong>{{nama_perusahaan}}</strong></p>
     <p>{{alamat_perusahaan}}</p>
-    <p>{{phone_perusahaan}} · {{email_perusahaan}}</p>
+    <p>{{phone_perusahaan}}</p>
+    <p>{{email_perusahaan}}</p>
   </div>
   <div class="meta-box">
     <h3>Kepada</h3>
@@ -72,14 +73,9 @@ body { color: #1f2937; line-height: 1.6; font-size: 12px; }
     <p>{{phone}}</p>
   </div>
 </div>
-<div class="items">
-  {{items_rows}}
-</div>
-<div class="terms">
-  <strong>Syarat & Ketentuan:</strong><br/>
-  {{terms}}
-</div>
-<div class="footer">{{nama_perusahaan}} · {{tagline}}</div>
+<div class="items">{{items_rows}}</div>
+<div class="terms"><strong>Syarat &amp; Ketentuan:</strong><br/>{{terms}}</div>
+<div class="footer">{{nama_perusahaan}} &mdash; {{tagline}}</div>
 </body></html>`,
 
   proposal_pdf: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
@@ -87,34 +83,40 @@ body { color: #1f2937; line-height: 1.6; font-size: 12px; }
 @page { size: A4; margin: 2cm; }
 * { font-family: 'Noto Sans', sans-serif; box-sizing: border-box; }
 body { color: #1f2937; line-height: 1.6; font-size: 12px; }
-.header { border-bottom: 3px solid #f59e0b; padding-bottom: 16px; margin-bottom: 24px; }
-.header h1 { font-size: 22px; color: #111827; margin: 8px 0 4px; }
+.header { border-bottom: 3px solid #f59e0b; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; }
+.header h1 { font-size: 22px; color: #111827; margin: 8px 0 2px; }
 .header .subtitle { font-size: 11px; color: #6b7280; }
 .section { margin: 20px 0; }
-.section h2 { font-size: 13px; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; margin-bottom: 10px; }
+.section h2 { font-size: 12px; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; margin-bottom: 10px; font-weight: 700; }
 .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
-.meta-box h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin: 0 0 4px; }
-.meta-box p { margin: 2px 0; font-size: 12px; }
+.meta-box { padding: 12px; background: #f9fafb; border-radius: 8px; }
+.meta-box h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin: 0 0 6px; font-weight: 700; }
+.meta-box p { margin: 2px 0; }
 .validity { background: #fef3c7; padding: 10px 14px; border-radius: 8px; font-size: 11px; color: #92400e; margin-top: 20px; }
+.scope { background: #f9fafb; padding: 12px 16px; border-radius: 8px; font-size: 12px; white-space: pre-line; }
 .footer { margin-top: 40px; text-align: center; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 12px; }
 </style></head><body>
 <div class="header">
-  {{logo}}
-  <h1>PROPOSAL PENAWARAN</h1>
-  <div class="subtitle">{{tanggal}} · Berlaku hingga {{valid_until}}</div>
+  <div>
+    {{logo}}
+    <h1>PROPOSAL PENAWARAN</h1>
+    <div class="subtitle">{{tanggal}} &nbsp;&middot;&nbsp; Berlaku hingga {{valid_until}}</div>
+  </div>
 </div>
 <div class="meta-grid">
   <div class="meta-box">
     <h3>Dari</h3>
     <p><strong>{{nama_perusahaan}}</strong></p>
     <p>{{alamat_perusahaan}}</p>
-    <p>{{phone_perusahaan}} · {{email_perusahaan}}</p>
+    <p>{{phone_perusahaan}}</p>
+    <p>{{email_perusahaan}}</p>
   </div>
   <div class="meta-box">
     <h3>Kepada</h3>
     <p><strong>{{klien}}</strong></p>
     <p>{{alamat}}</p>
     <p>{{phone}}</p>
+    <p>Layanan: {{layanan}}</p>
   </div>
 </div>
 <div class="section">
@@ -123,55 +125,57 @@ body { color: #1f2937; line-height: 1.6; font-size: 12px; }
 </div>
 <div class="section">
   <h2>Lingkup Pekerjaan</h2>
-  <p>{{scope}}</p>
+  <div class="scope">{{scope}}</div>
 </div>
 <div class="validity">Proposal ini berlaku hingga <strong>{{valid_until}}</strong>. Setelah tanggal tersebut, harga dan ketersediaan dapat berubah.</div>
-<div class="footer">{{nama_perusahaan}} · {{tagline}}</div>
+<div class="footer">{{nama_perusahaan}} &mdash; {{tagline}}</div>
 </body></html>`,
 
   surat_penawaran: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap');
 @page { size: A4; margin: 2cm; }
 * { font-family: 'Noto Sans', sans-serif; box-sizing: border-box; }
-body { color: #1f2937; line-height: 1.6; font-size: 12px; }
+body { color: #1f2937; line-height: 1.8; font-size: 12px; }
 .kop { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f59e0b; padding-bottom: 12px; margin-bottom: 20px; }
-.kop .company { text-align: right; font-size: 11px; color: #4b5563; }
-.nomor { font-size: 11px; color: #6b7280; margin-bottom: 16px; }
-.perihal { font-size: 13px; font-weight: 700; margin: 16px 0 8px; }
-.recipient { margin: 16px 0; padding: 12px; background: #f9fafb; border-radius: 8px; }
+.kop .company { text-align: right; font-size: 11px; color: #4b5563; line-height: 1.6; }
+.kop .company strong { font-size: 13px; color: #111827; }
+.nomor-box { font-size: 11px; color: #6b7280; margin-bottom: 20px; }
+.recipient { margin: 16px 0; padding: 12px 16px; background: #f9fafb; border-radius: 8px; }
 .recipient p { margin: 2px 0; }
+.perihal { font-size: 13px; font-weight: 700; margin: 16px 0 8px; }
 .items { margin: 20px 0; }
-.terms { margin-top: 20px; font-size: 11px; color: #4b5563; padding: 12px; background: #f9fafb; border-radius: 8px; }
-.signature { margin-top: 50px; }
-.signature .line { margin-top: 60px; border-top: 1px solid #1f2937; width: 200px; padding-top: 4px; font-size: 11px; }
-.footer { margin-top: 40px; text-align: center; font-size: 10px; color: #9ca3af; }
+.terms { margin-top: 20px; padding: 12px 16px; background: #f9fafb; border-left: 3px solid #f59e0b; border-radius: 0 8px 8px 0; font-size: 11px; color: #4b5563; }
+.signature { margin-top: 50px; display: flex; justify-content: flex-end; }
+.signature .sig-block { text-align: center; }
+.signature .sig-line { margin-top: 60px; border-top: 1px solid #1f2937; padding-top: 4px; font-size: 11px; min-width: 180px; }
 </style></head><body>
 <div class="kop">
   <div>{{logo}}</div>
   <div class="company">
     <strong>{{nama_perusahaan}}</strong><br/>
     {{alamat_perusahaan}}<br/>
-    {{phone_perusahaan}} · {{email_perusahaan}}
+    {{phone_perusahaan}} &nbsp;&middot;&nbsp; {{email_perusahaan}}
   </div>
 </div>
-<div class="nomor">No: {{nomor}}<br/>Tanggal: {{tanggal}}</div>
+<div class="nomor-box">
+  No: <strong>{{nomor}}</strong><br/>
+  Tanggal: {{tanggal}}
+</div>
 <div class="recipient">
   <p>Kepada Yth,</p>
   <p><strong>{{klien}}</strong></p>
   <p>{{alamat}}</p>
+  <p>{{phone}}</p>
 </div>
 <p class="perihal">Perihal: {{perihal}}</p>
 <p>Dengan hormat, bersama surat ini kami mengajukan penawaran jasa sebagai berikut:</p>
-<div class="items">
-  {{items_rows}}
-</div>
-<div class="terms">
-  <strong>Syarat & Ketentuan:</strong><br/>
-  {{terms}}
-</div>
+<div class="items">{{items_rows}}</div>
+<div class="terms"><strong>Syarat &amp; Ketentuan:</strong><br/>{{terms}}</div>
 <div class="signature">
-  <p>Hormat kami,</p>
-  <div class="line">{{nama_perusahaan}}</div>
+  <div class="sig-block">
+    <p>Hormat kami,</p>
+    <div class="sig-line">{{nama_perusahaan}}</div>
+  </div>
 </div>
 </body></html>`,
 
@@ -181,33 +185,37 @@ body { color: #1f2937; line-height: 1.6; font-size: 12px; }
 * { font-family: 'Noto Sans', sans-serif; box-sizing: border-box; }
 body { color: #1f2937; line-height: 1.8; font-size: 12px; }
 .header { text-align: center; border-bottom: 3px solid #f59e0b; padding-bottom: 16px; margin-bottom: 24px; }
-.header h1 { font-size: 20px; margin: 8px 0 4px; }
+.header h1 { font-size: 18px; margin: 8px 0 4px; letter-spacing: 2px; }
 .header .subtitle { font-size: 11px; color: #6b7280; }
 .section { margin: 20px 0; }
-.section h2 { font-size: 13px; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; margin-bottom: 10px; }
-.parties { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 16px 0; }
-.party { padding: 12px; background: #f9fafb; border-radius: 8px; }
-.party h3 { font-size: 10px; text-transform: uppercase; color: #6b7280; margin: 0 0 6px; }
+.section h2 { font-size: 12px; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; margin-bottom: 10px; font-weight: 700; }
+.parties { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+.party { padding: 12px 16px; background: #f9fafb; border-radius: 8px; }
+.party h3 { font-size: 10px; text-transform: uppercase; color: #6b7280; margin: 0 0 6px; font-weight: 700; }
 .party p { margin: 2px 0; }
-.highlight { background: #fef3c7; padding: 10px 14px; border-radius: 8px; font-size: 12px; margin: 12px 0; }
-.terms { font-size: 11px; color: #374151; }
-.terms ol { padding-left: 20px; }
-.terms li { margin-bottom: 6px; }
-.signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 60px; text-align: center; }
-.sig-box { padding-top: 80px; border-top: 1px solid #1f2937; font-size: 11px; }
+.highlight { background: #fef3c7; padding: 12px 16px; border-radius: 8px; font-size: 12px; margin: 12px 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.highlight .item label { font-size: 10px; text-transform: uppercase; color: #92400e; font-weight: 700; display: block; margin-bottom: 2px; }
+.highlight .item span { font-weight: 700; color: #78350f; }
+.scope { background: #f9fafb; padding: 12px 16px; border-radius: 8px; white-space: pre-line; }
+.terms { font-size: 11px; color: #374151; white-space: pre-line; }
+.signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 60px; }
+.sig-box { text-align: center; }
+.sig-box .line { margin-top: 70px; border-top: 1px solid #1f2937; padding-top: 6px; font-size: 11px; }
+.sig-box .role { font-size: 10px; color: #6b7280; margin-top: 2px; }
 </style></head><body>
 <div class="header">
   {{logo}}
   <h1>PERJANJIAN KERJA SAMA</h1>
-  <div class="subtitle">Nomor: KTR/{{tanggal_mulai}}</div>
+  <div class="subtitle">Tanggal: {{tanggal_mulai}}</div>
 </div>
-<p>Pada hari ini, {{tanggal_mulai}}, telah disepakati perjanjian kerja sama antara:</p>
+<p>Pada hari ini, <strong>{{tanggal_mulai}}</strong>, telah disepakati perjanjian kerja sama antara:</p>
 <div class="parties">
   <div class="party">
     <h3>Pihak Pertama (Penyedia Jasa)</h3>
     <p><strong>{{nama_perusahaan}}</strong></p>
     <p>{{alamat_perusahaan}}</p>
     <p>{{phone_perusahaan}}</p>
+    <p>{{email_perusahaan}}</p>
   </div>
   <div class="party">
     <h3>Pihak Kedua (Klien)</h3>
@@ -216,26 +224,34 @@ body { color: #1f2937; line-height: 1.8; font-size: 12px; }
     <p>{{phone}}</p>
   </div>
 </div>
+<div class="highlight">
+  <div class="item"><label>Layanan</label><span>{{layanan}}</span></div>
+  <div class="item"><label>Durasi</label><span>{{durasi}}</span></div>
+  <div class="item"><label>Nilai Kontrak</label><span>{{nilai_kontrak}}</span></div>
+</div>
+<div class="highlight" style="grid-template-columns: 1fr 1fr; margin-top: 0;">
+  <div class="item"><label>Tanggal Mulai</label><span>{{tanggal_mulai}}</span></div>
+  <div class="item"><label>Tanggal Selesai</label><span>{{tanggal_akhir}}</span></div>
+</div>
 <div class="section">
   <h2>Lingkup Pekerjaan</h2>
-  <p>Layanan: <strong>{{layanan}}</strong></p>
-  <p>{{scope}}</p>
-</div>
-<div class="highlight">
-  <strong>Durasi:</strong> {{durasi}} · <strong>Nilai Kontrak:</strong> {{nilai_kontrak}} · <strong>Mulai:</strong> {{tanggal_mulai}} s/d {{tanggal_akhir}}
+  <div class="scope">{{scope}}</div>
 </div>
 <div class="section">
-  <h2>Syarat & Ketentuan</h2>
+  <h2>Syarat &amp; Ketentuan</h2>
   <div class="terms">{{terms}}</div>
 </div>
 <div class="signatures">
-  <div>
-    <div class="sig-box">{{nama_perusahaan}}<br/><em>Pihak Pertama</em></div>
+  <div class="sig-box">
+    <div class="line">{{nama_perusahaan}}</div>
+    <div class="role">Pihak Pertama</div>
   </div>
-  <div>
-    <div class="sig-box">{{klien}}<br/><em>Pihak Kedua</em></div>
+  <div class="sig-box">
+    <div class="line">{{klien}}</div>
+    <div class="role">Pihak Kedua</div>
   </div>
 </div>
+<div style="margin-top:30px;text-align:center;font-size:10px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:12px;">{{nama_perusahaan}} &mdash; {{tagline}}</div>
 </body></html>`,
 
   custom: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
