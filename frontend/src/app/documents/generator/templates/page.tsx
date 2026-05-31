@@ -34,231 +34,290 @@ const STARTER_VARIABLES: Record<string, string> = {
 
 const STARTER_TEMPLATES: Record<string, string> = {
   invoice: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap');
-@page { size: A4; margin: 2cm; }
-* { font-family: 'Noto Sans', sans-serif; box-sizing: border-box; }
-body { color: #1f2937; line-height: 1.6; font-size: 12px; }
-.header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #f59e0b; padding-bottom: 16px; margin-bottom: 24px; }
-.header .info { text-align: right; }
-.header .info h1 { font-size: 24px; color: #f59e0b; margin: 0 0 4px; }
-.header .info p { margin: 2px 0; font-size: 11px; color: #4b5563; }
-.meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
-.meta-box h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin: 0 0 6px; font-weight: 700; }
-.meta-box p { margin: 2px 0; font-size: 12px; }
-.items { margin: 20px 0; }
-.terms { margin-top: 20px; padding: 12px 16px; background: #f9fafb; border-left: 3px solid #f59e0b; border-radius: 0 8px 8px 0; font-size: 11px; color: #4b5563; }
-.footer { margin-top: 40px; text-align: center; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 12px; }
-</style></head><body>
-<div class="header">
-  <div>{{logo}}</div>
-  <div class="info">
-    <h1>INVOICE</h1>
-    <p><strong>{{nomor_invoice}}</strong></p>
-    <p>Tanggal: {{tanggal}}</p>
-    <p>Jatuh Tempo: {{due_date}}</p>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+@page{size:A4;margin:0}
+*{font-family:'Noto Sans',Arial,sans-serif;box-sizing:border-box;margin:0;padding:0}
+body{color:#1e293b;font-size:11px;line-height:1.6;background:#fff}
+.page{padding:40px 48px;min-height:297mm}
+.top-bar{background:#1e293b;color:#fff;padding:28px 48px 24px;margin:-40px -48px 32px}
+.top-bar .brand{font-size:10px;letter-spacing:2px;text-transform:uppercase;opacity:.6;margin-bottom:4px}
+.top-bar .doc-title{font-size:28px;font-weight:700;letter-spacing:-0.5px}
+.top-bar .doc-meta{font-size:10px;opacity:.7;margin-top:6px}
+.accent{color:#f59e0b}
+.parties{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:28px}
+.party-box{padding:16px;border:1px solid #e2e8f0;border-radius:8px}
+.party-box .party-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#94a3b8;margin-bottom:8px}
+.party-box .party-name{font-size:13px;font-weight:700;color:#0f172a;margin-bottom:4px}
+.party-box .party-detail{font-size:10px;color:#64748b;line-height:1.7}
+.section-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#94a3b8;margin-bottom:10px}
+.items-wrap{margin-bottom:24px}
+table{width:100%;border-collapse:collapse;font-size:10.5px}
+thead tr{background:#f8fafc;border-bottom:2px solid #e2e8f0}
+thead th{padding:10px 12px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b}
+thead th:last-child,thead th:nth-last-child(2),thead th:nth-last-child(3){text-align:right}
+tbody tr{border-bottom:1px solid #f1f5f9}
+tbody tr:last-child{border-bottom:none}
+tbody td{padding:10px 12px;color:#334155}
+tbody td:last-child,tbody td:nth-last-child(2),tbody td:nth-last-child(3){text-align:right}
+tfoot tr{background:#fef9ee;border-top:2px solid #f59e0b}
+tfoot td{padding:12px;font-weight:700;color:#92400e}
+tfoot td:last-child{text-align:right;font-size:14px}
+.terms-box{background:#f8fafc;border-left:3px solid #f59e0b;padding:12px 16px;border-radius:0 6px 6px 0;font-size:10px;color:#475569;line-height:1.7;margin-bottom:24px}
+.footer{border-top:1px solid #e2e8f0;padding-top:16px;display:flex;justify-content:space-between;align-items:center}
+.footer .brand-name{font-size:11px;font-weight:700;color:#1e293b}
+.footer .tagline{font-size:9px;color:#94a3b8}
+</style></head><body><div class="page">
+<div class="top-bar">
+  <div class="brand">{{nama_perusahaan}}</div>
+  <div class="doc-title">INVOICE <span class="accent">{{nomor_invoice}}</span></div>
+  <div class="doc-meta">Tanggal: {{tanggal}} &nbsp;·&nbsp; Jatuh Tempo: {{due_date}}</div>
+</div>
+<div class="parties">
+  <div class="party-box">
+    <div class="party-label">Dari</div>
+    <div class="party-name">{{nama_perusahaan}}</div>
+    <div class="party-detail">{{alamat_perusahaan}}<br/>{{phone_perusahaan}}<br/>{{email_perusahaan}}</div>
+  </div>
+  <div class="party-box">
+    <div class="party-label">Kepada</div>
+    <div class="party-name">{{klien}}</div>
+    <div class="party-detail">{{alamat}}<br/>{{phone}}</div>
   </div>
 </div>
-<div class="meta-grid">
-  <div class="meta-box">
-    <h3>Dari</h3>
-    <p><strong>{{nama_perusahaan}}</strong></p>
-    <p>{{alamat_perusahaan}}</p>
-    <p>{{phone_perusahaan}}</p>
-    <p>{{email_perusahaan}}</p>
-  </div>
-  <div class="meta-box">
-    <h3>Kepada</h3>
-    <p><strong>{{klien}}</strong></p>
-    <p>{{alamat}}</p>
-    <p>{{phone}}</p>
-  </div>
+<div class="items-wrap">
+  <div class="section-label">Rincian Layanan</div>
+  {{items_rows}}
 </div>
-<div class="items">{{items_rows}}</div>
-<div class="terms"><strong>Syarat &amp; Ketentuan:</strong><br/>{{terms}}</div>
-<div class="footer">{{nama_perusahaan}} &mdash; {{tagline}}</div>
-</body></html>`,
+<div class="terms-box"><strong>Syarat &amp; Ketentuan:</strong><br/>{{terms}}</div>
+<div class="footer">
+  <div><div class="brand-name">{{nama_perusahaan}}</div><div class="tagline">{{tagline}}</div></div>
+  <div style="text-align:right;font-size:10px;color:#94a3b8">Dokumen ini dibuat secara digital</div>
+</div>
+</div></body></html>`,
 
   proposal_pdf: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap');
-@page { size: A4; margin: 2cm; }
-* { font-family: 'Noto Sans', sans-serif; box-sizing: border-box; }
-body { color: #1f2937; line-height: 1.6; font-size: 12px; }
-.header { border-bottom: 3px solid #f59e0b; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; }
-.header h1 { font-size: 22px; color: #111827; margin: 8px 0 2px; }
-.header .subtitle { font-size: 11px; color: #6b7280; }
-.section { margin: 20px 0; }
-.section h2 { font-size: 12px; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; margin-bottom: 10px; font-weight: 700; }
-.meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
-.meta-box { padding: 12px; background: #f9fafb; border-radius: 8px; }
-.meta-box h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin: 0 0 6px; font-weight: 700; }
-.meta-box p { margin: 2px 0; }
-.validity { background: #fef3c7; padding: 10px 14px; border-radius: 8px; font-size: 11px; color: #92400e; margin-top: 20px; }
-.scope { background: #f9fafb; padding: 12px 16px; border-radius: 8px; font-size: 12px; white-space: pre-line; }
-.footer { margin-top: 40px; text-align: center; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 12px; }
-</style></head><body>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+@page{size:A4;margin:0}
+*{font-family:'Noto Sans',Arial,sans-serif;box-sizing:border-box;margin:0;padding:0}
+body{color:#1e293b;font-size:11px;line-height:1.6;background:#fff}
+.page{padding:40px 48px;min-height:297mm}
+.header{margin-bottom:32px;padding-bottom:24px;border-bottom:1px solid #e2e8f0}
+.header-top{display:flex;justify-content:space-between;align-items:flex-start}
+.doc-title{font-size:26px;font-weight:700;color:#0f172a;letter-spacing:-0.5px;margin-top:8px}
+.doc-subtitle{font-size:10px;color:#64748b;margin-top:4px}
+.validity-badge{background:#fef3c7;border:1px solid #fcd34d;border-radius:20px;padding:6px 14px;font-size:10px;font-weight:600;color:#92400e;white-space:nowrap}
+.parties{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px}
+.party-box{padding:16px;border:1px solid #e2e8f0;border-radius:8px}
+.party-box .party-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#94a3b8;margin-bottom:8px}
+.party-box .party-name{font-size:13px;font-weight:700;color:#0f172a;margin-bottom:4px}
+.party-box .party-detail{font-size:10px;color:#64748b;line-height:1.7}
+.section{margin-bottom:24px}
+.section-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#94a3b8;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #f1f5f9}
+table{width:100%;border-collapse:collapse;font-size:10.5px}
+thead tr{background:#f8fafc;border-bottom:2px solid #e2e8f0}
+thead th{padding:10px 12px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b}
+thead th:last-child,thead th:nth-last-child(2),thead th:nth-last-child(3){text-align:right}
+tbody tr{border-bottom:1px solid #f1f5f9}
+tbody td{padding:10px 12px;color:#334155}
+tbody td:last-child,tbody td:nth-last-child(2),tbody td:nth-last-child(3){text-align:right}
+tfoot tr{background:#fef9ee;border-top:2px solid #f59e0b}
+tfoot td{padding:12px;font-weight:700;color:#92400e}
+tfoot td:last-child{text-align:right;font-size:14px}
+.scope-box{background:#f8fafc;padding:14px 16px;border-radius:8px;font-size:11px;color:#475569;white-space:pre-line;line-height:1.8}
+.validity-note{background:#fef9ee;border:1px solid #fcd34d;border-radius:8px;padding:12px 16px;font-size:10px;color:#92400e;margin-top:20px}
+.footer{border-top:1px solid #e2e8f0;padding-top:16px;margin-top:24px;display:flex;justify-content:space-between;align-items:center}
+.footer .brand-name{font-size:11px;font-weight:700;color:#1e293b}
+.footer .tagline{font-size:9px;color:#94a3b8}
+</style></head><body><div class="page">
 <div class="header">
-  <div>
-    {{logo}}
-    <h1>PROPOSAL PENAWARAN</h1>
-    <div class="subtitle">{{tanggal}} &nbsp;&middot;&nbsp; Berlaku hingga {{valid_until}}</div>
+  <div class="header-top">
+    <div>{{logo}}<div class="doc-title">PROPOSAL PENAWARAN</div><div class="doc-subtitle">{{tanggal}} &nbsp;·&nbsp; Layanan: {{layanan}}</div></div>
+    <div class="validity-badge">Berlaku s/d {{valid_until}}</div>
   </div>
 </div>
-<div class="meta-grid">
-  <div class="meta-box">
-    <h3>Dari</h3>
-    <p><strong>{{nama_perusahaan}}</strong></p>
-    <p>{{alamat_perusahaan}}</p>
-    <p>{{phone_perusahaan}}</p>
-    <p>{{email_perusahaan}}</p>
+<div class="parties">
+  <div class="party-box">
+    <div class="party-label">Dari</div>
+    <div class="party-name">{{nama_perusahaan}}</div>
+    <div class="party-detail">{{alamat_perusahaan}}<br/>{{phone_perusahaan}}<br/>{{email_perusahaan}}</div>
   </div>
-  <div class="meta-box">
-    <h3>Kepada</h3>
-    <p><strong>{{klien}}</strong></p>
-    <p>{{alamat}}</p>
-    <p>{{phone}}</p>
-    <p>Layanan: {{layanan}}</p>
+  <div class="party-box">
+    <div class="party-label">Kepada</div>
+    <div class="party-name">{{klien}}</div>
+    <div class="party-detail">{{alamat}}<br/>{{phone}}</div>
   </div>
 </div>
 <div class="section">
-  <h2>Layanan yang Ditawarkan</h2>
+  <div class="section-title">Layanan yang Ditawarkan</div>
   {{items_rows}}
 </div>
 <div class="section">
-  <h2>Lingkup Pekerjaan</h2>
-  <div class="scope">{{scope}}</div>
+  <div class="section-title">Lingkup Pekerjaan</div>
+  <div class="scope-box">{{scope}}</div>
 </div>
-<div class="validity">Proposal ini berlaku hingga <strong>{{valid_until}}</strong>. Setelah tanggal tersebut, harga dan ketersediaan dapat berubah.</div>
-<div class="footer">{{nama_perusahaan}} &mdash; {{tagline}}</div>
-</body></html>`,
+<div class="validity-note">Proposal ini berlaku hingga <strong>{{valid_until}}</strong>. Setelah tanggal tersebut, harga dan ketersediaan dapat berubah tanpa pemberitahuan.</div>
+<div class="footer">
+  <div><div class="brand-name">{{nama_perusahaan}}</div><div class="tagline">{{tagline}}</div></div>
+  <div style="text-align:right;font-size:10px;color:#94a3b8">Dokumen ini dibuat secara digital</div>
+</div>
+</div></body></html>`,
 
   surat_penawaran: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap');
-@page { size: A4; margin: 2cm; }
-* { font-family: 'Noto Sans', sans-serif; box-sizing: border-box; }
-body { color: #1f2937; line-height: 1.8; font-size: 12px; }
-.kop { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f59e0b; padding-bottom: 12px; margin-bottom: 20px; }
-.kop .company { text-align: right; font-size: 11px; color: #4b5563; line-height: 1.6; }
-.kop .company strong { font-size: 13px; color: #111827; }
-.nomor-box { font-size: 11px; color: #6b7280; margin-bottom: 20px; }
-.recipient { margin: 16px 0; padding: 12px 16px; background: #f9fafb; border-radius: 8px; }
-.recipient p { margin: 2px 0; }
-.perihal { font-size: 13px; font-weight: 700; margin: 16px 0 8px; }
-.items { margin: 20px 0; }
-.terms { margin-top: 20px; padding: 12px 16px; background: #f9fafb; border-left: 3px solid #f59e0b; border-radius: 0 8px 8px 0; font-size: 11px; color: #4b5563; }
-.signature { margin-top: 50px; display: flex; justify-content: flex-end; }
-.signature .sig-block { text-align: center; }
-.signature .sig-line { margin-top: 60px; border-top: 1px solid #1f2937; padding-top: 4px; font-size: 11px; min-width: 180px; }
-</style></head><body>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+@page{size:A4;margin:0}
+*{font-family:'Noto Sans',Arial,sans-serif;box-sizing:border-box;margin:0;padding:0}
+body{color:#1e293b;font-size:11px;line-height:1.6;background:#fff}
+.page{padding:48px}
+.kop{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:20px;border-bottom:2px solid #1e293b;margin-bottom:24px}
+.kop-left .company-name{font-size:16px;font-weight:700;color:#0f172a}
+.kop-left .company-detail{font-size:9.5px;color:#64748b;margin-top:4px;line-height:1.7}
+.kop-right{text-align:right;font-size:9.5px;color:#64748b;line-height:1.7}
+.nomor-box{background:#f8fafc;border-radius:6px;padding:10px 14px;font-size:10px;color:#475569;margin-bottom:20px;display:inline-block}
+.nomor-box strong{color:#0f172a}
+.recipient{margin:20px 0;padding:14px 16px;border:1px solid #e2e8f0;border-radius:8px;font-size:11px}
+.recipient .to-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#94a3b8;margin-bottom:8px}
+.recipient .to-name{font-weight:700;font-size:13px;color:#0f172a;margin-bottom:4px}
+.recipient .to-detail{color:#64748b;font-size:10px;line-height:1.7}
+.perihal{font-size:12px;font-weight:700;color:#0f172a;margin:20px 0 8px}
+.body-text{font-size:11px;color:#475569;margin-bottom:20px}
+.section-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#94a3b8;margin-bottom:10px}
+table{width:100%;border-collapse:collapse;font-size:10.5px}
+thead tr{background:#f8fafc;border-bottom:2px solid #e2e8f0}
+thead th{padding:10px 12px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b}
+thead th:last-child,thead th:nth-last-child(2),thead th:nth-last-child(3){text-align:right}
+tbody tr{border-bottom:1px solid #f1f5f9}
+tbody td{padding:10px 12px;color:#334155}
+tbody td:last-child,tbody td:nth-last-child(2),tbody td:nth-last-child(3){text-align:right}
+tfoot tr{background:#fef9ee;border-top:2px solid #f59e0b}
+tfoot td{padding:12px;font-weight:700;color:#92400e}
+tfoot td:last-child{text-align:right;font-size:14px}
+.terms-box{background:#f8fafc;border-left:3px solid #cbd5e1;padding:12px 16px;border-radius:0 6px 6px 0;font-size:10px;color:#475569;line-height:1.7;margin:20px 0}
+.signature-area{margin-top:48px;display:flex;justify-content:flex-end}
+.sig-block{text-align:center;min-width:180px}
+.sig-block .sig-label{font-size:10px;color:#64748b;margin-bottom:60px}
+.sig-block .sig-line{border-top:1px solid #1e293b;padding-top:6px;font-size:11px;font-weight:700;color:#0f172a}
+.sig-block .sig-role{font-size:9px;color:#94a3b8;margin-top:2px}
+</style></head><body><div class="page">
 <div class="kop">
-  <div>{{logo}}</div>
-  <div class="company">
-    <strong>{{nama_perusahaan}}</strong><br/>
-    {{alamat_perusahaan}}<br/>
-    {{phone_perusahaan}} &nbsp;&middot;&nbsp; {{email_perusahaan}}
+  <div class="kop-left">
+    {{logo}}
+    <div class="company-name">{{nama_perusahaan}}</div>
+    <div class="company-detail">{{alamat_perusahaan}}<br/>{{phone_perusahaan}} &nbsp;·&nbsp; {{email_perusahaan}}</div>
   </div>
-</div>
-<div class="nomor-box">
-  No: <strong>{{nomor}}</strong><br/>
-  Tanggal: {{tanggal}}
+  <div class="kop-right">
+    <div class="nomor-box">No: <strong>{{nomor}}</strong><br/>Tanggal: {{tanggal}}</div>
+  </div>
 </div>
 <div class="recipient">
-  <p>Kepada Yth,</p>
-  <p><strong>{{klien}}</strong></p>
-  <p>{{alamat}}</p>
-  <p>{{phone}}</p>
+  <div class="to-label">Kepada Yth.</div>
+  <div class="to-name">{{klien}}</div>
+  <div class="to-detail">{{alamat}}<br/>{{phone}}</div>
 </div>
-<p class="perihal">Perihal: {{perihal}}</p>
-<p>Dengan hormat, bersama surat ini kami mengajukan penawaran jasa sebagai berikut:</p>
-<div class="items">{{items_rows}}</div>
-<div class="terms"><strong>Syarat &amp; Ketentuan:</strong><br/>{{terms}}</div>
-<div class="signature">
+<div class="perihal">Perihal: {{perihal}}</div>
+<div class="body-text">Dengan hormat, bersama surat ini kami mengajukan penawaran jasa kepada Bapak/Ibu sebagai berikut:</div>
+<div class="section-label">Rincian Penawaran</div>
+{{items_rows}}
+<div class="terms-box"><strong>Syarat &amp; Ketentuan:</strong><br/>{{terms}}</div>
+<div class="body-text">Demikian surat penawaran ini kami sampaikan. Atas perhatian dan kepercayaan Bapak/Ibu, kami ucapkan terima kasih.</div>
+<div class="signature-area">
   <div class="sig-block">
-    <p>Hormat kami,</p>
+    <div class="sig-label">Hormat kami,</div>
     <div class="sig-line">{{nama_perusahaan}}</div>
+    <div class="sig-role">Pihak Penyedia Jasa</div>
   </div>
 </div>
-</body></html>`,
+</div></body></html>`,
 
   kontrak: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap');
-@page { size: A4; margin: 2cm; }
-* { font-family: 'Noto Sans', sans-serif; box-sizing: border-box; }
-body { color: #1f2937; line-height: 1.8; font-size: 12px; }
-.header { text-align: center; border-bottom: 3px solid #f59e0b; padding-bottom: 16px; margin-bottom: 24px; }
-.header h1 { font-size: 18px; margin: 8px 0 4px; letter-spacing: 2px; }
-.header .subtitle { font-size: 11px; color: #6b7280; }
-.section { margin: 20px 0; }
-.section h2 { font-size: 12px; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; margin-bottom: 10px; font-weight: 700; }
-.parties { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
-.party { padding: 12px 16px; background: #f9fafb; border-radius: 8px; }
-.party h3 { font-size: 10px; text-transform: uppercase; color: #6b7280; margin: 0 0 6px; font-weight: 700; }
-.party p { margin: 2px 0; }
-.highlight { background: #fef3c7; padding: 12px 16px; border-radius: 8px; font-size: 12px; margin: 12px 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.highlight .item label { font-size: 10px; text-transform: uppercase; color: #92400e; font-weight: 700; display: block; margin-bottom: 2px; }
-.highlight .item span { font-weight: 700; color: #78350f; }
-.scope { background: #f9fafb; padding: 12px 16px; border-radius: 8px; white-space: pre-line; }
-.terms { font-size: 11px; color: #374151; white-space: pre-line; }
-.signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 60px; }
-.sig-box { text-align: center; }
-.sig-box .line { margin-top: 70px; border-top: 1px solid #1f2937; padding-top: 6px; font-size: 11px; }
-.sig-box .role { font-size: 10px; color: #6b7280; margin-top: 2px; }
-</style></head><body>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+@page{size:A4;margin:0}
+*{font-family:'Noto Sans',Arial,sans-serif;box-sizing:border-box;margin:0;padding:0}
+body{color:#1e293b;font-size:11px;line-height:1.6;background:#fff}
+.page{padding:48px}
+.header{text-align:center;padding-bottom:24px;border-bottom:2px solid #1e293b;margin-bottom:28px}
+.header .logo-wrap{margin-bottom:12px}
+.header h1{font-size:18px;font-weight:700;letter-spacing:3px;color:#0f172a;margin-bottom:4px}
+.header .subtitle{font-size:10px;color:#64748b;letter-spacing:1px}
+.intro{font-size:11px;color:#475569;margin-bottom:20px;line-height:1.8}
+.parties{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+.party-box{padding:14px 16px;border:1px solid #e2e8f0;border-radius:8px}
+.party-box .party-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#94a3b8;margin-bottom:8px}
+.party-box .party-name{font-size:13px;font-weight:700;color:#0f172a;margin-bottom:4px}
+.party-box .party-detail{font-size:10px;color:#64748b;line-height:1.7}
+.summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}
+.summary-item{background:#f8fafc;border-radius:8px;padding:12px 14px;border:1px solid #e2e8f0}
+.summary-item .s-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;margin-bottom:4px}
+.summary-item .s-value{font-size:12px;font-weight:700;color:#0f172a}
+.date-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}
+.date-item{background:#fef9ee;border-radius:8px;padding:12px 14px;border:1px solid #fcd34d}
+.date-item .d-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#92400e;margin-bottom:4px}
+.date-item .d-value{font-size:12px;font-weight:700;color:#78350f}
+.section{margin-bottom:20px}
+.section-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#94a3b8;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #f1f5f9}
+.scope-box{background:#f8fafc;padding:14px 16px;border-radius:8px;font-size:11px;color:#475569;white-space:pre-line;line-height:1.8}
+.terms-box{font-size:10.5px;color:#475569;white-space:pre-line;line-height:1.9;padding:14px 16px;background:#f8fafc;border-radius:8px}
+.signatures{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:56px}
+.sig-block{text-align:center}
+.sig-block .sig-label{font-size:10px;color:#64748b;margin-bottom:56px}
+.sig-block .sig-line{border-top:1px solid #1e293b;padding-top:6px;font-size:11px;font-weight:700;color:#0f172a}
+.sig-block .sig-role{font-size:9px;color:#94a3b8;margin-top:2px}
+.footer{border-top:1px solid #e2e8f0;padding-top:14px;margin-top:28px;text-align:center;font-size:9px;color:#94a3b8}
+</style></head><body><div class="page">
 <div class="header">
-  {{logo}}
+  <div class="logo-wrap">{{logo}}</div>
   <h1>PERJANJIAN KERJA SAMA</h1>
-  <div class="subtitle">Tanggal: {{tanggal_mulai}}</div>
+  <div class="subtitle">Dibuat pada {{tanggal_mulai}}</div>
 </div>
-<p>Pada hari ini, <strong>{{tanggal_mulai}}</strong>, telah disepakati perjanjian kerja sama antara:</p>
+<div class="intro">Pada hari ini, <strong>{{tanggal_mulai}}</strong>, telah disepakati perjanjian kerja sama antara pihak-pihak berikut:</div>
 <div class="parties">
-  <div class="party">
-    <h3>Pihak Pertama (Penyedia Jasa)</h3>
-    <p><strong>{{nama_perusahaan}}</strong></p>
-    <p>{{alamat_perusahaan}}</p>
-    <p>{{phone_perusahaan}}</p>
-    <p>{{email_perusahaan}}</p>
+  <div class="party-box">
+    <div class="party-label">Pihak Pertama — Penyedia Jasa</div>
+    <div class="party-name">{{nama_perusahaan}}</div>
+    <div class="party-detail">{{alamat_perusahaan}}<br/>{{phone_perusahaan}}<br/>{{email_perusahaan}}</div>
   </div>
-  <div class="party">
-    <h3>Pihak Kedua (Klien)</h3>
-    <p><strong>{{klien}}</strong></p>
-    <p>{{alamat}}</p>
-    <p>{{phone}}</p>
+  <div class="party-box">
+    <div class="party-label">Pihak Kedua — Klien</div>
+    <div class="party-name">{{klien}}</div>
+    <div class="party-detail">{{alamat}}<br/>{{phone}}</div>
   </div>
 </div>
-<div class="highlight">
-  <div class="item"><label>Layanan</label><span>{{layanan}}</span></div>
-  <div class="item"><label>Durasi</label><span>{{durasi}}</span></div>
-  <div class="item"><label>Nilai Kontrak</label><span>{{nilai_kontrak}}</span></div>
+<div class="summary-grid">
+  <div class="summary-item"><div class="s-label">Layanan</div><div class="s-value">{{layanan}}</div></div>
+  <div class="summary-item"><div class="s-label">Durasi</div><div class="s-value">{{durasi}}</div></div>
+  <div class="summary-item"><div class="s-label">Nilai Kontrak</div><div class="s-value">{{nilai_kontrak}}</div></div>
 </div>
-<div class="highlight" style="grid-template-columns: 1fr 1fr; margin-top: 0;">
-  <div class="item"><label>Tanggal Mulai</label><span>{{tanggal_mulai}}</span></div>
-  <div class="item"><label>Tanggal Selesai</label><span>{{tanggal_akhir}}</span></div>
-</div>
-<div class="section">
-  <h2>Lingkup Pekerjaan</h2>
-  <div class="scope">{{scope}}</div>
+<div class="date-grid">
+  <div class="date-item"><div class="d-label">Tanggal Mulai</div><div class="d-value">{{tanggal_mulai}}</div></div>
+  <div class="date-item"><div class="d-label">Tanggal Selesai</div><div class="d-value">{{tanggal_akhir}}</div></div>
 </div>
 <div class="section">
-  <h2>Syarat &amp; Ketentuan</h2>
-  <div class="terms">{{terms}}</div>
+  <div class="section-title">Lingkup Pekerjaan</div>
+  <div class="scope-box">{{scope}}</div>
+</div>
+<div class="section">
+  <div class="section-title">Syarat &amp; Ketentuan</div>
+  <div class="terms-box">{{terms}}</div>
 </div>
 <div class="signatures">
-  <div class="sig-box">
-    <div class="line">{{nama_perusahaan}}</div>
-    <div class="role">Pihak Pertama</div>
+  <div class="sig-block">
+    <div class="sig-label">Pihak Pertama,</div>
+    <div class="sig-line">{{nama_perusahaan}}</div>
+    <div class="sig-role">Penyedia Jasa</div>
   </div>
-  <div class="sig-box">
-    <div class="line">{{klien}}</div>
-    <div class="role">Pihak Kedua</div>
+  <div class="sig-block">
+    <div class="sig-label">Pihak Kedua,</div>
+    <div class="sig-line">{{klien}}</div>
+    <div class="sig-role">Klien</div>
   </div>
 </div>
-<div style="margin-top:30px;text-align:center;font-size:10px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:12px;">{{nama_perusahaan}} &mdash; {{tagline}}</div>
-</body></html>`,
+<div class="footer">{{nama_perusahaan}} &nbsp;·&nbsp; {{tagline}}</div>
+</div></body></html>`,
 
   custom: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap');
-@page { size: A4; margin: 2cm; }
-* { font-family: 'Noto Sans', sans-serif; box-sizing: border-box; }
-body { color: #1f2937; line-height: 1.6; font-size: 12px; }
+@page{size:A4;margin:2cm}
+*{font-family:'Noto Sans',Arial,sans-serif;box-sizing:border-box}
+body{color:#1e293b;font-size:12px;line-height:1.6}
 </style></head><body>
 <p>Tulis konten dokumen di sini...</p>
 </body></html>`,

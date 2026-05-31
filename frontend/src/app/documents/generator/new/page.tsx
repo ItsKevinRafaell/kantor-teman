@@ -28,7 +28,25 @@ const INVOICE_NUMBER_KEYS = ["nomor_invoice", "no_invoice", "nomor"];
 const LINE_ITEM_KEYS = ["items_rows", "items_table", "line_items", "items"];
 const TOTAL_KEYS = ["total", "total_harga", "grand_total", "total_bayar", "total_amount", "jumlah_total", "total_tagihan"];
 const LOGO_KEYS = ["logo", "logo_perusahaan", "company_logo"];
-const LARGE_TEXT_PATTERNS = ["html", "body", "scope", "terms", "rows"];
+const LARGE_TEXT_PATTERNS = ["html", "body", "scope", "terms", "rows", "alamat"];
+const RUPIAH_PATTERNS = ["nilai", "harga", "amount", "nominal", "bayar", "biaya", "tarif", "fee", "price", "cost"];
+const PHONE_PATTERNS = ["phone", "telepon", "telp", "hp", "whatsapp", "wa"];
+const EMAIL_PATTERNS = ["email", "mail"];
+const READONLY_COMPANY_KEYS = ["nama_perusahaan", "alamat_perusahaan", "phone_perusahaan", "email_perusahaan", "tagline"];
+
+const FIELD_HINTS: Record<string, string> = {
+  klien: "Nama klien / bisnis",
+  nama: "Nama lengkap",
+  alamat: "Alamat lengkap",
+  phone: "Contoh: 0812-3456-7890",
+  email: "Contoh: klien@email.com",
+  layanan: "Jenis layanan yang diberikan",
+  perihal: "Topik / judul surat",
+  scope: "Uraikan lingkup pekerjaan secara detail",
+  terms: "Syarat & ketentuan yang berlaku",
+  durasi: "Contoh: 3 bulan",
+  nilai_kontrak: "Nilai total kontrak dalam Rupiah",
+};
 
 function isDateKey(key: string): boolean {
   const k = key.toLowerCase();
@@ -37,6 +55,39 @@ function isDateKey(key: string): boolean {
 
 function isInvoiceNumberKey(key: string): boolean {
   return INVOICE_NUMBER_KEYS.includes(key.toLowerCase());
+}
+
+function isRupiahKey(key: string): boolean {
+  const k = key.toLowerCase();
+  return RUPIAH_PATTERNS.some(p => k.includes(p));
+}
+
+function isPhoneKey(key: string): boolean {
+  const k = key.toLowerCase();
+  return PHONE_PATTERNS.some(p => k === p || k.includes(p));
+}
+
+function isEmailKey(key: string): boolean {
+  const k = key.toLowerCase();
+  return EMAIL_PATTERNS.some(p => k === p || k.endsWith("_" + p));
+}
+
+function isReadonlyCompanyKey(key: string): boolean {
+  return READONLY_COMPANY_KEYS.includes(key.toLowerCase());
+}
+
+function parseRupiah(val: string): number {
+  return parseInt(val.replace(/[^0-9]/g, "")) || 0;
+}
+
+function toRupiahDisplay(num: number): string {
+  if (!num) return "";
+  return "Rp " + new Intl.NumberFormat("id-ID").format(num);
+}
+
+function toRupiahRaw(display: string): string {
+  const num = parseRupiah(display);
+  return num ? toRupiahDisplay(num) : display;
 }
 
 function isLineItemKey(key: string): boolean {
@@ -691,6 +742,76 @@ export default function DocumentNewPage() {
                   );
                 }
 
+                // Read-only company info (from Brand Kit)
+                if (isReadonlyCompanyKey(key)) {
+                  return (
+                    <div key={key}>
+                      <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
+                      <input
+                        type="text"
+                        value={val}
+                        onChange={e => setVariables(prev => ({ ...prev, [key]: e.target.value }))}
+                        placeholder="Atur di Brand Kit"
+                        className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-gray-50 dark:bg-neutral-800/50 text-gray-600 dark:text-gray-400"
+                      />
+                      <p className="text-[11px] text-gray-400 mt-1">Dari Brand Kit — bisa diedit untuk dokumen ini saja</p>
+                    </div>
+                  );
+                }
+
+                // Rupiah-formatted field
+                if (isRupiahKey(key)) {
+                  return (
+                    <div key={key}>
+                      <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={val}
+                        onChange={e => setVariables(prev => ({ ...prev, [key]: toRupiahRaw(e.target.value) }))}
+                        placeholder="Rp 0"
+                        className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-right font-semibold"
+                      />
+                      <p className="text-[11px] text-gray-400 mt-1">{FIELD_HINTS[key.toLowerCase()] || "Format Rupiah otomatis"}</p>
+                    </div>
+                  );
+                }
+
+                // Phone field
+                if (isPhoneKey(key)) {
+                  return (
+                    <div key={key}>
+                      <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
+                      <input
+                        type="tel"
+                        value={val}
+                        onChange={e => setVariables(prev => ({ ...prev, [key]: e.target.value }))}
+                        placeholder="0812-3456-7890"
+                        className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800"
+                      />
+                      <p className="text-[11px] text-gray-400 mt-1">{FIELD_HINTS[key.toLowerCase()] || "Nomor telepon / WhatsApp"}</p>
+                    </div>
+                  );
+                }
+
+                // Email field
+                if (isEmailKey(key)) {
+                  const valid = !val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+                  return (
+                    <div key={key}>
+                      <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
+                      <input
+                        type="email"
+                        value={val}
+                        onChange={e => setVariables(prev => ({ ...prev, [key]: e.target.value }))}
+                        placeholder="klien@email.com"
+                        className={`mt-1 w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-neutral-800 ${valid ? "border-gray-200 dark:border-neutral-700" : "border-red-400"}`}
+                      />
+                      {!valid && <p className="text-[11px] text-red-500 mt-1">Format email tidak valid</p>}
+                    </div>
+                  );
+                }
+
                 // Large text → textarea
                 if (isLargeTextKey(key)) {
                   return (
@@ -700,9 +821,10 @@ export default function DocumentNewPage() {
                         value={val}
                         onChange={e => setVariables(prev => ({ ...prev, [key]: e.target.value }))}
                         rows={4}
-                        placeholder={`{{${key}}}`}
+                        placeholder={FIELD_HINTS[key.toLowerCase()] || `{{${key}}}`}
                         className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 resize-y"
                       />
+                      {FIELD_HINTS[key.toLowerCase()] && <p className="text-[11px] text-gray-400 mt-1">{FIELD_HINTS[key.toLowerCase()]}</p>}
                     </div>
                   );
                 }
@@ -715,9 +837,10 @@ export default function DocumentNewPage() {
                       type="text"
                       value={val}
                       onChange={e => setVariables(prev => ({ ...prev, [key]: e.target.value }))}
-                      placeholder={`{{${key}}}`}
+                      placeholder={FIELD_HINTS[key.toLowerCase()] || `{{${key}}}`}
                       className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800"
                     />
+                    {FIELD_HINTS[key.toLowerCase()] && <p className="text-[11px] text-gray-400 mt-1">{FIELD_HINTS[key.toLowerCase()]}</p>}
                   </div>
                 );
               });
