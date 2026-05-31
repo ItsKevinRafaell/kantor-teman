@@ -794,7 +794,7 @@ export default function DocumentNewPage() {
                         value={val}
                         onChange={e => setVariables(prev => ({ ...prev, [key]: toRupiahRaw(e.target.value) }))}
                         placeholder="Rp 0"
-                        className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-right font-semibold"
+                        className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 font-semibold"
                       />
                       <p className="text-[11px] text-gray-400 mt-1">{FIELD_HINTS[key.toLowerCase()] || "Format Rupiah otomatis"}</p>
                     </div>
@@ -836,27 +836,24 @@ export default function DocumentNewPage() {
                   );
                 }
 
-                // Layanan field — text input + "Pilih Paket" button
+                // Layanan field — combobox (type or pick from products)
                 if (isLayananKey(key)) {
+                  const datalistId = `layanan-${key}`;
                   return (
                     <div key={key}>
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
-                        <button
-                          type="button"
-                          onClick={() => openProductPicker(key, "single")}
-                          className="flex items-center gap-1 text-[11px] text-amber-600 hover:text-amber-700 font-semibold">
-                          <Plus size={12} /> Pilih dari Paket
-                        </button>
-                      </div>
+                      <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
                       <input
                         type="text"
+                        list={datalistId}
                         value={val}
                         onChange={e => setVariables(prev => ({ ...prev, [key]: e.target.value }))}
                         placeholder="Ketik manual atau pilih dari paket"
                         className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800"
                       />
-                      <p className="text-[11px] text-gray-400 mt-1">{FIELD_HINTS[key.toLowerCase()] || "Jenis layanan yang diberikan"}</p>
+                      <datalist id={datalistId}>
+                        {products.map(p => <option key={p.id} value={p.name}>{formatRupiah(p.base_price)}</option>)}
+                      </datalist>
+                      <p className="text-[11px] text-gray-400 mt-1">{FIELD_HINTS[key.toLowerCase()] || "Ketik atau pilih dari paket yang tersedia"}</p>
                     </div>
                   );
                 }
