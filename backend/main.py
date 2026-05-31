@@ -241,7 +241,7 @@ class Proposal(Base):
     services_detail = Column(Text, nullable=False)
     total_price = Column(Float, nullable=False, default=0)
     additional_options = Column(Text, nullable=True)
-    status = Column(String(255), default="Sent", nullable=False)
+    status = Column(String(255), default="sent", nullable=False)
     created_at = Column(String(255), nullable=True)
     is_archived = Column(Boolean, default=False)
     deleted_at = Column(String(255), nullable=True)
@@ -695,71 +695,6 @@ class ContentSchedule(Base):
     google_event_id = Column(String(255), nullable=True)
     status = Column(String(255), nullable=False, default="DRAFT")
     created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
-
-
-# ---------------------------------------------------------------------------
-# AI Chat Models (Semuts.sh Integration)
-# ---------------------------------------------------------------------------
-
-class ChatProject(Base):
-    __tablename__ = "chat_projects"
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    name = Column(String(255), nullable=False)
-    description = Column(Text, nullable=True)
-    system_prompt = Column(Text, nullable=True)
-    default_model = Column(String(255), default="glm-5")
-    context_window_size = Column(Integer, default=20)  # N pesan terakhir sebagai context
-    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
-    updated_at = Column(String(255), nullable=True)
-    user = relationship("User", backref="chat_projects")
-
-
-class ChatConversation(Base):
-    __tablename__ = "chat_conversations"
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id = Column(String(36), ForeignKey("chat_projects.id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    title = Column(String(255), nullable=False, default="New Chat")
-    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
-    updated_at = Column(String(255), nullable=True)
-    project = relationship("ChatProject", backref="conversations")
-    user = relationship("User", backref="chat_conversations")
-
-
-class ChatMessage(Base):
-    __tablename__ = "chat_messages"
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    conversation_id = Column(String(36), ForeignKey("chat_conversations.id"), nullable=False)
-    role = Column(String(50), nullable=False)  # user / assistant
-    content = Column(Text, nullable=False)
-    tokens_used = Column(Integer, default=0)
-    model_used = Column(String(255), nullable=True)
-    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
-    conversation = relationship("ChatConversation", backref="messages")
-
-
-class ChatMemory(Base):
-    __tablename__ = "chat_memories"
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id = Column(String(36), ForeignKey("chat_projects.id"), nullable=False)
-    content = Column(Text, nullable=False)
-    pinned_by = Column(Integer, ForeignKey("users.id"), nullable=False)  # user yang pin memory
-    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
-    project = relationship("ChatProject", backref="memories")
-    user = relationship("User", backref="chat_memories")
-
-
-class ChatSummary(Base):
-    """Store conversation summaries for long context management"""
-    __tablename__ = "chat_summaries"
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    conversation_id = Column(String(36), ForeignKey("chat_conversations.id"), nullable=False)
-    content = Column(Text, nullable=False)  # Summary text
-    message_count = Column(Integer, default=0)  # Number of messages summarized
-    tokens_saved = Column(Integer, default=0)  # Estimated tokens saved
-    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
-
 
 
 # ---------------------------------------------------------------------------
@@ -1424,6 +1359,7 @@ class LeadOut(BaseModel):
     deleted_at: Optional[str] = None
     lead_score: int = 0
     is_ghost_viewer: bool = False
+    action_recommendation: Optional[str] = None
     google_rating: Optional[float] = None
     review_count: Optional[int] = None
     website_url: Optional[str] = None
@@ -3138,6 +3074,64 @@ class LeadEdit(BaseModel):
     batch_name: Optional[str] = Field(None, max_length=100)
 
 
+@app.get("/api/leads", response_model=list[LeadOut])
+def list_leads(
+    status: Optional[str] = Query(None),
+    batch_name: Optional[str] = Query(None),
+    include_archived: bool = Query(False),
+    archived_only: bool = Query(False),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Lead)
+    if archived_only:
+        query = query.filter(Lead.is_archived == True)
+    elif not include_archived:
+        query = query.filter(Lead.is_archived == False)
+    if status:
+        query = query.filter(Lead.status == status)
+    if batch_name:
+        query = query.filter(Lead.batch_name == batch_name)
+    leads = query.order_by(Lead.id.desc()).all()
+
+    # Ghost Viewer aggregation: count LINK_CLICKED in last 48h, threshold >= 5
+    ghost_lead_ids: set[int] = set()
+    if leads:
+        threshold_48h = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+        lead_ids = [l.id for l in leads]
+        ghost_rows = db.query(
+            LeadActivityLog.lead_id, func.count(LeadActivityLog.id).label("click_count")
+        ).filter(
+            LeadActivityLog.lead_id.in_(lead_ids),
+            LeadActivityLog.activity_type == "LINK_CLICKED",
+            LeadActivityLog.created_at >= threshold_48h,
+        ).group_by(LeadActivityLog.lead_id).having(func.count(LeadActivityLog.id) >= 5).all()
+        ghost_lead_ids = {row[0] for row in ghost_rows}
+
+    results = []
+    for lead in leads:
+        results.append({
+            "id": lead.id,
+            "business_name": lead.business_name,
+            "phone_number": lead.phone_number,
+            "address": lead.address,
+            "original_url": lead.original_url,
+            "status": lead.status,
+            "product_interest": lead.product_interest,
+            "batch_name": lead.batch_name,
+            "rating": lead.rating or 0,
+            "is_archived": lead.is_archived,
+            "deleted_at": lead.deleted_at,
+            "lead_score": lead.lead_score or 0,
+            "is_ghost_viewer": lead.id in ghost_lead_ids,
+            "action_recommendation": _score_to_action(lead.lead_score or 0),
+            "google_rating": lead.google_rating,
+            "review_count": lead.review_count,
+            "website_url": lead.website_url,
+        })
+    return results
+
+
 @app.post("/api/leads", response_model=LeadOut, status_code=201)
 def create_lead_manual(body: LeadCreate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     existing = db.query(Lead).filter(Lead.phone_number == body.phone_number).first()
@@ -3661,7 +3655,7 @@ def create_proposal(body: ProposalIn, current_user: User = Depends(get_current_u
         discount_price=round(total * (1 - discount_pct)),
         discount_expires_at=discount_expires,
         additional_options=body.additional_options,
-        status="Sent",
+        status="sent",
         created_at=datetime.now(timezone.utc).isoformat(),
         slug=generate_unique_slug(db, lead.business_name),
         faqs=getattr(body, 'faqs', None) or default_faqs,
@@ -5200,7 +5194,11 @@ def auto_deduct_subscriptions(current_user: User = Depends(get_current_user), db
         wallet.balance -= sub.amount
         next_date = datetime.strptime(sub.next_billing_date, "%Y-%m-%d")
         if sub.billing_cycle == "monthly":
-            next_date = next_date.replace(month=next_date.month % 12 + 1, year=next_date.year + (1 if next_date.month == 12 else 0))
+            from calendar import monthrange
+            next_month = next_date.month % 12 + 1
+            next_year = next_date.year + (1 if next_date.month == 12 else 0)
+            max_day = monthrange(next_year, next_month)[1]
+            next_date = next_date.replace(year=next_year, month=next_month, day=min(next_date.day, max_day))
         else:
             next_date = next_date.replace(year=next_date.year + 1)
         sub.next_billing_date = next_date.strftime("%Y-%m-%d")
@@ -8563,6 +8561,31 @@ def update_workspace_cell(row_id: str, column_id: str, body: WorkspaceCellUpdate
             card.title = cell.value_text or f"Task {row.row_order}"
             db.commit()
 
+    # G6: Auto-complete project when all tasks done
+    if col.column_key == "done" and body.value_bool is True:
+        sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.id == col.sheet_id).first()
+        if sheet:
+            all_sheets = db.query(WorkspaceSheet).filter(WorkspaceSheet.project_id == sheet.project_id).all()
+            all_done = True
+            for s in all_sheets:
+                done_col = db.query(WorkspaceColumn).filter(WorkspaceColumn.sheet_id == s.id, WorkspaceColumn.column_key == "done").first()
+                if not done_col:
+                    continue
+                total_rows = db.query(WorkspaceRow).filter(WorkspaceRow.sheet_id == s.id).count()
+                done_count = db.query(WorkspaceCell).join(WorkspaceRow).filter(
+                    WorkspaceRow.sheet_id == s.id,
+                    WorkspaceCell.column_id == done_col.id,
+                    WorkspaceCell.value_bool == True,
+                ).count()
+                if total_rows > 0 and done_count < total_rows:
+                    all_done = False
+                    break
+            if all_done:
+                project = db.query(Project).filter(Project.id == sheet.project_id).first()
+                if project and project.status == "ACTIVE":
+                    project.status = "COMPLETED"
+                    db.commit()
+
     return {"id": cell.id, "value_text": cell.value_text, "value_bool": cell.value_bool, "value_number": cell.value_number, "value_date": cell.value_date}
 
 
@@ -8863,6 +8886,259 @@ def get_workspace_report_data(project_id: str, month: int = 1, current_user: Use
 
 
 # ---------------------------------------------------------------------------
+# Monthly Report Generator (per service type)
+# ---------------------------------------------------------------------------
+
+_REPORT_BASE_CSS = """
+@page { size: A4; margin: 1.5cm; }
+body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2937; line-height: 1.5; }
+.header { border-bottom: 3px solid #f59e0b; padding-bottom: 12px; margin-bottom: 20px; }
+.header .brand { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 1.5px; }
+.header h1 { margin: 4px 0 2px; font-size: 22px; color: #111827; }
+.header .meta { font-size: 11px; color: #6b7280; }
+.section { margin: 18px 0; }
+.section h2 { font-size: 13px; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; }
+.kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0; }
+.kpi { background: #fef3c7; padding: 10px 12px; border-radius: 8px; }
+.kpi .label { font-size: 9px; color: #92400e; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+.kpi .value { font-size: 20px; color: #78350f; font-weight: bold; margin-top: 2px; }
+table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 6px; }
+th { background: #f3f4f6; padding: 7px 8px; text-align: left; font-size: 10px; text-transform: uppercase; color: #4b5563; letter-spacing: 0.5px; }
+td { padding: 6px 8px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 9px; font-weight: 600; }
+.badge-done { background: #d1fae5; color: #065f46; }
+.badge-progress { background: #fef3c7; color: #92400e; }
+.badge-todo { background: #e5e7eb; color: #374151; }
+.screenshot-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px; }
+.screenshot-grid .item { font-size: 10px; }
+.screenshot-grid img { width: 100%; border: 1px solid #e5e7eb; border-radius: 4px; }
+.footer { margin-top: 30px; padding-top: 12px; border-top: 1px solid #e5e7eb; font-size: 10px; color: #9ca3af; text-align: center; }
+"""
+
+def _badge_for_task(task: dict) -> str:
+    if task.get("done"):
+        return '<span class="badge badge-done">Selesai</span>'
+    s = (task.get("status") or "").lower()
+    if "progress" in s or "doing" in s or "review" in s:
+        return '<span class="badge badge-progress">Berjalan</span>'
+    return '<span class="badge badge-todo">Belum</span>'
+
+
+def _render_monthly_report_html(data: dict, brand: dict) -> str:
+    project = data["project"]
+    contact = data["contact"]
+    summary = data["summary"]
+    tasks = data["tasks"]
+    screenshots = data["screenshots"]
+    artikel_tracker = data.get("artikel_tracker", [])
+    service_type = project.get("service_type") or "general"
+    month = data["month_number"]
+
+    brand_name = brand.get("brand_name") or "Kantor Teman"
+
+    service_label_map = {
+        "seo_gmaps": "Laporan Bulanan SEO & Google Maps",
+        "maintenance": "Laporan Bulanan Maintenance Website",
+        "sosmed": "Laporan Bulanan Kelola Sosial Media",
+        "web_dev": "Laporan Progres Web Development",
+        "web_dev_bulanan": "Laporan Bulanan Web Development",
+        "branding": "Laporan Branding & Identitas Visual",
+    }
+    title = service_label_map.get(service_type, "Laporan Bulanan Layanan")
+
+    html_parts = [f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>{_REPORT_BASE_CSS}</style></head><body>
+<div class="header">
+  <div class="brand">{brand_name}</div>
+  <h1>{title}</h1>
+  <div class="meta">Klien: <b>{contact.get('name') or '—'}</b> &middot; Proyek: {project.get('name') or '—'} &middot; Bulan ke-{month}</div>
+</div>
+
+<div class="section">
+  <h2>Ringkasan Bulan Ini</h2>
+  <div class="kpi-grid">
+    <div class="kpi"><div class="label">Total Tugas</div><div class="value">{summary['total_tasks']}</div></div>
+    <div class="kpi"><div class="label">Selesai</div><div class="value">{summary['completed_tasks']}</div></div>
+    <div class="kpi"><div class="label">Progress</div><div class="value">{summary['completion_pct']}%</div></div>
+  </div>
+</div>
+"""]
+
+    # Service-specific sections
+    if service_type == "seo_gmaps":
+        html_parts.append("""<div class="section"><h2>Aktivitas SEO &amp; Google Maps</h2><table>
+<thead><tr><th>Aktivitas</th><th>Status</th><th>Catatan</th></tr></thead><tbody>""")
+        for t in tasks:
+            html_parts.append(f"<tr><td>{t.get('task_name','—')}</td><td>{_badge_for_task(t)}</td><td>{t.get('catatan','') or t.get('notes','') or ''}</td></tr>")
+        html_parts.append("</tbody></table></div>")
+
+        if artikel_tracker:
+            html_parts.append("""<div class="section"><h2>Artikel yang Dipublikasi</h2><table>
+<thead><tr><th>Judul</th><th>Keyword</th><th>URL</th><th>Status</th></tr></thead><tbody>""")
+            for a in artikel_tracker:
+                html_parts.append(f"<tr><td>{a.get('judul','—')}</td><td>{a.get('keyword','—')}</td><td>{a.get('url','—')}</td><td>{a.get('status','—')}</td></tr>")
+            html_parts.append("</tbody></table></div>")
+
+    elif service_type == "maintenance":
+        html_parts.append("""<div class="section"><h2>Aktivitas Maintenance</h2><table>
+<thead><tr><th>Tugas</th><th>Status</th><th>Catatan / Resolusi</th></tr></thead><tbody>""")
+        for t in tasks:
+            html_parts.append(f"<tr><td>{t.get('task_name','—')}</td><td>{_badge_for_task(t)}</td><td>{t.get('catatan','') or t.get('notes','') or ''}</td></tr>")
+        html_parts.append("</tbody></table></div>")
+
+    elif service_type == "sosmed":
+        html_parts.append("""<div class="section"><h2>Konten &amp; Posting Sosial Media</h2><table>
+<thead><tr><th>Tanggal</th><th>Konten / Tugas</th><th>Platform</th><th>Status</th></tr></thead><tbody>""")
+        for t in tasks:
+            html_parts.append(f"<tr><td>{t.get('tanggal','') or t.get('value_date','')}</td><td>{t.get('task_name','—')}</td><td>{t.get('platform','—')}</td><td>{_badge_for_task(t)}</td></tr>")
+        html_parts.append("</tbody></table></div>")
+
+    elif service_type in ("web_dev", "web_dev_bulanan"):
+        html_parts.append("""<div class="section"><h2>Milestone &amp; Deliverables</h2><table>
+<thead><tr><th>Milestone / Tugas</th><th>Status</th><th>Catatan</th></tr></thead><tbody>""")
+        for t in tasks:
+            html_parts.append(f"<tr><td>{t.get('task_name','—')}</td><td>{_badge_for_task(t)}</td><td>{t.get('catatan','') or t.get('notes','') or ''}</td></tr>")
+        html_parts.append("</tbody></table></div>")
+
+    elif service_type == "branding":
+        html_parts.append("""<div class="section"><h2>Deliverables Branding</h2><table>
+<thead><tr><th>Deliverable</th><th>Status</th><th>Catatan</th></tr></thead><tbody>""")
+        for t in tasks:
+            html_parts.append(f"<tr><td>{t.get('task_name','—')}</td><td>{_badge_for_task(t)}</td><td>{t.get('catatan','') or t.get('notes','') or ''}</td></tr>")
+        html_parts.append("</tbody></table></div>")
+
+    else:  # general / fallback
+        html_parts.append("""<div class="section"><h2>Aktivitas Bulan Ini</h2><table>
+<thead><tr><th>Tugas</th><th>Status</th><th>Catatan</th></tr></thead><tbody>""")
+        for t in tasks:
+            html_parts.append(f"<tr><td>{t.get('task_name','—')}</td><td>{_badge_for_task(t)}</td><td>{t.get('catatan','') or t.get('notes','') or ''}</td></tr>")
+        html_parts.append("</tbody></table></div>")
+
+    if screenshots:
+        html_parts.append('<div class="section"><h2>Bukti Pengerjaan</h2><div class="screenshot-grid">')
+        for s in screenshots[:8]:
+            url = s.get("url", "")
+            if url and not url.startswith("http"):
+                base = _get_setting("app_base_url", "") or os.getenv("APP_BASE_URL", "")
+                url = f"{base.rstrip('/')}{url}" if base else url
+            html_parts.append(f'<div class="item"><img src="{url}" alt="" /><div>{s.get("task_name","")}</div></div>')
+        html_parts.append("</div></div>")
+
+    today_str = datetime.now(timezone.utc).strftime("%d %B %Y")
+    html_parts.append(f'<div class="footer">Dibuat {today_str} oleh {brand_name}</div></body></html>')
+    return "".join(html_parts)
+
+
+@app.post("/api/workspace/{project_id}/generate-monthly-report")
+def generate_monthly_report(
+    project_id: str,
+    month: int = 1,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    lead = db.query(Lead).filter(Lead.id == project.lead_id).first() if project.lead_id else None
+
+    sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.project_id == project_id, WorkspaceSheet.month_number == month).first()
+    if not sheet:
+        raise HTTPException(status_code=404, detail=f"Sheet bulan {month} tidak ditemukan")
+
+    rows = db.query(WorkspaceRow).filter(WorkspaceRow.sheet_id == sheet.id).order_by(WorkspaceRow.row_order).all()
+    cols = db.query(WorkspaceColumn).filter(WorkspaceColumn.sheet_id == sheet.id).all()
+    col_by_id = {c.id: c for c in cols}
+
+    tasks = []
+    screenshots = []
+    completed = 0
+    for row in rows:
+        cells = db.query(WorkspaceCell).filter(WorkspaceCell.row_id == row.id).all()
+        task = {}
+        for cell in cells:
+            col = col_by_id.get(cell.column_id)
+            if not col:
+                continue
+            if col.column_type == "checkbox":
+                task[col.column_key] = cell.value_bool
+            elif col.column_type == "number":
+                task[col.column_key] = cell.value_number
+            else:
+                task[col.column_key] = cell.value_text
+        if task.get("done"):
+            completed += 1
+        tasks.append(task)
+        if task.get("screenshot"):
+            screenshots.append({"task_name": task.get("task_name", ""), "url": task["screenshot"]})
+
+    by_status: dict[str, int] = {}
+    for t in tasks:
+        s = t.get("status", "To Do") or "To Do"
+        by_status[s] = by_status.get(s, 0) + 1
+
+    artikel_tracker = []
+    if project.service_type == "seo_gmaps":
+        art_sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.project_id == project_id, WorkspaceSheet.sheet_label == "Artikel Tracker").first()
+        if art_sheet:
+            art_rows = db.query(WorkspaceRow).filter(WorkspaceRow.sheet_id == art_sheet.id).all()
+            art_cols = {c.id: c for c in db.query(WorkspaceColumn).filter(WorkspaceColumn.sheet_id == art_sheet.id).all()}
+            for ar in art_rows:
+                art_cells = db.query(WorkspaceCell).filter(WorkspaceCell.row_id == ar.id).all()
+                art_task = {}
+                for ac in art_cells:
+                    acol = art_cols.get(ac.column_id)
+                    if acol:
+                        art_task[acol.column_key] = ac.value_text or ac.value_number
+                artikel_tracker.append(art_task)
+
+    total_tasks = len(rows)
+    data = {
+        "project": {"name": project.name, "service_type": project.service_type, "start_date": project.start_date, "end_date": project.end_date},
+        "contact": {"name": lead.business_name if lead else None, "phone": lead.phone_number if lead else None},
+        "month_number": month,
+        "sheet_label": sheet.sheet_label,
+        "summary": {"total_tasks": total_tasks, "completed_tasks": completed, "completion_pct": round(completed / total_tasks * 100, 1) if total_tasks else 0, "by_status": by_status},
+        "tasks": tasks,
+        "screenshots": screenshots,
+        "artikel_tracker": artikel_tracker,
+    }
+
+    brand = _build_brand_context(db)
+    rendered_html = _render_monthly_report_html(data, brand)
+
+    file_id = str(uuid.uuid4())
+    pdf_filename = f"{file_id}.pdf"
+    pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
+
+    try:
+        from weasyprint import HTML
+        HTML(string=rendered_html).write_pdf(pdf_path)
+    except ImportError:
+        raise HTTPException(status_code=500, detail="WeasyPrint tidak terinstall. Jalankan: pip install weasyprint")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF generation gagal: {e}")
+
+    file_url = f"/uploads/documents/{pdf_filename}"
+    safe_client = _slugify_name(lead.business_name if lead else "klien")
+    display_name = f"LAPORAN_{(project.service_type or 'umum').upper()}_{safe_client}_M{month:02d}"
+
+    doc = GeneratedDocument(
+        id=file_id,
+        template_id=None,
+        template_name=f"Laporan Bulanan — {project.service_type or 'umum'}",
+        target_type="project",
+        target_id=project_id,
+        variables_used=json.dumps({"month": month, "service_type": project.service_type}),
+        file_url=file_url,
+        display_filename=display_name,
+        generated_by=current_user.name,
+    )
+    db.add(doc)
+    db.commit()
+
+    return {"document_id": doc.id, "file_url": file_url, "display_filename": display_name, "summary": data["summary"]}
+
+
+# ---------------------------------------------------------------------------
 # APScheduler: Process pending blast campaigns
 # ---------------------------------------------------------------------------
 
@@ -9012,90 +9288,6 @@ async def scheduled_followup_processor():
 
 
 # ---------------------------------------------------------------------------
-# AI Chat Schemas (Semuts.sh Integration)
-# ---------------------------------------------------------------------------
-
-class ChatProjectCreate(BaseModel):
-    name: str
-    description: Optional[str] = None
-    system_prompt: Optional[str] = None
-    default_model: Optional[str] = "glm-5"
-    context_window_size: Optional[int] = 20
-
-
-class ChatProjectUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    system_prompt: Optional[str] = None
-    default_model: Optional[str] = None
-    context_window_size: Optional[int] = None
-
-
-class ChatProjectOut(BaseModel):
-    id: str
-    name: str
-    description: Optional[str]
-    system_prompt: Optional[str]
-    default_model: str
-    context_window_size: int
-    created_at: str
-    updated_at: Optional[str]
-    model_config = {"from_attributes": True}
-
-
-class ChatConversationCreate(BaseModel):
-    project_id: str
-    title: Optional[str] = "New Chat"
-
-
-class ChatConversationUpdate(BaseModel):
-    title: Optional[str] = None
-
-
-class ChatConversationOut(BaseModel):
-    id: str
-    project_id: str
-    title: str
-    created_at: str
-    updated_at: Optional[str]
-    model_config = {"from_attributes": True}
-
-
-class ChatMessageCreate(BaseModel):
-    content: str
-
-
-class ChatMessageOut(BaseModel):
-    id: str
-    conversation_id: str
-    role: str
-    content: str
-    tokens_used: int
-    model_used: Optional[str]
-    created_at: str
-    model_config = {"from_attributes": True}
-
-
-class ChatRequest(BaseModel):
-    message: str
-    model: Optional[str] = None
-    agent_mode: Optional[bool] = False  # Enable tool use
-
-
-class ChatMemoryCreate(BaseModel):
-    content: str
-
-
-class ChatMemoryOut(BaseModel):
-    id: str
-    project_id: str
-    content: str
-    pinned_by: int
-    created_at: str
-    model_config = {"from_attributes": True}
-
-
-# ---------------------------------------------------------------------------
 # Content Generator Schemas
 # ---------------------------------------------------------------------------
 
@@ -9204,1487 +9396,6 @@ class SeoArticleGenRequest(BaseModel):
     session_id: Optional[str] = None
     context_from: Optional[List[str]] = []
 
-
-# ---------------------------------------------------------------------------
-# Agent Tools - Functions AI can execute
-# ---------------------------------------------------------------------------
-
-AGENT_TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "create_lead",
-            "description": "Buat lead baru. WAJIB panggil untuk menambah klien/prospek baru.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "business_name": {"type": "string", "description": "Nama bisnis/klien"},
-                    "phone_number": {"type": "string", "description": "Nomor telepon/WhatsApp"},
-                    "address": {"type": "string", "description": "Alamat (opsional)"},
-                    "product_interest": {"type": "string", "description": "Produk yang diminati (opsional)"}
-                },
-                "required": ["business_name", "phone_number"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "search_leads",
-            "description": "Cari leads/klien. WAJIB panggil tool ini untuk query data.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "business_name": {"type": "string", "description": "Filter by business name (partial match)"},
-                    "status": {"type": "string", "description": "Filter by status", "enum": ["Scraped", "Contacted", "Replied", "Closed", "Closed/Client"]},
-                    "product_interest": {"type": "string", "description": "Filter by product interest"},
-                    "limit": {"type": "integer", "description": "Max results", "default": 10}
-                },
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_lead_details",
-            "description": "Ambil detail lead termasuk proyeknya. WAJIB panggil untuk lihat detail klien.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "lead_id": {"type": "integer", "description": "ID lead"},
-                    "business_name": {"type": "string", "description": "Nama bisnis untuk konfirmasi"}
-                },
-                "required": ["lead_id"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_client_projects",
-            "description": "List proyek klien. WAJIB panggil untuk lihat proyek berjalan.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "lead_id": {"type": "integer", "description": "ID lead/klien"}
-                },
-                "required": ["lead_id"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "update_project",
-            "description": "Update proyek (harga, status). WAJIB panggil untuk update proyek klien.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "project_id": {"type": "string", "description": "ID proyek"},
-                    "business_name": {"type": "string", "description": "Nama bisnis untuk konfirmasi"},
-                    "nominal": {"type": "number", "description": "Nominal baru (harga bulanan/total)"},
-                    "status": {"type": "string", "description": "Status: ACTIVE, COMPLETED, HOLD"}
-                },
-                "required": ["project_id", "business_name"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "update_lead_status",
-            "description": "Update status lead. WAJIB panggil untuk ubah status.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "lead_id": {"type": "integer", "description": "ID lead"},
-                    "business_name": {"type": "string", "description": "Nama bisnis untuk konfirmasi"},
-                    "status": {"type": "string", "description": "Status baru", "enum": ["Scraped", "Contacted", "Replied", "Closed", "Closed/Client"]}
-                },
-                "required": ["lead_id", "business_name", "status"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "send_whatsapp",
-            "description": "Kirim WA ke lead. PANGGIL SETELAH create_proposal untuk dapat proposal_link. WAJIB sertakan proposal_link di replacements jika pakai template dengan placeholder {{proposal_link}}.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "lead_id": {"type": "integer", "description": "ID lead"},
-                    "business_name": {"type": "string", "description": "Nama bisnis untuk konfirmasi"},
-                    "message": {"type": "string", "description": "Isi pesan (opsional jika pakai template_id)"},
-                    "template_id": {"type": "string", "description": "ID template WA_BLAST dari database"},
-                    "replacements": {"type": "object", "description": "WAJIB isi proposal_link dari hasil create_proposal. Contoh: {\"proposal_link\": \"https://...\"}"}
-                },
-                "required": ["lead_id", "business_name", "template_id", "replacements"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_wa_templates",
-            "description": "List semua template WA_BLAST yang aktif. WAJIB panggil sebelum send_whatsapp untuk lihat template tersedia.",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_products",
-            "description": "List semua produk dengan info retainer/one-time. WAJIB panggil sebelum create_proposal.",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_business_summary",
-            "description": "Ringkasan bisnis. WAJIB panggil untuk overview.",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "create_proposal",
-            "description": "Buat proposal. WAJIB panggil untuk buat penawaran baru.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "lead_id": {"type": "integer", "description": "ID lead"},
-                    "business_name": {"type": "string", "description": "Nama bisnis untuk konfirmasi"},
-                    "services": {"type": "string", "description": "JSON array: [{\"name\": \"...\", \"price\": 0, \"is_retainer\": false, \"features\": []}]"}
-                },
-                "required": ["lead_id", "business_name", "services"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_project_board",
-            "description": "Ambil board kanban sebuah proyek + list kolom. WAJIB panggil sebelum manipulasi card.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "project_id": {"type": "string", "description": "ID proyek (uuid)"},
-                    "lead_id": {"type": "integer", "description": "Alternatif: cari board via lead_id"}
-                },
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "list_board_cards",
-            "description": "List card di board atau column tertentu. Filter is_archived.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "board_id": {"type": "string", "description": "ID board"},
-                    "column_id": {"type": "string", "description": "ID column (alternatif filter)"},
-                    "include_archived": {"type": "boolean", "description": "Sertakan card yang sudah archived", "default": False}
-                },
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "create_board_card",
-            "description": "Buat card baru di kolom. Gunakan untuk assign tugas baru ke tim.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "column_id": {"type": "string", "description": "ID column tempat card dibuat"},
-                    "title": {"type": "string", "description": "Judul task"},
-                    "assignee": {"type": "string", "description": "Nama orang yang ditugaskan (opsional)"},
-                    "due_date": {"type": "string", "description": "Tanggal deadline ISO format (YYYY-MM-DD)"},
-                    "description": {"type": "string", "description": "Detail task"},
-                    "labels": {"type": "array", "items": {"type": "string"}, "description": "Labels/tags"}
-                },
-                "required": ["column_id", "title"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "move_board_card",
-            "description": "Pindah card ke kolom lain. Done/Revisi/Selesai hanya bisa oleh admin.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "card_id": {"type": "string", "description": "ID card"},
-                    "column_id": {"type": "string", "description": "ID kolom tujuan"},
-                    "position": {"type": "integer", "description": "Posisi di kolom baru (opsional, default akhir)"}
-                },
-                "required": ["card_id", "column_id"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "update_board_card",
-            "description": "Update detail card (title, assignee, due_date, description, labels).",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "card_id": {"type": "string", "description": "ID card"},
-                    "title": {"type": "string"},
-                    "assignee": {"type": "string"},
-                    "due_date": {"type": "string", "description": "ISO format YYYY-MM-DD"},
-                    "description": {"type": "string"},
-                    "labels": {"type": "array", "items": {"type": "string"}}
-                },
-                "required": ["card_id"]
-            }
-        }
-    }
-]
-
-
-def execute_tool_call(tool_name: str, tool_args: dict, db: Session, current_user: User) -> dict:
-    """Execute a tool call and return the result."""
-    try:
-        if tool_name == "create_lead":
-            # Check if lead with same phone already exists
-            existing = db.query(Lead).filter(Lead.phone_number == tool_args["phone_number"]).first()
-            if existing:
-                return {"success": False, "error": f"Lead dengan nomor {tool_args['phone_number']} sudah ada: {existing.business_name} (ID: {existing.id})"}
-            lead = Lead(
-                business_name=tool_args["business_name"],
-                phone_number=tool_args["phone_number"],
-                address=tool_args.get("address", ""),
-                product_interest=tool_args.get("product_interest"),
-                status="Scraped",
-                lead_score=50,
-            )
-            db.add(lead)
-            db.commit()
-            db.refresh(lead)
-            log_audit(db, current_user.name, "CREATE", "leads", lead.id, {"business_name": lead.business_name, "phone": lead.phone_number})
-            return {"success": True, "result": {"lead_id": lead.id, "business_name": lead.business_name, "phone_number": lead.phone_number, "status": lead.status}}
-
-        elif tool_name == "search_leads":
-            query = db.query(Lead).filter(Lead.is_archived == False)
-            if tool_args.get("business_name"):
-                query = query.filter(Lead.business_name.ilike(f"%{tool_args['business_name']}%"))
-            if tool_args.get("status"):
-                query = query.filter(Lead.status == tool_args["status"])
-            if tool_args.get("product_interest"):
-                query = query.filter(Lead.product_interest.ilike(f"%{tool_args['product_interest']}%"))
-            limit = tool_args.get("limit", 10)
-            leads = query.order_by(Lead.lead_score.desc()).limit(limit).all()
-            return {
-                "success": True,
-                "result": [{
-                    "id": l.id,
-                    "business_name": l.business_name,
-                    "phone_number": l.phone_number,
-                    "status": l.status,
-                    "product_interest": l.product_interest,
-                    "lead_score": l.lead_score,
-                } for l in leads],
-                "count": len(leads)
-            }
-
-        elif tool_name == "update_lead_status":
-            lead = db.query(Lead).filter(Lead.id == tool_args["lead_id"]).first()
-            if not lead:
-                return {"success": False, "error": f"Lead ID {tool_args.get('lead_id')} tidak ditemukan"}
-            # Validate business_name if provided
-            if tool_args.get("business_name") and tool_args["business_name"].lower() not in lead.business_name.lower():
-                return {"success": False, "error": f"Konfirmasi gagal: lead ID {lead.id} adalah '{lead.business_name}', bukan '{tool_args['business_name']}'"}
-            old_status = lead.status
-            lead.status = tool_args["status"]
-            db.commit()
-            log_audit(db, current_user.name, "UPDATE", "leads", lead.id, {"field": "status", "old": old_status, "new": tool_args["status"]})
-            return {"success": True, "result": {"lead_id": lead.id, "business_name": lead.business_name, "status": tool_args["status"]}}
-
-        elif tool_name == "send_whatsapp":
-            lead = db.query(Lead).filter(Lead.id == tool_args["lead_id"]).first()
-            if not lead:
-                return {"success": False, "error": f"Lead ID {tool_args.get('lead_id')} tidak ditemukan"}
-            # Validate business_name if provided
-            if tool_args.get("business_name") and tool_args["business_name"].lower() not in lead.business_name.lower():
-                return {"success": False, "error": f"Konfirmasi gagal: lead ID {lead.id} adalah '{lead.business_name}', bukan '{tool_args['business_name']}'"}
-            token = get_fonnte_token(db)
-            if not token:
-                return {"success": False, "error": "Fonnte token belum dikonfigurasi. Tambahkan token di Settings."}
-            # Get template from database if template_id provided, else use message
-            message_text = tool_args.get("message", "")
-            template_id = tool_args.get("template_id")
-            if template_id:
-                tmpl = db.query(DynamicTemplate).filter(DynamicTemplate.id == template_id, DynamicTemplate.type == "WA_BLAST", DynamicTemplate.is_active == True).first()
-                if tmpl:
-                    # Replace placeholders in template (support both {{var}} and {var} formats)
-                    message_text = tmpl.content
-                    message_text = message_text.replace("{{business_name}}", lead.business_name or "").replace("{business_name}", lead.business_name or "")
-                    message_text = message_text.replace("{{phone}}", lead.phone_number or "").replace("{phone}", lead.phone_number or "")
-                    # Also support custom replacements from args
-                    if tool_args.get("replacements"):
-                        for key, val in tool_args["replacements"].items():
-                            message_text = message_text.replace("{{" + key + "}}", str(val)).replace("{" + key + "}", str(val))
-                            message_text = message_text.replace(f"{{{key}}}", str(val))
-            import httpx as _httpx
-            success = _send_fonnte_sync(lead.phone_number, message_text, token, _httpx)
-            if success:
-                if lead.status == "Scraped":
-                    lead.status = "Contacted"
-                    db.commit()
-                log_audit(db, current_user.name, "SEND_WA", "leads", lead.id, {"type": "agent", "template_id": template_id})
-                return {"success": True, "result": {"lead_id": lead.id, "business_name": lead.business_name, "phone": lead.phone_number, "template_used": bool(template_id)}}
-            return {"success": False, "error": "Gagal kirim WA via Fonnte"}
-
-        elif tool_name == "get_lead_details":
-            lead = db.query(Lead).filter(Lead.id == tool_args["lead_id"]).first()
-            if not lead:
-                return {"success": False, "error": f"Lead ID {tool_args.get('lead_id')} tidak ditemukan"}
-            # Get projects for this lead
-            projects = db.query(Project).filter(Project.lead_id == lead.id).all()
-            return {
-                "success": True,
-                "result": {
-                    "id": lead.id,
-                    "business_name": lead.business_name,
-                    "phone_number": lead.phone_number,
-                    "address": lead.address,
-                    "status": lead.status,
-                    "product_interest": lead.product_interest,
-                    "lead_score": lead.lead_score,
-                    "google_rating": lead.google_rating,
-                    "review_count": lead.review_count,
-                    "website_url": lead.website_url,
-                    "projects": [{
-                        "id": p.id,
-                        "name": p.name,
-                        "type": p.type,
-                        "status": p.status,
-                        "nominal": p.nominal,
-                        "start_date": p.start_date,
-                        "end_date": p.end_date,
-                    } for p in projects]
-                }
-            }
-
-        elif tool_name == "get_client_projects":
-            projects = db.query(Project).filter(Project.lead_id == tool_args["lead_id"]).all()
-            if not projects:
-                return {"success": True, "result": [], "count": 0}
-            lead = db.query(Lead).filter(Lead.id == tool_args["lead_id"]).first()
-            return {
-                "success": True,
-                "result": [{
-                    "id": p.id,
-                    "lead_id": p.lead_id,
-                    "business_name": lead.business_name if lead else None,
-                    "name": p.name,
-                    "type": p.type,
-                    "status": p.status,
-                    "nominal": p.nominal,
-                    "start_date": p.start_date,
-                    "end_date": p.end_date,
-                } for p in projects],
-                "count": len(projects)
-            }
-
-        elif tool_name == "update_project":
-            project = db.query(Project).filter(Project.id == tool_args["project_id"]).first()
-            if not project:
-                return {"success": False, "error": f"Project ID {tool_args.get('project_id')} tidak ditemukan"}
-            lead = db.query(Lead).filter(Lead.id == project.lead_id).first()
-            # Validate business_name if provided
-            if tool_args.get("business_name") and lead:
-                if tool_args["business_name"].lower() not in lead.business_name.lower():
-                    return {"success": False, "error": f"Konfirmasi gagal: project ini milik '{lead.business_name}', bukan '{tool_args['business_name']}'"}
-            old_values = {"nominal": project.nominal, "status": project.status}
-            if tool_args.get("nominal"):
-                project.nominal = tool_args["nominal"]
-            if tool_args.get("status"):
-                project.status = tool_args["status"]
-            db.commit()
-            log_audit(db, current_user.name, "UPDATE", "projects", project.id, {"old": old_values, "new": {"nominal": project.nominal, "status": project.status}})
-            return {
-                "success": True,
-                "result": {
-                    "project_id": project.id,
-                    "business_name": lead.business_name if lead else None,
-                    "name": project.name,
-                    "nominal": project.nominal,
-                    "status": project.status,
-                }
-            }
-
-        elif tool_name == "get_products":
-            products = db.query(Product).filter(Product.is_active == True).all()
-            return {
-                "success": True,
-                "result": [{
-                    "id": p.id,
-                    "name": p.name,
-                    "base_price": p.base_price,
-                    "is_retainer": p.is_retainer,
-                    "category": p.category,
-                } for p in products]
-            }
-
-        elif tool_name == "get_wa_templates":
-            templates = db.query(DynamicTemplate).filter(
-                DynamicTemplate.type == "WA_BLAST",
-                DynamicTemplate.is_active == True
-            ).all()
-            return {
-                "success": True,
-                "result": [{
-                    "id": t.id,
-                    "name": t.name,
-                    "content": t.content[:500] + "..." if len(t.content) > 500 else t.content,
-                } for t in templates],
-                "count": len(templates)
-            }
-
-        elif tool_name == "get_business_summary":
-            total_leads = db.query(Lead).filter(Lead.is_archived == False).count()
-            by_status = db.query(Lead.status, func.count(Lead.id)).filter(Lead.is_archived == False).group_by(Lead.status).all()
-            total_revenue = db.query(func.sum(Transaction.amount)).filter(Transaction.type == "income").scalar() or 0
-            total_expense = db.query(func.sum(Transaction.amount)).filter(Transaction.type == "expense").scalar() or 0
-            active_projects = db.query(Project).filter(Project.status == "ACTIVE").count()
-            return {
-                "success": True,
-                "result": {
-                    "total_leads": total_leads,
-                    "by_status": dict(by_status),
-                    "revenue": total_revenue,
-                    "expense": total_expense,
-                    "profit": total_revenue - total_expense,
-                    "active_projects": active_projects,
-                }
-            }
-
-        elif tool_name == "create_proposal":
-            lead = db.query(Lead).filter(Lead.id == tool_args["lead_id"]).first()
-            if not lead:
-                return {"success": False, "error": f"Lead ID {tool_args.get('lead_id')} tidak ditemukan"}
-            # Validate business_name if provided
-            if tool_args.get("business_name") and tool_args["business_name"].lower() not in lead.business_name.lower():
-                return {"success": False, "error": f"Konfirmasi gagal: lead ID {lead.id} adalah '{lead.business_name}', bukan '{tool_args['business_name']}'"}
-            services = json.loads(tool_args["services"]) if isinstance(tool_args["services"], str) else tool_args["services"]
-            slug = generate_unique_slug(db, lead.business_name)
-            proposal = Proposal(
-                lead_id=lead.id,
-                services_detail=json.dumps(services),
-                total_price=sum(s.get("price", 0) for s in services),
-                base_price=sum(s.get("price", 0) for s in services),
-                status="Sent",
-                created_at=datetime.now(timezone.utc).isoformat(),
-                slug=slug,
-            )
-            db.add(proposal)
-            db.commit()
-            log_audit(db, current_user.name, "CREATE", "proposals", proposal.id, {"lead_id": lead.id})
-            return {
-                "success": True,
-                "result": {
-                    "proposal_id": proposal.id,
-                    "slug": slug,
-                    "url": f"https://api.kantorteman.my.id/r/{slug}",
-                    "lead_id": lead.id,
-                    "business_name": lead.business_name,
-                    "services": services,
-                }
-            }
-
-        elif tool_name == "get_project_board":
-            project = None
-            if tool_args.get("project_id"):
-                project = db.query(Project).filter(Project.id == tool_args["project_id"]).first()
-            elif tool_args.get("lead_id"):
-                project = db.query(Project).filter(Project.lead_id == tool_args["lead_id"]).order_by(Project.id.desc()).first()
-            if not project:
-                return {"success": False, "error": "Project tidak ditemukan"}
-            board = db.query(Board).filter(Board.project_id == project.id).first()
-            if not board:
-                return {"success": False, "error": f"Board belum ada untuk project '{project.name}'"}
-            columns = db.query(BoardColumn).filter(BoardColumn.board_id == board.id).order_by(BoardColumn.position).all()
-            return {
-                "success": True,
-                "result": {
-                    "board_id": board.id,
-                    "project_id": project.id,
-                    "project_name": project.name,
-                    "columns": [{
-                        "id": col.id,
-                        "name": col.name,
-                        "position": col.position,
-                        "card_count": db.query(BoardCard).filter(BoardCard.column_id == col.id, BoardCard.is_archived == False).count()
-                    } for col in columns]
-                }
-            }
-
-        elif tool_name == "list_board_cards":
-            query = db.query(BoardCard)
-            if tool_args.get("column_id"):
-                query = query.filter(BoardCard.column_id == tool_args["column_id"])
-            elif tool_args.get("board_id"):
-                col_ids = [c.id for c in db.query(BoardColumn).filter(BoardColumn.board_id == tool_args["board_id"]).all()]
-                query = query.filter(BoardCard.column_id.in_(col_ids))
-            else:
-                return {"success": False, "error": "board_id atau column_id wajib diisi"}
-            if not tool_args.get("include_archived"):
-                query = query.filter(BoardCard.is_archived == False)
-            cards = query.order_by(BoardCard.position).limit(50).all()
-            col_map = {}
-            for card in cards:
-                if card.column_id not in col_map:
-                    col = db.query(BoardColumn).filter(BoardColumn.id == card.column_id).first()
-                    col_map[card.column_id] = col.name if col else ""
-            return {
-                "success": True,
-                "result": [{
-                    "id": c.id,
-                    "title": c.title,
-                    "assignee": c.assignee,
-                    "due_date": c.due_date,
-                    "column_name": col_map.get(c.column_id, ""),
-                    "labels": json.loads(c.labels) if c.labels else [],
-                    "is_archived": c.is_archived,
-                } for c in cards],
-                "count": len(cards)
-            }
-
-        elif tool_name == "create_board_card":
-            column = db.query(BoardColumn).filter(BoardColumn.id == tool_args["column_id"]).first()
-            if not column:
-                return {"success": False, "error": "Column tidak ditemukan"}
-            position = db.query(BoardCard).filter(BoardCard.column_id == column.id).count()
-            card = BoardCard(
-                id=str(uuid.uuid4()),
-                column_id=column.id,
-                title=tool_args["title"],
-                description=tool_args.get("description", ""),
-                assignee=tool_args.get("assignee") or current_user.name,
-                due_date=tool_args.get("due_date"),
-                labels=json.dumps(tool_args.get("labels", [])),
-                position=position,
-                color="yellow",
-            )
-            db.add(card)
-            activity = BoardCardActivity(
-                id=str(uuid.uuid4()), card_id=card.id,
-                action="created", description=f"Card created: {card.title}", actor=current_user.name,
-            )
-            db.add(activity)
-            db.commit()
-            log_audit(db, current_user.name, "CREATE", "board_cards", card.id, {"title": card.title, "column": column.name})
-            return {
-                "success": True,
-                "result": {"card_id": card.id, "title": card.title, "assignee": card.assignee, "column": column.name}
-            }
-
-        elif tool_name == "move_board_card":
-            card = db.query(BoardCard).filter(BoardCard.id == tool_args["card_id"]).first()
-            if not card:
-                return {"success": False, "error": "Card tidak ditemukan"}
-            target_col = db.query(BoardColumn).filter(BoardColumn.id == tool_args["column_id"]).first()
-            if not target_col:
-                return {"success": False, "error": "Column tujuan tidak ditemukan"}
-            target_name = (target_col.name or "").strip().lower()
-            if target_name in {"done", "revisi", "selesai"} and (current_user.role or "").lower() != "admin":
-                return {"success": False, "error": f"Hanya admin yang bisa pindahin card ke '{target_col.name}'"}
-            old_col = db.query(BoardColumn).filter(BoardColumn.id == card.column_id).first()
-            card.column_id = target_col.id
-            if tool_args.get("position") is not None:
-                card.position = tool_args["position"]
-            else:
-                card.position = db.query(BoardCard).filter(BoardCard.column_id == target_col.id).count()
-            activity = BoardCardActivity(
-                id=str(uuid.uuid4()), card_id=card.id,
-                action="moved", description=f"Moved: {old_col.name if old_col else '?'} → {target_col.name}", actor=current_user.name,
-            )
-            db.add(activity)
-            db.commit()
-            log_audit(db, current_user.name, "UPDATE", "board_cards", card.id, {"action": "move", "to": target_col.name})
-            return {
-                "success": True,
-                "result": {"card_id": card.id, "title": card.title, "moved_to": target_col.name}
-            }
-
-        elif tool_name == "update_board_card":
-            card = db.query(BoardCard).filter(BoardCard.id == tool_args["card_id"]).first()
-            if not card:
-                return {"success": False, "error": "Card tidak ditemukan"}
-            changes = {}
-            if "title" in tool_args:
-                linked = db.query(WorkspaceRow).filter(WorkspaceRow.board_card_id == card.id).first() if hasattr(WorkspaceRow, 'board_card_id') else None
-                if not linked:
-                    changes["title"] = {"old": card.title, "new": tool_args["title"]}
-                    card.title = tool_args["title"]
-            if "assignee" in tool_args:
-                changes["assignee"] = {"old": card.assignee, "new": tool_args["assignee"]}
-                card.assignee = tool_args["assignee"]
-            if "due_date" in tool_args:
-                changes["due_date"] = {"old": card.due_date, "new": tool_args["due_date"]}
-                card.due_date = tool_args["due_date"]
-            if "description" in tool_args:
-                card.description = tool_args["description"]
-            if "labels" in tool_args:
-                card.labels = json.dumps(tool_args["labels"])
-            card.updated_at = datetime.now(timezone.utc).isoformat()
-            activity = BoardCardActivity(
-                id=str(uuid.uuid4()), card_id=card.id,
-                action="updated", description=f"Updated: {', '.join(changes.keys()) or 'details'}", actor=current_user.name,
-            )
-            db.add(activity)
-            db.commit()
-            log_audit(db, current_user.name, "UPDATE", "board_cards", card.id, changes)
-            return {
-                "success": True,
-                "result": {"card_id": card.id, "title": card.title, "assignee": card.assignee, "due_date": card.due_date}
-            }
-
-        else:
-            available = ", ".join(t["function"]["name"] for t in AGENT_TOOLS)
-            return {"success": False, "error": f"Tool '{tool_name}' belum tersedia. Tools yang ada: {available}. Sampaikan ke user kalau fitur ini belum didukung."}
-
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-# ---------------------------------------------------------------------------
-# AI Chat Endpoints (Semuts.sh Integration)
-# ---------------------------------------------------------------------------
-
-@app.get("/api/chat/projects", response_model=List[ChatProjectOut])
-def list_chat_projects(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    projects = db.query(ChatProject).filter(ChatProject.user_id == current_user.id).order_by(ChatProject.updated_at.desc()).all()
-    return projects
-
-
-@app.post("/api/chat/projects", response_model=ChatProjectOut)
-def create_chat_project(body: ChatProjectCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    project = ChatProject(
-        user_id=current_user.id,
-        name=body.name,
-        description=body.description,
-        system_prompt=body.system_prompt,
-        default_model=body.default_model or "glm-5",
-        context_window_size=body.context_window_size or 20,
-    )
-    db.add(project)
-    db.commit()
-    db.refresh(project)
-    return project
-
-
-@app.get("/api/chat/projects/{project_id}", response_model=ChatProjectOut)
-def get_chat_project(project_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    project = db.query(ChatProject).filter(ChatProject.id == project_id, ChatProject.user_id == current_user.id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
-    return project
-
-
-@app.put("/api/chat/projects/{project_id}", response_model=ChatProjectOut)
-def update_chat_project(project_id: str, body: ChatProjectUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    project = db.query(ChatProject).filter(ChatProject.id == project_id, ChatProject.user_id == current_user.id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
-    if body.name is not None:
-        project.name = body.name
-    if body.description is not None:
-        project.description = body.description
-    if body.system_prompt is not None:
-        project.system_prompt = body.system_prompt
-    if body.default_model is not None:
-        project.default_model = body.default_model
-    if body.context_window_size is not None:
-        project.context_window_size = body.context_window_size
-    project.updated_at = datetime.now(timezone.utc).isoformat()
-    db.commit()
-    db.refresh(project)
-    return project
-
-
-@app.delete("/api/chat/projects/{project_id}")
-def delete_chat_project(project_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    project = db.query(ChatProject).filter(ChatProject.id == project_id, ChatProject.user_id == current_user.id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
-
-    # Delete all messages in all conversations
-    conversations = db.query(ChatConversation).filter(ChatConversation.project_id == project_id).all()
-    for conv in conversations:
-        db.query(ChatMessage).filter(ChatMessage.conversation_id == conv.id).delete()
-
-    # Delete all conversations
-    db.query(ChatConversation).filter(ChatConversation.project_id == project_id).delete()
-
-    # Delete all memories
-    db.query(ChatMemory).filter(ChatMemory.project_id == project_id).delete()
-
-    # Delete project
-    db.delete(project)
-    db.commit()
-    return {"success": True, "message": "Project dihapus"}
-
-
-@app.get("/api/chat/projects/{project_id}/conversations", response_model=List[ChatConversationOut])
-def list_conversations(project_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    project = db.query(ChatProject).filter(ChatProject.id == project_id, ChatProject.user_id == current_user.id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
-    conversations = db.query(ChatConversation).filter(ChatConversation.project_id == project_id).order_by(ChatConversation.updated_at.desc()).all()
-    return conversations
-
-
-@app.post("/api/chat/projects/{project_id}/conversations", response_model=ChatConversationOut)
-def create_conversation(project_id: str, body: ChatConversationCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    project = db.query(ChatProject).filter(ChatProject.id == project_id, ChatProject.user_id == current_user.id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
-    conversation = ChatConversation(
-        project_id=project_id,
-        user_id=current_user.id,
-        title=body.title or "New Chat",
-    )
-    db.add(conversation)
-    db.commit()
-    db.refresh(conversation)
-    return conversation
-
-
-@app.get("/api/chat/conversations/{conversation_id}", response_model=ChatConversationOut)
-def get_conversation(conversation_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    conversation = db.query(ChatConversation).filter(ChatConversation.id == conversation_id, ChatConversation.user_id == current_user.id).first()
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation tidak ditemukan")
-    return conversation
-
-
-@app.delete("/api/chat/conversations/{conversation_id}")
-def delete_conversation(conversation_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    conversation = db.query(ChatConversation).filter(ChatConversation.id == conversation_id, ChatConversation.user_id == current_user.id).first()
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation tidak ditemukan")
-    db.delete(conversation)
-    db.commit()
-    return {"success": True, "message": "Conversation dihapus"}
-
-
-@app.get("/api/chat/conversations/{conversation_id}/messages", response_model=List[ChatMessageOut])
-def list_messages(conversation_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    conversation = db.query(ChatConversation).filter(ChatConversation.id == conversation_id, ChatConversation.user_id == current_user.id).first()
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation tidak ditemukan")
-    messages = db.query(ChatMessage).filter(ChatMessage.conversation_id == conversation_id).order_by(ChatMessage.created_at.asc()).all()
-    return messages
-
-
-# RAG Tools - Functions for AI to query business data
-def get_business_context(query: str, db: Session) -> str:
-    """
-    Fleksibel RAG - Automatically query all database tables based on keywords.
-    No hardcoding needed - will adapt to any table structure.
-    """
-    from sqlalchemy import inspect, text as sql_text
-
-    context_parts = []
-    query_lower = query.lower()
-
-    # Get all model classes from Base
-    model_map = {
-        "leads": Lead,
-        "contacts": Contact,
-        "products": Product,
-        "categories": Category,
-        "proposals": Proposal,
-        "wallets": Wallet,
-        "transactions": Transaction,
-        "subscriptions": Subscription,
-        "ads_campaigns": AdsCampaign,
-        "blast_campaigns": BlastCampaign,
-        "projects": Project,
-        "client_notes": ClientNote,
-        "follow_up_sequences": FollowUpSequence,
-        "content_schedules": ContentSchedule,
-        "scrape_histories": ScrapeHistory,
-        "lead_activity_logs": LeadActivityLog,
-        "reengagement_alerts": ReengagementAlert,
-        "message_templates": MessageTemplate,
-        "dynamic_templates": DynamicTemplate,
-        "service_items": ServiceItem,
-        "provider_configs": ProviderConfig,
-    }
-
-    # Keywords mapping to tables
-    keyword_table_map = {
-        # Leads & Customers
-        "lead": ["leads"], "leads": ["leads"], "prospek": ["leads"], "calon": ["leads"],
-        # Finance
-        "uang": ["transactions", "wallets"], "duit": ["transactions", "wallets"],
-        "keuangan": ["transactions", "wallets"], "finance": ["transactions", "wallets"],
-        "pendapatan": ["transactions"], "revenue": ["transactions"], "omzet": ["transactions"],
-        "pengeluaran": ["transactions"], "expense": ["transactions"],
-        "saldo": ["wallets"], "wallet": ["wallets"], "dompet": ["wallets"],
-        # Contacts & Clients
-        "kontak": ["contacts"], "contact": ["contacts"], "klien": ["contacts", "projects", "client_notes"],
-        "client": ["contacts", "projects", "client_notes"], "nasabah": ["contacts"],
-        # Products & Services
-        "produk": ["products", "categories"], "product": ["products", "categories"],
-        "layanan": ["products", "categories"], "service": ["products", "categories"],
-        "kategori": ["categories"], "category": ["categories"],
-        # Proposals
-        "proposal": ["proposals"], "penawaran": ["proposals"], "quote": ["proposals"],
-        # Marketing & Ads
-        "ads": ["ads_campaigns"], "iklan": ["ads_campaigns"], "campaign": ["ads_campaigns"],
-        "advertising": ["ads_campaigns"], "promosi": ["ads_campaigns", "blast_campaigns"],
-        "blast": ["blast_campaigns"], "whatsapp blast": ["blast_campaigns"],
-        # Subscriptions
-        "langganan": ["subscriptions"], "subscription": ["subscriptions"],
-        "retainer": ["subscriptions"],
-        # Projects
-        "project": ["projects"], "proyek": ["projects"],
-        # Schedules & Follow-ups
-        "jadwal": ["content_schedules", "follow_up_sequences"],
-        "schedule": ["content_schedules"], "follow up": ["follow_up_sequences"],
-        "konten": ["content_schedules"], "content": ["content_schedules"],
-        # Scraping
-        "scrape": ["scrape_histories"], "scraping": ["scrape_histories"],
-        # Alerts
-        "alert": ["reengagement_alerts"], "reengagement": ["reengagement_alerts"],
-        # Templates
-        "template": ["message_templates", "dynamic_templates"],
-        # General business
-        "bisnis": ["leads", "transactions", "ads_campaigns", "subscriptions"],
-        "usaha": ["leads", "transactions", "ads_campaigns", "subscriptions"],
-        "overview": ["leads", "transactions", "ads_campaigns", "subscriptions", "contacts"],
-    }
-
-    # Find which tables to query based on keywords
-    tables_to_query = set()
-    for keyword, tables in keyword_table_map.items():
-        if keyword in query_lower:
-            tables_to_query.update(tables)
-
-    # If no specific keywords found, give business overview
-    if not tables_to_query:
-        tables_to_query = {"leads", "transactions", "contacts", "ads_campaigns"}
-
-    # Query each relevant table
-    for table_name in tables_to_query:
-        if table_name not in model_map:
-            continue
-
-        model = model_map[table_name]
-
-        try:
-            # Get table data
-            records = db.query(model).limit(50).all()
-
-            if not records:
-                continue
-
-            # Get column names
-            inspector = inspect(model)
-            columns = [c.key for c in inspector.mapper.column_attrs]
-
-            # Build context for this table
-            table_context = f"\n[DATA {table_name.upper()}]\n"
-            table_context += f"Total: {db.query(model).count()} records\n\n"
-
-            # Format records
-            for i, record in enumerate(records[:10]):  # Limit to 10 records
-                record_data = []
-                for col in columns:
-                    val = getattr(record, col, None)
-                    if val is not None and col not in ["id", "created_at", "updated_at", "deleted_at"]:
-                        # Format value
-                        if isinstance(val, float):
-                            val = f"Rp {val:,.0f}" if "price" in col or "amount" in col or "budget" in col or "balance" in col else f"{val:,.2f}"
-                        elif isinstance(val, str) and len(val) > 100:
-                            val = val[:100] + "..."
-                        record_data.append(f"{col}: {val}")
-
-                if record_data:
-                    table_context += f"  - {', '.join(record_data[:5])}\n"
-
-            context_parts.append(table_context)
-
-        except Exception as e:
-            # Skip tables that can't be queried
-            continue
-
-    # Add summary statistics for key tables
-    if "transactions" in tables_to_query:
-        total_income = db.query(func.sum(Transaction.amount)).filter(Transaction.type == "income").scalar() or 0
-        total_expense = db.query(func.sum(Transaction.amount)).filter(Transaction.type == "expense").scalar() or 0
-        context_parts.append(f"\n[RINGKASAN KEUANGAN]\nPemasukan: Rp {total_income:,.0f}\nPengeluaran: Rp {total_expense:,.0f}\nSaldo: Rp {(total_income or 0) - (total_expense or 0):,.0f}")
-
-    if "ads_campaigns" in tables_to_query:
-        active = db.query(AdsCampaign).filter(AdsCampaign.status == "ACTIVE").all()
-        if active:
-            total_budget = sum(c.budget or 0 for c in active)
-            context_parts.append(f"\n[RINGKASAN ADS]\nCampaign Aktif: {len(active)}\nTotal Budget: Rp {total_budget:,.0f}")
-
-    return "\n".join(context_parts) if context_parts else "Tidak ada data relevan ditemukan."
-
-
-def get_business_partner_context(query: str, db: Session) -> str:
-    """Enhanced RAG: always-on business metrics + hot prospects + health + keyword detail."""
-    from sqlalchemy import func as sa_func
-    parts = []
-
-    # Block A: Dashboard metrics (always)
-    total_leads = db.query(Lead).filter(Lead.is_archived == False).count()
-    clients = db.query(Lead).filter(Lead.status == "Closed/Client").count()
-    conv_rate = (clients / total_leads * 100) if total_leads else 0
-    mrr = db.query(sa_func.sum(Project.nominal)).filter(
-        Project.status == "ACTIVE", Project.is_archived == False
-    ).scalar() or 0
-    pipeline = db.query(sa_func.sum(Proposal.total_price)).filter(
-        Proposal.status == "Sent"
-    ).scalar() or 0
-    active_proj = db.query(Project).filter(Project.status == "ACTIVE", Project.is_archived == False).count()
-    parts.append(
-        f"[METRICS] total_leads={total_leads} clients={clients} "
-        f"conversion={conv_rate:.1f}% MRR=Rp{mrr:,.0f} "
-        f"pipeline_value=Rp{pipeline:,.0f} active_projects={active_proj}"
-    )
-
-    # Block B: Hot prospects (always, top 5)
-    hot = db.query(Lead).filter(
-        Lead.lead_score > 65,
-        Lead.status.notin_(["Closed/Client", "Closed/Lost"]),
-        Lead.is_archived == False,
-    ).order_by(Lead.lead_score.desc()).limit(5).all()
-    if hot:
-        hot_lines = []
-        for l in hot:
-            hot_lines.append(
-                f"  #{l.id} {l.business_name} score={l.lead_score} "
-                f"status={l.status} last_fu={l.last_followup_at or 'never'}"
-            )
-        parts.append("[HOT PROSPECTS]\n" + "\n".join(hot_lines))
-
-    # Block C: Project health (overdue cards)
-    today_iso = datetime.now(timezone.utc).date().isoformat()
-    overdue = db.query(BoardCard).filter(
-        BoardCard.due_date < today_iso,
-        BoardCard.due_date.isnot(None),
-        BoardCard.is_archived == False,
-    ).count()
-    due_soon = db.query(BoardCard).filter(
-        BoardCard.due_date >= today_iso,
-        BoardCard.due_date <= (datetime.now(timezone.utc).date() + timedelta(days=3)).isoformat(),
-        BoardCard.is_archived == False,
-    ).count()
-    parts.append(f"[HEALTH] overdue_cards={overdue} due_within_3days={due_soon}")
-
-    # Block D: Recent activity (7 days)
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-    recent_proposals = db.query(Proposal).filter(Proposal.created_at >= cutoff).count()
-    recent_blasts = db.query(BlastMessage).filter(BlastMessage.sent_at >= cutoff).count() if db.query(BlastMessage).first() is not None else 0
-    parts.append(f"[7D ACTIVITY] proposals_sent={recent_proposals} wa_blasts={recent_blasts}")
-
-    # Block E: Keyword-triggered detail (existing RAG)
-    detail = get_business_context(query, db)
-    if detail and "Tidak ada data" not in detail:
-        parts.append(detail)
-
-    return "\n".join(parts)
-
-
-@app.post("/api/chat/conversations/{conversation_id}/chat")
-async def chat(conversation_id: str, body: ChatRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    try:
-        _check_simple_rate_limit(f"chat:{current_user.id}", 20, 60)
-        conversation = db.query(ChatConversation).filter(ChatConversation.id == conversation_id, ChatConversation.user_id == current_user.id).first()
-        if not conversation:
-            raise HTTPException(status_code=404, detail="Conversation tidak ditemukan")
-
-        project = db.query(ChatProject).filter(ChatProject.id == conversation.project_id).first()
-
-        # Get API config from feature-specific active proxy (agent vs chat), fallback to NULL-feature proxy
-        active_proxy = get_proxy_for_feature(db, "agent" if body.agent_mode else "chat")
-        if not active_proxy:
-            raise HTTPException(status_code=400, detail="Tidak ada AI proxy aktif. Tambahkan proxy di Settings.")
-
-        api_key = active_proxy.api_key
-        api_base = active_proxy.base_url.rstrip("/")
-        model = body.model or project.default_model or (active_proxy.model or "glm-5")
-
-        # Build HYBRID CONTEXT from multiple layers
-        context_window = project.context_window_size if project else 20
-
-        # Layer 1: Get conversation summaries (for long context)
-        summaries = db.query(ChatSummary).filter(
-            ChatSummary.conversation_id == conversation_id
-        ).order_by(ChatSummary.created_at.desc()).limit(3).all()
-
-        # Layer 2: Get recent messages (last N messages)
-        total_messages = db.query(ChatMessage).filter(
-            ChatMessage.conversation_id == conversation_id
-        ).count()
-
-        # If too many messages, trigger summarization
-        summary_created = False
-        if total_messages > 0 and total_messages % 10 == 0:
-            # Get messages to summarize (older than recent window)
-            messages_to_summarize = db.query(ChatMessage).filter(
-                ChatMessage.conversation_id == conversation_id
-            ).order_by(ChatMessage.created_at.asc()).limit(total_messages - 5).all()
-
-            if len(messages_to_summarize) >= 5:
-                try:
-                    # Create summary using AI
-                    summary_text = "Ringkasan percakapan sebelumnya:\n"
-                    for msg in messages_to_summarize[-10:]:  # Last 10 of old messages
-                        role = "User" if msg.role == "user" else "AI"
-                        summary_text += f"- {role}: {msg.content[:200]}...\n"
-
-                    new_summary = ChatSummary(
-                        conversation_id=conversation_id,
-                        content=summary_text,
-                        message_count=len(messages_to_summarize),
-                        tokens_saved=len(messages_to_summarize) * 100  # Estimate
-                    )
-                    db.add(new_summary)
-                    summary_created = True
-                except Exception:
-                    pass
-
-        # Get recent messages after potential summarization
-        recent_messages = db.query(ChatMessage).filter(
-            ChatMessage.conversation_id == conversation_id
-        ).order_by(ChatMessage.created_at.desc()).limit(context_window).all()
-        recent_messages.reverse()
-
-        messages = []
-
-        # Layer 1: System prompt
-        agent_system_prompt = """Asisten bisnis yang MENGEKSEKUSI aksi via tools. BUKAN asisten yang cuma ngomong.
-
-ATURAN UTAMA:
-1. Setiap permintaan user WAJIB panggil tool yang sesuai
-2. JANGAN pernah jawab dengan teori/menjelaskan - LANGSUNG EKSEKUSI
-3. Setelah eksekusi, berikan hasil singkat
-
-Tools:
-- create_lead: buat lead/klien baru
-- search_leads: cari klien/leads
-- get_lead_details: detail klien + proyeknya
-- get_client_projects: list proyek klien
-- update_project: update harga/status proyek
-- create_proposal: buat proposal baru
-- update_lead_status: ubah status lead
-- send_whatsapp: kirim WA
-- get_products: list produk
-- get_wa_templates: list template WA
-- get_business_summary: ringkasan bisnis
-- get_project_board: lihat board kanban proyek (kolom + jumlah card)
-- list_board_cards: list task/card di board atau kolom tertentu
-- create_board_card: buat task baru + assign ke orang
-- move_board_card: pindah task antar kolom (Done/Revisi hanya admin)
-- update_board_card: update detail task (assignee, due_date, labels, dll)
-
-WORKFLOW KHUSUS:
-- Untuk tawarkan produk ke klien baru:
-  1. create_lead (buat klien)
-  2. get_products (pilih produk cocok)
-  3. create_proposal (buat proposal, akan return URL)
-  4. get_wa_templates (pilih template yang cocok)
-  5. send_whatsapp dengan template_id + replacements (termasuk proposal_link dari step 3)
-
-- Untuk manage task di board:
-  1. get_client_projects (cari project_id)
-  2. get_project_board (ambil board_id + column ids)
-  3. list_board_cards / create_board_card / move_board_card / update_board_card
-
-Contoh benar:
-User: "Update proyek SEO jadi 1.5jt"
-AI: [panggil get_client_projects] -> [panggil update_project dengan nominal 1500000]
-Output: "Proyek SEO PT Wijaya diupdate jadi Rp 1.500.000/bulan"
-
-User: "Buat task 'Design logo' assign ke Kevin di proyek MLS"
-AI: [get_client_projects lead MLS] -> [get_project_board] -> [create_board_card di kolom To Do]
-Output: "Task 'Design logo' dibuat di To Do, assigned ke Kevin"
-
-Contoh SALAH (JANGAN):
-User: "Update proyek SEO jadi 1.5jt"
-AI: "Baik saya akan update proyeknya. Proyek berhasil diupdate..." (tanpa panggil tool)"""
-
-        # Layer 2: Business Data (RAG) - skip for agent mode to force tool usage
-        if not body.agent_mode:
-            business_context = get_business_partner_context(body.message, db)
-            if business_context:
-                messages.append({"role": "system", "content": f"Data Bisnis Saat Ini:\n{business_context}"})
-            # Business partner persona
-            partner_prompt = (
-                "Kamu adalah business partner strategis, bukan AI generic. "
-                "Jawab pertanyaan user dengan data konkret dari konteks di atas. "
-                "Kalau data nunjukin pattern actionable (lead score tinggi belum dikontak, "
-                "overdue tasks, pipeline stagnan) — tambahkan 1-2 saran spesifik berbasis data "
-                "(sebut nama lead, angka, deadline). Skip saran kalau tidak ada pattern jelas."
-            )
-            messages.insert(0, {"role": "system", "content": partner_prompt})
-
-        # Layer 3: Memories (Persistent)
-        memories = db.query(ChatMemory).filter(ChatMemory.project_id == conversation.project_id).all()
-        if memories:
-            memory_text = "\n".join([f"- {m.content}" for m in memories])
-            messages.append({"role": "system", "content": f"Memory Bank:\n{memory_text}"})
-
-        # Layer 4: Conversation Summaries (for long context)
-        if summaries:
-            summary_text = "\n".join([s.content for s in reversed(summaries)])
-            messages.append({"role": "system", "content": f"Ringkasan Percakapan Sebelumnya:\n{summary_text}"})
-
-        # Layer 5: Recent messages
-        for msg in recent_messages:
-            messages.append({"role": msg.role, "content": msg.content})
-
-        # Add user message
-        messages.append({"role": "user", "content": body.message})
-
-        # Save user message
-        user_msg = ChatMessage(
-            conversation_id=conversation_id,
-            role="user",
-            content=body.message,
-        )
-        db.add(user_msg)
-        db.commit()
-
-        # Agent Mode: Tool execution loop
-        tool_calls_executed = []
-        max_iterations = 5
-        iteration = 0
-
-        while iteration < max_iterations:
-            iteration += 1
-
-            # Call AI API
-            async with httpx.AsyncClient(timeout=60) as client:
-                # Token efficiency: set max_tokens based on task type
-                max_tokens = 500  # default for simple queries
-                if body.agent_mode and iteration == 1:
-                    max_tokens = 300  # for tool calling, response can be short
-                elif body.agent_mode and iteration > 1:
-                    max_tokens = 500  # for final response after tool execution
-
-                request_body = {
-                    "model": model,
-                    "messages": messages,
-                    "max_tokens": max_tokens,
-                    "stream": False,
-                }
-                # Add tools if agent mode enabled
-                if body.agent_mode:
-                    request_body["tools"] = AGENT_TOOLS
-                    # auto: let AI respond with text if no tool matches (avoids hallucinated tool loops)
-                    request_body["tool_choice"] = "auto"
-
-                resp = await client.post(
-                    f"{api_base.rstrip('/')}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json=request_body,
-                )
-                if resp.status_code != 200:
-                    raise HTTPException(status_code=502, detail=f"AI API error: {resp.status_code} - {resp.text[:200]}")
-
-                result = resp.json()
-                choice = result["choices"][0]
-                message = choice["message"]
-                tokens_used = result.get("usage", {}).get("total_tokens", 0)
-
-            # Check if AI wants to call tools
-            if message.get("tool_calls"):
-                # Add assistant message with tool calls to history
-                messages.append(message)
-
-                for tool_call in message["tool_calls"]:
-                    tool_name = tool_call["function"]["name"]
-                    tool_args_str = tool_call["function"]["arguments"]
-                    tool_call_id = tool_call["id"]
-
-                    try:
-                        tool_args = json.loads(tool_args_str)
-                    except:
-                        tool_args = {}
-
-                    # Execute the tool
-                    tool_result = execute_tool_call(tool_name, tool_args, db, current_user)
-
-                    tool_calls_executed.append({
-                        "name": tool_name,
-                        "args": tool_args,
-                        "result": tool_result
-                    })
-
-                    # Add tool result to messages
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call_id,
-                        "content": json.dumps(tool_result)
-                    })
-
-                # Continue loop to get final response
-                continue
-
-            # No tool calls - we have final response
-            assistant_content = message.get("content", "")
-
-            # Post-process: strip decorative elements for token efficiency
-            import re
-            # Remove emojis
-            assistant_content = re.sub(r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002700-\U000027BF\U0001F900-\U0001F9FF\U0001FA00-\U0001FA6F\U0001FA70-\U0001FAFF]', '', assistant_content)
-            # Remove markdown tables
-            assistant_content = re.sub(r'\|.*\|', '', assistant_content)
-            assistant_content = re.sub(r'^[-:|]+$', '', assistant_content, flags=re.MULTILINE)
-            # Remove headers
-            assistant_content = re.sub(r'^#{1,6}\s*', '', assistant_content, flags=re.MULTILINE)
-            # Remove horizontal rules
-            assistant_content = re.sub(r'^---+$', '', assistant_content, flags=re.MULTILINE)
-            # Remove excessive bold
-            assistant_content = re.sub(r'\*\*([^*]+)\*\*', r'\1', assistant_content)
-            # Clean up extra whitespace
-            assistant_content = re.sub(r'\n{3,}', '\n\n', assistant_content)
-            assistant_content = assistant_content.strip()
-            break
-        else:
-            # Max iterations reached
-            assistant_content = "Maaf, saya tidak dapat menyelesaikan permintaan dalam jumlah langkah yang wakin. Silakan coba permintaan yang lebih spesifik."
-
-        # Save assistant message
-        assistant_msg = ChatMessage(
-            conversation_id=conversation_id,
-            role="assistant",
-            content=assistant_content,
-            tokens_used=tokens_used,
-            model_used=model,
-        )
-        db.add(assistant_msg)
-
-        # Auto-memory: Extract important info from conversation
-        memory_saved = False
-        memory_content_saved = None
-        total_messages = db.query(ChatMessage).filter(ChatMessage.conversation_id == conversation_id).count()
-        if total_messages > 0 and total_messages % 5 == 0:
-            try:
-                memory_prompt = messages + [
-                    {"role": "system", "content": "Analyze the conversation and extract ONE important fact to remember about the user (preferences, name, context, etc). Reply with ONLY the fact, nothing else. If nothing important, reply with 'SKIP'."},
-                ]
-                async with httpx.AsyncClient(timeout=30) as mem_client:
-                    mem_resp = await mem_client.post(
-                        f"{api_base.rstrip('/')}/chat/completions",
-                        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                        json={"model": model, "messages": memory_prompt, "max_tokens": 200, "stream": False},
-                    )
-                    if mem_resp.status_code == 200:
-                        memory_content = mem_resp.json()["choices"][0]["message"]["content"].strip()
-                        if memory_content and memory_content.upper() != "SKIP" and len(memory_content) > 5:
-                            # Save to memory bank
-                            new_memory = ChatMemory(
-                                project_id=conversation.project_id,
-                                content=memory_content,
-                                pinned_by=current_user.id,
-                            )
-                            db.add(new_memory)
-                            memory_saved = True
-                            memory_content_saved = memory_content
-            except Exception:
-                pass  # Don't fail chat if memory extraction fails
-
-        # Update conversation timestamp
-        conversation.updated_at = datetime.now(timezone.utc).isoformat()
-        if project:
-            project.updated_at = datetime.now(timezone.utc).isoformat()
-
-        db.commit()
-
-        return {
-            "user_message": {
-                "id": user_msg.id,
-                "role": "user",
-                "content": body.message,
-                "tokens_used": 0,
-                "created_at": user_msg.created_at,
-            },
-            "message": {
-                "id": assistant_msg.id,
-                "role": "assistant",
-                "content": assistant_content,
-                "tokens_used": tokens_used,
-                "model_used": model,
-                "created_at": assistant_msg.created_at,
-            },
-            "tool_calls": tool_calls_executed if tool_calls_executed else None,
-            "memory_saved": memory_saved,
-            "memory_content": memory_content_saved,
-            "summary_created": summary_created,
-            "context_info": {
-                "total_messages": total_messages,
-                "recent_messages": len(recent_messages),
-                "summaries": len(summaries),
-                "memories": len(memories) if memories else 0
-            }
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
-
-
-@app.get("/api/chat/projects/{project_id}/memories", response_model=List[ChatMemoryOut])
-def list_memories(project_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    project = db.query(ChatProject).filter(ChatProject.id == project_id, ChatProject.user_id == current_user.id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
-    memories = db.query(ChatMemory).filter(ChatMemory.project_id == project_id).order_by(ChatMemory.created_at.desc()).all()
-    return memories
-
-
-@app.post("/api/chat/projects/{project_id}/memories", response_model=ChatMemoryOut)
-def create_memory(project_id: str, body: ChatMemoryCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    project = db.query(ChatProject).filter(ChatProject.id == project_id, ChatProject.user_id == current_user.id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
-    memory = ChatMemory(
-        project_id=project_id,
-        content=body.content,
-        pinned_by=current_user.id,
-    )
-    db.add(memory)
-    db.commit()
-    db.refresh(memory)
-    return memory
-
-
-@app.delete("/api/chat/memories/{memory_id}")
-def delete_memory(memory_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    memory = db.query(ChatMemory).filter(ChatMemory.id == memory_id).first()
-    if not memory:
-        raise HTTPException(status_code=404, detail="Memory tidak ditemukan")
-    # Check ownership via project
-    project = db.query(ChatProject).filter(ChatProject.id == memory.project_id, ChatProject.user_id == current_user.id).first()
-    if not project:
-        raise HTTPException(status_code=403, detail="Tidak ada akses ke memory ini")
-    db.delete(memory)
-    db.commit()
-    return {"success": True, "message": "Memory dihapus"}
-
-
-@app.get("/api/chat/models")
-def list_chat_models(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Read chat-capable models from ai_models table. Falls back to hardcoded if empty."""
-    db_models = db.query(AIModel).filter(AIModel.is_active == 1).order_by(AIModel.name).all()
-    chat_models = [m for m in db_models if "chat" in json.loads(m.capabilities or '["chat"]')]
-    if chat_models:
-        return {
-            "models": [{"id": m.model_id, "name": m.name, "description": m.description or ""} for m in chat_models]
-        }
-    # Legacy fallback
-    return {
-        "models": [
-            {"id": "glm-5", "name": "GLM-5", "description": "Model cepat dan efisien untuk chat umum"},
-            {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "description": "Model ringan OpenAI"},
-            {"id": "claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5", "description": "Model cepat dari Anthropic"},
-        ]
-    }
-
-
-def reset_fonnte_monthly_quota():
-    db = SessionLocal()
-    try:
-        provider = db.query(ProviderConfig).filter_by(id="FONNTE").first()
-        if provider and provider.monthly_quota:
-            provider.remaining_quota = provider.monthly_quota
-            db.commit()
-            print(f"[SCHEDULER] Fonnte quota reset → {provider.monthly_quota}", flush=True)
-    except Exception as e:
-        print(f"[SCHEDULER ERROR] Fonnte reset: {e}", flush=True)
-    finally:
-        db.close()
-
-
-scheduler = AsyncIOScheduler()
-scheduler.add_job(process_pending_blasts, "interval", minutes=1, id="blast_processor")
-scheduler.add_job(scheduled_followup_processor, "interval", minutes=30, id="followup_processor")
-scheduler.add_job(
-    process_outreach_lifecycle_states,
-    "interval",
-    hours=1,
-    id="outreach_lifecycle_machine",
-    args=[SessionLocal, Lead, Proposal, log_audit],
-)
-scheduler.add_job(reset_fonnte_monthly_quota, "cron", day=1, hour=0, minute=0, id="fonnte_monthly_reset")
-
-
-def daily_score_decay():
-    """Daily job: recalculate scores with decay for all active leads."""
-    db = SessionLocal()
-    try:
-        leads = db.query(Lead).filter(Lead.is_archived == False).all()
-        for lead in leads:
-            new_score, _ = calculate_lead_score_full(lead)
-            if lead.lead_score != new_score:
-                lead.lead_score = new_score
-        db.commit()
-    except Exception as e:
-        print(f"[DECAY] error: {e}", flush=True)
-    finally:
-        db.close()
-
-
-scheduler.add_job(daily_score_decay, "cron", hour=3, minute=0, id="daily_score_decay")
-
-
-@app.on_event("startup")
-def start_scheduler():
-    scheduler.start()
-
-
-@app.on_event("shutdown")
-def stop_scheduler():
-    scheduler.shutdown()
-
-@app.patch("/api/chat/conversations/{conversation_id}", response_model=ChatConversationOut)
-def update_conversation(conversation_id: str, body: ChatConversationUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    conversation = db.query(ChatConversation).filter(ChatConversation.id == conversation_id, ChatConversation.user_id == current_user.id).first()
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation tidak ditemukan")
-    if body.title:
-        conversation.title = body.title
-        conversation.updated_at = datetime.now(timezone.utc).isoformat()
-        db.commit()
-        db.refresh(conversation)
-    return conversation
 
 
 # ===========================================================================
