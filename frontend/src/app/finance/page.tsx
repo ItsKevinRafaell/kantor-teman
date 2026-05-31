@@ -4,12 +4,14 @@ import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import FinancePanel from "../../components/finance/FinancePanel";
 import SubscriptionsPanel from "../../components/finance/SubscriptionsPanel";
+import PaymentMethodsPanel from "../../components/finance/PaymentMethodsPanel";
 
-type Tab = "keuangan" | "langganan";
+type Tab = "keuangan" | "langganan" | "pembayaran";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "keuangan", label: "Keuangan" },
   { key: "langganan", label: "Langganan" },
+  { key: "pembayaran", label: "Metode Pembayaran" },
 ];
 
 function FinanceContent() {
@@ -42,6 +44,7 @@ function FinanceContent() {
 
       {tab === "keuangan" && <FinancePanel />}
       {tab === "langganan" && <SubscriptionsPanel />}
+      {tab === "pembayaran" && <PaymentMethodsPanel />}
     </div>
   );
 }
