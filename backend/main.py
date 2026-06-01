@@ -11077,9 +11077,16 @@ HERMES_GATEWAY_URL = os.getenv("HERMES_GATEWAY_URL", "")
 HERMES_GATEWAY_TOKEN = os.getenv("HERMES_GATEWAY_TOKEN", "")
 
 
+class OfficeChatAttachment(BaseModel):
+    name: str
+    type: str
+    data: str  # base64 data URL
+
+
 class OfficeChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
+    attachments: Optional[List[OfficeChatAttachment]] = None
 
 
 def _hermes_headers() -> dict:
@@ -11090,11 +11097,14 @@ def _hermes_headers() -> dict:
 async def office_chat(profile: str, body: OfficeChatRequest, current_user: User = Depends(get_current_user)):
     if not HERMES_GATEWAY_URL:
         raise HTTPException(status_code=503, detail="Hermes gateway not configured")
+    payload = {"message": body.message, "session_id": body.session_id}
+    if body.attachments:
+        payload["attachments"] = [a.model_dump() for a in body.attachments]
     async with httpx.AsyncClient(timeout=130) as client:
         resp = await client.post(
             f"{HERMES_GATEWAY_URL}/chat/{profile}",
             headers=_hermes_headers(),
-            json={"message": body.message, "session_id": body.session_id},
+            json=payload,
         )
     if resp.status_code != 200:
         raise HTTPException(status_code=502, detail=f"Hermes error: {resp.text[:200]}")
