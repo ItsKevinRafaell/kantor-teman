@@ -1,9 +1,30 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { apiFetch } from "../../../../lib/api";
-import { ChevronRight, ChevronLeft, Download, Mail, Check, Search, Plus, Trash2, X } from "lucide-react";
+import { ChevronRight, ChevronLeft, Download, Mail, Check, Search, Plus, Trash2, X, BookOpen, Save } from "lucide-react";
 import Toast from "../../../../components/Toast";
+
+interface PaymentMethod { id: number; name: string; account_number: string; account_name: string; notes: string | null; is_active: boolean; }
+
+const TEMPLATE_STORAGE_PREFIX = "kt_field_templates_";
+
+function loadFieldTemplates(key: string): string[] {
+  try { return JSON.parse(localStorage.getItem(TEMPLATE_STORAGE_PREFIX + key) || "[]"); } catch { return []; }
+}
+
+function saveFieldTemplate(key: string, value: string) {
+  const existing = loadFieldTemplates(key);
+  const trimmed = value.trim();
+  if (!trimmed || existing.includes(trimmed)) return;
+  localStorage.setItem(TEMPLATE_STORAGE_PREFIX + key, JSON.stringify([trimmed, ...existing].slice(0, 10)));
+}
+
+function deleteFieldTemplate(key: string, idx: number) {
+  const existing = loadFieldTemplates(key);
+  existing.splice(idx, 1);
+  localStorage.setItem(TEMPLATE_STORAGE_PREFIX + key, JSON.stringify(existing));
+}
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -23,6 +44,13 @@ interface LineItem {
 }
 
 const STEPS = ["Pilih Template", "Pilih Target", "Isi Variabel", "Preview", "Selesai"];
+
+const PAYMENT_METHOD_KEY = "payment_method";
+const KLIEN_KEYS = ["klien", "nama_klien"];
+const DEDUP_PAIRS: [string, string][] = [
+  ["valid_until", "validity"],
+  ["klien", "nama"],
+];
 
 const DATE_KEY_PATTERNS = ["tanggal", "due_date", "valid_until", "tanggal_mulai", "tanggal_akhir", "expired", "expiry"];
 const INVOICE_NUMBER_KEYS = ["nomor_invoice", "no_invoice", "nomor"];
@@ -193,12 +221,20 @@ export default function DocumentNewPage() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [klienSearch, setKlienSearch] = useState("");
+  const [klienDropdownOpen, setKlienDropdownOpen] = useState(false);
+  const klienRef = useRef<HTMLDivElement>(null);
+  const [fieldTemplateOpen, setFieldTemplateOpen] = useState<string | null>(null);
+  const [fieldTemplates, setFieldTemplates] = useState<Record<string, string[]>>({});
+
   useEffect(() => {
     apiFetch("/api/document-templates").then(r => r.ok ? r.json() : []).then(setTemplates).catch(() => {});
     apiFetch("/api/leads").then(r => r.ok ? r.json() : []).then(setLeads).catch(() => {});
     apiFetch("/api/contacts").then(r => r.ok ? r.json() : []).then(setContacts).catch(() => {});
     apiFetch("/api/products?active_only=true").then(r => r.ok ? r.json() : []).then(setProducts).catch(() => {});
     apiFetch("/api/projects").then(r => r.ok ? r.json() : []).then(setProjects).catch(() => {});
+    apiFetch("/api/finance/payment-methods").then(r => r.ok ? r.json() : []).then((data: PaymentMethod[]) => setPaymentMethods(data.filter(m => m.is_active))).catch(() => {});
   }, []);
 
   useEffect(() => () => {
@@ -545,6 +581,25 @@ export default function DocumentNewPage() {
     );
   }, [products, productSearch]);
 
+  const klienCandidates = useMemo(() => {
+    const q = klienSearch.toLowerCase().trim();
+    const fromLeads = leads.map(l => ({ label: l.business_name, sub: l.product_interest || l.phone_number, onPick: () => pickLead(l) }));
+    const fromContacts = contacts.map(c => ({ label: c.business_name, sub: c.purchased_product || c.phone_number, onPick: () => pickContact(c) }));
+    const all = [...fromLeads, ...fromContacts];
+    if (!q) return all.slice(0, 20);
+    return all.filter(x => x.label.toLowerCase().includes(q) || x.sub.toLowerCase().includes(q)).slice(0, 20);
+  }, [leads, contacts, klienSearch]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (klienRef.current && !klienRef.current.contains(e.target as Node)) {
+        setKlienDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <div>
@@ -702,10 +757,20 @@ export default function DocumentNewPage() {
               const primaryNumberKey = numberKeys[0] || null;
               const renderedKeys = new Set<string>();
 
+              // Build dedup suppression set from DEDUP_PAIRS
+              const suppressedKeys = new Set<string>();
+              for (const [primary, secondary] of DEDUP_PAIRS) {
+                if (allKeys.includes(primary) && allKeys.includes(secondary)) {
+                  suppressedKeys.add(secondary);
+                }
+              }
+
               return Object.entries(variables).map(([key, val]) => {
                 if (renderedKeys.has(key)) return null;
                 // Skip duplicate document number aliases.
                 if (numberKeys.includes(key) && key !== primaryNumberKey) return null;
+                // Skip dedup-suppressed secondary keys.
+                if (suppressedKeys.has(key)) return null;
                 renderedKeys.add(key);
 
                 const label = FIELD_LABELS[key.toLowerCase()] || key.replace(/_/g, " ");
@@ -948,6 +1013,69 @@ export default function DocumentNewPage() {
                   );
                 }
 
+                // Klien field — searchable combobox from leads+contacts
+                if (KLIEN_KEYS.includes(key.toLowerCase())) {
+                  const templates_for_key = fieldTemplates[key] || loadFieldTemplates(key);
+                  return (
+                    <div key={key} ref={klienRef}>
+                      <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
+                      <div className="relative mt-1">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={klienDropdownOpen ? klienSearch : val}
+                          onFocus={() => { setKlienSearch(val); setKlienDropdownOpen(true); }}
+                          onChange={e => {
+                            setKlienSearch(e.target.value);
+                            setVariables(prev => ({ ...prev, [key]: e.target.value }));
+                          }}
+                          onBlur={() => setTimeout(() => setKlienDropdownOpen(false), 150)}
+                          placeholder="Ketik atau cari dari leads/klien..."
+                          className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800"
+                        />
+                        {klienDropdownOpen && klienCandidates.length > 0 && (
+                          <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+                            {klienCandidates.map((c, i) => (
+                              <button key={i} type="button"
+                                onMouseDown={() => { c.onPick(); setKlienDropdownOpen(false); setKlienSearch(""); }}
+                                className="w-full text-left px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-colors">
+                                <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{c.label}</p>
+                                <p className="text-xs text-gray-400">{c.sub}</p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {FIELD_HINTS[key.toLowerCase()] && <p className="text-[11px] text-gray-400 mt-1">{FIELD_HINTS[key.toLowerCase()]}</p>}
+                    </div>
+                  );
+                }
+
+                // Payment method field — dropdown from active payment methods
+                if (key.toLowerCase() === PAYMENT_METHOD_KEY) {
+                  return (
+                    <div key={key}>
+                      <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
+                      <select
+                        value={val}
+                        onChange={e => setVariables(prev => ({ ...prev, [key]: e.target.value }))}
+                        className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800"
+                      >
+                        <option value="">— Pilih metode pembayaran —</option>
+                        {paymentMethods.map(m => (
+                          <option key={m.id} value={`${m.name} - ${m.account_name} (${m.account_number})`}>
+                            {m.name} · {m.account_name} · {m.account_number}
+                          </option>
+                        ))}
+                        <option value="Tunai">Tunai</option>
+                      </select>
+                      {paymentMethods.length === 0 && (
+                        <p className="text-[11px] text-amber-600 mt-1">Belum ada metode pembayaran aktif. Tambah di Finance → Metode Pembayaran.</p>
+                      )}
+                    </div>
+                  );
+                }
+
                 // Layanan field — combobox (type or pick from products)
                 if (isLayananKey(key)) {
                   const datalistId = `layanan-${key}`;
@@ -974,11 +1102,56 @@ export default function DocumentNewPage() {
                   );
                 }
 
-                // Large text → textarea
+                // Large text → textarea with saveable templates
                 if (isLargeTextKey(key)) {
+                  const isTemplatable = ["terms", "scope", "catatan", "keterangan", "payment_info"].some(p => key.toLowerCase().includes(p));
+                  const savedTpls = fieldTemplates[key] !== undefined ? fieldTemplates[key] : loadFieldTemplates(key);
                   return (
                     <div key={key}>
-                      <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
+                        {isTemplatable && (
+                          <div className="flex items-center gap-1.5">
+                            <button type="button"
+                              onClick={() => {
+                                if (val.trim()) {
+                                  saveFieldTemplate(key, val);
+                                  setFieldTemplates(prev => ({ ...prev, [key]: loadFieldTemplates(key) }));
+                                  setToast({ message: "Disimpan sebagai template", type: "success" });
+                                }
+                              }}
+                              title="Simpan teks ini sebagai template"
+                              className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-amber-600 transition-colors">
+                              <Save size={12} /> Simpan
+                            </button>
+                            {savedTpls.length > 0 && (
+                              <button type="button"
+                                onClick={() => setFieldTemplateOpen(fieldTemplateOpen === key ? null : key)}
+                                className="flex items-center gap-1 text-[11px] text-amber-600 hover:text-amber-700 font-semibold transition-colors">
+                                <BookOpen size={12} /> Template ({savedTpls.length})
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {isTemplatable && fieldTemplateOpen === key && savedTpls.length > 0 && (
+                        <div className="mt-1 border border-amber-200 dark:border-amber-800 rounded-xl bg-amber-50 dark:bg-amber-950/20 p-2 space-y-1 max-h-40 overflow-y-auto">
+                          {savedTpls.map((tpl, i) => (
+                            <div key={i} className="flex items-start gap-2 group">
+                              <button type="button"
+                                onClick={() => { setVariables(prev => ({ ...prev, [key]: tpl })); setFieldTemplateOpen(null); }}
+                                className="flex-1 text-left text-xs text-neutral-700 dark:text-neutral-300 hover:text-amber-700 line-clamp-2 py-0.5">
+                                {tpl}
+                              </button>
+                              <button type="button"
+                                onClick={() => { deleteFieldTemplate(key, i); setFieldTemplates(prev => ({ ...prev, [key]: loadFieldTemplates(key) })); }}
+                                className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5">
+                                <X size={12} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       <textarea
                         value={val}
                         onChange={e => setVariables(prev => ({ ...prev, [key]: e.target.value }))}
