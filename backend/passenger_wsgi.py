@@ -49,8 +49,15 @@ def application(environ, start_response):
     response_started = []
     response_body = []
 
+    _received = False
+
     async def receive():
-        return {'type': 'http.request', 'body': body, 'more_body': False}
+        nonlocal _received
+        if not _received:
+            _received = True
+            return {'type': 'http.request', 'body': body, 'more_body': False}
+        # BaseHTTPMiddleware may call receive() again after body consumed
+        return {'type': 'http.disconnect'}
 
     async def send(message):
         if message['type'] == 'http.response.start':
