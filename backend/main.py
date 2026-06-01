@@ -8036,12 +8036,18 @@ def get_template_defaults(
     template = db.query(DocumentTemplate).filter(DocumentTemplate.id == template_id).first()
     if not template:
         raise HTTPException(status_code=404, detail="Template tidak ditemukan")
-    defaults = _build_default_vars(db, template.type or "custom", target_type, target_id)
-    return {"defaults": defaults, "template_type": template.type}
+    ttype = template.type or "custom"
+    if ttype == "custom" and template.name:
+        name_lower = template.name.lower()
+        for known in ["invoice", "receipt", "kontrak", "surat_penawaran", "proposal_pdf"]:
+            if known.replace("_", " ") in name_lower or known in name_lower:
+                ttype = known
+                break
+    defaults = _build_default_vars(db, ttype, target_type, target_id)
+    return {"defaults": defaults, "template_type": ttype}
 
 
 _PDF_FONT_CSS = """
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap');
 * { font-family: 'Noto Sans', Arial, Helvetica, sans-serif !important; }
 """
 
@@ -8112,9 +8118,23 @@ def _render_document_pdf(template: DocumentTemplate, full_vars: dict) -> bytes:
     rendered_html = _inject_pdf_font(rendered_html)
     try:
         from weasyprint import HTML
-        return HTML(string=rendered_html).write_pdf()
+        import signal
+
+        def _timeout_handler(signum, frame):
+            raise TimeoutError("PDF generation timeout (30s)")
+
+        old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(30)
+        try:
+            pdf = HTML(string=rendered_html, url_fetcher=lambda url, **kw: {"string": "", "mime_type": "text/plain"}).write_pdf()
+        finally:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, old_handler)
+        return pdf
     except ImportError:
         raise HTTPException(status_code=500, detail="WeasyPrint tidak terinstall. Jalankan: pip install weasyprint")
+    except TimeoutError as e:
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"PDF generation gagal: {e}")
 
@@ -9599,7 +9619,6 @@ def get_workspace_report_data(project_id: str, month: int = 1, current_user: Use
 # ---------------------------------------------------------------------------
 
 _REPORT_BASE_CSS = """
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap');
 @page { size: A4; margin: 1.5cm; }
 body { font-family: 'Noto Sans', Arial, Helvetica, sans-serif; color: #1f2937; line-height: 1.5; }
 * { font-family: 'Noto Sans', Arial, Helvetica, sans-serif; }
@@ -9822,7 +9841,7 @@ def generate_monthly_report(
 
     try:
         from weasyprint import HTML
-        HTML(string=rendered_html).write_pdf(pdf_path)
+        HTML(string=rendered_html, url_fetcher=lambda url, **kw: {"string": "", "mime_type": "text/plain"}).write_pdf(pdf_path)
     except ImportError:
         raise HTTPException(status_code=500, detail="WeasyPrint tidak terinstall. Jalankan: pip install weasyprint")
     except Exception as e:
