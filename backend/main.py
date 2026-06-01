@@ -8118,23 +8118,10 @@ def _render_document_pdf(template: DocumentTemplate, full_vars: dict) -> bytes:
     rendered_html = _inject_pdf_font(rendered_html)
     try:
         from weasyprint import HTML
-        import signal
-
-        def _timeout_handler(signum, frame):
-            raise TimeoutError("PDF generation timeout (30s)")
-
-        old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
-        signal.alarm(30)
-        try:
-            pdf = HTML(string=rendered_html, url_fetcher=lambda url, **kw: {"string": "", "mime_type": "text/plain"}).write_pdf()
-        finally:
-            signal.alarm(0)
-            signal.signal(signal.SIGALRM, old_handler)
+        pdf = HTML(string=rendered_html, url_fetcher=lambda url, **kw: {"string": "", "mime_type": "text/plain"}).write_pdf()
         return pdf
     except ImportError:
         raise HTTPException(status_code=500, detail="WeasyPrint tidak terinstall. Jalankan: pip install weasyprint")
-    except TimeoutError as e:
-        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"PDF generation gagal: {e}")
 
