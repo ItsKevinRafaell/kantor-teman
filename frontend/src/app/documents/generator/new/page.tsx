@@ -229,12 +229,16 @@ export default function DocumentNewPage() {
   const [fieldTemplates, setFieldTemplates] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
-    apiFetch("/api/document-templates").then(r => r.ok ? r.json() : []).then(setTemplates).catch(() => {});
-    apiFetch("/api/leads").then(r => r.ok ? r.json() : []).then(setLeads).catch(() => {});
-    apiFetch("/api/contacts").then(r => r.ok ? r.json() : []).then(setContacts).catch(() => {});
-    apiFetch("/api/products?active_only=true").then(r => r.ok ? r.json() : []).then(setProducts).catch(() => {});
-    apiFetch("/api/projects").then(r => r.ok ? r.json() : []).then(setProjects).catch(() => {});
-    apiFetch("/api/finance/payment-methods").then(r => r.ok ? r.json() : []).then((data: PaymentMethod[]) => setPaymentMethods(data.filter(m => m.is_active))).catch(() => {});
+    // Sequential fetches to avoid overloading shared hosting (max 6 workers)
+    async function loadData() {
+      try { const r = await apiFetch("/api/document-templates"); if (r.ok) setTemplates(await r.json()); } catch {}
+      try { const r = await apiFetch("/api/leads"); if (r.ok) setLeads(await r.json()); } catch {}
+      try { const r = await apiFetch("/api/contacts"); if (r.ok) setContacts(await r.json()); } catch {}
+      try { const r = await apiFetch("/api/products?active_only=true"); if (r.ok) setProducts(await r.json()); } catch {}
+      try { const r = await apiFetch("/api/projects"); if (r.ok) setProjects(await r.json()); } catch {}
+      try { const r = await apiFetch("/api/finance/payment-methods"); if (r.ok) { const d: PaymentMethod[] = await r.json(); setPaymentMethods(d.filter(m => m.is_active)); } } catch {}
+    }
+    loadData();
   }, []);
 
   useEffect(() => () => {
