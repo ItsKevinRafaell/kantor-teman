@@ -11,6 +11,7 @@ interface DocTemplate { id: string; name: string; type: string; variables: strin
 interface Lead { id: number; business_name: string; phone_number: string; address: string | null; product_interest: string | null; }
 interface Contact { id: number; business_name: string; owner_name: string | null; phone_number: string; purchased_product: string | null; }
 interface Product { id: string; name: string; description: string | null; base_price: number; features: string[]; }
+interface Project { id: string; lead_id: number | null; name: string; nominal: number; start_date: string | null; end_date: string | null; service_type: string | null; contract_months: number | null; }
 interface GeneratedDoc { id: string; file_url: string; template_name: string; display_filename?: string; }
 
 interface LineItem {
@@ -28,7 +29,7 @@ const INVOICE_NUMBER_KEYS = ["nomor_invoice", "no_invoice", "nomor"];
 const LINE_ITEM_KEYS = ["items_rows", "items_table", "line_items", "items"];
 const TOTAL_KEYS = ["total", "total_harga", "grand_total", "total_bayar", "total_amount", "jumlah_total", "total_tagihan"];
 const LOGO_KEYS = ["logo", "logo_perusahaan", "company_logo"];
-const LARGE_TEXT_PATTERNS = ["html", "body", "scope", "terms", "rows", "alamat"];
+const LARGE_TEXT_PATTERNS = ["html", "body", "scope", "terms", "rows", "alamat", "payment_info", "catatan", "keterangan"];
 const RUPIAH_PATTERNS = ["nilai", "harga", "amount", "nominal", "bayar", "biaya", "tarif", "fee", "price", "cost"];
 const PHONE_PATTERNS = ["phone", "telepon", "telp", "hp", "whatsapp", "wa"];
 const EMAIL_PATTERNS = ["email", "mail"];
@@ -51,6 +52,22 @@ const FIELD_HINTS: Record<string, string> = {
   tanggal_akhir: "Tanggal kontrak berakhir",
   valid_until: "Batas akhir penawaran berlaku",
   due_date: "Tanggal jatuh tempo pembayaran",
+  payment_info: "Rekening atau metode pembayaran yang tampil di invoice",
+  catatan: "Catatan tambahan untuk penerima invoice",
+  keterangan: "Keterangan pembayaran, misalnya termin pertama atau pelunasan",
+};
+
+const FIELD_LABELS: Record<string, string> = {
+  klien: "Nama Klien",
+  layanan: "Layanan",
+  items_rows: "Rincian Layanan",
+  scope: "Lingkup Pekerjaan",
+  terms: "Syarat dan Ketentuan",
+  payment_info: "Informasi Pembayaran",
+  payment_method: "Metode Pembayaran",
+  nilai_kontrak: "Nilai Kontrak",
+  tanggal_mulai: "Tanggal Mulai",
+  tanggal_akhir: "Tanggal Selesai",
 };
 
 function isDateKey(key: string): boolean {
@@ -126,11 +143,21 @@ function formatRupiah(num: number): string {
   return "Rp " + new Intl.NumberFormat("id-ID").format(num);
 }
 
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, char => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;",
+  })[char] || char);
+}
+
 function lineItemsToHtml(items: LineItem[]): string {
   if (items.length === 0) return "";
   const rows = items.map((item, i) => {
     const subtotal = item.qty * item.price;
-    return `<tr><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb">${i + 1}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb">${item.name}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb">${item.description}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:center">${item.qty}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right">${formatRupiah(item.price)}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600">${formatRupiah(subtotal)}</td></tr>`;
+    return `<tr><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb">${i + 1}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb">${escapeHtml(item.name)}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb">${escapeHtml(item.description)}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:center">${item.qty}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right">${formatRupiah(item.price)}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600">${formatRupiah(subtotal)}</td></tr>`;
   }).join("");
   const total = items.reduce((s, i) => s + i.qty * i.price, 0);
   return `<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f3f4f6"><th style="padding:8px;text-align:left">No</th><th style="padding:8px;text-align:left">Item</th><th style="padding:8px;text-align:left">Deskripsi</th><th style="padding:8px;text-align:center">Qty</th><th style="padding:8px;text-align:right">Harga</th><th style="padding:8px;text-align:right">Subtotal</th></tr></thead><tbody>${rows}</tbody><tfoot><tr style="background:#fef3c7"><td colspan="5" style="padding:8px;text-align:right;font-weight:bold">Total</td><td style="padding:8px;text-align:right;font-weight:bold">${formatRupiah(total)}</td></tr></tfoot></table>`;
@@ -140,12 +167,14 @@ export default function DocumentNewPage() {
   const [step, setStep] = useState(0);
   const [templates, setTemplates] = useState<DocTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<DocTemplate | null>(null);
-  const [targetType, setTargetType] = useState<"empty" | "lead" | "contact">("empty");
+  const [targetType, setTargetType] = useState<"empty" | "lead" | "contact" | "project">("empty");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [targetSearch, setTargetSearch] = useState("");
   const [variables, setVariables] = useState<Record<string, string>>({});
   const [lineItems, setLineItems] = useState<Record<string, LineItem[]>>({});
@@ -155,6 +184,8 @@ export default function DocumentNewPage() {
   const [showSeqEditor, setShowSeqEditor] = useState(false);
   const [seqStartFrom, setSeqStartFrom] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [generatedDoc, setGeneratedDoc] = useState<GeneratedDoc | null>(null);
   const [emailModal, setEmailModal] = useState(false);
   const [emailTo, setEmailTo] = useState("");
@@ -167,7 +198,12 @@ export default function DocumentNewPage() {
     apiFetch("/api/leads").then(r => r.ok ? r.json() : []).then(setLeads).catch(() => {});
     apiFetch("/api/contacts").then(r => r.ok ? r.json() : []).then(setContacts).catch(() => {});
     apiFetch("/api/products?active_only=true").then(r => r.ok ? r.json() : []).then(setProducts).catch(() => {});
+    apiFetch("/api/projects").then(r => r.ok ? r.json() : []).then(setProjects).catch(() => {});
   }, []);
+
+  useEffect(() => () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
 
   function selectTemplate(t: DocTemplate) {
     setSelectedTemplate(t);
@@ -187,7 +223,7 @@ export default function DocumentNewPage() {
     fetchAndApplyDefaults(t, "empty", null);
   }
 
-  async function fetchAndApplyDefaults(template: DocTemplate, ttype: "lead" | "contact" | "empty", tid: number | null) {
+  async function fetchAndApplyDefaults(template: DocTemplate, ttype: "lead" | "contact" | "project" | "empty", tid: number | string | null) {
     try {
       const params = new URLSearchParams();
       if (ttype !== "empty") params.set("target_type", ttype);
@@ -199,7 +235,8 @@ export default function DocumentNewPage() {
       setVariables(prev => {
         const merged: Record<string, string> = { ...prev };
         for (const [k, v] of Object.entries(defs)) {
-          if (k in merged && merged[k] === "") merged[k] = v as string;
+          if (isInvoiceNumberKey(k) && ["invoice", "receipt", "surat_penawaran"].includes(template.type)) merged[k] = v as string;
+          else if (k in merged && merged[k] === "") merged[k] = v as string;
           else if (!(k in merged)) merged[k] = v as string;
         }
         return merged;
@@ -210,6 +247,7 @@ export default function DocumentNewPage() {
   function pickLead(lead: Lead) {
     setSelectedLead(lead);
     setSelectedContact(null);
+    setSelectedProject(null);
     setVariables(prev => ({
       ...prev,
       klien: lead.business_name,
@@ -224,6 +262,7 @@ export default function DocumentNewPage() {
   function pickContact(contact: Contact) {
     setSelectedContact(contact);
     setSelectedLead(null);
+    setSelectedProject(null);
     setVariables(prev => ({
       ...prev,
       klien: contact.business_name,
@@ -232,6 +271,26 @@ export default function DocumentNewPage() {
       layanan: contact.purchased_product || "",
     }));
     if (selectedTemplate) fetchAndApplyDefaults(selectedTemplate, "contact", contact.id);
+  }
+
+  function pickProject(project: Project) {
+    const lead = leads.find(item => item.id === project.lead_id) || null;
+    setSelectedProject(project);
+    setSelectedLead(null);
+    setSelectedContact(null);
+    setVariables(prev => ({
+      ...prev,
+      klien: lead?.business_name || prev.klien || "",
+      nama: lead?.business_name || prev.nama || "",
+      alamat: lead?.address || prev.alamat || "",
+      phone: lead?.phone_number || prev.phone || "",
+      layanan: project.name || project.service_type || prev.layanan || "",
+      nilai_kontrak: project.nominal ? formatRupiah(project.nominal) : prev.nilai_kontrak || "",
+      tanggal_mulai: project.start_date ? formatDateForDisplay(project.start_date) : prev.tanggal_mulai || "",
+      tanggal_akhir: project.end_date ? formatDateForDisplay(project.end_date) : prev.tanggal_akhir || "",
+      durasi: project.contract_months ? `${project.contract_months} bulan` : prev.durasi || "",
+    }));
+    if (selectedTemplate) fetchAndApplyDefaults(selectedTemplate, "project", project.id);
   }
 
   // Convert ISO date input → Indonesian display, or pass-through
@@ -288,7 +347,13 @@ export default function DocumentNewPage() {
   }
 
   function pickProductForSingleField(key: string, product: Product) {
-    setVariables(prev => ({ ...prev, [key]: product.name }));
+    setVariables(prev => ({
+      ...prev,
+      [key]: product.name,
+      scope: key === "layanan" && !prev.scope
+        ? (product.description || product.features?.join("\n") || "")
+        : prev.scope,
+    }));
     setProductPickerForKey(null);
     setProductSearch("");
   }
@@ -357,8 +422,8 @@ export default function DocumentNewPage() {
       setShowSeqEditor(false);
       // Refresh the invoice number variable
       if (selectedTemplate) {
-        const ttype = selectedLead ? "lead" : selectedContact ? "contact" : "empty";
-        const tid = selectedLead?.id ?? selectedContact?.id ?? null;
+        const ttype = selectedProject ? "project" : selectedLead ? "lead" : selectedContact ? "contact" : "empty";
+        const tid = selectedProject?.id ?? selectedLead?.id ?? selectedContact?.id ?? null;
         await fetchAndApplyDefaults(selectedTemplate, ttype, tid);
       }
     } catch (e: unknown) {
@@ -366,20 +431,49 @@ export default function DocumentNewPage() {
     }
   }
 
+  function buildDocumentPayload() {
+    const ttype = selectedProject ? "project" : selectedLead ? "lead" : selectedContact ? "contact" : null;
+    const tid = selectedProject?.id ?? selectedLead?.id ?? selectedContact?.id ?? null;
+    return {
+      template_id: selectedTemplate?.id,
+      target_type: ttype,
+      target_id: tid !== null ? String(tid) : null,
+      variables,
+    };
+  }
+
+  async function handlePreview() {
+    if (!selectedTemplate) return;
+    setPreviewing(true);
+    try {
+      const res = await apiFetch("/api/documents/preview", {
+        method: "POST",
+        body: JSON.stringify(buildDocumentPayload()),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "Preview gagal");
+      }
+      const nextUrl = URL.createObjectURL(await res.blob());
+      setPreviewUrl(prev => {
+        if (prev) URL.revokeObjectURL(prev);
+        return nextUrl;
+      });
+      setStep(3);
+    } catch (e: unknown) {
+      setToast({ message: e instanceof Error ? e.message : "Preview gagal", type: "error" });
+    } finally {
+      setPreviewing(false);
+    }
+  }
+
   async function handleGenerate() {
     if (!selectedTemplate) return;
     setGenerating(true);
     try {
-      const ttype = selectedLead ? "lead" : selectedContact ? "contact" : null;
-      const tid = selectedLead?.id ?? selectedContact?.id ?? null;
       const res = await apiFetch("/api/documents/generate", {
         method: "POST",
-        body: JSON.stringify({
-          template_id: selectedTemplate.id,
-          target_type: ttype,
-          target_id: tid !== null ? String(tid) : null,
-          variables,
-        }),
+        body: JSON.stringify(buildDocumentPayload()),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -432,6 +526,15 @@ export default function DocumentNewPage() {
       (c.purchased_product || "").toLowerCase().includes(q)
     );
   }, [contacts, targetSearch]);
+
+  const filteredProjects = useMemo(() => {
+    const q = targetSearch.toLowerCase().trim();
+    if (!q) return projects;
+    return projects.filter(project =>
+      (project.name || "").toLowerCase().includes(q) ||
+      (project.service_type || "").toLowerCase().includes(q)
+    );
+  }, [projects, targetSearch]);
 
   const filteredProducts = useMemo(() => {
     const q = productSearch.toLowerCase().trim();
@@ -492,8 +595,8 @@ export default function DocumentNewPage() {
       {step === 1 && (
         <div className="space-y-4">
           <h2 className="text-sm font-bold text-neutral-700 dark:text-neutral-300">Pilih Target (opsional)</h2>
-          <div className="flex gap-2">
-            <button onClick={() => { setTargetType("empty"); setSelectedLead(null); setSelectedContact(null); }}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <button onClick={() => { setTargetType("empty"); setSelectedLead(null); setSelectedContact(null); setSelectedProject(null); }}
               className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold transition-colors ${targetType === "empty" ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20 text-amber-700" : "border-[var(--border-default)] text-gray-600 hover:border-amber-300"}`}>
               Tanpa Target
             </button>
@@ -505,9 +608,13 @@ export default function DocumentNewPage() {
               className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold transition-colors ${targetType === "contact" ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20 text-amber-700" : "border-[var(--border-default)] text-gray-600 hover:border-amber-300"}`}>
               Dari Klien
             </button>
+            <button onClick={() => setTargetType("project")}
+              className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold transition-colors ${targetType === "project" ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20 text-amber-700" : "border-[var(--border-default)] text-gray-600 hover:border-amber-300"}`}>
+              Dari Proyek
+            </button>
           </div>
 
-          {(targetType === "lead" || targetType === "contact") && (
+          {(targetType === "lead" || targetType === "contact" || targetType === "project") && (
             <>
               <div className="relative">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -515,7 +622,7 @@ export default function DocumentNewPage() {
                   type="text"
                   value={targetSearch}
                   onChange={e => setTargetSearch(e.target.value)}
-                  placeholder={`Cari ${targetType === "lead" ? "lead" : "klien"} berdasarkan nama, telepon, atau layanan...`}
+                  placeholder={`Cari ${targetType === "lead" ? "lead" : targetType === "project" ? "proyek" : "klien"} berdasarkan nama atau layanan...`}
                   className="w-full pl-10 pr-3 py-2.5 text-sm border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-800"
                 />
               </div>
@@ -545,6 +652,19 @@ export default function DocumentNewPage() {
                   ))}
                 </div>
               )}
+
+              {targetType === "project" && (
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {filteredProjects.length === 0 && <p className="text-sm text-gray-400 text-center py-4">Tidak ada proyek.</p>}
+                  {filteredProjects.map(project => (
+                    <button key={project.id} onClick={() => pickProject(project)}
+                      className={`w-full text-left p-3 rounded-xl border transition-colors ${selectedProject?.id === project.id ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20" : "border-[var(--border-default)] bg-white dark:bg-neutral-900 hover:border-amber-300"}`}>
+                      <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{project.name}</p>
+                      <p className="text-xs text-gray-500">{project.service_type || "Layanan umum"} · {formatRupiah(project.nominal || 0)}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
             </>
           )}
 
@@ -554,8 +674,8 @@ export default function DocumentNewPage() {
             </button>
             <button onClick={() => {
                 if (selectedTemplate) {
-                  const ttype = selectedLead ? "lead" : selectedContact ? "contact" : "empty";
-                  const tid = selectedLead?.id ?? selectedContact?.id ?? null;
+                  const ttype = selectedProject ? "project" : selectedLead ? "lead" : selectedContact ? "contact" : "empty";
+                  const tid = selectedProject?.id ?? selectedLead?.id ?? selectedContact?.id ?? null;
                   fetchAndApplyDefaults(selectedTemplate, ttype, tid);
                 }
                 setStep(2);
@@ -571,22 +691,24 @@ export default function DocumentNewPage() {
       {step === 2 && (
         <div className="space-y-4">
           <h2 className="text-sm font-bold text-neutral-700 dark:text-neutral-300">Isi Variabel</h2>
+          <p className="text-xs text-gray-500">Identitas perusahaan, logo, dan tagline diambil otomatis dari Brand Kit.</p>
           {Object.keys(variables).length === 0 && <p className="text-sm text-gray-400">Template ini tidak punya variabel.</p>}
           <div className="space-y-4">
             {(() => {
-              // Dedupe invoice keys: only show the first one as editable
+              // Dedupe auto-number aliases such as nomor_invoice and no_invoice.
               const allKeys = Object.keys(variables);
-              const invoiceKeys = allKeys.filter(k => isInvoiceNumberKey(k));
-              const primaryInvoiceKey = invoiceKeys[0] || null;
+              const usesAutoNumber = ["invoice", "receipt", "surat_penawaran"].includes(selectedTemplate?.type || "");
+              const numberKeys = usesAutoNumber ? allKeys.filter(k => isInvoiceNumberKey(k)) : [];
+              const primaryNumberKey = numberKeys[0] || null;
               const renderedKeys = new Set<string>();
 
               return Object.entries(variables).map(([key, val]) => {
                 if (renderedKeys.has(key)) return null;
-                // Skip duplicate invoice keys
-                if (isInvoiceNumberKey(key) && key !== primaryInvoiceKey) return null;
+                // Skip duplicate document number aliases.
+                if (numberKeys.includes(key) && key !== primaryNumberKey) return null;
                 renderedKeys.add(key);
 
-                const label = key.replace(/_/g, " ");
+                const label = FIELD_LABELS[key.toLowerCase()] || key.replace(/_/g, " ");
 
                 // Logo field — show image preview from brand kit
                 if (isLogoKey(key)) {
@@ -626,39 +748,41 @@ export default function DocumentNewPage() {
                   );
                 }
 
-                // Invoice number with sequence editor + auto-sync to other invoice keys
-                if (isInvoiceNumberKey(key)) {
+                // Final number is allocated by the backend when the document is generated.
+                if (numberKeys.includes(key)) {
+                  const numberLabel = selectedTemplate?.type === "invoice"
+                    ? "Nomor Invoice"
+                    : selectedTemplate?.type === "receipt"
+                      ? "Nomor Bukti Pembayaran"
+                      : "Nomor Surat";
                   return (
                     <div key={key}>
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">Nomor Invoice</label>
-                        <button
-                          type="button"
-                          onClick={() => { setShowSeqEditor(true); loadCurrentSequence(); }}
-                          className="text-[11px] text-amber-600 hover:text-amber-700 font-semibold">
-                          Atur nomor awal
-                        </button>
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{numberLabel}</label>
+                        {selectedTemplate?.type === "invoice" && (
+                          <button
+                            type="button"
+                            onClick={() => { setShowSeqEditor(true); loadCurrentSequence(); }}
+                            className="text-[11px] text-amber-600 hover:text-amber-700 font-semibold">
+                            Atur nomor awal
+                          </button>
+                        )}
                       </div>
                       <input
                         type="text"
                         value={val}
-                        onChange={e => {
-                          const newVal = e.target.value;
-                          setVariables(prev => {
-                            const updated = { ...prev };
-                            for (const k of invoiceKeys) updated[k] = newVal;
-                            return updated;
-                          });
-                        }}
+                        readOnly
                         placeholder={`{{${key}}}`}
-                        className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 font-mono"
+                        className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-gray-50 dark:bg-neutral-800/50 font-mono"
                       />
+                      <p className="text-[11px] text-gray-400 mt-1">Terisi otomatis dan dikunci saat PDF final dibuat.</p>
                     </div>
                   );
                 }
 
                 // Total — read-only, auto-calculated from line items
                 if (isTotalKey(key)) {
+                  if (selectedTemplate?.type === "invoice") return null;
                   return (
                     <div key={key}>
                       <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label} (otomatis)</label>
@@ -751,7 +875,7 @@ export default function DocumentNewPage() {
                       <div className="flex gap-2 mt-2">
                         <button
                           type="button"
-                          onClick={() => setProductPickerForKey(key)}
+                          onClick={() => openProductPicker(key, "line_item")}
                           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-lg">
                           <Plus size={14} /> Tambah dari Paket
                         </button>
@@ -768,19 +892,7 @@ export default function DocumentNewPage() {
 
                 // Read-only company info (from Brand Kit)
                 if (isReadonlyCompanyKey(key)) {
-                  return (
-                    <div key={key}>
-                      <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
-                      <input
-                        type="text"
-                        value={val}
-                        onChange={e => setVariables(prev => ({ ...prev, [key]: e.target.value }))}
-                        placeholder="Atur di Brand Kit"
-                        className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-gray-50 dark:bg-neutral-800/50 text-gray-600 dark:text-gray-400"
-                      />
-                      <p className="text-[11px] text-gray-400 mt-1">Dari Brand Kit — bisa diedit untuk dokumen ini saja</p>
-                    </div>
-                  );
+                  return null;
                 }
 
                 // Rupiah-formatted field
@@ -853,6 +965,10 @@ export default function DocumentNewPage() {
                       <datalist id={datalistId}>
                         {products.map(p => <option key={p.id} value={p.name}>{formatRupiah(p.base_price)}</option>)}
                       </datalist>
+                      <button type="button" onClick={() => openProductPicker(key, "single")}
+                        className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/20">
+                        <Plus size={13} /> Pilih paket layanan
+                      </button>
                       <p className="text-[11px] text-gray-400 mt-1">{FIELD_HINTS[key.toLowerCase()] || "Ketik atau pilih dari paket yang tersedia"}</p>
                     </div>
                   );
@@ -896,9 +1012,9 @@ export default function DocumentNewPage() {
             <button onClick={() => setStep(1)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-gray-600 border border-gray-200 rounded-xl">
               <ChevronLeft size={16} /> Kembali
             </button>
-            <button onClick={() => setStep(3)}
-              className="flex items-center gap-1.5 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl">
-              Preview <ChevronRight size={16} />
+            <button onClick={handlePreview} disabled={previewing}
+              className="flex items-center gap-1.5 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl disabled:opacity-50">
+              {previewing ? "Menyiapkan Preview..." : "Preview PDF"} <ChevronRight size={16} />
             </button>
           </div>
         </div>
@@ -908,22 +1024,19 @@ export default function DocumentNewPage() {
       {step === 3 && (
         <div className="space-y-4">
           <h2 className="text-sm font-bold text-neutral-700 dark:text-neutral-300">Preview &amp; Generate</h2>
-          <div className="bg-gray-50 dark:bg-neutral-800 rounded-xl p-4 text-sm space-y-2">
-            <p><span className="font-semibold">Template:</span> {selectedTemplate?.name}</p>
-            {selectedLead && <p><span className="font-semibold">Target Lead:</span> {selectedLead.business_name}</p>}
-            {selectedContact && <p><span className="font-semibold">Target Klien:</span> {selectedContact.business_name}</p>}
-            <div>
-              <p className="font-semibold mb-1">Variabel:</p>
-              <ul className="text-xs space-y-1">
-                {Object.entries(variables).map(([k, v]) => {
-                  if (isLineItemKey(k)) {
-                    const items = lineItems[k] || [];
-                    return <li key={k} className="text-gray-600 dark:text-gray-400">{k}: <span className="font-medium">{items.length} item(s), total {formatRupiah(items.reduce((s, it) => s + it.qty * it.price, 0))}</span></li>;
-                  }
-                  return <li key={k} className="text-gray-600 dark:text-gray-400">{k}: <span className="font-medium">{v ? (v.length > 60 ? v.slice(0, 60) + "..." : v) : <em className="text-gray-400">kosong</em>}</span></li>;
-                })}
-              </ul>
-            </div>
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <span>{selectedTemplate?.name}{selectedProject ? ` · ${selectedProject.name}` : selectedLead ? ` · ${selectedLead.business_name}` : selectedContact ? ` · ${selectedContact.business_name}` : ""}</span>
+            <button onClick={handlePreview} disabled={previewing}
+              className="px-3 py-1.5 border border-gray-200 dark:border-neutral-700 rounded-lg font-semibold hover:bg-gray-50 dark:hover:bg-neutral-800 disabled:opacity-50">
+              {previewing ? "Memuat..." : "Refresh Preview"}
+            </button>
+          </div>
+          <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-neutral-700 bg-gray-100 dark:bg-neutral-800">
+            {previewUrl ? (
+              <iframe src={previewUrl} title="Preview PDF" className="w-full h-[72vh] bg-white" />
+            ) : (
+              <div className="flex h-80 items-center justify-center text-sm text-gray-400">Preview PDF belum tersedia.</div>
+            )}
           </div>
           <div className="flex justify-between pt-2">
             <button onClick={() => setStep(2)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-gray-600 border border-gray-200 rounded-xl">
@@ -955,7 +1068,20 @@ export default function DocumentNewPage() {
               <Mail size={16} /> Kirim Email
             </button>
           </div>
-          <button onClick={() => { setStep(0); setSelectedTemplate(null); setSelectedLead(null); setSelectedContact(null); setVariables({}); setLineItems({}); setGeneratedDoc(null); setTargetType("empty"); setTargetSearch(""); }}
+          <button onClick={() => {
+              if (previewUrl) URL.revokeObjectURL(previewUrl);
+              setPreviewUrl(null);
+              setStep(0);
+              setSelectedTemplate(null);
+              setSelectedLead(null);
+              setSelectedContact(null);
+              setSelectedProject(null);
+              setVariables({});
+              setLineItems({});
+              setGeneratedDoc(null);
+              setTargetType("empty");
+              setTargetSearch("");
+            }}
             className="text-xs text-gray-400 hover:text-gray-600 underline mt-2">
             Generate dokumen lain
           </button>

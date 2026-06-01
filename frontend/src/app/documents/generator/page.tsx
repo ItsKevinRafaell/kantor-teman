@@ -14,6 +14,7 @@ interface GeneratedDoc {
   target_type: string | null;
   target_id: string | null;
   file_url: string | null;
+  display_filename: string | null;
   generated_at: string;
   generated_by: string | null;
 }
@@ -89,7 +90,7 @@ export default function DocumentGeneratorPage() {
           {filtered.map(doc => (
             <div key={doc.id} className="flex items-center justify-between p-4 bg-white dark:bg-neutral-900 border border-[var(--border-default)] rounded-xl">
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100 truncate">{doc.template_name || "Untitled"}</p>
+                <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100 truncate">{doc.display_filename || doc.template_name || "Untitled"}</p>
                 <p className="text-xs text-gray-500 mt-0.5">
                   {doc.target_type && <span className="mr-2">{doc.target_type}: {doc.target_id?.slice(0, 8)}...</span>}
                   {doc.generated_at && new Date(doc.generated_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
@@ -98,7 +99,7 @@ export default function DocumentGeneratorPage() {
               </div>
               <div className="flex items-center gap-2 ml-3">
                 {doc.file_url && (
-                  <a href={`${API_BASE}${doc.file_url}`} download
+                  <a href={`${API_BASE}/api/documents/${doc.id}/download`} target="_blank" rel="noopener noreferrer"
                     className="p-2 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-lg transition-colors" title="Download">
                     <Download size={14} className="text-gray-500" />
                   </a>

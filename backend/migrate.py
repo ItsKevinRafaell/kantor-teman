@@ -113,6 +113,41 @@ if "mysql" in _db_url:
     else:
         print("= MySQL: tabel document_sequences sudah ada, skip")
 
+    # Upgrade built-in client-facing templates once. Custom templates are untouched.
+    if _table_exists("document_templates"):
+        from document_template_library import DEFAULT_DOCUMENT_TEMPLATES
+        import json as _json_templates
+        import uuid as _uuid_templates
+        _template_version = "client_ready_v2"
+        _should_upgrade = True
+        if _table_exists("system_settings"):
+            _cur.execute("SELECT value FROM system_settings WHERE `key` = %s", ("document_templates_version",))
+            _row = _cur.fetchone()
+            _should_upgrade = not _row or _row[0] != _template_version
+        if _should_upgrade:
+            for _template in DEFAULT_DOCUMENT_TEMPLATES:
+                _cur.execute("SELECT id FROM document_templates WHERE name = %s LIMIT 1", (_template["name"],))
+                _existing = _cur.fetchone()
+                _variables = _json_templates.dumps(_template["variables"])
+                if _existing:
+                    _cur.execute(
+                        "UPDATE document_templates SET type = %s, html_template = %s, variables = %s, is_active = 1 WHERE id = %s",
+                        (_template["type"], _template["html_template"], _variables, _existing[0]),
+                    )
+                else:
+                    _cur.execute(
+                        "INSERT INTO document_templates (id, name, type, html_template, variables, is_active, created_at) VALUES (%s,%s,%s,%s,%s,1,%s)",
+                        (str(_uuid_templates.uuid4()), _template["name"], _template["type"], _template["html_template"], _variables, "2026-06-01T00:00:00+00:00"),
+                    )
+            if _table_exists("system_settings"):
+                _cur.execute(
+                    "INSERT INTO system_settings (`key`, value) VALUES (%s, %s) ON DUPLICATE KEY UPDATE value = VALUES(value)",
+                    ("document_templates_version", _template_version),
+                )
+            print("+ MySQL: built-in document templates upgraded ke client_ready_v2")
+        else:
+            print("= MySQL: built-in document templates sudah client_ready_v2, skip")
+
     # Make projects.lead_id nullable (was NOT NULL, breaks create-project-without-lead)
     if _table_exists("projects") and _col_exists("projects", "lead_id"):
         _cur.execute("""
@@ -1050,6 +1085,45 @@ body{font-family:'Poppins',sans-serif;margin:0;padding:40px;color:#242423}
     print(f"+ seed {len(_templates)} document templates")
 else:
     print("= document templates sudah ada, skip seed")
+
+# Upgrade built-in client-facing templates once. Custom templates are untouched.
+from document_template_library import DEFAULT_DOCUMENT_TEMPLATES
+import json as _json_templates
+import uuid as _uuid_templates
+
+_template_version = "client_ready_v2"
+cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='system_settings'")
+_has_settings = cur.fetchone() is not None
+_should_upgrade = True
+if _has_settings:
+    cur.execute("SELECT value FROM system_settings WHERE key = ?", ("document_templates_version",))
+    _row = cur.fetchone()
+    _should_upgrade = not _row or _row[0] != _template_version
+
+if _should_upgrade:
+    for _template in DEFAULT_DOCUMENT_TEMPLATES:
+        cur.execute("SELECT id FROM document_templates WHERE name = ? LIMIT 1", (_template["name"],))
+        _existing = cur.fetchone()
+        _variables = _json_templates.dumps(_template["variables"])
+        if _existing:
+            cur.execute(
+                "UPDATE document_templates SET type = ?, html_template = ?, variables = ?, is_active = 1 WHERE id = ?",
+                (_template["type"], _template["html_template"], _variables, _existing[0]),
+            )
+        else:
+            cur.execute(
+                "INSERT INTO document_templates (id, name, type, html_template, variables, is_active, created_at) VALUES (?,?,?,?,?,1,?)",
+                (str(_uuid_templates.uuid4()), _template["name"], _template["type"], _template["html_template"], _variables, "2026-06-01T00:00:00+00:00"),
+            )
+    if _has_settings:
+        cur.execute(
+            "INSERT INTO system_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            ("document_templates_version", _template_version),
+        )
+    conn.commit()
+    print("+ built-in document templates upgraded ke client_ready_v2")
+else:
+    print("= built-in document templates sudah client_ready_v2, skip")
 
 # ---------------------------------------------------------------------------
 # Migrasi: blast_messages table

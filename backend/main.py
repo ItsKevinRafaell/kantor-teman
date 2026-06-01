@@ -7196,6 +7196,8 @@ async def upload_brand_asset_file(
 # Document Generator
 # ---------------------------------------------------------------------------
 
+from document_template_library import get_document_template_starters
+
 DOCUMENTS_DIR = os.path.join(UPLOADS_DIR, "documents")
 os.makedirs(DOCUMENTS_DIR, exist_ok=True)
 
@@ -7212,7 +7214,7 @@ class DocumentGenerateIn(BaseModel):
     template_id: str
     target_type: Optional[str] = None
     target_id: Optional[str] = None
-    variables: dict = {}
+    variables: dict = Field(default_factory=dict)
 
 
 class DocumentEmailIn(BaseModel):
@@ -7243,6 +7245,11 @@ def list_document_templates(current_user: User = Depends(get_current_user), db: 
     return [_serialize_template(t) for t in templates]
 
 
+@app.get("/api/document-template-starters")
+def list_document_template_starters(current_user: User = Depends(get_current_user)):
+    return get_document_template_starters()
+
+
 @app.get("/api/document-templates/{tid}")
 def get_document_template(tid: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     t = db.query(DocumentTemplate).filter(DocumentTemplate.id == tid).first()
@@ -7253,7 +7260,7 @@ def get_document_template(tid: str, current_user: User = Depends(get_current_use
 
 @app.post("/api/document-templates", status_code=201)
 def create_document_template(body: DocumentTemplateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    valid_types = {"proposal_pdf", "invoice", "kontrak", "surat_penawaran", "custom"}
+    valid_types = {"proposal_pdf", "invoice", "receipt", "kontrak", "surat_penawaran", "custom"}
     if body.type not in valid_types:
         raise HTTPException(status_code=400, detail=f"Type harus salah satu: {', '.join(valid_types)}")
     t = DocumentTemplate(
@@ -7305,6 +7312,7 @@ def list_generated_documents(current_user: User = Depends(get_current_user), db:
             "target_type": d.target_type,
             "target_id": d.target_id,
             "file_url": d.file_url,
+            "display_filename": d.display_filename,
             "generated_at": d.generated_at,
             "generated_by": d.generated_by,
         }
@@ -7362,7 +7370,7 @@ def _build_brand_context(db: Session) -> dict:
     ctx = {"logo": "", "colors": {}, "fonts": {}, "tagline": "", "brand_name": "", "alamat_perusahaan": "", "phone_perusahaan": "", "email_perusahaan": ""}
     if not kit:
         return ctx
-    ctx["brand_name"] = kit.name or ""
+    ctx["brand_name"] = kit.kit_name or ""
     assets = db.query(BrandAsset).filter(BrandAsset.kit_id == kit.id).all()
     for a in assets:
         if a.asset_type == "logo_primary" and a.file_url:
@@ -7383,12 +7391,30 @@ def _build_brand_context(db: Session) -> dict:
     return ctx
 
 
+def _format_date_id(value: datetime) -> str:
+    months = [
+        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+        "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+    ]
+    return f"{value.day} {months[value.month - 1]} {value.year}"
+
+
+def _document_number(db: Session, template_type: str, reserve: bool = False) -> str:
+    prefixes = {"invoice": "INV", "receipt": "RCPT", "surat_penawaran": "SP"}
+    prefix = prefixes.get(template_type)
+    if not prefix:
+        return ""
+    seq = _next_doc_sequence(db, "GLOBAL", template_type) if reserve else _peek_doc_sequence(db, "GLOBAL", template_type)
+    yyyymm = datetime.now(timezone.utc).strftime("%Y%m")
+    return f"{prefix}/{yyyymm}/{seq:03d}"
+
+
 def _build_default_vars(db: Session, template_type: str, target_type: Optional[str], target_id: Optional[str]) -> dict:
     today = datetime.now(timezone.utc)
     brand = _build_brand_context(db)
 
     defaults: dict = {
-        "tanggal": today.strftime("%d %B %Y"),
+        "tanggal": _format_date_id(today),
         "logo": brand.get("logo", ""),
         "tagline": brand.get("tagline", ""),
     }
@@ -7407,7 +7433,18 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
 
     lead = None
     contact = None
-    if target_id and target_id.isdigit():
+    project = None
+    if target_id and target_type == "project":
+        project = db.query(Project).filter(Project.id == target_id).first()
+        if project and project.lead_id:
+            lead = db.query(Lead).filter(Lead.id == project.lead_id).first()
+            if lead:
+                defaults["klien"] = lead.business_name or ""
+                defaults["nama"] = lead.business_name or ""
+                defaults["alamat"] = lead.address or ""
+                defaults["phone"] = lead.phone_number or ""
+                defaults["layanan"] = project.name or lead.product_interest or project.service_type or ""
+    elif target_id and target_id.isdigit():
         if target_type == "contact":
             contact = db.query(Contact).filter(Contact.id == int(target_id)).first()
             if contact:
@@ -7433,18 +7470,11 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
         service_name = contact.purchased_product or ""
 
     if template_type == "invoice":
-        yyyymm = today.strftime("%Y%m")
-        seq_preview = (db.query(DocumentSequence).filter(
-            DocumentSequence.target_id == (target_id or "GLOBAL"),
-            DocumentSequence.template_type == "invoice",
-        ).first().last_seq if db.query(DocumentSequence).filter(
-            DocumentSequence.target_id == (target_id or "GLOBAL"),
-            DocumentSequence.template_type == "invoice",
-        ).first() else 0) + 1
-        defaults["nomor_invoice"] = f"INV/{yyyymm}/{seq_preview:03d}"
+        defaults["nomor_invoice"] = _document_number(db, "invoice")
         defaults["no_invoice"] = defaults["nomor_invoice"]
-        defaults["due_date"] = (today + timedelta(days=14)).strftime("%d %B %Y")
+        defaults["due_date"] = _format_date_id(today + timedelta(days=14))
         defaults["terms"] = "Pembayaran dalam 14 hari setelah invoice diterima."
+        defaults["catatan"] = "Terima kasih atas kepercayaan Anda."
         pms = db.query(PaymentMethod).filter(PaymentMethod.is_active == True).order_by(PaymentMethod.position).all()
         if pms:
             pm_lines = []
@@ -7456,45 +7486,55 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
                     line += f" (a.n. {pm.account_name})"
                 pm_lines.append(line)
             defaults["payment_info"] = "\n".join(pm_lines)
+        else:
+            defaults["payment_info"] = "Metode pembayaran belum diatur."
+
+    elif template_type == "receipt":
+        defaults["nomor"] = _document_number(db, "receipt")
+        defaults["amount"] = ""
+        defaults["payment_method"] = ""
+        defaults["keterangan"] = ""
 
     elif template_type == "proposal_pdf":
-        defaults["valid_until"] = (today + timedelta(days=14)).strftime("%d %B %Y")
+        defaults["valid_until"] = _format_date_id(today + timedelta(days=14))
         defaults["validity"] = defaults["valid_until"]
         defaults.setdefault("scope", "")
 
     elif template_type == "kontrak":
-        defaults["tanggal_mulai"] = today.strftime("%d %B %Y")
+        defaults["tanggal_mulai"] = _format_date_id(today)
         defaults["scope"] = ""
         defaults["terms"] = (
-            "1. Pembayaran sesuai kesepakatan kedua belah pihak.\n"
-            "2. Perubahan lingkup pekerjaan harus disepakati tertulis.\n"
-            "3. Kerahasiaan data klien dijaga selama dan setelah kontrak."
+            "1. Pembayaran dilakukan sesuai termin yang disepakati kedua pihak.\n"
+            "2. Pekerjaan di luar lingkup layanan memerlukan persetujuan dan biaya tambahan.\n"
+            "3. Perubahan lingkup pekerjaan harus disepakati secara tertulis.\n"
+            "4. Data dan informasi bisnis klien dijaga kerahasiaannya selama dan setelah kerja sama."
         )
         durasi_months = 1
-        if target_id and target_type == "project":
-            project = db.query(Project).filter(Project.id == target_id).first()
-            if project:
-                durasi_months = project.contract_months or 1
-                defaults["nilai_kontrak"] = f"Rp {project.nominal:,.0f}" if project.nominal else ""
+        if project:
+            durasi_months = project.contract_months or 1
+            defaults["nilai_kontrak"] = f"Rp {project.nominal:,.0f}" if project.nominal else ""
         defaults["durasi"] = f"{durasi_months} bulan"
         defaults.setdefault("nilai_kontrak", "")
-        # tanggal_akhir = tanggal_mulai + durasi months
-        end_month = (today.month - 1 + durasi_months) % 12 + 1
-        end_year = today.year + (today.month - 1 + durasi_months) // 12
-        from calendar import monthrange
-        end_day = min(today.day, monthrange(end_year, end_month)[1])
-        defaults["tanggal_akhir"] = today.replace(year=end_year, month=end_month, day=end_day).strftime("%d %B %Y")
+        if project and project.start_date:
+            try:
+                defaults["tanggal_mulai"] = _format_date_id(datetime.fromisoformat(project.start_date))
+            except ValueError:
+                pass
+        if project and project.end_date:
+            try:
+                defaults["tanggal_akhir"] = _format_date_id(datetime.fromisoformat(project.end_date))
+            except ValueError:
+                pass
+        if "tanggal_akhir" not in defaults:
+            # tanggal_akhir = tanggal_mulai + durasi months
+            end_month = (today.month - 1 + durasi_months) % 12 + 1
+            end_year = today.year + (today.month - 1 + durasi_months) // 12
+            from calendar import monthrange
+            end_day = min(today.day, monthrange(end_year, end_month)[1])
+            defaults["tanggal_akhir"] = _format_date_id(today.replace(year=end_year, month=end_month, day=end_day))
 
     elif template_type == "surat_penawaran":
-        yyyymm = today.strftime("%Y%m")
-        seq_preview = (db.query(DocumentSequence).filter(
-            DocumentSequence.target_id == (target_id or "GLOBAL"),
-            DocumentSequence.template_type == "surat_penawaran",
-        ).first().last_seq if db.query(DocumentSequence).filter(
-            DocumentSequence.target_id == (target_id or "GLOBAL"),
-            DocumentSequence.template_type == "surat_penawaran",
-        ).first() else 0) + 1
-        defaults["nomor"] = f"SP/{yyyymm}/{seq_preview:03d}"
+        defaults["nomor"] = _document_number(db, "surat_penawaran")
         defaults["perihal"] = f"Penawaran Jasa {service_name}".strip()
         defaults["terms"] = "Penawaran ini berlaku 14 hari sejak tanggal surat. Harga belum termasuk pajak kecuali disebutkan lain."
 
@@ -7536,6 +7576,7 @@ def track_pdf_open(document_id: str):
 
 _DOC_TYPE_PREFIX = {
     "invoice": "INV",
+    "receipt": "RCPT",
     "proposal_pdf": "PROP",
     "kontrak": "KTR",
     "surat_penawaran": "SP",
@@ -7554,10 +7595,14 @@ def _slugify_name(name: str, max_len: int = 30) -> str:
 def _resolve_target_name(db: Session, target_type: Optional[str], target_id: Optional[str]) -> str:
     if not target_id:
         return "Umum"
-    if target_type in ("lead", "contact") and target_id.isdigit():
+    if target_type == "lead" and target_id.isdigit():
         lead = db.query(Lead).filter(Lead.id == int(target_id)).first()
         if lead and lead.business_name:
             return lead.business_name
+    if target_type == "contact" and target_id.isdigit():
+        contact = db.query(Contact).filter(Contact.id == int(target_id)).first()
+        if contact and contact.business_name:
+            return contact.business_name
     if target_type == "project":
         project = db.query(Project).filter(Project.id == target_id).first()
         if project and project.lead_id:
@@ -7572,13 +7617,21 @@ def _next_doc_sequence(db: Session, target_id: str, template_type: str) -> int:
     seq = db.query(DocumentSequence).filter(
         DocumentSequence.target_id == key_target,
         DocumentSequence.template_type == template_type,
-    ).first()
+    ).with_for_update().first()
     if not seq:
         seq = DocumentSequence(target_id=key_target, template_type=template_type, last_seq=0)
         db.add(seq)
     seq.last_seq = (seq.last_seq or 0) + 1
-    db.commit()
+    db.flush()
     return seq.last_seq
+
+
+def _peek_doc_sequence(db: Session, target_id: str, template_type: str) -> int:
+    seq = db.query(DocumentSequence).filter(
+        DocumentSequence.target_id == (target_id or "GLOBAL"),
+        DocumentSequence.template_type == template_type,
+    ).first()
+    return (seq.last_seq if seq else 0) + 1
 
 
 def _generate_document_filename(db: Session, template_type: str, target_type: Optional[str], target_id: Optional[str]) -> str:
@@ -7636,16 +7689,30 @@ def _build_pdf_display_name(db, template_type: str, target_type, target_id, full
     return _generate_document_filename(db, template_type, target_type, target_id)
 
 
-@app.post("/api/documents/generate")
-def generate_document(body: DocumentGenerateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    template = db.query(DocumentTemplate).filter(DocumentTemplate.id == body.template_id).first()
-    if not template:
-        raise HTTPException(status_code=404, detail="Template tidak ditemukan")
+def _apply_final_document_number(db: Session, template_type: str, full_vars: dict) -> None:
+    number = _document_number(db, template_type, reserve=True)
+    if not number:
+        return
+    if template_type == "invoice":
+        full_vars["nomor_invoice"] = number
+        full_vars["no_invoice"] = number
+    else:
+        full_vars["nomor"] = number
+
+
+def _prepare_document_vars(db: Session, template: DocumentTemplate, body: DocumentGenerateIn, reserve_number: bool = False) -> dict:
+    template_type = template.type or "custom"
+    defaults = _build_default_vars(db, template_type, body.target_type, body.target_id)
     brand_ctx = _build_brand_context(db)
-    full_vars = {**brand_ctx, **body.variables}
+    full_vars = {**brand_ctx, **defaults, **body.variables}
     if "logo" not in body.variables:
         full_vars["logo"] = brand_ctx["logo"]
+    if reserve_number:
+        _apply_final_document_number(db, template_type, full_vars)
+    return full_vars
 
+
+def _render_document_pdf(template: DocumentTemplate, full_vars: dict) -> bytes:
     try:
         from jinja2 import Template as JinjaTemplate
         rendered_html = JinjaTemplate(template.html_template).render(**full_vars)
@@ -7660,45 +7727,66 @@ def generate_document(body: DocumentGenerateIn, current_user: User = Depends(get
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Render template gagal: {e}")
 
-    file_id = str(uuid.uuid4())
-    pdf_filename = f"{file_id}.pdf"
-    pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
-
-    # Ensure a usable font exists even on servers with no system fonts (prevents garbage/box glyphs)
     rendered_html = _inject_pdf_font(rendered_html)
-
-    # Filename: prefer invoice number + client name when available
-    display_name = _build_pdf_display_name(db, template.type or "custom", body.target_type, body.target_id, full_vars)
-
-    base_url = _get_setting("app_base_url", "") or os.getenv("APP_BASE_URL", "https://api.kantorteman.my.id")
-    tracking_pixel = f'<img src="{base_url.rstrip("/")}/api/pixel/{file_id}" width="1" height="1" style="position:absolute;opacity:0;" alt="" />'
-    if "</body>" in rendered_html:
-        rendered_html = rendered_html.replace("</body>", f"{tracking_pixel}</body>")
-    else:
-        rendered_html += tracking_pixel
-
     try:
         from weasyprint import HTML
-        HTML(string=rendered_html).write_pdf(pdf_path)
+        return HTML(string=rendered_html).write_pdf()
     except ImportError:
         raise HTTPException(status_code=500, detail="WeasyPrint tidak terinstall. Jalankan: pip install weasyprint")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"PDF generation gagal: {e}")
 
-    file_url = f"/uploads/documents/{pdf_filename}"
-    doc = GeneratedDocument(
-        id=file_id,
-        template_id=template.id,
-        template_name=template.name,
-        target_type=body.target_type,
-        target_id=body.target_id,
-        variables_used=json.dumps(body.variables),
-        file_url=file_url,
-        display_filename=display_name,
-        generated_by=current_user.name,
+
+@app.post("/api/documents/preview")
+def preview_document(body: DocumentGenerateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    template = db.query(DocumentTemplate).filter(DocumentTemplate.id == body.template_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="Template tidak ditemukan")
+    full_vars = _prepare_document_vars(db, template, body)
+    pdf_bytes = _render_document_pdf(template, full_vars)
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'inline; filename="preview.pdf"'},
     )
-    db.add(doc)
-    db.commit()
+
+
+@app.post("/api/documents/generate")
+def generate_document(body: DocumentGenerateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    template = db.query(DocumentTemplate).filter(DocumentTemplate.id == body.template_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="Template tidak ditemukan")
+    try:
+        full_vars = _prepare_document_vars(db, template, body, reserve_number=True)
+        pdf_bytes = _render_document_pdf(template, full_vars)
+        file_id = str(uuid.uuid4())
+        pdf_filename = f"{file_id}.pdf"
+        pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
+        with open(pdf_path, "wb") as pdf_file:
+            pdf_file.write(pdf_bytes)
+
+        # Filename: prefer document number + client name when available
+        display_name = _build_pdf_display_name(db, template.type or "custom", body.target_type, body.target_id, full_vars)
+        file_url = f"/uploads/documents/{pdf_filename}"
+        doc = GeneratedDocument(
+            id=file_id,
+            template_id=template.id,
+            template_name=template.name,
+            target_type=body.target_type,
+            target_id=body.target_id,
+            variables_used=json.dumps(full_vars),
+            file_url=file_url,
+            display_filename=display_name,
+            generated_by=current_user.name,
+        )
+        db.add(doc)
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"PDF generation gagal: {e}")
 
     return {"document_id": doc.id, "file_url": file_url, "template_name": template.name, "display_filename": display_name}
 
@@ -7748,12 +7836,13 @@ def email_document(did: str, body: DocumentEmailIn, current_user: User = Depends
     msg = MIMEMultipart()
     msg["From"] = smtp_from
     msg["To"] = body.to_email
-    msg["Subject"] = body.subject or f"{doc.template_name or 'Document'} dari Teman UMKM Kita"
+    brand_name = _build_brand_context(db).get("brand_name") or "Kantor Teman"
+    msg["Subject"] = body.subject or f"{doc.template_name or 'Dokumen'} dari {brand_name}"
     msg.attach(MIMEText(body.body or "Terlampir dokumen yang Anda minta. Hubungi kami jika ada pertanyaan.", "plain"))
 
     with open(fpath, "rb") as f:
         part = MIMEApplication(f.read(), _subtype="pdf")
-        part.add_header("Content-Disposition", f'attachment; filename="{doc.template_name or "document"}.pdf"')
+        part.add_header("Content-Disposition", f'attachment; filename="{doc.display_filename or doc.template_name or "document"}.pdf"')
         msg.attach(part)
 
     try:

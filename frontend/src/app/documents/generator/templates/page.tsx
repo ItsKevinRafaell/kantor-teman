@@ -18,6 +18,7 @@ interface DocTemplate {
 
 const TYPES = [
   { value: "invoice", label: "Invoice" },
+  { value: "receipt", label: "Receipt / Bukti Pembayaran" },
   { value: "proposal_pdf", label: "Proposal PDF" },
   { value: "surat_penawaran", label: "Surat Penawaran" },
   { value: "kontrak", label: "Kontrak / MoU" },
@@ -25,9 +26,10 @@ const TYPES = [
 ];
 
 const STARTER_VARIABLES: Record<string, string> = {
-  invoice: "logo, nomor_invoice, tanggal, due_date, klien, alamat, phone, items_rows, total, terms, nama_perusahaan, alamat_perusahaan, phone_perusahaan, email_perusahaan, tagline",
-  proposal_pdf: "logo, tanggal, valid_until, klien, alamat, phone, layanan, items_rows, total, scope, nama_perusahaan, alamat_perusahaan, phone_perusahaan, email_perusahaan, tagline",
-  surat_penawaran: "logo, nomor, tanggal, klien, alamat, phone, perihal, items_rows, total, terms, nama_perusahaan, alamat_perusahaan, phone_perusahaan, email_perusahaan",
+  invoice: "logo, nomor_invoice, tanggal, due_date, klien, alamat, phone, items_rows, payment_info, terms, catatan, nama_perusahaan, alamat_perusahaan, phone_perusahaan, email_perusahaan, tagline",
+  receipt: "logo, nomor, tanggal, klien, layanan, payment_method, amount, keterangan, nama_perusahaan, tagline",
+  proposal_pdf: "logo, tanggal, valid_until, klien, alamat, phone, layanan, items_rows, scope, nama_perusahaan, alamat_perusahaan, phone_perusahaan, email_perusahaan, tagline",
+  surat_penawaran: "logo, nomor, tanggal, klien, alamat, phone, perihal, items_rows, terms, nama_perusahaan, alamat_perusahaan, phone_perusahaan, email_perusahaan",
   kontrak: "logo, tanggal_mulai, tanggal_akhir, klien, alamat, phone, layanan, durasi, nilai_kontrak, scope, terms, nama_perusahaan, alamat_perusahaan, phone_perusahaan, email_perusahaan, tagline",
   custom: "",
 };
@@ -160,6 +162,15 @@ tfoot td:last-child{text-align:right;font-size:14px}
   <div><div class="brand-name">{{nama_perusahaan}}</div><div class="tagline">{{tagline}}</div></div>
   <div style="text-align:right;font-size:10px;color:#94a3b8">Dokumen ini dibuat secara digital</div>
 </div>
+</div></body></html>`,
+
+  receipt: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+@page{size:A4;margin:0}*{font-family:'Noto Sans',Arial,sans-serif;box-sizing:border-box}
+body{margin:0;color:#1e293b;font-size:11px}.page{padding:48px}.title{font-size:24px;font-weight:700}
+.receipt{margin:30px auto;max-width:500px;border:1px solid #e2e8f0;border-top:4px solid #d97706;border-radius:10px;padding:24px}
+.row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #f1f5f9}.amount{text-align:center;font-size:26px;font-weight:700;color:#d97706;margin:20px}
+</style></head><body><div class="page"><div>{{logo}}</div><h1 class="title">BUKTI PEMBAYARAN</h1>
+<div class="receipt"><div class="row"><span>No.</span><strong>{{nomor}}</strong></div><div class="row"><span>Klien</span><strong>{{klien}}</strong></div><div class="row"><span>Layanan</span><strong>{{layanan}}</strong></div><div class="row"><span>Metode</span><strong>{{payment_method}}</strong></div><div class="amount">{{amount}}</div><p>{{keterangan}}</p></div>
 </div></body></html>`,
 
   surat_penawaran: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
@@ -332,6 +343,8 @@ export default function DocumentTemplatesPage() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; message: string; onConfirm: () => void }>({ open: false, title: "", message: "", onConfirm: () => {} });
+  const [starterTemplates, setStarterTemplates] = useState<Record<string, string>>(STARTER_TEMPLATES);
+  const [starterVariables, setStarterVariables] = useState<Record<string, string>>(STARTER_VARIABLES);
 
   const fetchTemplates = useCallback(async () => {
     try {
@@ -340,11 +353,26 @@ export default function DocumentTemplatesPage() {
     } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetchTemplates(); }, [fetchTemplates]);
+  useEffect(() => {
+    fetchTemplates();
+    apiFetch("/api/document-template-starters")
+      .then(res => res.ok ? res.json() : {})
+      .then((starters: Record<string, { html_template: string; variables: string[] }>) => {
+        const html: Record<string, string> = { ...STARTER_TEMPLATES };
+        const variables: Record<string, string> = { ...STARTER_VARIABLES };
+        for (const [type, starter] of Object.entries(starters)) {
+          html[type] = starter.html_template;
+          variables[type] = starter.variables.join(", ");
+        }
+        setStarterTemplates(html);
+        setStarterVariables(variables);
+      })
+      .catch(() => {});
+  }, [fetchTemplates]);
 
   function openNew() {
     setEditing(null);
-    setForm({ name: "", type: "invoice", html_template: STARTER_TEMPLATES["invoice"], variables: STARTER_VARIABLES["invoice"] });
+    setForm({ name: "", type: "invoice", html_template: starterTemplates["invoice"], variables: starterVariables["invoice"] });
     setModal(true);
   }
 
@@ -359,11 +387,11 @@ export default function DocumentTemplatesPage() {
       ...prev,
       type: newType,
       // Only auto-fill if HTML is still the starter or empty
-      html_template: (!prev.html_template.trim() || Object.values(STARTER_TEMPLATES).includes(prev.html_template))
-        ? (STARTER_TEMPLATES[newType] || "")
+      html_template: (!prev.html_template.trim() || Object.values(starterTemplates).includes(prev.html_template))
+        ? (starterTemplates[newType] || "")
         : prev.html_template,
-      variables: (!prev.variables.trim() || Object.values(STARTER_VARIABLES).includes(prev.variables))
-        ? (STARTER_VARIABLES[newType] || "")
+      variables: (!prev.variables.trim() || Object.values(starterVariables).includes(prev.variables))
+        ? (starterVariables[newType] || "")
         : prev.variables,
     }));
   }
@@ -466,9 +494,9 @@ export default function DocumentTemplatesPage() {
               <div>
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">HTML Template</label>
-                  {STARTER_TEMPLATES[form.type] && (
+                  {starterTemplates[form.type] && (
                     <button type="button"
-                      onClick={() => setForm(prev => ({ ...prev, html_template: STARTER_TEMPLATES[form.type], variables: STARTER_VARIABLES[form.type] || prev.variables }))}
+                      onClick={() => setForm(prev => ({ ...prev, html_template: starterTemplates[form.type], variables: starterVariables[form.type] || prev.variables }))}
                       className="text-[11px] text-amber-600 hover:text-amber-700 font-semibold">
                       Reset ke Starter Template
                     </button>
