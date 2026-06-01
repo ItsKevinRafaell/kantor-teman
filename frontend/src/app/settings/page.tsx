@@ -6,14 +6,16 @@ import { getUserInfo, clearToken, apiFetch } from "../../lib/api";
 import Toast from "../../components/Toast";
 import AIEngineTab from "./AIEngineTab";
 import AuditLogsTab from "./AuditLogsTab";
+import DataTab from "./DataTab";
 
-type Tab = "profile" | "ai-engine" | "integrasi" | "audit-logs";
+type Tab = "profile" | "ai-engine" | "integrasi" | "audit-logs" | "data";
 
 const TAB_LABELS: Record<Tab, string> = {
   profile: "Profil",
   "ai-engine": "AI Engine",
   integrasi: "Integrasi",
   "audit-logs": "Audit Logs",
+  data: "Data",
 };
 
 function SettingsContent() {
@@ -171,7 +173,7 @@ function SettingsContent() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-white dark:bg-[var(--bg-canvas)] border border-gray-200 dark:border-gray-700 rounded-xl p-1 w-fit shadow-sm overflow-x-auto">
-        {(["profile", "ai-engine", "integrasi", "audit-logs"] as Tab[]).map((t) => (
+        {(["profile", "ai-engine", "integrasi", "audit-logs", "data"] as Tab[]).map((t) => (
           <button key={t} onClick={() => switchTab(t)}
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors whitespace-nowrap ${tab === t ? "bg-amber-600 text-white shadow-sm" : "text-neutral-500 dark:text-neutral-400 hover:text-gray-700 dark:hover:text-gray-200"}`}>
             {TAB_LABELS[t]}
@@ -214,6 +216,9 @@ function SettingsContent() {
 
       {/* Audit Logs tab */}
       {tab === "audit-logs" && <AuditLogsTab />}
+
+      {/* Data tab */}
+      {tab === "data" && <DataTab />}
 
       {/* Integrasi tab */}
       {tab === "integrasi" && (
