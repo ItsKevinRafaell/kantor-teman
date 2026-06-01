@@ -2608,6 +2608,262 @@ def run_seed_endpoint(current_user: User = Depends(require_admin), db: Session =
     return {"ok": True, "message": "Seed berhasil: categories, products, templates"}
 
 
+# ============================================================================
+# DATA ADMIN — Backup, Reset (soft/nuclear), Seed
+# ============================================================================
+
+class DataAdminBody(BaseModel):
+    password: str
+
+
+def _verify_admin_password(user: User, password: str):
+    if not password or not verify_password(password, user.hashed_password):
+        raise HTTPException(status_code=403, detail="Password salah")
+
+
+@app.post("/api/admin/data/reset-soft")
+def admin_data_reset_soft(
+    body: DataAdminBody,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Soft reset: hapus data dev/test, pertahankan clients (Closed/Client), users, settings, products."""
+    _verify_admin_password(current_user, body.password)
+    try:
+        db.query(BoardCardComment).delete()
+        db.query(BoardCardChecklist).delete()
+        db.query(BoardCardActivity).delete()
+        db.query(BoardCard).delete()
+        db.query(BoardColumn).delete()
+        db.query(Board).delete()
+        db.query(ContentGeneration).delete()
+        db.query(ContentSession).delete()
+        db.query(ContentSchedule).delete()
+        db.query(Document).delete()
+        db.query(DocumentFolder).delete()
+        db.query(ReengagementAlert).delete()
+        db.query(FollowUpSequence).delete()
+        db.query(ClientNote).delete()
+        db.query(ClientCredential).delete()
+        db.query(ClientDocument).delete()
+        db.query(LeadActivityLog).delete()
+        db.query(LeadAnalysis).delete()
+        db.query(Proposal).delete()
+        try: db.query(BlastMessage).delete()
+        except Exception: pass
+        db.query(BlastCampaign).delete()
+        db.query(AdsCampaign).delete()
+        db.query(ScrapeHistory).delete()
+        db.query(Lead).filter(Lead.status != "Closed/Client").delete(synchronize_session=False)
+        db.query(Contact).delete()
+        db.query(AuditLog).delete()
+        db.query(MessageTemplate).delete()
+        db.query(ServiceItem).delete()
+        db.commit()
+        return {"ok": True, "message": "Soft reset selesai. Data klien dan konfigurasi dipertahankan."}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Reset gagal: {e}")
+
+
+@app.post("/api/admin/data/reset-nuclear")
+def admin_data_reset_nuclear(
+    body: DataAdminBody,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Nuclear reset: hapus SEMUA data kecuali users, system_settings, provider_configs, ai_models. Auto-seed basic."""
+    _verify_admin_password(current_user, body.password)
+    try:
+        db.query(BoardCardComment).delete()
+        db.query(BoardCardChecklist).delete()
+        db.query(BoardCardActivity).delete()
+        db.query(BoardCard).delete()
+        db.query(BoardColumn).delete()
+        db.query(Board).delete()
+        try: db.query(Project).delete()
+        except Exception: pass
+        db.query(ContentGeneration).delete()
+        db.query(ContentSession).delete()
+        db.query(ContentSchedule).delete()
+        try: db.query(GeneratedDocument).delete()
+        except Exception: pass
+        db.query(Document).delete()
+        db.query(DocumentFolder).delete()
+        try: db.query(ProposalAnalytics).delete()
+        except Exception: pass
+        db.query(ReengagementAlert).delete()
+        db.query(FollowUpSequence).delete()
+        db.query(ClientNote).delete()
+        db.query(ClientCredential).delete()
+        db.query(ClientDocument).delete()
+        db.query(LeadActivityLog).delete()
+        db.query(LeadAnalysis).delete()
+        db.query(Proposal).delete()
+        try: db.query(BlastMessage).delete()
+        except Exception: pass
+        db.query(BlastCampaign).delete()
+        db.query(AdsCampaign).delete()
+        db.query(ScrapeHistory).delete()
+        db.query(Lead).delete()
+        db.query(Contact).delete()
+        db.query(Subscription).delete()
+        db.query(Transaction).delete()
+        db.query(Wallet).delete()
+        db.query(Product).delete()
+        db.query(Category).delete()
+        db.query(DynamicTemplate).delete()
+        db.query(MessageTemplate).delete()
+        db.query(ServiceItem).delete()
+        db.query(AuditLog).delete()
+        db.commit()
+
+        seed_data(db)
+        db.commit()
+        return {"ok": True, "message": "Nuclear reset selesai. Basic seed dijalankan otomatis."}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Nuclear reset gagal: {e}")
+
+
+@app.post("/api/admin/data/seed-demo")
+def admin_data_seed_demo(
+    body: DataAdminBody,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Re-seed demo data: categories, products, templates, wallets, sample clients."""
+    _verify_admin_password(current_user, body.password)
+    try:
+        from seed import categories, products_data, templates_data, wallets_data, clients_data
+        import uuid as _uuid
+
+        db.query(Product).delete()
+        db.query(Category).delete()
+        db.query(DynamicTemplate).filter(DynamicTemplate.type.in_(["WA_BLAST", "FOLLOW_UP"])).delete()
+        db.commit()
+
+        cat_objects = {}
+        for key, cat in categories.items():
+            c = Category(id=str(_uuid.uuid4()), name=cat["name"], description=cat["description"], is_active=True)
+            db.add(c)
+            cat_objects[key] = c
+        db.commit()
+
+        for name, desc, price, features, cat_key, is_retainer in products_data:
+            db.add(Product(
+                id=str(_uuid.uuid4()), name=name, description=desc, base_price=price,
+                features=json.dumps(features), category_id=cat_objects[cat_key].id,
+                is_active=True, is_retainer=is_retainer,
+            ))
+        db.commit()
+
+        for name, ttype, cat_key, content in templates_data:
+            db.add(DynamicTemplate(
+                id=str(_uuid.uuid4()), name=name, type=ttype, content=content,
+                is_active=True, category_id=cat_objects[cat_key].id,
+            ))
+        db.commit()
+
+        existing_wallets = db.query(Wallet).count()
+        if existing_wallets == 0:
+            for w in wallets_data:
+                db.add(Wallet(name=w["name"], balance=w["balance"], icon=w["icon"], color=w["color"]))
+            db.commit()
+
+        for biz, phone, owner, product in clients_data:
+            exists = db.query(Lead).filter(Lead.business_name == biz).first()
+            if not exists:
+                db.add(Lead(
+                    business_name=biz, phone_number=phone, owner_name=owner,
+                    product_interest=product, status="Closed/Client",
+                ))
+        db.commit()
+
+        seed_data(db)
+        return {"ok": True, "message": "Demo seed berhasil: categories, products, templates, wallets, sample clients."}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Seed gagal: {e}")
+
+
+@app.get("/api/admin/data/backup")
+def admin_data_backup(
+    current_user: User = Depends(require_admin),
+):
+    """Backup full DB + uploads/ folder as zip. mysqldump for mysql, file copy for sqlite."""
+    import subprocess
+    import zipfile
+    import tempfile
+    from urllib.parse import urlparse, unquote
+
+    db_url = DATABASE_URL
+    is_mysql = "mysql" in db_url
+    tmp_zip = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
+    tmp_zip.close()
+
+    try:
+        with zipfile.ZipFile(tmp_zip.name, "w", zipfile.ZIP_DEFLATED) as zf:
+            if is_mysql:
+                parsed = urlparse(db_url.replace("mysql+pymysql://", "mysql://"))
+                user = unquote(parsed.username or "")
+                pw = unquote(parsed.password or "")
+                host = parsed.hostname or "localhost"
+                port = parsed.port or 3306
+                dbname = (parsed.path or "/").lstrip("/")
+                cmd = [
+                    "mysqldump",
+                    f"-h{host}", f"-P{port}", f"-u{user}", f"-p{pw}",
+                    "--single-transaction", "--routines", "--triggers",
+                    "--default-character-set=utf8mb4",
+                    dbname,
+                ]
+                proc = subprocess.run(cmd, capture_output=True, timeout=300)
+                if proc.returncode != 0:
+                    raise HTTPException(status_code=500, detail=f"mysqldump gagal: {proc.stderr.decode(errors='ignore')[:500]}")
+                zf.writestr(f"{dbname}.sql", proc.stdout)
+            else:
+                sqlite_path = db_url.replace("sqlite:///", "")
+                if os.path.exists(sqlite_path):
+                    zf.write(sqlite_path, arcname=os.path.basename(sqlite_path))
+
+            uploads_dir = os.path.join(os.path.dirname(__file__), "uploads")
+            if os.path.isdir(uploads_dir):
+                for root, _, files in os.walk(uploads_dir):
+                    for f in files:
+                        full = os.path.join(root, f)
+                        rel = os.path.relpath(full, os.path.dirname(uploads_dir))
+                        zf.write(full, arcname=rel)
+
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        filename = f"kantorteman-backup-{ts}.zip"
+
+        def _iterfile():
+            try:
+                with open(tmp_zip.name, "rb") as f:
+                    while chunk := f.read(65536):
+                        yield chunk
+            finally:
+                try:
+                    os.unlink(tmp_zip.name)
+                except Exception:
+                    pass
+
+        return StreamingResponse(
+            _iterfile(),
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except HTTPException:
+        try: os.unlink(tmp_zip.name)
+        except Exception: pass
+        raise
+    except Exception as e:
+        try: os.unlink(tmp_zip.name)
+        except Exception: pass
+        raise HTTPException(status_code=500, detail=f"Backup gagal: {e}")
+
+
 @app.post("/api/settings/test-api")
 async def test_api_connection(
     provider: str = Query(...),
