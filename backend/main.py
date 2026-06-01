@@ -11135,6 +11135,30 @@ async def office_history(profile: str, current_user: User = Depends(get_current_
             return []
 
 
+@app.get("/api/office/conversations/{profile}")
+async def office_conversations(profile: str, current_user: User = Depends(get_current_user)):
+    if not HERMES_GATEWAY_URL:
+        return []
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            resp = await client.get(f"{HERMES_GATEWAY_URL}/conversations/{profile}", headers=_hermes_headers())
+            return resp.json()
+        except Exception:
+            return []
+
+
+@app.get("/api/office/conversations/{profile}/{session_id}")
+async def office_conversation_messages(profile: str, session_id: str, current_user: User = Depends(get_current_user)):
+    if not HERMES_GATEWAY_URL:
+        return []
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            resp = await client.get(f"{HERMES_GATEWAY_URL}/conversations/{profile}/{session_id}", headers=_hermes_headers())
+            return resp.json()
+        except Exception:
+            return []
+
+
 # ---------- HR Desk: agent CRUD proxy ----------
 
 class OfficeAgentCreate(BaseModel):
