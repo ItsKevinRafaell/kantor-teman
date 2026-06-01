@@ -1,9 +1,11 @@
+import base64
 import os
 import re
 import sqlite3
 import subprocess
+import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import yaml
 from fastapi import FastAPI, HTTPException, Security
@@ -36,9 +38,16 @@ def validate_profile(profile: str) -> str:
 
 # ---------- chat ----------
 
+class ChatAttachment(BaseModel):
+    name: str
+    type: str
+    data: str  # base64 data URL
+
+
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
+    attachments: Optional[List[ChatAttachment]] = None
 
 
 def _get_latest_session(profile: str) -> Optional[str]:
@@ -75,13 +84,46 @@ def _get_history(profile: str, limit: int = 20) -> list:
         return []
 
 
+def _save_attachments(attachments: List[ChatAttachment], profile: str) -> List[str]:
+    """Save base64 attachments to profile uploads dir, return file paths."""
+    upload_dir = PROFILES_DIR / profile / "uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for att in attachments:
+        data = att.data
+        if "," in data:
+            data = data.split(",", 1)[1]
+        try:
+            raw = base64.b64decode(data)
+        except Exception:
+            continue
+        ext = Path(att.name).suffix or ".bin"
+        tmp = tempfile.NamedTemporaryFile(
+            dir=str(upload_dir), suffix=ext, prefix=f"{att.name.split('.')[0]}_", delete=False
+        )
+        tmp.write(raw)
+        tmp.close()
+        paths.append(tmp.name)
+    return paths
+
+
 @app.post("/chat/{profile}")
 def chat(profile: str, req: ChatRequest, _: str = Security(verify_token)):
     validate_profile(profile)
+
+    # Build message with attachment references
+    message = req.message
+    file_paths: List[str] = []
+    if req.attachments:
+        file_paths = _save_attachments(req.attachments, profile)
+        if file_paths:
+            file_list = "\n".join(f"- {p}" for p in file_paths)
+            message = f"{req.message}\n\n[Attached files]\n{file_list}"
+
     cmd = [HERMES_BIN, "--profile", profile]
     if req.session_id:
         cmd += ["--resume", req.session_id]
-    cmd += ["-z", req.message]
+    cmd += ["-z", message]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     except subprocess.TimeoutExpired:
@@ -113,6 +155,58 @@ def status(_: str = Security(verify_token)):
 def history(profile: str, limit: int = 20, _: str = Security(verify_token)):
     validate_profile(profile)
     return _get_history(profile, limit)
+
+
+@app.get("/conversations/{profile}")
+def list_conversations(profile: str, _: str = Security(verify_token)):
+    """List all conversation sessions for a profile with preview."""
+    validate_profile(profile)
+    db_path = DB_TEMPLATE.format(profile=profile)
+    if not os.path.exists(db_path):
+        return []
+    try:
+        con = sqlite3.connect(db_path)
+        sessions = con.execute(
+            "SELECT id, started_at FROM sessions ORDER BY started_at DESC"
+        ).fetchall()
+        result = []
+        for sid, started_at in sessions:
+            first_msg = con.execute(
+                "SELECT content FROM messages WHERE session_id = ? AND role = 'user' ORDER BY created_at ASC LIMIT 1",
+                (sid,),
+            ).fetchone()
+            msg_count = con.execute(
+                "SELECT COUNT(*) FROM messages WHERE session_id = ?", (sid,)
+            ).fetchone()
+            result.append({
+                "session_id": sid,
+                "started_at": started_at,
+                "preview": (first_msg[0][:80] if first_msg else ""),
+                "message_count": msg_count[0] if msg_count else 0,
+            })
+        con.close()
+        return result
+    except Exception:
+        return []
+
+
+@app.get("/conversations/{profile}/{session_id}")
+def get_conversation(profile: str, session_id: str, _: str = Security(verify_token)):
+    """Get all messages for a specific conversation session."""
+    validate_profile(profile)
+    db_path = DB_TEMPLATE.format(profile=profile)
+    if not os.path.exists(db_path):
+        return []
+    try:
+        con = sqlite3.connect(db_path)
+        rows = con.execute(
+            "SELECT role, content, created_at FROM messages WHERE session_id = ? ORDER BY created_at ASC",
+            (session_id,),
+        ).fetchall()
+        con.close()
+        return [{"role": r[0], "content": r[1], "created_at": r[2]} for r in rows]
+    except Exception:
+        return []
 
 
 @app.get("/health")
