@@ -27,6 +27,7 @@ from cryptography.fernet import Fernet
 import jwt
 import bcrypt as _bcrypt
 from sqlalchemy import create_engine, Column, Integer, String, Text, Float, Boolean, ForeignKey, select, func, DateTime
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker, relationship
 
 load_dotenv(os.environ.get("ENV_FILE", ".env.production"))
@@ -110,6 +111,7 @@ app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")  # boleh kosong
 PLACES_NEW_SEARCH_URL = os.environ.get("PLACES_NEW_SEARCH_URL", "https://places.googleapis.com/v1/places:searchText")
+FONNTE_WEBHOOK_SECRET = os.environ.get("FONNTE_WEBHOOK_SECRET", "")
 JWT_SECRET = os.getenv("JWT_SECRET")
 if not JWT_SECRET or len(JWT_SECRET) < 16:
     raise RuntimeError(
@@ -250,6 +252,10 @@ class Lead(Base):
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     last_followup_at = Column(String(255), nullable=True)
+    sales_owner = Column(String(255), nullable=True)
+    next_action_at = Column(String(255), nullable=True)
+    loss_reason = Column(String(500), nullable=True)
+    do_not_contact = Column(Boolean, default=False, nullable=False)
 
 
 class Contact(Base):
@@ -1410,6 +1416,10 @@ class LeadOut(BaseModel):
     google_rating: Optional[float] = None
     review_count: Optional[int] = None
     website_url: Optional[str] = None
+    sales_owner: Optional[str] = None
+    next_action_at: Optional[str] = None
+    loss_reason: Optional[str] = None
+    do_not_contact: bool = False
     model_config = {"from_attributes": True}
 
 
@@ -1447,6 +1457,13 @@ class TemplateOut(BaseModel):
 
 class StatusUpdate(BaseModel):
     status: str
+
+
+class LeadSalesUpdate(BaseModel):
+    sales_owner: Optional[str] = Field(None, max_length=255)
+    next_action_at: Optional[str] = Field(None, max_length=255)
+    loss_reason: Optional[str] = Field(None, max_length=500)
+    do_not_contact: Optional[bool] = None
 
 
 class ProductUpdate(BaseModel):
@@ -2142,6 +2159,8 @@ def run_blast_sync(batch_name: str, product_category: str, min_rating: int, db_u
         query = db.query(Lead).filter(
             Lead.batch_name == batch_name,
             Lead.status == "Scraped",
+            Lead.is_archived == False,
+            Lead.do_not_contact == False,
         )
         if min_rating > 0:
             query = query.filter(Lead.rating >= min_rating)
@@ -2553,7 +2572,7 @@ def create_external_lead(request: Request, body: ExternalLeadIn, background_task
 
 
 @app.post("/api/admin/seed")
-def run_seed_endpoint(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def run_seed_endpoint(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Run seeder via HTTP — use once after first deploy."""
     from seed import categories, products_data, templates_data
     import uuid as _uuid
@@ -3087,6 +3106,10 @@ def get_leads(
             "google_rating": lead.google_rating,
             "review_count": lead.review_count,
             "website_url": lead.website_url,
+            "sales_owner": lead.sales_owner,
+            "next_action_at": lead.next_action_at,
+            "loss_reason": lead.loss_reason,
+            "do_not_contact": bool(lead.do_not_contact),
         }
         results.append(lead_dict)
     return results
@@ -3195,6 +3218,10 @@ def list_leads(
             "google_rating": lead.google_rating,
             "review_count": lead.review_count,
             "website_url": lead.website_url,
+            "sales_owner": lead.sales_owner,
+            "next_action_at": lead.next_action_at,
+            "loss_reason": lead.loss_reason,
+            "do_not_contact": bool(lead.do_not_contact),
         })
     return results
 
@@ -3232,6 +3259,8 @@ def send_wa_manual(body: WaSendIn, current_user: User = Depends(get_current_user
     lead = db.query(Lead).filter(Lead.id == body.lead_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
+    if lead.do_not_contact:
+        raise HTTPException(status_code=409, detail="Lead memilih opt-out. Pengiriman WhatsApp diblokir.")
     token = get_fonnte_token(db)
     print(f"[WA SEND] phone={lead.phone_number} token={token[:10] if token else 'EMPTY'}...", flush=True)
     if not token:
@@ -3284,19 +3313,11 @@ def delete_lead(lead_id: int, current_user: User = Depends(require_admin), db: S
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
-    db.query(Proposal).filter(Proposal.lead_id == lead_id).delete()
-    db.query(LeadActivityLog).filter(LeadActivityLog.lead_id == lead_id).delete()
-    db.query(LeadAnalysis).filter(LeadAnalysis.lead_id == lead_id).delete()
-    db.query(Project).filter(Project.lead_id == lead_id).delete()
-    db.query(ClientNote).filter(ClientNote.lead_id == lead_id).delete()
-    db.query(FollowUpSequence).filter(FollowUpSequence.lead_id == lead_id).delete()
-    db.query(ReengagementAlert).filter(ReengagementAlert.lead_id == lead_id).delete()
-    db.query(ClientCredential).filter(ClientCredential.lead_id == lead_id).delete()
-    db.query(ClientDocument).filter(ClientDocument.lead_id == lead_id).delete()
-    db.delete(lead)
+    lead.is_archived = True
+    lead.deleted_at = datetime.now(timezone.utc).isoformat()
     db.commit()
-    log_audit(db, current_user.name, "DELETE", "leads", lead_id, {"business_name": lead.business_name})
-    return {"detail": "Lead berhasil dihapus"}
+    log_audit(db, current_user.name, "ARCHIVE", "leads", lead_id, {"business_name": lead.business_name})
+    return {"detail": "Lead berhasil diarsipkan"}
 
 
 @app.get("/api/leads/batches")
@@ -3384,6 +3405,28 @@ def update_lead_product(lead_id: int, body: ProductUpdate, current_user: User = 
     lead.product_interest = body.product_interest
     db.commit()
     db.refresh(lead)
+    return lead
+
+
+@app.patch("/api/leads/{lead_id}/sales", response_model=LeadOut)
+def update_lead_sales(lead_id: int, body: LeadSalesUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
+    changes = body.model_dump(exclude_unset=True)
+    for key, value in changes.items():
+        if key == "do_not_contact":
+            setattr(lead, key, bool(value))
+        else:
+            setattr(lead, key, value or None)
+    if lead.do_not_contact:
+        db.query(FollowUpSequence).filter(
+            FollowUpSequence.lead_id == lead.id,
+            FollowUpSequence.status == "ACTIVE",
+        ).update({"status": "STOPPED", "stopped_reason": "opt_out"}, synchronize_session=False)
+    db.commit()
+    db.refresh(lead)
+    log_audit(db, current_user.name, "UPDATE", "leads", lead_id, {"fields": list(changes)})
     return lead
 
 
@@ -3492,7 +3535,7 @@ def update_contact(contact_id: int, body: ContactUpdate, current_user: User = De
 
 
 @app.delete("/api/contacts/{contact_id}", status_code=204)
-def delete_contact(contact_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_contact(contact_id: int, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     contact = db.query(Contact).filter(Contact.id == contact_id).first()
     if not contact:
         raise HTTPException(status_code=404, detail="Kontak tidak ditemukan")
@@ -3513,7 +3556,7 @@ def get_templates(product_category: Optional[str] = Query(None), current_user: U
 
 
 @app.post("/api/templates", response_model=TemplateOut, status_code=201)
-def create_template(body: TemplateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_template(body: TemplateIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     tmpl = MessageTemplate(**body.model_dump())
     db.add(tmpl)
     db.commit()
@@ -3522,7 +3565,7 @@ def create_template(body: TemplateIn, current_user: User = Depends(get_current_u
 
 
 @app.patch("/api/templates/{tmpl_id}", response_model=TemplateOut)
-def update_template(tmpl_id: int, body: TemplateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_template(tmpl_id: int, body: TemplateIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     tmpl = db.query(MessageTemplate).filter(MessageTemplate.id == tmpl_id).first()
     if not tmpl:
         raise HTTPException(status_code=404, detail="Template tidak ditemukan")
@@ -3535,7 +3578,7 @@ def update_template(tmpl_id: int, body: TemplateIn, current_user: User = Depends
 
 
 @app.delete("/api/templates/{tmpl_id}", status_code=204)
-def delete_template(tmpl_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_template(tmpl_id: int, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     tmpl = db.query(MessageTemplate).filter(MessageTemplate.id == tmpl_id).first()
     if not tmpl:
         raise HTTPException(status_code=404, detail="Template tidak ditemukan")
@@ -3567,10 +3610,28 @@ def get_random_template(
 async def start_blast(
     body: BlastIn,
     current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
 ):
     import threading
-    threading.Thread(target=run_blast_sync, args=(body.batch_name, body.product_category, body.min_rating, DATABASE_URL, JWT_SECRET, body.template_id), daemon=True).start()
-    return {"message": "Campaign berjalan di background!", "batch_name": body.batch_name}
+    campaign = BlastCampaign(
+        id=str(uuid.uuid4()),
+        name=f"Blast {body.batch_name} - {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}",
+        template_id=body.template_id,
+        filter_criteria=json.dumps({
+            "status": "Scraped",
+            "batch_name": body.batch_name,
+            "min_rating": body.min_rating,
+            "product_category": body.product_category,
+        }),
+        scheduled_for=datetime.now(timezone.utc).isoformat(),
+        status="PENDING",
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    db.add(campaign)
+    db.commit()
+    log_audit(db, current_user.name, "CREATE", "blast_campaigns", campaign.id, {"name": campaign.name, "mode": "instant"})
+    threading.Thread(target=_run_async_job, args=(process_pending_blasts,), daemon=True).start()
+    return {"message": "Campaign masuk antrean pengiriman.", "batch_name": body.batch_name, "campaign_id": campaign.id}
 
 
 # ---------------------------------------------------------------------------
@@ -3593,6 +3654,12 @@ async def fonnte_incoming(request: Request, db: Session = Depends(get_db)):
         except Exception:
             payload = {}
 
+    if FONNTE_WEBHOOK_SECRET and not hmac.compare_digest(
+        request.headers.get("x-fonnte-webhook-secret", ""),
+        FONNTE_WEBHOOK_SECRET,
+    ):
+        raise HTTPException(status_code=401, detail="Webhook secret tidak valid")
+
     sender = payload.get("sender") or payload.get("device") or payload.get("from") or ""
     sender_digits = normalize_phone(str(sender))
     if not sender_digits:
@@ -3601,6 +3668,18 @@ async def fonnte_incoming(request: Request, db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.phone_number == sender_digits).first()
     if not lead:
         return {"ok": True, "skipped": "no_lead"}
+
+    message = str(payload.get("message") or payload.get("text") or "").strip().lower()
+    opt_out_terms = {"stop", "berhenti", "unsubscribe", "jangan hubungi", "hapus nomor"}
+    if any(term in message for term in opt_out_terms):
+        lead.do_not_contact = True
+        db.query(FollowUpSequence).filter(
+            FollowUpSequence.lead_id == lead.id,
+            FollowUpSequence.status == "ACTIVE",
+        ).update({"status": "STOPPED", "stopped_reason": "opt_out"}, synchronize_session=False)
+        db.commit()
+        log_audit(db, "fonnte-webhook", "UPDATE", "leads", lead.id, {"field": "do_not_contact", "new": True, "via": "wa_opt_out"})
+        return {"ok": True, "lead_id": lead.id, "do_not_contact": True}
 
     # Only auto-promote Contacted → Replied. Don't downgrade other statuses.
     if lead.status == "Contacted":
@@ -4406,7 +4485,7 @@ def get_service_items(current_user: User = Depends(get_current_user), db: Sessio
 
 
 @app.post("/api/settings/services", response_model=ServiceItemOut, status_code=201)
-def create_service_item(body: ServiceItemIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_service_item(body: ServiceItemIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
 
     item = ServiceItem(
         id=str(uuid.uuid4()),
@@ -4426,7 +4505,7 @@ def create_service_item(body: ServiceItemIn, current_user: User = Depends(get_cu
 
 
 @app.put("/api/settings/services/{item_id}", response_model=ServiceItemOut)
-def update_service_item(item_id: str, body: ServiceItemIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_service_item(item_id: str, body: ServiceItemIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
 
     item = db.query(ServiceItem).filter(ServiceItem.id == item_id).first()
     if not item:
@@ -4445,7 +4524,7 @@ def update_service_item(item_id: str, body: ServiceItemIn, current_user: User = 
 
 
 @app.delete("/api/settings/services/{item_id}", status_code=204)
-def delete_service_item(item_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_service_item(item_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     item = db.query(ServiceItem).filter(ServiceItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Service item tidak ditemukan")
@@ -4742,6 +4821,8 @@ def start_followup(body: dict, current_user: User = Depends(get_current_user), d
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
+    if lead.do_not_contact:
+        raise HTTPException(status_code=409, detail="Lead memilih opt-out. Sequence tidak dapat dimulai.")
 
     existing = db.query(FollowUpSequence).filter(
         FollowUpSequence.lead_id == lead_id,
@@ -4803,7 +4884,7 @@ def get_active_followups(current_user: User = Depends(get_current_user), db: Ses
 
 
 @app.post("/api/followup/process")
-async def process_followups(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def process_followups(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     now = datetime.now(timezone.utc)
     sequences = db.query(FollowUpSequence).filter(
         FollowUpSequence.status == "ACTIVE",
@@ -4818,6 +4899,11 @@ async def process_followups(current_user: User = Depends(get_current_user), db: 
         if not lead:
             seq.status = "STOPPED"
             seq.stopped_reason = "lead_not_found"
+            db.commit()
+            continue
+        if lead.do_not_contact:
+            seq.status = "STOPPED"
+            seq.stopped_reason = "opt_out"
             db.commit()
             continue
 
@@ -4854,7 +4940,9 @@ async def process_followups(current_user: User = Depends(get_current_user), db: 
             ]
             message = followup_defaults[min(seq.current_step, len(followup_defaults) - 1)]
 
-        await send_fonnte_message(lead.phone_number, message, token)
+        success = await send_fonnte_message(lead.phone_number, message, token)
+        if not success:
+            continue
         sent_count += 1
 
         seq.current_step += 1
@@ -4947,12 +5035,12 @@ def get_conversion_patterns(current_user: User = Depends(get_current_user), db: 
 # ---------------------------------------------------------------------------
 
 @app.get("/api/finance/wallets", response_model=list[WalletOut])
-def get_wallets(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_wallets(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     return db.query(Wallet).all()
 
 
 @app.post("/api/finance/wallets", response_model=WalletOut, status_code=201)
-def create_wallet(body: WalletIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_wallet(body: WalletIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     wallet = Wallet(**body.model_dump())
     db.add(wallet)
     db.commit()
@@ -4961,7 +5049,7 @@ def create_wallet(body: WalletIn, current_user: User = Depends(get_current_user)
 
 
 @app.put("/api/finance/wallets/{wallet_id}", response_model=WalletOut)
-def update_wallet(wallet_id: int, body: WalletIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_wallet(wallet_id: int, body: WalletIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     wallet = db.query(Wallet).filter(Wallet.id == wallet_id).first()
     if not wallet:
         raise HTTPException(status_code=404, detail="Wallet tidak ditemukan")
@@ -4975,10 +5063,12 @@ def update_wallet(wallet_id: int, body: WalletIn, current_user: User = Depends(g
 
 
 @app.delete("/api/finance/wallets/{wallet_id}", status_code=204)
-def delete_wallet(wallet_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_wallet(wallet_id: int, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     wallet = db.query(Wallet).filter(Wallet.id == wallet_id).first()
     if not wallet:
         raise HTTPException(status_code=404, detail="Wallet tidak ditemukan")
+    if wallet.transactions or wallet.subscriptions:
+        raise HTTPException(status_code=409, detail="Wallet masih memiliki transaksi atau langganan. Arsipkan data terkait terlebih dahulu.")
     db.delete(wallet)
     db.commit()
 
@@ -4992,7 +5082,7 @@ def get_transactions(
     wallet_id: Optional[int] = Query(None),
     type: Optional[str] = Query(None),
     include_archived: bool = Query(False),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     query = db.query(Transaction)
@@ -5018,7 +5108,7 @@ def get_transactions(
 
 
 @app.post("/api/finance/transactions", response_model=TransactionOut, status_code=201)
-def create_transaction(body: TransactionIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_transaction(body: TransactionIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     wallet = db.query(Wallet).filter(Wallet.id == body.wallet_id).first()
     if not wallet:
         raise HTTPException(status_code=404, detail="Wallet tidak ditemukan")
@@ -5045,10 +5135,15 @@ def create_transaction(body: TransactionIn, current_user: User = Depends(get_cur
 
 
 @app.put("/api/finance/transactions/{txn_id}", response_model=TransactionOut)
-def update_transaction(txn_id: int, body: TransactionIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_transaction(txn_id: int, body: TransactionIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     txn = db.query(Transaction).filter(Transaction.id == txn_id).first()
     if not txn:
         raise HTTPException(status_code=404, detail="Transaksi tidak ditemukan")
+    if body.type not in ("income", "expense"):
+        raise HTTPException(status_code=400, detail="Type harus 'income' atau 'expense'")
+    new_wallet = db.query(Wallet).filter(Wallet.id == body.wallet_id).first()
+    if not new_wallet:
+        raise HTTPException(status_code=404, detail="Wallet tujuan tidak ditemukan")
     wallet = db.query(Wallet).filter(Wallet.id == txn.wallet_id).first()
     if txn.type == "income":
         wallet.balance -= txn.amount
@@ -5062,7 +5157,6 @@ def update_transaction(txn_id: int, body: TransactionIn, current_user: User = De
     txn.notes = body.notes
     txn.lead_id = body.lead_id
     txn.is_billed = body.is_billed
-    new_wallet = db.query(Wallet).filter(Wallet.id == body.wallet_id).first()
     if body.type == "income":
         new_wallet.balance += body.amount
     else:
@@ -5081,10 +5175,12 @@ def update_transaction(txn_id: int, body: TransactionIn, current_user: User = De
 
 
 @app.delete("/api/finance/transactions/{txn_id}", status_code=204)
-def delete_transaction(txn_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_transaction(txn_id: int, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     txn = db.query(Transaction).filter(Transaction.id == txn_id).first()
     if not txn:
         raise HTTPException(status_code=404, detail="Transaksi tidak ditemukan")
+    if txn.is_archived:
+        return
     wallet = db.query(Wallet).filter(Wallet.id == txn.wallet_id).first()
     if txn.type == "income":
         wallet.balance -= txn.amount
@@ -5097,10 +5193,18 @@ def delete_transaction(txn_id: int, current_user: User = Depends(get_current_use
 
 
 @app.post("/api/finance/transactions/restore/{txn_id}", response_model=TransactionOut)
-def restore_transaction(txn_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def restore_transaction(txn_id: int, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     txn = db.query(Transaction).filter(Transaction.id == txn_id).first()
     if not txn:
         raise HTTPException(status_code=404, detail="Transaksi tidak ditemukan")
+    if not txn.is_archived:
+        db.refresh(txn)
+        lead_name = txn.lead.business_name if txn.lead else None
+        return TransactionOut(
+            id=txn.id, wallet_id=txn.wallet_id, type=txn.type, amount=txn.amount,
+            category=txn.category, date=txn.date, notes=txn.notes,
+            lead_id=txn.lead_id, is_billed=txn.is_billed, lead_name=lead_name,
+        )
     wallet = db.query(Wallet).filter(Wallet.id == txn.wallet_id).first()
     if txn.type == "income":
         wallet.balance += txn.amount
@@ -5127,7 +5231,7 @@ def restore_transaction(txn_id: int, current_user: User = Depends(get_current_us
 # ---------------------------------------------------------------------------
 
 @app.get("/api/finance/subscriptions", response_model=list[SubscriptionOut])
-def get_subscriptions(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_subscriptions(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     subs = db.query(Subscription).all()
     results = []
     for s in subs:
@@ -5141,7 +5245,7 @@ def get_subscriptions(current_user: User = Depends(get_current_user), db: Sessio
 
 
 @app.post("/api/finance/subscriptions", response_model=SubscriptionOut, status_code=201)
-def create_subscription(body: SubscriptionIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_subscription(body: SubscriptionIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     wallet = db.query(Wallet).filter(Wallet.id == body.wallet_id).first()
     if not wallet:
         raise HTTPException(status_code=404, detail="Wallet tidak ditemukan")
@@ -5159,7 +5263,7 @@ def create_subscription(body: SubscriptionIn, current_user: User = Depends(get_c
 
 
 @app.put("/api/finance/subscriptions/{sub_id}", response_model=SubscriptionOut)
-def update_subscription(sub_id: int, body: SubscriptionIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_subscription(sub_id: int, body: SubscriptionIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     sub = db.query(Subscription).filter(Subscription.id == sub_id).first()
     if not sub:
         raise HTTPException(status_code=404, detail="Subscription tidak ditemukan")
@@ -5182,7 +5286,7 @@ def update_subscription(sub_id: int, body: SubscriptionIn, current_user: User = 
 
 
 @app.delete("/api/finance/subscriptions/{sub_id}", status_code=204)
-def delete_subscription(sub_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_subscription(sub_id: int, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     sub = db.query(Subscription).filter(Subscription.id == sub_id).first()
     if not sub:
         raise HTTPException(status_code=404, detail="Subscription tidak ditemukan")
@@ -5195,7 +5299,7 @@ def delete_subscription(sub_id: int, current_user: User = Depends(get_current_us
 # ---------------------------------------------------------------------------
 
 @app.get("/api/finance/reports", response_model=FinanceReportOut)
-def get_finance_reports(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_finance_reports(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     total_balance = db.query(func.coalesce(func.sum(Wallet.balance), 0)).scalar() or 0
 
     now = datetime.now()
@@ -5203,6 +5307,7 @@ def get_finance_reports(current_user: User = Depends(get_current_user), db: Sess
     monthly_expenses = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
         Transaction.type == "expense",
         Transaction.date.like(f"{current_month}%"),
+        Transaction.is_archived == False,
     ).scalar() or 0
 
     total_subscription_monthly = 0
@@ -5213,13 +5318,24 @@ def get_finance_reports(current_user: User = Depends(get_current_user), db: Sess
         else:
             total_subscription_monthly += sub.amount / 12
 
-    break_even_point = monthly_expenses + total_subscription_monthly
+    recorded_subscription_expenses = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
+        Transaction.type == "expense",
+        Transaction.date.like(f"{current_month}%"),
+        Transaction.category == "Subscription",
+        Transaction.is_archived == False,
+    ).scalar() or 0
+    subscription_forecast_remaining = max(0, total_subscription_monthly - recorded_subscription_expenses)
+    break_even_point = monthly_expenses + subscription_forecast_remaining
 
     financial_runway = round(total_balance / break_even_point, 1) if break_even_point > 0 else 99.0
 
     category_rows = db.execute(
         select(Transaction.category, func.sum(Transaction.amount).label("total"))
-        .where(Transaction.type == "expense", Transaction.date.like(f"{current_month}%"))
+        .where(
+            Transaction.type == "expense",
+            Transaction.date.like(f"{current_month}%"),
+            Transaction.is_archived == False,
+        )
         .group_by(Transaction.category)
         .order_by(func.sum(Transaction.amount).desc())
     ).all()
@@ -5237,8 +5353,7 @@ def get_finance_reports(current_user: User = Depends(get_current_user), db: Sess
 # Finance - Auto-Deduct Subscriptions (Scheduler Endpoint)
 # ---------------------------------------------------------------------------
 
-@app.post("/api/finance/subscriptions/auto-deduct")
-def auto_deduct_subscriptions(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def _deduct_due_subscriptions(db: Session) -> list[dict]:
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     subs = db.query(Subscription).filter(
         Subscription.is_active == True,
@@ -5267,10 +5382,19 @@ def auto_deduct_subscriptions(current_user: User = Depends(get_current_user), db
             max_day = monthrange(next_year, next_month)[1]
             next_date = next_date.replace(year=next_year, month=next_month, day=min(next_date.day, max_day))
         else:
-            next_date = next_date.replace(year=next_date.year + 1)
+            from calendar import monthrange
+            next_year = next_date.year + 1
+            max_day = monthrange(next_year, next_date.month)[1]
+            next_date = next_date.replace(year=next_year, day=min(next_date.day, max_day))
         sub.next_billing_date = next_date.strftime("%Y-%m-%d")
         deducted.append({"subscription": sub.name, "amount": sub.amount, "next_billing_date": sub.next_billing_date})
     db.commit()
+    return deducted
+
+
+@app.post("/api/finance/subscriptions/auto-deduct")
+def auto_deduct_subscriptions(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    deducted = _deduct_due_subscriptions(db)
     return {"deducted_count": len(deducted), "details": deducted}
 
 
@@ -5299,7 +5423,7 @@ def list_payment_methods(current_user: User = Depends(get_current_user), db: Ses
 
 
 @app.post("/api/finance/payment-methods", response_model=PaymentMethodOut, status_code=201)
-def create_payment_method(body: PaymentMethodIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_payment_method(body: PaymentMethodIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     pm = PaymentMethod(**body.model_dump())
     db.add(pm)
     db.commit()
@@ -5308,7 +5432,7 @@ def create_payment_method(body: PaymentMethodIn, current_user: User = Depends(ge
 
 
 @app.put("/api/finance/payment-methods/{pm_id}", response_model=PaymentMethodOut)
-def update_payment_method(pm_id: int, body: PaymentMethodIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_payment_method(pm_id: int, body: PaymentMethodIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     pm = db.query(PaymentMethod).filter(PaymentMethod.id == pm_id).first()
     if not pm:
         raise HTTPException(status_code=404, detail="Metode pembayaran tidak ditemukan")
@@ -5320,7 +5444,7 @@ def update_payment_method(pm_id: int, body: PaymentMethodIn, current_user: User 
 
 
 @app.delete("/api/finance/payment-methods/{pm_id}", status_code=204)
-def delete_payment_method(pm_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_payment_method(pm_id: int, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     pm = db.query(PaymentMethod).filter(PaymentMethod.id == pm_id).first()
     if not pm:
         raise HTTPException(status_code=404, detail="Metode pembayaran tidak ditemukan")
@@ -5512,7 +5636,7 @@ def export_leads_csv(current_user: User = Depends(get_current_user), db: Session
 
 
 @app.get("/api/export/finance")
-def export_finance_csv(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def export_finance_csv(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     transactions = db.query(Transaction).filter(Transaction.is_archived == False).order_by(Transaction.date.desc()).all()
     output = io.StringIO()
     writer = csv.writer(output)
@@ -5545,7 +5669,7 @@ def get_categories(
 
 
 @app.post("/api/categories", response_model=CategoryOut, status_code=201)
-def create_category(body: CategoryIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_category(body: CategoryIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     existing = db.query(Category).filter(Category.name == body.name).first()
     if existing:
         raise HTTPException(status_code=400, detail="Kategori dengan nama ini sudah ada")
@@ -5563,7 +5687,7 @@ def create_category(body: CategoryIn, current_user: User = Depends(get_current_u
 
 
 @app.put("/api/categories/{cat_id}", response_model=CategoryOut)
-def update_category(cat_id: str, body: CategoryIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_category(cat_id: str, body: CategoryIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     cat = db.query(Category).filter(Category.id == cat_id).first()
     if not cat:
         raise HTTPException(status_code=404, detail="Kategori tidak ditemukan")
@@ -5580,7 +5704,7 @@ def update_category(cat_id: str, body: CategoryIn, current_user: User = Depends(
 
 
 @app.delete("/api/categories/{cat_id}", status_code=204)
-def delete_category(cat_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_category(cat_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     cat = db.query(Category).filter(Category.id == cat_id).first()
     if not cat:
         raise HTTPException(status_code=404, detail="Kategori tidak ditemukan")
@@ -5623,7 +5747,7 @@ def get_products(
 
 
 @app.post("/api/products", response_model=ProductOut, status_code=201)
-def create_product(body: ProductIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_product(body: ProductIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     product = Product(
         id=str(uuid.uuid4()),
         name=body.name,
@@ -5642,7 +5766,7 @@ def create_product(body: ProductIn, current_user: User = Depends(get_current_use
 
 
 @app.put("/api/products/{product_id}", response_model=ProductOut)
-def update_product(product_id: str, body: ProductIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_product(product_id: str, body: ProductIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Produk tidak ditemukan")
@@ -5660,7 +5784,7 @@ def update_product(product_id: str, body: ProductIn, current_user: User = Depend
 
 
 @app.delete("/api/products/{product_id}", status_code=204)
-def delete_product(product_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_product(product_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Produk tidak ditemukan")
@@ -5706,7 +5830,7 @@ def get_dynamic_templates(
 
 
 @app.post("/api/dynamic-templates", response_model=DynamicTemplateOut, status_code=201)
-def create_dynamic_template(body: DynamicTemplateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_dynamic_template(body: DynamicTemplateIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     if body.type not in VALID_TEMPLATE_TYPES:
         raise HTTPException(status_code=400, detail=f"Type harus salah satu dari: {', '.join(VALID_TEMPLATE_TYPES)}")
     tmpl = DynamicTemplate(
@@ -5732,7 +5856,7 @@ def create_dynamic_template(body: DynamicTemplateIn, current_user: User = Depend
 
 
 @app.put("/api/dynamic-templates/{tmpl_id}", response_model=DynamicTemplateOut)
-def update_dynamic_template(tmpl_id: str, body: DynamicTemplateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_dynamic_template(tmpl_id: str, body: DynamicTemplateIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     tmpl = db.query(DynamicTemplate).filter(DynamicTemplate.id == tmpl_id).first()
     if not tmpl:
         raise HTTPException(status_code=404, detail="Template tidak ditemukan")
@@ -5757,7 +5881,7 @@ def update_dynamic_template(tmpl_id: str, body: DynamicTemplateIn, current_user:
 
 
 @app.delete("/api/dynamic-templates/{tmpl_id}", status_code=204)
-def delete_dynamic_template(tmpl_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_dynamic_template(tmpl_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     tmpl = db.query(DynamicTemplate).filter(DynamicTemplate.id == tmpl_id).first()
     if not tmpl:
         raise HTTPException(status_code=404, detail="Template tidak ditemukan")
@@ -6152,7 +6276,7 @@ def get_blast_status(
 
 
 @app.get("/api/background-jobs")
-def get_all_background_jobs(current_user: User = Depends(get_current_user)):
+def get_all_background_jobs(current_user: User = Depends(require_admin)):
     jobs = []
     for name, job in _analysis_jobs.items():
         jobs.append({**job, "type": "analysis", "batch_name": name})
@@ -6546,7 +6670,7 @@ def update_board_column(column_id: str, body: BoardColumnIn, current_user: User 
 
 
 @app.delete("/api/board-columns/{column_id}", status_code=204)
-def delete_board_column(column_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_board_column(column_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Delete a column and all its cards"""
     col = db.query(BoardColumn).filter(BoardColumn.id == column_id).first()
     if not col:
@@ -6666,11 +6790,13 @@ def update_board_card(card_id: str, body: BoardCardUpdate, current_user: User = 
 
 
 @app.delete("/api/board-cards/{card_id}", status_code=204)
-def delete_board_card(card_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_board_card(card_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Delete a card"""
     card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
     if not card:
         raise HTTPException(status_code=404, detail="Card tidak ditemukan")
+    if db.query(WorkspaceRow).filter(WorkspaceRow.board_card_id == card_id).first():
+        raise HTTPException(status_code=409, detail="Card terhubung ke workspace. Hapus task dari workspace agar sinkronisasi tetap konsisten.")
     db.query(BoardCardActivity).filter(BoardCardActivity.card_id == card_id).delete()
     db.query(BoardCardChecklist).filter(BoardCardChecklist.card_id == card_id).delete()
     db.query(BoardCardComment).filter(BoardCardComment.card_id == card_id).delete()
@@ -6863,7 +6989,7 @@ def create_client_note_alias(body: ClientNoteIn, current_user: User = Depends(ge
 @app.get("/api/credentials", response_model=list[CredentialOut])
 def get_credentials(
     lead_id: Optional[str] = Query(None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     query = db.query(ClientCredential)
@@ -6892,7 +7018,7 @@ def get_credentials(
 
 
 @app.post("/api/credentials", response_model=CredentialOut, status_code=201)
-def create_credential(body: CredentialIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_credential(body: CredentialIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     stored_fields = []
     for f in body.fields:
         val = encrypt_password(f.value) if f.is_secret else f.value
@@ -6917,7 +7043,7 @@ def create_credential(body: CredentialIn, current_user: User = Depends(get_curre
 
 
 @app.put("/api/credentials/{cred_id}", response_model=CredentialOut)
-def update_credential(cred_id: str, body: CredentialUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_credential(cred_id: str, body: CredentialUpdate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     cred = db.query(ClientCredential).filter(ClientCredential.id == cred_id).first()
     if not cred:
         raise HTTPException(status_code=404, detail="Credential tidak ditemukan")
@@ -6951,7 +7077,7 @@ def update_credential(cred_id: str, body: CredentialUpdate, current_user: User =
 
 
 @app.delete("/api/credentials/{cred_id}", status_code=204)
-def delete_credential(cred_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_credential(cred_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     cred = db.query(ClientCredential).filter(ClientCredential.id == cred_id).first()
     if not cred:
         raise HTTPException(status_code=404, detail="Credential tidak ditemukan")
@@ -6965,7 +7091,7 @@ def delete_credential(cred_id: str, current_user: User = Depends(get_current_use
 # ---------------------------------------------------------------------------
 
 @app.get("/api/credential-categories")
-def get_credential_categories(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_credential_categories(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     row = db.query(SystemSettings).filter_by(key="credential_categories").first()
     if row and row.value:
         return json.loads(row.value)
@@ -6973,7 +7099,7 @@ def get_credential_categories(current_user: User = Depends(get_current_user), db
 
 
 @app.put("/api/credential-categories")
-def update_credential_categories(categories: list[str], current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_credential_categories(categories: list[str], current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     row = db.query(SystemSettings).filter_by(key="credential_categories").first()
     if row:
         row.value = json.dumps(categories)
@@ -7018,7 +7144,7 @@ def create_document(body: DocumentIn, current_user: User = Depends(get_current_u
 
 
 @app.delete("/api/documents/{doc_id}", status_code=204)
-def delete_document(doc_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_document(doc_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     doc = db.query(ClientDocument).filter(ClientDocument.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
@@ -7098,7 +7224,7 @@ def update_brand_kit(body: BrandKitUpdate, current_user: User = Depends(require_
 
 
 @app.post("/api/brand-assets", status_code=201)
-def create_brand_asset(body: BrandAssetIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_brand_asset(body: BrandAssetIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     kit = _get_active_kit(db)
     asset = BrandAsset(
         id=str(uuid.uuid4()),
@@ -7117,7 +7243,7 @@ def create_brand_asset(body: BrandAssetIn, current_user: User = Depends(get_curr
 
 
 @app.put("/api/brand-assets/{asset_id}")
-def update_brand_asset(asset_id: str, body: BrandAssetIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_brand_asset(asset_id: str, body: BrandAssetIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     asset = db.query(BrandAsset).filter(BrandAsset.id == asset_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset tidak ditemukan")
@@ -7259,7 +7385,7 @@ def get_document_template(tid: str, current_user: User = Depends(get_current_use
 
 
 @app.post("/api/document-templates", status_code=201)
-def create_document_template(body: DocumentTemplateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_document_template(body: DocumentTemplateIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     valid_types = {"proposal_pdf", "invoice", "receipt", "kontrak", "surat_penawaran", "custom"}
     if body.type not in valid_types:
         raise HTTPException(status_code=400, detail=f"Type harus salah satu: {', '.join(valid_types)}")
@@ -7278,7 +7404,7 @@ def create_document_template(body: DocumentTemplateIn, current_user: User = Depe
 
 
 @app.put("/api/document-templates/{tid}")
-def update_document_template(tid: str, body: DocumentTemplateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_document_template(tid: str, body: DocumentTemplateIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     t = db.query(DocumentTemplate).filter(DocumentTemplate.id == tid).first()
     if not t:
         raise HTTPException(status_code=404, detail="Template tidak ditemukan")
@@ -7293,7 +7419,7 @@ def update_document_template(tid: str, body: DocumentTemplateIn, current_user: U
 
 
 @app.delete("/api/document-templates/{tid}", status_code=204)
-def delete_document_template(tid: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_document_template(tid: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     t = db.query(DocumentTemplate).filter(DocumentTemplate.id == tid).first()
     if not t:
         raise HTTPException(status_code=404, detail="Template tidak ditemukan")
@@ -7321,7 +7447,7 @@ def list_generated_documents(current_user: User = Depends(get_current_user), db:
 
 
 @app.delete("/api/documents/generated/{did}", status_code=204)
-def delete_generated_document(did: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_generated_document(did: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     d = db.query(GeneratedDocument).filter(GeneratedDocument.id == did).first()
     if not d:
         raise HTTPException(status_code=404, detail="Document tidak ditemukan")
@@ -7914,7 +8040,7 @@ def get_ads_campaigns(current_user: User = Depends(get_current_user), db: Sessio
 
 
 @app.post("/api/ads/campaigns", response_model=AdsCampaignOut, status_code=201)
-def create_ads_campaign(body: AdsCampaignIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_ads_campaign(body: AdsCampaignIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     campaign = AdsCampaign(
         id=str(uuid.uuid4()),
         name=body.name,
@@ -7954,7 +8080,7 @@ def create_ads_campaign(body: AdsCampaignIn, current_user: User = Depends(get_cu
 
 
 @app.put("/api/ads/campaigns/{campaign_id}", response_model=AdsCampaignOut)
-def update_ads_campaign(campaign_id: str, body: AdsCampaignUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_ads_campaign(campaign_id: str, body: AdsCampaignUpdate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     campaign = db.query(AdsCampaign).filter(AdsCampaign.id == campaign_id).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign tidak ditemukan")
@@ -8004,7 +8130,7 @@ def update_ads_campaign(campaign_id: str, body: AdsCampaignUpdate, current_user:
 
 
 @app.delete("/api/ads/campaigns/{campaign_id}", status_code=204)
-def delete_ads_campaign(campaign_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_ads_campaign(campaign_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     campaign = db.query(AdsCampaign).filter(AdsCampaign.id == campaign_id).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign tidak ditemukan")
@@ -8092,7 +8218,7 @@ def get_content_types(current_user: User = Depends(get_current_user), db: Sessio
 
 
 @app.put("/api/content-types")
-def update_content_types(types: list[dict], current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_content_types(types: list[dict], current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     row = db.query(SystemSettings).filter_by(key="content_types").first()
     if row:
         row.value = json.dumps(types)
@@ -8219,7 +8345,7 @@ def get_provider_configs(current_user: User = Depends(get_current_user), db: Ses
 
 
 @app.put("/api/provider-configs/{provider_id}")
-def update_provider_config(provider_id: str, body: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_provider_config(provider_id: str, body: dict, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     provider = db.query(ProviderConfig).filter_by(id=provider_id).first()
     if not provider:
         raise HTTPException(status_code=404, detail="Provider tidak ditemukan")
@@ -8236,7 +8362,7 @@ def update_provider_config(provider_id: str, body: dict, current_user: User = De
 
 
 @app.get("/api/finance/outreach-costs")
-def get_outreach_costs(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_outreach_costs(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     providers = db.query(ProviderConfig).all()
     provider_list = []
     for p in providers:
@@ -8277,7 +8403,7 @@ def get_outreach_costs(current_user: User = Depends(get_current_user), db: Sessi
 
 
 @app.put("/api/blast-campaigns/{campaign_id}/conversions")
-def update_blast_conversions(campaign_id: str, body: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_blast_conversions(campaign_id: str, body: dict, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     campaign = db.query(BlastCampaign).filter_by(id=campaign_id).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign tidak ditemukan")
@@ -8366,8 +8492,13 @@ class FonnteWebhookIn(BaseModel):
 
 
 @app.post("/api/blast/webhook/fonnte")
-def fonnte_webhook(body: FonnteWebhookIn, db: Session = Depends(get_db)):
+def fonnte_webhook(body: FonnteWebhookIn, request: Request, db: Session = Depends(get_db)):
     """Fonnte callback for delivery/read status updates."""
+    if FONNTE_WEBHOOK_SECRET and not hmac.compare_digest(
+        request.headers.get("x-fonnte-webhook-secret", ""),
+        FONNTE_WEBHOOK_SECRET,
+    ):
+        raise HTTPException(status_code=401, detail="Webhook secret tidak valid")
     try:
         if not body.target:
             return {"ok": True}
@@ -8393,6 +8524,7 @@ def get_template_stats(template_id: str, days: int = 30, current_user: User = De
     msgs = db.query(BlastMessage).filter(
         BlastMessage.template_id == template_id,
         BlastMessage.sent_at >= cutoff,
+        BlastMessage.status != "failed",
     ).all()
     sent = len(msgs)
     delivered = sum(1 for m in msgs if m.delivered_at)
@@ -8417,7 +8549,10 @@ def get_template_stats(template_id: str, days: int = 30, current_user: User = De
 @app.get("/api/blast/analytics")
 def get_blast_analytics(days: int = 30, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    msgs = db.query(BlastMessage).filter(BlastMessage.sent_at >= cutoff).all()
+    msgs = db.query(BlastMessage).filter(
+        BlastMessage.sent_at >= cutoff,
+        BlastMessage.status != "failed",
+    ).all()
 
     total_sent = len(msgs)
     total_delivered = sum(1 for m in msgs if m.delivered_at)
@@ -8427,18 +8562,24 @@ def get_blast_analytics(days: int = 30, current_user: User = Depends(get_current
     total_closed = db.query(Lead).filter(Lead.id.in_(replied_lead_ids), Lead.status == "Closed/Client").count() if replied_lead_ids else 0
 
     by_template: dict[str, dict] = {}
+    closed_lead_ids = {
+        lead_id for (lead_id,) in db.query(Lead.id).filter(Lead.status == "Closed/Client").all()
+    }
     for m in msgs:
         tid = m.template_id or "unknown"
         if tid not in by_template:
-            by_template[tid] = {"template_id": tid, "template_name": None, "sent": 0, "delivered": 0, "read": 0, "replied": 0, "closed": 0}
+            by_template[tid] = {"template_id": tid, "template_name": None, "sent": 0, "delivered": 0, "read": 0, "replied": 0, "closed": 0, "_closed_ids": set()}
         by_template[tid]["sent"] += 1
         if m.delivered_at: by_template[tid]["delivered"] += 1
         if m.read_at: by_template[tid]["read"] += 1
         if m.replied_at: by_template[tid]["replied"] += 1
+        if m.replied_at and m.lead_id in closed_lead_ids:
+            by_template[tid]["_closed_ids"].add(m.lead_id)
 
     templates = {t.id: t.name for t in db.query(DynamicTemplate).all()}
     for tid, row in by_template.items():
         row["template_name"] = templates.get(tid, "Unknown")
+        row["closed"] = len(row.pop("_closed_ids"))
         s = row["sent"]
         row["reply_rate"] = round(row["replied"] / s * 100, 1) if s else 0.0
         row["conversion_rate"] = round(row["closed"] / s * 100, 1) if s else 0.0
@@ -9052,7 +9193,7 @@ def add_workspace_column(sheet_id: str, body: WorkspaceColumnIn, current_user: U
 
 
 @app.delete("/api/workspace/column/{column_id}", status_code=204)
-def delete_workspace_column(column_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_workspace_column(column_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     col = db.query(WorkspaceColumn).filter(WorkspaceColumn.id == column_id).first()
     if not col:
         raise HTTPException(status_code=404, detail="Column tidak ditemukan")
@@ -9466,12 +9607,21 @@ async def process_pending_blasts():
         ).all()
 
         for campaign in pending:
-            campaign.status = "PROCESSING"
+            claimed = db.query(BlastCampaign).filter(
+                BlastCampaign.id == campaign.id,
+                BlastCampaign.status == "PENDING",
+            ).update({"status": "PROCESSING"}, synchronize_session=False)
             db.commit()
+            if not claimed:
+                continue
+            db.refresh(campaign)
 
             try:
                 criteria = json.loads(campaign.filter_criteria) if campaign.filter_criteria else {}
-                query = db.query(Lead).filter(Lead.is_archived == False)
+                query = db.query(Lead).filter(
+                    Lead.is_archived == False,
+                    Lead.do_not_contact == False,
+                )
 
                 if criteria.get("status"):
                     query = query.filter(Lead.status == criteria["status"])
@@ -9503,13 +9653,25 @@ async def process_pending_blasts():
                     report_link = f"{FRONTEND_URL}/r/{report_slug}"
 
                     if template:
-                        message = template.content.replace("{{client_name}}", lead.business_name).replace("{{business_name}}", lead.business_name)
+                        product_name = criteria.get("product_category") or lead.product_interest or "layanan kami"
+                        message = template.content.replace("{{client_name}}", lead.business_name).replace("{{business_name}}", lead.business_name).replace("{{product_name}}", product_name)
                     else:
-                        message = f"Halo {lead.business_name}, kami dari Kantor Teman ingin menawarkan layanan kami.\n\nLihat laporan audit digital Anda di sini: {report_link}"
+                        message = f"Halo {lead.business_name}, kami menyiapkan audit digital singkat untuk bisnis Anda. Apakah kami boleh menjelaskan poin yang paling prioritas?\n\nLaporan ringkas: {report_link}"
 
                     message = message.replace("{{proposal_link}}", f"\n{report_link}\n")
 
                     success = await send_fonnte_message(lead.phone_number, message, token)
+                    blast_message = BlastMessage(
+                        id=str(uuid.uuid4()),
+                        campaign_id=campaign.id,
+                        lead_id=lead.id,
+                        template_id=template.id if template else None,
+                        phone_number=lead.phone_number,
+                        sent_at=datetime.now(timezone.utc).isoformat(),
+                        status="sent" if success else "failed",
+                        error_message=None if success else "Fonnte send returned non-200",
+                    )
+                    db.add(blast_message)
                     if success:
                         lead.status = "Contacted"
                         sent += 1
@@ -9520,17 +9682,17 @@ async def process_pending_blasts():
 
                 campaign.sent_count = sent
                 campaign.failed_count = failed
-                campaign.status = "SUCCESS"
+                campaign.status = "SUCCESS" if failed == 0 else "PARTIAL"
                 log_outreach_cost(db, campaign.id, sent)
                 db.commit()
-            except Exception:
+            except Exception as exc:
                 campaign.status = "FAILED"
+                print(f"[SCHEDULED BLAST] campaign={campaign.id} failed: {exc}", flush=True)
                 db.commit()
     finally:
         db.close()
 
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.schedulers.outreach_machine import process_outreach_lifecycle_states
 
 
@@ -9564,6 +9726,11 @@ async def scheduled_followup_processor():
                 seq.stopped_reason = "lead_not_found"
                 db.commit()
                 continue
+            if lead.do_not_contact:
+                seq.status = "STOPPED"
+                seq.stopped_reason = "opt_out"
+                db.commit()
+                continue
 
             template_ids = json.loads(seq.template_ids) if seq.template_ids else []
             delays = json.loads(seq.delays) if seq.delays else []
@@ -9587,7 +9754,9 @@ async def scheduled_followup_processor():
                 ]
                 message = followup_defaults[min(seq.current_step, len(followup_defaults) - 1)]
 
-            await send_fonnte_message(lead.phone_number, message, token)
+            success = await send_fonnte_message(lead.phone_number, message, token)
+            if not success:
+                continue
 
             seq.current_step += 1
             if seq.current_step >= len(delays):
@@ -9599,6 +9768,76 @@ async def scheduled_followup_processor():
             db.commit()
     finally:
         db.close()
+
+
+def _acquire_scheduler_lock(job_name: str, ttl_seconds: int) -> bool:
+    db = SessionLocal()
+    try:
+        key = f"scheduler_lock:{job_name}"
+        now = datetime.now(timezone.utc)
+        expires_at = (now + timedelta(seconds=ttl_seconds)).isoformat()
+        updated = db.query(SystemSettings).filter(
+            SystemSettings.key == key,
+            SystemSettings.value < now.isoformat(),
+        ).update({"value": expires_at}, synchronize_session=False)
+        db.commit()
+        if updated:
+            return True
+        if db.query(SystemSettings).filter(SystemSettings.key == key).first():
+            return False
+        try:
+            db.add(SystemSettings(key=key, value=expires_at))
+            db.commit()
+            return True
+        except IntegrityError:
+            db.rollback()
+            return False
+    finally:
+        db.close()
+
+
+def _run_async_job(coro):
+    ttl_seconds = 3500 if coro is scheduled_followup_processor else 55
+    if not _acquire_scheduler_lock(coro.__name__, ttl_seconds):
+        return
+    try:
+        asyncio.run(coro())
+    except Exception as exc:
+        print(f"[SCHEDULER] {coro.__name__} failed: {exc}", flush=True)
+
+
+def _run_outreach_lifecycle():
+    if not _acquire_scheduler_lock("outreach_lifecycle", 3500):
+        return
+    process_outreach_lifecycle_states(SessionLocal, Lead, Proposal, log_audit)
+
+
+def _run_subscription_deductions():
+    if not _acquire_scheduler_lock("subscription_deductions", 82800):
+        return
+    db = SessionLocal()
+    try:
+        deducted = _deduct_due_subscriptions(db)
+        if deducted:
+            print(f"[SCHEDULER] subscriptions deducted={len(deducted)}", flush=True)
+    finally:
+        db.close()
+
+
+def _start_background_scheduler():
+    if os.getenv("ENABLE_BACKGROUND_SCHEDULER", "true").lower() != "true":
+        return None
+    from apscheduler.schedulers.background import BackgroundScheduler
+    scheduler = BackgroundScheduler(timezone="Asia/Jakarta", daemon=True)
+    scheduler.add_job(_run_async_job, "interval", minutes=1, args=[process_pending_blasts], id="pending-blasts", max_instances=1, coalesce=True)
+    scheduler.add_job(_run_async_job, "interval", hours=1, args=[scheduled_followup_processor], id="followups", max_instances=1, coalesce=True)
+    scheduler.add_job(_run_outreach_lifecycle, "interval", hours=1, id="outreach-lifecycle", max_instances=1, coalesce=True)
+    scheduler.add_job(_run_subscription_deductions, "cron", hour=0, minute=5, id="subscription-deductions", max_instances=1, coalesce=True)
+    scheduler.start()
+    return scheduler
+
+
+background_scheduler = _start_background_scheduler()
 
 
 # ---------------------------------------------------------------------------
@@ -9806,11 +10045,11 @@ def _get_manual_ctx(context_from: list, db: Session) -> str:
 # --- AI Proxy CRUD ---
 
 @app.get("/api/ai-proxies", response_model=List[AIProxyOut])
-def list_ai_proxies(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def list_ai_proxies(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     return db.query(AIProxy).order_by(AIProxy.created_at.asc()).all()
 
 @app.post("/api/ai-proxies", response_model=AIProxyOut, status_code=201)
-def create_ai_proxy(body: AIProxyIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_ai_proxy(body: AIProxyIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     proxy = AIProxy(name=body.name, base_url=body.base_url.rstrip("/"), api_key=body.api_key, model=body.model, feature=body.feature)
     db.add(proxy)
     db.commit()
@@ -9818,7 +10057,7 @@ def create_ai_proxy(body: AIProxyIn, current_user: User = Depends(get_current_us
     return proxy
 
 @app.put("/api/ai-proxies/{proxy_id}", response_model=AIProxyOut)
-def update_ai_proxy(proxy_id: str, body: AIProxyIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_ai_proxy(proxy_id: str, body: AIProxyIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     proxy = db.query(AIProxy).filter_by(id=proxy_id).first()
     if not proxy:
         raise HTTPException(status_code=404, detail="Proxy tidak ditemukan")
@@ -9832,7 +10071,7 @@ def update_ai_proxy(proxy_id: str, body: AIProxyIn, current_user: User = Depends
     return proxy
 
 @app.post("/api/ai-proxies/{proxy_id}/activate", response_model=AIProxyOut)
-def activate_ai_proxy(proxy_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def activate_ai_proxy(proxy_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     proxy = db.query(AIProxy).filter_by(id=proxy_id).first()
     if not proxy:
         raise HTTPException(status_code=404, detail="Proxy tidak ditemukan")
@@ -9843,7 +10082,7 @@ def activate_ai_proxy(proxy_id: str, current_user: User = Depends(get_current_us
     return proxy
 
 @app.delete("/api/ai-proxies/{proxy_id}", status_code=204)
-def delete_ai_proxy(proxy_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_ai_proxy(proxy_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     proxy = db.query(AIProxy).filter_by(id=proxy_id).first()
     if not proxy:
         raise HTTPException(status_code=404, detail="Proxy tidak ditemukan")
@@ -9856,7 +10095,7 @@ def delete_ai_proxy(proxy_id: str, current_user: User = Depends(get_current_user
 @app.get("/api/content/providers", response_model=List[ContentProviderOut])
 def list_content_providers(
     tool_type: Optional[str] = Query(None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     q = db.query(ContentProvider)
@@ -9880,7 +10119,7 @@ def list_content_providers(
 @app.post("/api/content/providers", response_model=ContentProviderOut, status_code=201)
 def create_content_provider(
     body: ContentProviderIn,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     p = ContentProvider(
@@ -9899,7 +10138,7 @@ def create_content_provider(
 @app.put("/api/content/providers/{provider_id}", response_model=ContentProviderOut)
 def update_content_provider(
     provider_id: str, body: ContentProviderIn,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     p = db.query(ContentProvider).filter(ContentProvider.id == provider_id).first()
@@ -9919,7 +10158,7 @@ def update_content_provider(
 
 @app.delete("/api/content/providers/{provider_id}", status_code=204)
 def delete_content_provider(
-    provider_id: str, current_user: User = Depends(get_current_user),
+    provider_id: str, current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     p = db.query(ContentProvider).filter(ContentProvider.id == provider_id).first()
@@ -10342,6 +10581,7 @@ class ArchiveFolderIn(BaseModel):
 
 class ArchiveFolderUpdate(BaseModel):
     name: Optional[str] = None
+    parent_id: Optional[str] = None
     color: Optional[str] = None
 
 
@@ -10361,12 +10601,24 @@ class ArchiveDocUpdate(BaseModel):
     folder_id: Optional[str] = None
 
 
+def _archive_parent_creates_cycle(db: Session, folder_id: str, parent_id: Optional[str]) -> bool:
+    seen = set()
+    current_id = parent_id
+    while current_id:
+        if current_id == folder_id or current_id in seen:
+            return True
+        seen.add(current_id)
+        current = db.query(DocumentFolder).filter(DocumentFolder.id == current_id).first()
+        current_id = current.parent_id if current else None
+    return False
+
+
 @app.get("/api/archive/folders")
 def list_archive_folders(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    folders = db.query(DocumentFolder).filter(DocumentFolder.user_id == current_user.id).order_by(DocumentFolder.created_at).all()
+    folders = db.query(DocumentFolder).order_by(DocumentFolder.created_at).all()
     return [
         {
             "id": f.id,
@@ -10385,6 +10637,8 @@ def create_archive_folder(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    if body.parent_id and not db.query(DocumentFolder).filter(DocumentFolder.id == body.parent_id).first():
+        raise HTTPException(status_code=400, detail="Parent folder tidak ditemukan")
     folder = DocumentFolder(
         id=str(uuid.uuid4()),
         user_id=current_user.id,
@@ -10405,13 +10659,20 @@ def update_archive_folder(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    folder = db.query(DocumentFolder).filter(DocumentFolder.id == folder_id, DocumentFolder.user_id == current_user.id).first()
+    folder = db.query(DocumentFolder).filter(DocumentFolder.id == folder_id).first()
     if not folder:
         raise HTTPException(status_code=404, detail="Folder tidak ditemukan")
     if body.name is not None:
         folder.name = body.name.strip()
     if body.color is not None:
         folder.color = body.color
+    changes = body.model_dump(exclude_unset=True)
+    if "parent_id" in changes:
+        if body.parent_id and not db.query(DocumentFolder).filter(DocumentFolder.id == body.parent_id).first():
+            raise HTTPException(status_code=400, detail="Parent folder tidak ditemukan")
+        if _archive_parent_creates_cycle(db, folder.id, body.parent_id):
+            raise HTTPException(status_code=400, detail="Parent folder akan membuat siklus")
+        folder.parent_id = body.parent_id or None
     db.commit()
     return {"id": folder.id, "name": folder.name, "parent_id": folder.parent_id, "color": folder.color, "created_at": folder.created_at}
 
@@ -10419,13 +10680,14 @@ def update_archive_folder(
 @app.delete("/api/archive/folders/{folder_id}", status_code=204)
 def delete_archive_folder(
     folder_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    folder = db.query(DocumentFolder).filter(DocumentFolder.id == folder_id, DocumentFolder.user_id == current_user.id).first()
+    folder = db.query(DocumentFolder).filter(DocumentFolder.id == folder_id).first()
     if not folder:
         raise HTTPException(status_code=404, detail="Folder tidak ditemukan")
     db.query(Document).filter(Document.folder_id == folder_id).update({"folder_id": None})
+    db.query(DocumentFolder).filter(DocumentFolder.parent_id == folder_id).update({"parent_id": None})
     db.delete(folder)
     db.commit()
 
@@ -10439,7 +10701,7 @@ def list_archive_docs(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    q = db.query(Document).filter(Document.user_id == current_user.id)
+    q = db.query(Document)
     if unfoldered:
         q = q.filter(Document.folder_id == None)
     elif folder_id is not None:
@@ -10457,6 +10719,8 @@ def create_archive_doc(
     db: Session = Depends(get_db),
 ):
     now = datetime.now(timezone.utc).isoformat()
+    if body.folder_id and not db.query(DocumentFolder).filter(DocumentFolder.id == body.folder_id).first():
+        raise HTTPException(status_code=400, detail="Folder tidak ditemukan")
     doc = Document(
         id=str(uuid.uuid4()),
         user_id=current_user.id,
@@ -10479,7 +10743,7 @@ def get_archive_doc(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    doc = db.query(Document).filter(Document.id == doc_id, Document.user_id == current_user.id).first()
+    doc = db.query(Document).filter(Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
     return _archive_doc_to_dict(doc)
@@ -10492,19 +10756,22 @@ def update_archive_doc(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    doc = db.query(Document).filter(Document.id == doc_id, Document.user_id == current_user.id).first()
+    doc = db.query(Document).filter(Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
+    changes = body.model_dump(exclude_unset=True)
     if body.title is not None:
         doc.title = body.title.strip()
-    if body.body is not None:
-        doc.body = body.body
-    if body.url is not None:
-        doc.url = body.url
-    if body.tags is not None:
-        doc.tags = json.dumps(body.tags)
-    if body.folder_id is not None:
-        doc.folder_id = body.folder_id if body.folder_id != "" else None
+    if "body" in changes:
+        doc.body = body.body or None
+    if "url" in changes:
+        doc.url = body.url or None
+    if "tags" in changes:
+        doc.tags = json.dumps(body.tags or [])
+    if "folder_id" in changes:
+        if body.folder_id and not db.query(DocumentFolder).filter(DocumentFolder.id == body.folder_id).first():
+            raise HTTPException(status_code=400, detail="Folder tidak ditemukan")
+        doc.folder_id = body.folder_id or None
     doc.updated_at = datetime.now(timezone.utc).isoformat()
     db.commit()
     return _archive_doc_to_dict(doc)
@@ -10513,10 +10780,10 @@ def update_archive_doc(
 @app.delete("/api/archive/{doc_id}", status_code=204)
 def delete_archive_doc(
     doc_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    doc = db.query(Document).filter(Document.id == doc_id, Document.user_id == current_user.id).first()
+    doc = db.query(Document).filter(Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
     db.delete(doc)
@@ -10642,7 +10909,7 @@ async def office_list_agents(current_user: User = Depends(get_current_user)):
 
 
 @app.post("/api/office/agents")
-async def office_create_agent(body: OfficeAgentCreate, current_user: User = Depends(get_current_user)):
+async def office_create_agent(body: OfficeAgentCreate, current_user: User = Depends(require_admin)):
     _require_gateway()
     async with httpx.AsyncClient(timeout=90) as client:
         resp = await client.post(
@@ -10656,7 +10923,7 @@ async def office_create_agent(body: OfficeAgentCreate, current_user: User = Depe
 
 
 @app.delete("/api/office/agents/{profile}")
-async def office_delete_agent(profile: str, current_user: User = Depends(get_current_user)):
+async def office_delete_agent(profile: str, current_user: User = Depends(require_admin)):
     _require_gateway()
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.delete(
@@ -10669,7 +10936,7 @@ async def office_delete_agent(profile: str, current_user: User = Depends(get_cur
 
 
 @app.put("/api/office/agents/{profile}/soul")
-async def office_update_soul(profile: str, body: OfficeSoulUpdate, current_user: User = Depends(get_current_user)):
+async def office_update_soul(profile: str, body: OfficeSoulUpdate, current_user: User = Depends(require_admin)):
     _require_gateway()
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.put(
@@ -10683,7 +10950,7 @@ async def office_update_soul(profile: str, body: OfficeSoulUpdate, current_user:
 
 
 @app.put("/api/office/agents/{profile}/env")
-async def office_update_env(profile: str, body: OfficeEnvUpdate, current_user: User = Depends(get_current_user)):
+async def office_update_env(profile: str, body: OfficeEnvUpdate, current_user: User = Depends(require_admin)):
     _require_gateway()
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.put(
@@ -10697,7 +10964,7 @@ async def office_update_env(profile: str, body: OfficeEnvUpdate, current_user: U
 
 
 @app.put("/api/office/agents/{profile}/config")
-async def office_update_config(profile: str, body: OfficeConfigUpdate, current_user: User = Depends(get_current_user)):
+async def office_update_config(profile: str, body: OfficeConfigUpdate, current_user: User = Depends(require_admin)):
     _require_gateway()
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.put(

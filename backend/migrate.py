@@ -38,6 +38,10 @@ if "mysql" in _db_url:
         ("leads", "review_count", "ALTER TABLE leads ADD COLUMN review_count INT NULL"),
         ("leads", "latitude", "ALTER TABLE leads ADD COLUMN latitude FLOAT NULL"),
         ("leads", "longitude", "ALTER TABLE leads ADD COLUMN longitude FLOAT NULL"),
+        ("leads", "sales_owner", "ALTER TABLE leads ADD COLUMN sales_owner VARCHAR(255) NULL"),
+        ("leads", "next_action_at", "ALTER TABLE leads ADD COLUMN next_action_at VARCHAR(255) NULL"),
+        ("leads", "loss_reason", "ALTER TABLE leads ADD COLUMN loss_reason VARCHAR(500) NULL"),
+        ("leads", "do_not_contact", "ALTER TABLE leads ADD COLUMN do_not_contact TINYINT(1) NOT NULL DEFAULT 0"),
         # projects
         ("projects", "color", "ALTER TABLE projects ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'yellow'"),
         ("projects", "is_archived", "ALTER TABLE projects ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0"),
@@ -166,7 +170,7 @@ if "mysql" in _db_url:
             for (fk_name,) in fk_rows:
                 _cur.execute(f"ALTER TABLE projects DROP FOREIGN KEY `{fk_name}`")
                 print(f"- MySQL: dropped FK {fk_name}")
-            _cur.execute("ALTER TABLE projects MODIFY COLUMN lead_id VARCHAR(36) NULL")
+            _cur.execute("ALTER TABLE projects MODIFY COLUMN lead_id INT NULL")
             print("+ MySQL: projects.lead_id set to NULL")
             # Re-add FK (nullable FK still enforces referential integrity when not null)
             _cur.execute("""
@@ -239,6 +243,18 @@ if "rating" not in existing:
     print("+ kolom rating ditambahkan")
 else:
     print("= rating sudah ada, skip")
+
+for col, ddl in [
+    ("sales_owner", "ALTER TABLE leads ADD COLUMN sales_owner VARCHAR(255)"),
+    ("next_action_at", "ALTER TABLE leads ADD COLUMN next_action_at VARCHAR(255)"),
+    ("loss_reason", "ALTER TABLE leads ADD COLUMN loss_reason VARCHAR(500)"),
+    ("do_not_contact", "ALTER TABLE leads ADD COLUMN do_not_contact BOOLEAN NOT NULL DEFAULT 0"),
+]:
+    if col not in existing:
+        cur.execute(ddl)
+        print(f"+ kolom {col} ditambahkan ke leads")
+    else:
+        print(f"= leads.{col} sudah ada, skip")
 
 # Rebuild proposals table for multi-service structure
 cur.execute("PRAGMA table_info(proposals)")

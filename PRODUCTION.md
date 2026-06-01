@@ -1,102 +1,67 @@
-# Production Launch Guide — Kantorteman
+# Production Deploy Guide: Kantorteman
 
-## Urutan Jalankan di Server
+## Sebelum Upload
+
+Backup tiga hal ini dari shared hosting:
+
+- database MySQL melalui export panel hosting
+- folder `uploads/`
+- file `.env`
+
+Jangan upload database lokal, folder `uploads/`, atau `.env` dari laptop ke server.
+
+## Upload Backend
+
+Upload isi `backend-production-hardening.zip` ke folder backend aplikasi dengan struktur folder tetap dipertahankan. Paket ini hanya berisi source code dan dependency list yang berubah.
+
+Setelah upload, jalankan dari folder backend:
 
 ```bash
-# 1. Tambah kolom baru ke database
+pip install -r requirements.txt
 python migrate.py
-
-# 2. Seed semua data bisnis
-python seed.py
-
-# 3. Bersihkan data dev/test
-python reset_data.py
 ```
 
-Jalankan berurutan. Jangan skip step.
+Lalu restart aplikasi Passenger dari panel shared hosting.
 
-### Default Admin Login
+Jangan jalankan `seed.py` atau `reset_data.py` pada production. Dua script tersebut hanya untuk database kosong di development atau staging.
 
+## Environment Backend
+
+Pastikan `.env` production memiliki nilai yang benar:
+
+```dotenv
+JWT_SECRET="random-secret-panjang"
+SECRET_ENCRYPTION_KEY="fernet-key-yang-sudah-dipakai"
+DATABASE_URL="mysql+pymysql://user:password@localhost/database"
+FRONTEND_URL="https://kantorteman.my.id"
+CORS_ORIGIN="https://kantorteman.my.id"
+ENABLE_BACKGROUND_SCHEDULER="true"
+FONNTE_WEBHOOK_SECRET=""
 ```
-Email: admin@kantorteman.com
-Password: admin123
-```
 
-> ⚠️ Ganti password segera setelah login pertama via Pengaturan → Profil.
+Catatan:
 
----
+- Jangan mengganti `SECRET_ENCRYPTION_KEY` jika sudah ada data brankas terenkripsi.
+- Isi `FONNTE_WEBHOOK_SECRET` hanya jika provider webhook dapat mengirim header `x-fonnte-webhook-secret`. Jika diisi, callback tanpa header tersebut ditolak.
+- Scheduler memproses antrean blast setiap menit, follow-up setiap jam, dan auto-deduct langganan setiap hari.
+- API key provider dapat diatur dari menu admin setelah deploy.
 
-## Konfigurasi Post-Launch (via UI)
+## Verifikasi Setelah Restart
 
-### Fonnte Quota
-1. Buka **Pusat Biaya & Kuota → Fonnte WhatsApp**
-2. Set **Monthly Quota** = jumlah pesan yang kamu top up per bulan
-3. Set **Remaining Quota** = sisa pesan saat ini
-4. Scheduler akan auto-reset `remaining_quota` ke `monthly_quota` setiap tanggal 1 jam 00:00
+1. Login dengan akun admin yang sudah ada.
+2. Buka dashboard dan pastikan data proyek tampil.
+3. Buka `Keuangan`, pastikan saldo dan runway dapat dibaca admin.
+4. Arsipkan satu lead test dan pulihkan kembali.
+5. Buat satu folder arsip, tambahkan subfolder, lalu simpan link dokumen.
+6. Generate satu invoice dan cek preview PDF sebelum download.
+7. Kirim satu pesan WhatsApp test sebelum menjalankan blast batch.
 
-### API Keys
-Pastikan sudah diisi di **Pengaturan → API** (isi sesuai provider yang dipilih, tidak harus semua):
-- `FONNTE_TOKEN` — wajib untuk WhatsApp blast
-- `GEMINI_API_KEY` — opsional, jika pakai Gemini sebagai AI provider
-- `CLAUDE_API_KEY` — opsional, jika pakai Claude sebagai AI provider
-- `OPENAI_API_KEY` — opsional, jika pakai OpenAI/compatible sebagai AI provider
+## Rollback
 
-> Pilih satu AI provider di Settings → AI Config. Hanya API key provider yang dipilih yang perlu diisi.
+Jika aplikasi gagal start setelah deploy:
 
-### Wallet Saldo Awal
-1. Buka **Keuangan → Wallet**
-2. Set saldo awal **Rekening Utama** sesuai saldo rekening saat ini
-3. Set saldo awal **Dana Darurat** sesuai dana darurat saat ini
+1. restore source code versi sebelumnya
+2. restore database hanya jika migrasi menyebabkan masalah data
+3. restart Passenger
 
-### Followup Otomatis
-1. Buka **Pengaturan → Otomasi**
-2. Toggle **Followup Enabled** = ON
-3. Set **Followup Hour** = jam WIB (misal `9` untuk jam 09:00 WIB)
-
-> Scheduler jalan tiap jam, hanya kirim followup pas `current_hour == followup_hour`. Tanpa flag ini, sequence followup tidak dieksekusi.
-
-### AI Proxy (9router)
-1. Pastikan 9router running di server (default port `20128`)
-2. Buka **Pengaturan → AI Config**
-3. Set **Proxy URL** ke endpoint 9router (contoh: `http://localhost:20128/v1` atau remote tunnel)
-4. Pilih **Active Combo** (default `combo-kiro` = Claude Sonnet)
-5. Cek health via tombol "Test Connection"
-
-> Jika 9router down, semua fitur AI (chat, content gen, lead analysis) akan gagal. Verifikasi `GET /api/ai/health` return ok.
-
----
-
-## Data yang Di-seed
-
-| Data | Isi |
-|---|---|
-| Kategori | 5 kategori layanan |
-| Produk | 18 paket (Starter/Pro/Expert) |
-| Template WA | 13 template blast & follow up |
-| Wallet | Rekening Utama, Dana Darurat |
-| Klien | PT Mitra Lindung Sarana, PT Momen Harmoni Kreatif |
-| Proyek | 6 proyek (3 MLS, 3 MHK) |
-| Transaksi | 17 transaksi April–Mei 2026 |
-
----
-
-## Data yang Dipertahankan Saat Reset
-
-- `users` — akun admin
-- `system_settings`, `provider_configs` — konfigurasi sistem
-- `categories`, `products`, `dynamic_templates` — katalog layanan
-- `wallets`, `transactions`, `subscriptions` — data keuangan
-- `leads` dengan status `Closed/Client` — PT MLS & PT MHK
-- `projects` terkait klien di atas
-
-## Data yang Dihapus Saat Reset
-
-- Semua leads hasil scraping
-- Board, kolom, card, komentar, checklist
-- Chat projects, conversations, messages, memories
-- Content sessions, generations, schedules
-- Documents, document folders
-- Proposals, blast campaigns, ads campaigns
-- Follow up sequences, reengagement alerts
-- Client notes, credentials, documents
-- Contacts, audit logs, message templates, service items
+Migrasi saat ini hanya menambahkan kolom lead sales dan opt-out. Tidak ada reset data.

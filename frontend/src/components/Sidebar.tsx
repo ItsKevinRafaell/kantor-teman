@@ -30,7 +30,7 @@ const NAV_GROUPS: NavGroup[] = [
       },
       {
         href: "/docs",
-        label: "Dokumentasi",
+        label: "Panduan",
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
       },
     ],
@@ -45,7 +45,7 @@ const NAV_GROUPS: NavGroup[] = [
       },
       {
         href: "/board",
-        label: "Project Board",
+        label: "Board Proyek",
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="5" height="18" rx="1" /><rect x="10" y="3" width="5" height="12" rx="1" /><rect x="17" y="3" width="5" height="15" rx="1" /></svg>,
       },
       {
@@ -70,7 +70,8 @@ const NAV_GROUPS: NavGroup[] = [
       },
       {
         href: "/finance",
-        label: "Keuangan & Langganan",
+        label: "Keuangan",
+        adminOnly: true,
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M12 8v8" /><path d="M8 12h8" /></svg>,
       },
     ],
@@ -80,22 +81,23 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       {
         href: "/marketing/campaigns",
-        label: "Campaigns & Kuota",
+        label: "Campaign & Kuota",
+        adminOnly: true,
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2" /><path d="M16 3l-4 4-4-4" /></svg>,
       },
       {
         href: "/marketing/blast-analytics",
-        label: "Blast Analytics",
+        label: "Analitik Blast",
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
       },
       {
         href: "/marketing/calendar",
-        label: "Content Calendar",
+        label: "Kalender Konten",
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>,
       },
       {
         href: "/content-generator",
-        label: "Content Generator",
+        label: "Generator Konten",
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>,
       },
     ],
@@ -106,16 +108,17 @@ const NAV_GROUPS: NavGroup[] = [
       {
         href: "/master/internal-vault",
         label: "Brankas Internal",
+        adminOnly: true,
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /><circle cx="12" cy="16" r="1" /></svg>,
       },
       {
         href: "/documents",
-        label: "Foldering",
+        label: "Arsip Tim",
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>,
       },
       {
         href: "/documents/generator",
-        label: "Document Generator",
+        label: "Generator Dokumen",
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="14" x2="15" y2="14" /><line x1="9" y1="18" x2="15" y2="18" /></svg>,
       },
     ],
@@ -126,16 +129,19 @@ const NAV_GROUPS: NavGroup[] = [
       {
         href: "/master/products",
         label: "Katalog Produk",
+        adminOnly: true,
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" /></svg>,
       },
       {
         href: "/master/categories",
         label: "Kategori Produk",
+        adminOnly: true,
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h6v6H4z" /><path d="M14 4h6v6h-6z" /><path d="M4 14h6v6H4z" /><path d="M14 14h6v6h-6z" /></svg>,
       },
       {
         href: "/master/templates",
         label: "Template Teks",
+        adminOnly: true,
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16v2H4z" /><path d="M4 10h10v2H4z" /><path d="M4 16h6v2H4z" /></svg>,
       },
       {
@@ -146,7 +152,8 @@ const NAV_GROUPS: NavGroup[] = [
       },
       {
         href: "/tasks",
-        label: "Background Tasks",
+        label: "Antrean Sistem",
+        adminOnly: true,
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>,
       },
       {

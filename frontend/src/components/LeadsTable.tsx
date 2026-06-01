@@ -39,10 +39,14 @@ interface Lead {
   website_url?: string | null;
   google_rating?: number | null;
   review_count?: number | null;
+  sales_owner?: string | null;
+  next_action_at?: string | null;
+  loss_reason?: string | null;
+  do_not_contact: boolean;
 }
 
 const DEFAULT_TEMPLATE =
-  "Halo {{business_name}}, saya baru saja menjalankan audit digital gratis untuk bisnis Anda dan hasilnya cukup mengkhawatirkan — ada beberapa masalah kritis yang membuat calon pelanggan Anda lari ke kompetitor setiap harinya.\n\nSaya sudah buatkan laporan lengkapnya di sini:\n{{proposal_link}}\n\nLaporan ini hanya berlaku 24 jam karena slot optimasi wilayah Anda terbatas. Setelah itu harga kembali normal.\n\nBisa saya jelaskan lebih detail, Pak?";
+  "Halo {{business_name}}, kami baru saja menyiapkan audit digital singkat untuk bisnis Anda. Ada beberapa peluang perbaikan yang mungkin relevan untuk membantu calon pelanggan lebih mudah menemukan dan menghubungi bisnis Anda.\n\nLaporan ringkasnya dapat dilihat di sini:\n{{proposal_link}}\n\nApakah saya boleh menjelaskan poin yang paling prioritas?";
 
 export default function LeadsTable({ initialBatch }: { initialBatch?: string }) {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -63,6 +67,8 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: number | null; name: string }>({ open: false, id: null, name: "" });
   const [deleteBatchModal, setDeleteBatchModal] = useState(false);
   const [convertModal, setConvertModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
+  const [salesModal, setSalesModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
+  const [salesForm, setSalesForm] = useState({ sales_owner: "", next_action_at: "", loss_reason: "", do_not_contact: false });
 
   // Blast panel
   const [blastOpen, setBlastOpen] = useState(false);
@@ -315,6 +321,36 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
     } finally { setUpdating(null); }
   }
 
+  function openSalesModal(lead: Lead) {
+    setSalesForm({
+      sales_owner: lead.sales_owner || "",
+      next_action_at: lead.next_action_at ? lead.next_action_at.slice(0, 16) : "",
+      loss_reason: lead.loss_reason || "",
+      do_not_contact: lead.do_not_contact,
+    });
+    setSalesModal({ open: true, lead });
+  }
+
+  async function saveSalesAction() {
+    if (!salesModal.lead) return;
+    const res = await apiFetch(`/api/leads/${salesModal.lead.id}/sales`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        ...salesForm,
+        next_action_at: salesForm.next_action_at ? new Date(salesForm.next_action_at).toISOString() : null,
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.detail || "Gagal menyimpan tindak lanjut.", "error");
+      return;
+    }
+    const updated = await res.json();
+    setLeads(prev => prev.map(l => l.id === updated.id ? { ...l, ...updated } : l));
+    setSalesModal({ open: false, lead: null });
+    showToast("Tindak lanjut sales diperbarui.");
+  }
+
   async function confirmConvert() {
     const lead = convertModal.lead;
     if (!lead) return;
@@ -369,9 +405,9 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
       setFilterBatch("");
       await fetchBatches();
       await fetchLeads();
-      showToast("Batch berhasil dihapus.");
+      showToast("Batch berhasil diarsipkan.");
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Gagal menghapus batch.", "error");
+      showToast(err instanceof Error ? err.message : "Gagal mengarsipkan batch.", "error");
     }
   }
 
@@ -448,7 +484,12 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
         const payload = {
           name: `Blast ${blastBatch} - ${new Date(blastScheduledFor).toLocaleString("id-ID")}`,
           template_id: blastTemplateId,
-          filter_criteria: { status: "Scraped", batch_name: blastBatch, min_rating: blastMinRating },
+          filter_criteria: {
+            status: "Scraped",
+            batch_name: blastBatch,
+            min_rating: blastMinRating,
+            product_category: blastCategoryId ? blastCategories.find(c => c.id === blastCategoryId)?.name || "" : "",
+          },
           scheduled_for: new Date(blastScheduledFor).toISOString(),
         };
         const res = await apiFetch("/api/campaign/blast/schedule", { method: "POST", body: JSON.stringify(payload) });
@@ -474,20 +515,55 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
       <Toast message={toast?.message ?? null} type={toast?.type} onClose={() => setToast(null)} />
 
       {/* Modals */}
-      <Modal open={deleteModal.open} title="Hapus Lead"
-        message={`Hapus "${deleteModal.name}" dari database? Tindakan ini tidak bisa dibatalkan.`}
-        confirmLabel="Hapus" confirmClass="bg-red-600 hover:bg-red-700"
+      <Modal open={deleteModal.open} title="Arsipkan Lead"
+        message={`Pindahkan "${deleteModal.name}" ke arsip? Riwayat, proposal, dan data terkait tetap disimpan.`}
+        confirmLabel="Arsipkan" confirmClass="bg-amber-500 hover:bg-amber-600"
         onConfirm={confirmDelete} onCancel={() => setDeleteModal({ open: false, id: null, name: "" })} />
 
-      <Modal open={deleteBatchModal} title="Hapus Batch"
-        message={`Hapus semua lead dalam batch "${filterBatch}"? Tindakan ini tidak bisa dibatalkan.`}
-        confirmLabel="Hapus Semua" confirmClass="bg-red-600 hover:bg-red-700"
+      <Modal open={deleteBatchModal} title="Arsipkan Batch"
+        message={`Pindahkan semua lead dalam batch "${filterBatch}" ke arsip? Data terkait tetap disimpan dan dapat dipulihkan.`}
+        confirmLabel="Arsipkan Semua" confirmClass="bg-amber-500 hover:bg-amber-600"
         onConfirm={confirmDeleteBatch} onCancel={() => setDeleteBatchModal(false)} />
 
       <Modal open={convertModal.open} title="Jadikan Klien"
         message={`Pindahkan "${convertModal.lead?.business_name}" ke Buku Klien dan ubah status menjadi Closed/Client?`}
         confirmLabel="Jadikan Klien" confirmClass="bg-amber-500 hover:bg-amber-600 text-white font-bold"
         onConfirm={confirmConvert} onCancel={() => setConvertModal({ open: false, lead: null })} />
+
+      {salesModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSalesModal({ open: false, lead: null })} />
+          <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 w-full max-w-md p-6 space-y-4">
+            <div>
+              <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Tindak Lanjut Sales</h3>
+              <p className="text-xs text-gray-400 mt-1">{salesModal.lead?.business_name}</p>
+            </div>
+            <div>
+              <label className="block text-[10px] text-zinc-500 font-semibold mb-1 uppercase">PIC Sales</label>
+              <input value={salesForm.sales_owner} onChange={e => setSalesForm(p => ({ ...p, sales_owner: e.target.value }))}
+                className="w-full text-sm px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-200" placeholder="Nama sales..." />
+            </div>
+            <div>
+              <label className="block text-[10px] text-zinc-500 font-semibold mb-1 uppercase">Next Action</label>
+              <input type="datetime-local" value={salesForm.next_action_at} onChange={e => setSalesForm(p => ({ ...p, next_action_at: e.target.value }))}
+                className="w-full text-sm px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-200" />
+            </div>
+            <div>
+              <label className="block text-[10px] text-zinc-500 font-semibold mb-1 uppercase">Alasan Lost / Catatan</label>
+              <textarea value={salesForm.loss_reason} onChange={e => setSalesForm(p => ({ ...p, loss_reason: e.target.value }))}
+                rows={3} className="w-full text-sm px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-200 resize-none" placeholder="Isi bila lead tidak dilanjutkan..." />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-300">
+              <input type="checkbox" checked={salesForm.do_not_contact} onChange={e => setSalesForm(p => ({ ...p, do_not_contact: e.target.checked }))} />
+              Jangan hubungi lagi nomor ini
+            </label>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setSalesModal({ open: false, lead: null })} className="px-4 py-2 text-xs font-semibold text-gray-600 bg-gray-100 dark:bg-gray-800 rounded-xl">Batal</button>
+              <button onClick={saveSalesAction} className="px-4 py-2 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl">Simpan</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Follow-up Preview Modal */}
       {followUpPreview.open && (
@@ -574,7 +650,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
             {/* Target Info - realtime based on filters */}
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-2.5">
               <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
-                Target: {leads.filter(l => l.status === "Scraped" && !l.is_archived && (blastMinRating === 0 || l.rating >= blastMinRating) && (!blastBatch || l.batch_name === blastBatch)).length} Leads akan menerima pesan.
+                Target: {leads.filter(l => l.status === "Scraped" && !l.is_archived && !l.do_not_contact && (blastMinRating === 0 || l.rating >= blastMinRating) && (!blastBatch || l.batch_name === blastBatch)).length} Leads akan menerima pesan.
               </p>
               <p className="text-[11px] text-amber-500 dark:text-amber-400 mt-0.5">
                 Batch: {blastBatch || "Semua"} · Min. Rating: {blastMinRating || "Semua"} · Kategori: {blastCategoryId ? blastCategories.find(c => c.id === blastCategoryId)?.name : "Semua"}
@@ -623,7 +699,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
               <p className="text-[11px] text-amber-500">Belum ada template WA Blast. <a href="/master/templates" className="underline">Buat di Master Data</a>.</p>
             )}
 
-            <p className="text-xs text-gray-400">Hanya lead berstatus "Scraped" yang akan dikirim pesan. Delay 5 detik antar pesan.</p>
+            <p className="text-xs text-gray-400">Hanya lead Scraped tanpa opt-out yang masuk antrean. Delay 5 detik antar pesan.</p>
 
             {/* Send Mode */}
             <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
@@ -704,7 +780,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" />
               </svg>
-              Hapus Batch
+              Arsipkan Batch
             </button>
           )}
         </div>
@@ -778,10 +854,10 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
 
       {!loading && leads.length > 0 && (
         <div className="overflow-x-auto rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <table className="w-full min-w-[1100px] bg-white dark:bg-[var(--bg-canvas)] text-sm">
+          <table className="w-full min-w-[1250px] bg-white dark:bg-[var(--bg-canvas)] text-sm">
             <thead className="bg-gray-50 dark:bg-[var(--bg-surface)] border-b border-gray-100 dark:border-gray-700">
               <tr>
-                {["#", "Nama Bisnis", "Alamat", "Nomor WA", "Layanan", "Website", "Google Rating", "Score", "Status", "Aksi"].map((h) => (
+                {["#", "Nama Bisnis", "Alamat", "Nomor WA", "Layanan", "Website", "Google Rating", "Score", "Next Action", "Status", "Aksi"].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -796,7 +872,12 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
                   if (filterScore === "warm" && (s < 50 || s >= 80)) return false;
                   if (filterScore === "cold" && s >= 50) return false;
                   return true;
-                }).sort((a, b) => (b.lead_score ?? 0) - (a.lead_score ?? 0));
+                }).sort((a, b) => {
+                  const now = Date.now();
+                  const aOverdue = a.next_action_at && new Date(a.next_action_at).getTime() <= now ? 1 : 0;
+                  const bOverdue = b.next_action_at && new Date(b.next_action_at).getTime() <= now ? 1 : 0;
+                  return bOverdue - aOverdue || (b.lead_score ?? 0) - (a.lead_score ?? 0);
+                });
                 const start = (leadsPage - 1) * LEADS_PAGE_SIZE;
                 return filtered.slice(start, start + LEADS_PAGE_SIZE).map((lead, i) => (
                 <tr key={lead.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${lead.is_archived ? "opacity-70" : ""} ${lead.is_ghost_viewer ? "bg-red-500/10 border-l-4 border-l-red-500 animate-pulse" : ""}`}>
@@ -868,6 +949,15 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
                       );
                     })()}
                   </td>
+                  <td className="px-4 py-3 text-xs min-w-[145px]">
+                    {lead.next_action_at ? (
+                      <div className={new Date(lead.next_action_at).getTime() < Date.now() ? "text-red-600 font-semibold" : "text-neutral-600 dark:text-neutral-300"}>
+                        {new Date(lead.next_action_at).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                    ) : <span className="text-gray-300">Belum diatur</span>}
+                    {lead.sales_owner && <div className="text-[10px] text-gray-400 mt-0.5">PIC: {lead.sales_owner}</div>}
+                    {lead.do_not_contact && <div className="text-[10px] text-red-500 font-bold mt-0.5">OPT-OUT</div>}
+                  </td>
                   <td className="px-4 py-3">
                     <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[lead.status]}`}>
                       {lead.status}
@@ -882,22 +972,26 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
                         </button>
                       ) : (
                         <>
-                          <button onClick={() => handleChatWA(lead)} disabled={updating === lead.id} title="Chat WhatsApp"
+                          <button onClick={() => handleChatWA(lead)} disabled={updating === lead.id || lead.do_not_contact} title={lead.do_not_contact ? "Diblokir: lead opt-out" : "Chat WhatsApp"}
                             className="p-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-all disabled:opacity-50">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" /></svg>
                           </button>
                           {(lead.status === "Contacted" || lead.status === "Replied") && (
-                            <button onClick={() => handleFollowUp(lead)} disabled={updating === lead.id} title="Follow Up Manual"
+                            <button onClick={() => handleFollowUp(lead)} disabled={updating === lead.id || lead.do_not_contact} title="Follow Up Manual"
                               className="p-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-all disabled:opacity-50">
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
                             </button>
                           )}
                           {(lead.status === "Contacted" || lead.status === "Replied") && (
-                            <button onClick={() => startSequence(lead)} disabled={updating === lead.id} title="Start Auto Follow-up (Hari 1, 3, 7)"
+                            <button onClick={() => startSequence(lead)} disabled={updating === lead.id || lead.do_not_contact} title="Start Auto Follow-up (Hari 1, 3, 7)"
                               className="p-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-all disabled:opacity-50">
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
                             </button>
                           )}
+                          <button onClick={() => openSalesModal(lead)} title="Atur PIC dan next action"
+                            className="p-1.5 text-neutral-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all">
+                            <Target size={12} />
+                          </button>
                           <select value={lead.status} disabled={updating === lead.id}
                             onChange={(e) => updateStatus(lead.id, e.target.value as Status)}
                             className="text-[11px] border border-neutral-200 dark:border-neutral-700 rounded-lg px-1.5 py-1.5 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 cursor-pointer focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50 transition-colors w-[90px]">
@@ -927,7 +1021,14 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
             </tbody>
           </table>
           {(() => {
-            const filtered = leads.filter((l) => (filterRating === 0 || l.rating >= filterRating) && (!searchQuery || l.business_name.toLowerCase().includes(searchQuery.toLowerCase()) || (l.address || "").toLowerCase().includes(searchQuery.toLowerCase()) || l.phone_number.includes(searchQuery)));
+            const filtered = leads.filter((l) => {
+              const score = l.lead_score ?? 0;
+              return (filterRating === 0 || l.rating >= filterRating)
+                && (!searchQuery || l.business_name.toLowerCase().includes(searchQuery.toLowerCase()) || (l.address || "").toLowerCase().includes(searchQuery.toLowerCase()) || l.phone_number.includes(searchQuery))
+                && (filterScore !== "hot" || score >= 80)
+                && (filterScore !== "warm" || (score >= 50 && score < 80))
+                && (filterScore !== "cold" || score < 50);
+            });
             return <Pagination page={leadsPage} pageSize={LEADS_PAGE_SIZE} total={filtered.length} onPageChange={(p) => setLeadsPage(p)} itemLabel="lead" />;
           })()}
           <div className="px-4 py-2 bg-gray-50 dark:bg-[var(--bg-surface)] border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400">

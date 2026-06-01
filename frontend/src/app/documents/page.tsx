@@ -5,6 +5,7 @@ import { apiFetch } from "../../lib/api";
 import Toast from "../../components/Toast";
 import ConfirmModal from "../../components/Modal";
 import { Plus, Trash2, ExternalLink, Folder, FileText, Search, Edit2, X } from "lucide-react";
+import { useUserRole } from "../../lib/useUserRole";
 
 interface DocumentFolder {
   id: string;
@@ -56,6 +57,7 @@ function Modal({ open, onClose, title, children }: { open: boolean; onClose: () 
 }
 
 export default function DocumentsPage() {
+  const { isAdmin } = useUserRole();
   const [folders, setFolders] = useState<DocumentFolder[]>([]);
   const [docs, setDocs] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +74,7 @@ export default function DocumentsPage() {
 
   const [folderModal, setFolderModal] = useState(false);
   const [editingFolder, setEditingFolder] = useState<DocumentFolder | null>(null);
-  const [folderForm, setFolderForm] = useState({ name: "", color: "#6B7280" });
+  const [folderForm, setFolderForm] = useState({ name: "", color: "#6B7280", parent_id: "" });
 
   const fetchFolders = useCallback(async () => {
     const res = await apiFetch("/api/archive/folders");
@@ -162,14 +164,14 @@ export default function DocumentsPage() {
 
   function openNewFolder() {
     setEditingFolder(null);
-    setFolderForm({ name: "", color: "#6B7280" });
+    setFolderForm({ name: "", color: "#6B7280", parent_id: "" });
     setFolderModal(true);
   }
 
   function openEditFolder(folder: DocumentFolder, e: React.MouseEvent) {
     e.stopPropagation();
     setEditingFolder(folder);
-    setFolderForm({ name: folder.name, color: folder.color });
+    setFolderForm({ name: folder.name, color: folder.color, parent_id: folder.parent_id || "" });
     setFolderModal(true);
   }
 
@@ -181,7 +183,7 @@ export default function DocumentsPage() {
       const url = editingFolder ? `/api/archive/folders/${editingFolder.id}` : "/api/archive/folders";
       const res = await apiFetch(url, {
         method,
-        body: JSON.stringify({ name: folderForm.name.trim(), color: folderForm.color }),
+        body: JSON.stringify({ name: folderForm.name.trim(), color: folderForm.color, parent_id: folderForm.parent_id || null }),
       });
       if (res.ok) {
         setFolderModal(false);
@@ -250,7 +252,7 @@ export default function DocumentsPage() {
       <ConfirmModal
         open={!!deleteTarget}
         title={deleteTarget?.type === "folder" ? "Hapus Folder?" : "Hapus Dokumen?"}
-        message={deleteTarget?.type === "folder" ? "Folder dan SEMUA dokumen di dalamnya akan dihapus permanen." : "Dokumen yang dihapus tidak bisa dikembalikan."}
+        message={deleteTarget?.type === "folder" ? "Folder akan dihapus. Dokumen di dalamnya dipindahkan ke Tanpa Folder." : "Dokumen yang dihapus tidak bisa dikembalikan."}
         confirmLabel="Hapus"
         confirmClass="bg-red-600 hover:bg-red-700"
         onConfirm={() => {
@@ -297,14 +299,16 @@ export default function DocumentsPage() {
             }`}
           >
             <span className="w-2.5 h-2.5 rounded-full shrink-0 mt-px" style={{ backgroundColor: folder.color }} />
-            <span className="flex-1 truncate">{folder.name}</span>
+            <span className="flex-1 truncate">{folder.parent_id ? `-- ${folder.name}` : folder.name}</span>
             <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
               <button onClick={e => openEditFolder(folder, e)} className="p-0.5 hover:text-amber-500 transition-colors">
                 <Edit2 size={11} />
               </button>
-              <button onClick={e => { e.stopPropagation(); setDeleteTarget({ id: folder.id, type: "folder" }); }} className="p-0.5 hover:text-red-500 transition-colors">
-                <Trash2 size={11} />
-              </button>
+              {isAdmin && (
+                <button onClick={e => { e.stopPropagation(); setDeleteTarget({ id: folder.id, type: "folder" }); }} className="p-0.5 hover:text-red-500 transition-colors">
+                  <Trash2 size={11} />
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -326,8 +330,8 @@ export default function DocumentsPage() {
               <Folder size={18} className="text-amber-500" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-50 leading-tight">Dokumen</h1>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">{activeLabel}</p>
+              <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-50 leading-tight">Arsip Tim</h1>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">{activeLabel} · simpan link Google Docs, Drive, atau Notion</p>
             </div>
           </div>
           <button
@@ -371,7 +375,7 @@ export default function DocumentsPage() {
                 folderColor={folders.find(f => f.id === doc.folder_id)?.color}
                 folderName={folders.find(f => f.id === doc.folder_id)?.name}
                 onEdit={() => openEditDoc(doc)}
-                onDelete={() => setDeleteTarget({ id: doc.id, type: "doc" })}
+                onDelete={isAdmin ? () => setDeleteTarget({ id: doc.id, type: "doc" }) : undefined}
               />
             ))}
           </div>
@@ -428,7 +432,7 @@ export default function DocumentsPage() {
             >
               <option value="">— Tanpa Folder —</option>
               {folders.map(f => (
-                <option key={f.id} value={f.id}>{f.name}</option>
+                <option key={f.id} value={f.id}>{f.parent_id ? `-- ${f.name}` : f.name}</option>
               ))}
             </select>
           </div>
@@ -460,6 +464,19 @@ export default function DocumentsPage() {
               placeholder="Nama folder..."
               onKeyDown={e => e.key === "Enter" && saveFolder()}
             />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Parent Folder</label>
+            <select
+              value={folderForm.parent_id}
+              onChange={e => setFolderForm(p => ({ ...p, parent_id: e.target.value }))}
+              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none"
+            >
+              <option value="">— Folder Utama —</option>
+              {folders.filter(f => f.id !== editingFolder?.id).map(f => (
+                <option key={f.id} value={f.id}>{f.parent_id ? `-- ${f.name}` : f.name}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-2">Warna</label>
@@ -507,7 +524,7 @@ function DocCard({
   folderColor?: string;
   folderName?: string;
   onEdit: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
 }) {
   const dateStr = new Date(doc.updated_at || doc.created_at).toLocaleDateString("id-ID", {
     day: "2-digit",
@@ -527,9 +544,11 @@ function DocCard({
           <button onClick={onEdit} className="p-1.5 text-neutral-400 hover:text-amber-500 rounded-lg transition-colors">
             <Edit2 size={13} />
           </button>
-          <button onClick={onDelete} className="p-1.5 text-neutral-400 hover:text-red-500 rounded-lg transition-colors">
-            <Trash2 size={13} />
-          </button>
+          {onDelete && (
+            <button onClick={onDelete} className="p-1.5 text-neutral-400 hover:text-red-500 rounded-lg transition-colors">
+              <Trash2 size={13} />
+            </button>
+          )}
         </div>
       </div>
 

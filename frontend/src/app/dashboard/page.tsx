@@ -22,6 +22,18 @@ interface Patterns {
   recommendation: string;
 }
 
+interface BoardOverview {
+  project_id: string;
+  overdue_cards: string[];
+  due_soon_cards: string[];
+}
+
+interface FinanceOverview {
+  total_balance: number;
+  break_even_point: number;
+  financial_runway_months: number;
+}
+
 const STATUS_COLORS: Record<string, string> = {
   Scraped: "bg-gray-400",
   Contacted: "bg-blue-500",
@@ -75,6 +87,8 @@ function DashboardContent() {
   const [hotLeads, setHotLeads] = useState<{ lead_id: number; business_name: string; phone_number: string; category: string | null; status: string; last_active: string; total_opens: number; proposal_slug: string | null }[]>([]);
   const [topScoredLeads, setTopScoredLeads] = useState<{ id: number; business_name: string; phone_number: string; lead_score: number; status: string; product_interest: string | null; address: string | null }[]>([]);
   const [alerts, setAlerts] = useState<{ id: string; lead_id: number; business_name: string; phone_number: string; category: string | null; triggered_at: string; days_since_first_view: number; proposal_slug: string | null }[]>([]);
+  const [boardOverview, setBoardOverview] = useState<BoardOverview[]>([]);
+  const [financeOverview, setFinanceOverview] = useState<FinanceOverview | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -93,6 +107,8 @@ function DashboardContent() {
     apiFetch("/api/alerts/reengagement").then((r) => r.ok ? r.json() : null).then((data) => { if (data) setAlerts(data); }).catch(() => {});
     apiFetch("/api/leads/top-scored?limit=10").then((r) => r.ok ? r.json() : null).then((data) => { if (data) setTopScoredLeads(data); }).catch(() => {});
     apiFetch("/api/analytics/patterns").then((r) => r.ok ? r.json() : null).then((data) => { if (data) setPatterns(data); }).catch(() => {});
+    apiFetch("/api/boards/overview").then((r) => r.ok ? r.json() : null).then((data) => { if (data) setBoardOverview(data); }).catch(() => {});
+    apiFetch("/api/finance/reports").then((r) => r.ok ? r.json() : null).then((data) => { if (data) setFinanceOverview(data); }).catch(() => {});
   }, [router]);
 
   useEffect(() => {
@@ -105,6 +121,13 @@ function DashboardContent() {
   const maxStatus = analytics ? Math.max(...(analytics.leads_by_status ?? []).map((s) => s.count), 1) : 1;
 
   const urgentCount = hotLeads.length + alerts.length;
+  const overdueTasks = boardOverview.reduce((total, project) => total + project.overdue_cards.length, 0);
+  const dueSoonTasks = boardOverview.reduce((total, project) => total + project.due_soon_cards.length, 0);
+  const formatIdr = (value: number) => new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(value);
 
   const STAT_CARDS = [
     { label: "Total Leads", value: loading ? "—" : analytics?.total_leads ?? 0, sub: "Semua prospek tersimpan", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
@@ -163,6 +186,33 @@ function DashboardContent() {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="card p-5">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Kontrol Operasional Owner</h2>
+                <p className="text-xs text-neutral-400 mt-0.5">Pantau pekerjaan tim dan kesehatan kas tanpa membuka banyak modul.</p>
+              </div>
+              <div className="flex gap-2 text-xs font-semibold">
+                <Link href="/board" className="text-amber-600 hover:text-amber-700">Board</Link>
+                {financeOverview && <Link href="/finance" className="text-amber-600 hover:text-amber-700">Keuangan</Link>}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              {[
+                { label: "Proyek Aktif", value: boardOverview.length, alert: false },
+                { label: "Task Terlambat", value: overdueTasks, alert: overdueTasks > 0 },
+                { label: "Jatuh Tempo <= 3 Hari", value: dueSoonTasks, alert: dueSoonTasks > 0 },
+                { label: "Total Saldo", value: financeOverview ? formatIdr(financeOverview.total_balance) : "Khusus admin", alert: false },
+                { label: "Runway", value: financeOverview ? `${financeOverview.financial_runway_months} bulan` : "Khusus admin", alert: financeOverview ? financeOverview.financial_runway_months < 3 : false },
+              ].map((item) => (
+                <div key={item.label} className={`rounded-xl px-3 py-3 border ${item.alert ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900" : "bg-neutral-50 dark:bg-neutral-800/50 border-neutral-100 dark:border-neutral-700"}`}>
+                  <p className={`text-lg font-bold ${item.alert ? "text-red-600 dark:text-red-400" : "text-neutral-800 dark:text-neutral-100"}`}>{item.value}</p>
+                  <p className="text-[10px] uppercase tracking-wide font-semibold text-neutral-400 mt-1">{item.label}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Hot leads — highest urgency */}
