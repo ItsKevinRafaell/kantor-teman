@@ -1,9 +1,8 @@
 """Client-facing default templates for the document generator."""
 
 BASE_STYLE = """
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap');
 @page{size:A4;margin:0}
-*{font-family:'Noto Sans',Arial,sans-serif;box-sizing:border-box}
+*{font-family:'Droid Sans Fallback',Arial,sans-serif;box-sizing:border-box}
 body{margin:0;color:#1e293b;font-size:11px;line-height:1.65;background:#fff}
 .page{padding:42px 48px;min-height:297mm}
 .top{display:flex;justify-content:space-between;gap:24px;padding-bottom:20px;border-bottom:2px solid #1e293b;margin-bottom:24px}
