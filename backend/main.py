@@ -11176,16 +11176,21 @@ def _hermes_headers() -> dict:
     return {"X-Gateway-Token": HERMES_GATEWAY_TOKEN, "Content-Type": "application/json"}
 
 
+def _office_profile(profile: str) -> str:
+    return "default" if profile == "friday" else profile
+
+
 @app.post("/api/office/chat/{profile}")
 async def office_chat(profile: str, body: OfficeChatRequest, current_user: User = Depends(get_current_user)):
     if not HERMES_GATEWAY_URL:
         raise HTTPException(status_code=503, detail="Hermes gateway not configured")
+    profile = _office_profile(profile)
     payload = {"message": body.message, "session_id": body.session_id}
     if body.attachments:
         payload["attachments"] = [a.model_dump() for a in body.attachments]
     async with httpx.AsyncClient(timeout=130) as client:
         resp = await client.post(
-            f"{HERMES_GATEWAY_URL}/chat/{profile}",
+            f"{HERMES_GATEWAY_URL}/api/office/chat/{profile}",
             headers=_hermes_headers(),
             json=payload,
         )
@@ -11210,9 +11215,10 @@ async def office_status(current_user: User = Depends(get_current_user)):
 async def office_history(profile: str, current_user: User = Depends(get_current_user)):
     if not HERMES_GATEWAY_URL:
         return []
+    profile = _office_profile(profile)
     async with httpx.AsyncClient(timeout=10) as client:
         try:
-            resp = await client.get(f"{HERMES_GATEWAY_URL}/history/{profile}", headers=_hermes_headers())
+            resp = await client.get(f"{HERMES_GATEWAY_URL}/api/office/history/{profile}", headers=_hermes_headers())
             return resp.json()
         except Exception:
             return []
@@ -11222,6 +11228,7 @@ async def office_history(profile: str, current_user: User = Depends(get_current_
 async def office_timeline(profile: str, after: int = -1, current_user: User = Depends(get_current_user)):
     if not HERMES_GATEWAY_URL:
         return {"events": [], "next_cursor": after, "has_more": False, "pending_approval_count": 0}
+    profile = _office_profile(profile)
     async with httpx.AsyncClient(timeout=10) as client:
         try:
             resp = await client.get(
@@ -11238,9 +11245,10 @@ async def office_timeline(profile: str, after: int = -1, current_user: User = De
 async def office_conversations(profile: str, current_user: User = Depends(get_current_user)):
     if not HERMES_GATEWAY_URL:
         return []
+    profile = _office_profile(profile)
     async with httpx.AsyncClient(timeout=10) as client:
         try:
-            resp = await client.get(f"{HERMES_GATEWAY_URL}/conversations/{profile}", headers=_hermes_headers())
+            resp = await client.get(f"{HERMES_GATEWAY_URL}/api/office/conversations/{profile}", headers=_hermes_headers())
             return resp.json()
         except Exception:
             return []
@@ -11250,9 +11258,10 @@ async def office_conversations(profile: str, current_user: User = Depends(get_cu
 async def office_conversation_messages(profile: str, session_id: str, current_user: User = Depends(get_current_user)):
     if not HERMES_GATEWAY_URL:
         return []
+    profile = _office_profile(profile)
     async with httpx.AsyncClient(timeout=10) as client:
         try:
-            resp = await client.get(f"{HERMES_GATEWAY_URL}/conversations/{profile}/{session_id}", headers=_hermes_headers())
+            resp = await client.get(f"{HERMES_GATEWAY_URL}/api/office/conversations/{profile}/{session_id}", headers=_hermes_headers())
             return resp.json()
         except Exception:
             return []
