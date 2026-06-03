@@ -11218,6 +11218,22 @@ async def office_history(profile: str, current_user: User = Depends(get_current_
             return []
 
 
+@app.get("/api/office/timeline/{profile}")
+async def office_timeline(profile: str, after: int = -1, current_user: User = Depends(get_current_user)):
+    if not HERMES_GATEWAY_URL:
+        return {"events": [], "next_cursor": after, "has_more": False, "pending_approval_count": 0}
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            resp = await client.get(
+                f"{HERMES_GATEWAY_URL}/api/office/timeline/{profile}",
+                params={"after": after},
+                headers=_hermes_headers()
+            )
+            return resp.json()
+        except Exception:
+            return {"events": [], "next_cursor": after, "has_more": False, "pending_approval_count": 0}
+
+
 @app.get("/api/office/conversations/{profile}")
 async def office_conversations(profile: str, current_user: User = Depends(get_current_user)):
     if not HERMES_GATEWAY_URL:
