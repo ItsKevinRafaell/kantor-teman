@@ -8048,8 +8048,13 @@ def get_template_defaults(
 
 
 _PDF_FONT_CSS = """
-* { font-family: 'Noto Sans', Arial, Helvetica, sans-serif !important; }
+* { font-family: 'Droid Sans Fallback', sans-serif !important; }
 """
+
+
+def _pdf_url_fetcher(url: str, **kw):
+    return {"string": b"", "mime_type": "text/plain"}
+
 
 def _inject_pdf_font(html: str) -> str:
     font_tag = f"<style>{_PDF_FONT_CSS}</style>"
@@ -8089,10 +8094,13 @@ def _apply_final_document_number(db: Session, template_type: str, full_vars: dic
 
 
 def _prepare_document_vars(db: Session, template: DocumentTemplate, body: DocumentGenerateIn, reserve_number: bool = False) -> dict:
-    template_type = template.type or "custom"
+    template_type = _document_template_type(template)
     defaults = _build_default_vars(db, template_type, body.target_type, body.target_id)
     brand_ctx = _build_brand_context(db)
-    full_vars = {**brand_ctx, **defaults, **body.variables}
+    full_vars = {**brand_ctx, **defaults}
+    for key, value in body.variables.items():
+        if value not in (None, "") or key not in full_vars:
+            full_vars[key] = value
     if "logo" not in body.variables:
         full_vars["logo"] = brand_ctx["logo"]
     if reserve_number:
@@ -8100,51 +8108,126 @@ def _prepare_document_vars(db: Session, template: DocumentTemplate, body: Docume
     return full_vars
 
 
-def _render_document_pdf(template: DocumentTemplate, full_vars: dict) -> bytes:
+_BUILTIN_DOCUMENT_TEMPLATE_TYPES = {
+    "Invoice": "invoice",
+    "Receipt / Bukti Pembayaran": "receipt",
+    "Proposal Penawaran PDF": "proposal_pdf",
+    "Surat Penawaran Formal": "surat_penawaran",
+    "Kontrak / MoU": "kontrak",
+}
+
+_LEGACY_DOCUMENT_TEMPLATE_MARKERS = {
+    "proposal_pdf": ("{{services_html}}", "{{faqs_html}}"),
+    "surat_penawaran": ("{{body}}", "{{ttd}}"),
+    "kontrak": ("{{parties}}", "{{timeline}}", "{{payment_terms}}"),
+}
+
+
+def _document_template_type(template: DocumentTemplate) -> str:
+    return _BUILTIN_DOCUMENT_TEMPLATE_TYPES.get(getattr(template, "name", ""), getattr(template, "type", None) or "custom")
+
+
+def _document_template_html(template: DocumentTemplate) -> str:
+    template_type = _document_template_type(template)
+    html_template = template.html_template or ""
+    markers = _LEGACY_DOCUMENT_TEMPLATE_MARKERS.get(template_type, ())
+    is_legacy = any(marker in html_template for marker in markers)
+    template_name = getattr(template, "name", "")
+    has_wrong_builtin_type = template_name in _BUILTIN_DOCUMENT_TEMPLATE_TYPES and getattr(template, "type", None) != template_type
+    if is_legacy or has_wrong_builtin_type:
+        starter = get_document_template_starters().get(template_type)
+        if starter:
+            return starter["html_template"]
+    return html_template
+
+
+def _render_document_html(html_template: str, full_vars: dict) -> str:
     try:
         from jinja2 import Template as JinjaTemplate
-        rendered_html = JinjaTemplate(template.html_template).render(**full_vars)
+        rendered_html = JinjaTemplate(html_template).render(**full_vars)
         for k, v in full_vars.items():
             if isinstance(v, str):
                 rendered_html = rendered_html.replace(f"{{{{{k}}}}}", v)
     except ImportError:
-        rendered_html = template.html_template
+        rendered_html = html_template
         for k, v in full_vars.items():
             if isinstance(v, str):
                 rendered_html = rendered_html.replace(f"{{{{{k}}}}}", v)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Render template gagal: {e}")
+    return rendered_html
+
+
+def _visible_document_text(rendered_html: str) -> str:
+    without_assets = re.sub(r"<(style|script)\b[^>]*>.*?</\1>", " ", rendered_html, flags=re.IGNORECASE | re.DOTALL)
+    without_tags = re.sub(r"<[^>]+>", " ", without_assets)
+    return " ".join(html_mod.unescape(without_tags).split())
+
+
+def _render_document_pdf(template: DocumentTemplate, full_vars: dict) -> bytes:
+    template_type = _document_template_type(template)
+    rendered_html = _render_document_html(_document_template_html(template), full_vars)
+    if not _visible_document_text(rendered_html):
+        starter = get_document_template_starters().get(template_type)
+        if starter:
+            rendered_html = _render_document_html(starter["html_template"], full_vars)
+    if not _visible_document_text(rendered_html):
+        raise HTTPException(status_code=400, detail="Template PDF kosong. Isi HTML template terlebih dahulu.")
 
     rendered_html = _inject_pdf_font(rendered_html)
     try:
         from weasyprint import HTML
-        pdf = HTML(string=rendered_html, url_fetcher=lambda url, **kw: {"string": "", "mime_type": "text/plain"}).write_pdf()
+        pdf = HTML(string=rendered_html, url_fetcher=_pdf_url_fetcher).write_pdf()
+        if not pdf or not pdf.startswith(b"%PDF") or len(pdf) < 1024:
+            raise HTTPException(status_code=500, detail="PDF generation menghasilkan halaman kosong")
         return pdf
+    except HTTPException:
+        raise
     except ImportError:
         raise HTTPException(status_code=500, detail="WeasyPrint tidak terinstall. Jalankan: pip install weasyprint")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"PDF generation gagal: {e}")
 
 
-@app.post("/api/documents/preview")
-def preview_document(body: DocumentGenerateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+@app.post("/api/documents/debug-html")
+def debug_document_html(body: DocumentGenerateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     template = db.query(DocumentTemplate).filter(DocumentTemplate.id == body.template_id).first()
     if not template:
         raise HTTPException(status_code=404, detail="Template tidak ditemukan")
     full_vars = _prepare_document_vars(db, template, body)
-    pdf_bytes = _render_document_pdf(template, full_vars)
-    return StreamingResponse(
-        io.BytesIO(pdf_bytes),
+    rendered = _render_document_html(_document_template_html(template), full_vars)
+    injected = _inject_pdf_font(rendered)
+    return Response(content=injected, media_type="text/html")
+
+
+@app.post("/api/documents/preview")
+def preview_document(request: Request, body: DocumentGenerateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    origin = request.headers.get("origin", "")
+    cors_h = {"Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", "Vary": "Origin"} if origin in _cors_list else {}
+    template = db.query(DocumentTemplate).filter(DocumentTemplate.id == body.template_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="Template tidak ditemukan", headers=cors_h)
+    try:
+        full_vars = _prepare_document_vars(db, template, body)
+        pdf_bytes = _render_document_pdf(template, full_vars)
+    except HTTPException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail, headers=cors_h)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Preview gagal: {e}", headers=cors_h)
+    return Response(
+        content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": 'inline; filename="preview.pdf"'},
+        headers={"Content-Disposition": 'inline; filename="preview.pdf"', **cors_h},
     )
 
 
 @app.post("/api/documents/generate")
-def generate_document(body: DocumentGenerateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def generate_document(request: Request, body: DocumentGenerateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    origin = request.headers.get("origin", "")
+    cors_h = {"Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", "Vary": "Origin"} if origin in _cors_list else {}
     template = db.query(DocumentTemplate).filter(DocumentTemplate.id == body.template_id).first()
     if not template:
-        raise HTTPException(status_code=404, detail="Template tidak ditemukan")
+        raise HTTPException(status_code=404, detail="Template tidak ditemukan", headers=cors_h)
     try:
         full_vars = _prepare_document_vars(db, template, body, reserve_number=True)
         pdf_bytes = _render_document_pdf(template, full_vars)
@@ -8170,12 +8253,12 @@ def generate_document(body: DocumentGenerateIn, current_user: User = Depends(get
         )
         db.add(doc)
         db.commit()
-    except HTTPException:
+    except HTTPException as e:
         db.rollback()
-        raise
+        raise HTTPException(status_code=e.status_code, detail=e.detail, headers=cors_h)
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"PDF generation gagal: {e}")
+        raise HTTPException(status_code=500, detail=f"PDF generation gagal: {e}", headers=cors_h)
 
     return {"document_id": doc.id, "file_url": file_url, "template_name": template.name, "display_filename": display_name}
 
@@ -9828,7 +9911,7 @@ def generate_monthly_report(
 
     try:
         from weasyprint import HTML
-        HTML(string=rendered_html, url_fetcher=lambda url, **kw: {"string": "", "mime_type": "text/plain"}).write_pdf(pdf_path)
+        HTML(string=rendered_html, url_fetcher=_pdf_url_fetcher).write_pdf(pdf_path)
     except ImportError:
         raise HTTPException(status_code=500, detail="WeasyPrint tidak terinstall. Jalankan: pip install weasyprint")
     except Exception as e:
@@ -11198,7 +11281,7 @@ async def office_list_agents(current_user: User = Depends(get_current_user)):
     _require_gateway()
     async with httpx.AsyncClient(timeout=15) as client:
         try:
-            resp = await client.get(f"{HERMES_GATEWAY_URL}/agents", headers=_hermes_headers())
+            resp = await client.get(f"{HERMES_GATEWAY_URL}/api/office/agents", headers=_hermes_headers())
             return resp.json()
         except Exception as e:
             raise HTTPException(status_code=502, detail=str(e))
@@ -11209,7 +11292,7 @@ async def office_create_agent(body: OfficeAgentCreate, current_user: User = Depe
     _require_gateway()
     async with httpx.AsyncClient(timeout=90) as client:
         resp = await client.post(
-            f"{HERMES_GATEWAY_URL}/agents",
+            f"{HERMES_GATEWAY_URL}/api/office/agents",
             headers=_hermes_headers(),
             json=body.model_dump(exclude_none=True),
         )
@@ -11223,7 +11306,7 @@ async def office_delete_agent(profile: str, current_user: User = Depends(require
     _require_gateway()
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.delete(
-            f"{HERMES_GATEWAY_URL}/agents/{profile}",
+            f"{HERMES_GATEWAY_URL}/api/office/agents/{profile}",
             headers=_hermes_headers(),
         )
     if resp.status_code not in (200, 204):
@@ -11236,7 +11319,7 @@ async def office_update_soul(profile: str, body: OfficeSoulUpdate, current_user:
     _require_gateway()
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.put(
-            f"{HERMES_GATEWAY_URL}/agents/{profile}/soul",
+            f"{HERMES_GATEWAY_URL}/api/office/agents/{profile}/soul",
             headers=_hermes_headers(),
             json={"soul": body.soul},
         )
@@ -11250,7 +11333,7 @@ async def office_update_env(profile: str, body: OfficeEnvUpdate, current_user: U
     _require_gateway()
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.put(
-            f"{HERMES_GATEWAY_URL}/agents/{profile}/env",
+            f"{HERMES_GATEWAY_URL}/api/office/agents/{profile}/env",
             headers=_hermes_headers(),
             json=body.model_dump(exclude_none=True),
         )
@@ -11264,7 +11347,7 @@ async def office_update_config(profile: str, body: OfficeConfigUpdate, current_u
     _require_gateway()
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.put(
-            f"{HERMES_GATEWAY_URL}/agents/{profile}/config",
+            f"{HERMES_GATEWAY_URL}/api/office/agents/{profile}/config",
             headers=_hermes_headers(),
             json=body.model_dump(exclude_none=True),
         )
