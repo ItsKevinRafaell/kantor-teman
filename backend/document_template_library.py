@@ -2,7 +2,9 @@
 
 BASE_STYLE = """
 @page{size:A4;margin:0}
-*{font-family:'Droid Sans Fallback',Arial,sans-serif;box-sizing:border-box}
+@font-face{font-family:'PDF Sans';src:local('DejaVu Sans'),local('Arial'),local('Helvetica'),local('Liberation Sans');font-weight:normal;font-style:normal}
+@font-face{font-family:'PDF Sans';src:local('DejaVu Sans Bold'),local('Arial Bold'),local('Helvetica Bold'),local('Liberation Sans Bold');font-weight:bold;font-style:normal}
+*{font-family:'PDF Sans',Arial,sans-serif;box-sizing:border-box}
 body{margin:0;color:#1e293b;font-size:11px;line-height:1.65;background:#fff}
 .page{padding:42px 48px;min-height:297mm}
 .top{display:flex;justify-content:space-between;gap:24px;padding-bottom:20px;border-bottom:2px solid #1e293b;margin-bottom:24px}

@@ -8048,7 +8048,19 @@ def get_template_defaults(
 
 
 _PDF_FONT_CSS = """
-* { font-family: 'Droid Sans Fallback', sans-serif !important; }
+@font-face {
+    font-family: 'PDF Sans';
+    src: local('DejaVu Sans'), local('Arial'), local('Helvetica'), local('Liberation Sans');
+    font-weight: normal;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'PDF Sans';
+    src: local('DejaVu Sans Bold'), local('Arial Bold'), local('Helvetica Bold'), local('Liberation Sans Bold');
+    font-weight: bold;
+    font-style: normal;
+}
+* { font-family: 'PDF Sans', sans-serif !important; }
 """
 
 
