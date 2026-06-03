@@ -485,11 +485,20 @@ export default function DocumentNewPage() {
   async function handlePreview() {
     if (!selectedTemplate) return;
     setPreviewing(true);
+
+    // Add timeout to prevent indefinite loading state
+    const timeoutId = setTimeout(() => {
+      setPreviewing(false);
+      setToast({ message: "Preview timeout. Silakan coba lagi.", type: "error" });
+    }, 30000); // 30 second timeout
+
     try {
       const res = await apiFetch("/api/documents/preview", {
         method: "POST",
         body: JSON.stringify(buildDocumentPayload()),
       });
+      clearTimeout(timeoutId);
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || "Preview gagal");
@@ -501,6 +510,7 @@ export default function DocumentNewPage() {
       });
       setStep(3);
     } catch (e: unknown) {
+      clearTimeout(timeoutId);
       setToast({ message: e instanceof Error ? e.message : "Preview gagal", type: "error" });
     } finally {
       setPreviewing(false);
