@@ -27,7 +27,7 @@ function lineItemsToHtml(items: LineItem[]): string {
   return `<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f3f4f6"><th style="padding:8px;text-align:left">No</th><th style="padding:8px;text-align:left">Item</th><th style="padding:8px;text-align:left">Deskripsi</th><th style="padding:8px;text-align:center">Qty</th><th style="padding:8px;text-align:right">Harga</th><th style="padding:8px;text-align:right">Subtotal</th></tr></thead><tbody>${rows}</tbody><tfoot><tr style="background:#fef3c7"><td colspan="5" style="padding:8px;text-align:right;font-weight:bold">Total</td><td style="padding:8px;text-align:right;font-weight:bold">${formatRupiah(total)}</td></tr></tfoot></table>`;
 }
 
-function syncTotalVariable(variables: Record<string, string>, items: LineItem[], setVariables: (v: Record<string, string>) => void) {
+function syncTotalVariable(variables: Record<string, string>, items: LineItem[], setVariables: React.Dispatch<React.SetStateAction<Record<string, string>>>) {
   const total = items.reduce((s, it) => s + it.qty * it.price, 0);
   setVariables(prev => {
     const updated = { ...prev };

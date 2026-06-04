@@ -190,7 +190,7 @@ interface VariableInputFormProps {
   variables: Record<string, string>;
   setVariables: (v: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
   lineItems: Record<string, LineItem[]>;
-  setLineItems: (v: Record<string, LineItem[]>) => void;
+  setLineItems: React.Dispatch<React.SetStateAction<Record<string, LineItem[]>>>;
   selectedTemplate: any;
   paymentMethods: any[];
   products: any[];
