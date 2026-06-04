@@ -30,7 +30,7 @@ export default function EditClientModal({ contact, open, onClose, onSuccess, set
   if (!open || !contact) return null;
 
   async function handleSave() {
-    if (!form.business_name || !form.phone_number) return;
+    if (!contact || !form.business_name || !form.phone_number) return;
     const res = await apiFetch(`/api/contacts/${contact.id}`, {
       method: "PATCH", body: JSON.stringify(form),
     });
