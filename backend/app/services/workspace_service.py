@@ -242,7 +242,7 @@ def update_cell(
     value_date: Optional[str] = None,
     value_json: Optional[str] = None,
 ) -> WorkspaceCell:
-    """Update a cell value and recalculate board card status."""
+    """Update a cell value by cell_id and recalculate board card status."""
     cell = db.query(WorkspaceCell).filter(WorkspaceCell.id == cell_id).first()
     if not cell:
         raise ValueError("Cell tidak ditemukan")
@@ -266,6 +266,58 @@ def update_cell(
     _sync_row_to_board(cell.row_id, db)
 
     return cell
+
+
+def update_cell_by_row_and_column(
+    db: Session,
+    row_id: str,
+    column_id: str,
+    value_text: Optional[str] = None,
+    value_bool: Optional[bool] = None,
+    value_number: Optional[float] = None,
+    value_date: Optional[str] = None,
+    value_json: Optional[str] = None,
+) -> tuple[WorkspaceCell, str]:
+    """
+    Update a cell by row_id + column_id (find-or-create pattern).
+    Returns (cell, row_id) for board sync.
+    """
+    row = db.query(WorkspaceRow).filter(WorkspaceRow.id == row_id).first()
+    if not row:
+        raise ValueError("Row tidak ditemukan")
+
+    col = db.query(WorkspaceColumn).filter(WorkspaceColumn.id == column_id).first()
+    if not col:
+        raise ValueError("Column tidak ditemukan")
+
+    cell = db.query(WorkspaceCell).filter(
+        WorkspaceCell.row_id == row_id,
+        WorkspaceCell.column_id == column_id,
+    ).first()
+
+    if not cell:
+        cell = WorkspaceCell(id=str(uuid.uuid4()), row_id=row_id, column_id=column_id)
+        db.add(cell)
+        db.flush()
+
+    if value_text is not None:
+        cell.value_text = value_text
+    if value_bool is not None:
+        cell.value_bool = value_bool
+    if value_number is not None:
+        cell.value_number = value_number
+    if value_date is not None:
+        cell.value_date = value_date
+    if value_json is not None:
+        cell.value_json = value_json
+
+    cell.updated_at = datetime.now(timezone.utc).isoformat()
+    row.updated_at = cell.updated_at
+    db.commit()
+    db.refresh(cell)
+
+    _sync_row_to_board(row_id, db)
+    return cell, row_id
 
 
 def add_row(
