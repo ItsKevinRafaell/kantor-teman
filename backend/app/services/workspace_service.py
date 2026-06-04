@@ -115,7 +115,7 @@ def init_workspace_sheets(
 # ─── Workspace Data (GET) ────────────────────────────────────────────────────
 
 def get_workspace_data(db: Session, project_id: str) -> dict:
-    """Fetch all workspace data for a project (sheets, columns, rows, cells)."""
+    """Fetch all workspace data for a project using batch queries (no N+1)."""
     sheets = db.query(WorkspaceSheet).filter(
         WorkspaceSheet.project_id == project_id
     ).order_by(WorkspaceSheet.sheet_index).all()
@@ -124,14 +124,46 @@ def get_workspace_data(db: Session, project_id: str) -> dict:
     if sheets:
         result["service_type"] = sheets[0].service_type
 
-    for sheet in sheets:
-        cols = db.query(WorkspaceColumn).filter(
-            WorkspaceColumn.sheet_id == sheet.id
-        ).order_by(WorkspaceColumn.column_order).all()
+    if not sheets:
+        return result
 
-        rows = db.query(WorkspaceRow).filter(
-            WorkspaceRow.sheet_id == sheet.id
-        ).order_by(WorkspaceRow.row_order).all()
+    sheet_ids = [s.id for s in sheets]
+
+    # Batch 1: all columns for all sheets
+    all_cols = db.query(WorkspaceColumn).filter(
+        WorkspaceColumn.sheet_id.in_(sheet_ids)
+    ).order_by(WorkspaceColumn.column_order).all()
+
+    # Batch 2: all rows for all sheets
+    all_rows = db.query(WorkspaceRow).filter(
+        WorkspaceRow.sheet_id.in_(sheet_ids)
+    ).order_by(WorkspaceRow.row_order).all()
+
+    # Batch 3: all cells for all rows (only if rows exist)
+    row_ids = [r.id for r in all_rows]
+    all_cells = []
+    if row_ids:
+        all_cells = db.query(WorkspaceCell).filter(
+            WorkspaceCell.row_id.in_(row_ids)
+        ).all()
+
+    # Build in-memory lookup dicts
+    cols_by_sheet = {}
+    for col in all_cols:
+        cols_by_sheet.setdefault(col.sheet_id, []).append(col)
+
+    rows_by_sheet = {}
+    for row in all_rows:
+        rows_by_sheet.setdefault(row.sheet_id, []).append(row)
+
+    cells_by_row = {}
+    for cell in all_cells:
+        cells_by_row.setdefault(cell.row_id, []).append(cell)
+
+    # Reconstruct sheets
+    for sheet in sheets:
+        cols = cols_by_sheet.get(sheet.id, [])
+        rows = rows_by_sheet.get(sheet.id, [])
 
         cols_data = [{
             "id": c.id,
@@ -145,7 +177,7 @@ def get_workspace_data(db: Session, project_id: str) -> dict:
 
         rows_data = []
         for row in rows:
-            cells = db.query(WorkspaceCell).filter(WorkspaceCell.row_id == row.id).all()
+            cells = cells_by_row.get(row.id, [])
             cells_map = {}
             for cell in cells:
                 cells_map[cell.column_id] = {
@@ -179,45 +211,54 @@ def get_workspace_data(db: Session, project_id: str) -> dict:
 # ─── Workspace Summary ───────────────────────────────────────────────────────
 
 def get_workspace_summary(db: Session, project_id: str) -> dict:
-    """Aggregate row/column/cell counts and progress for a workspace."""
+    """Aggregate row/column/cell counts and progress using batch queries."""
     sheets = db.query(WorkspaceSheet).filter(
         WorkspaceSheet.project_id == project_id
     ).all()
 
-    total_rows = 0
+    if not sheets:
+        return {
+            "project_id": project_id, "sheet_count": 0,
+            "total_rows": 0, "total_cells": 0, "done_rows": 0, "progress_percent": 0,
+        }
+
+    sheet_ids = [s.id for s in sheets]
+
+    # Batch 1: done columns for all sheets (single query, not N)
+    done_cols = db.query(WorkspaceColumn).filter(
+        WorkspaceColumn.sheet_id.in_(sheet_ids),
+        WorkspaceColumn.column_key == "done",
+    ).all()
+    done_col_ids = [c.id for c in done_cols]
+
+    # Batch 2: all rows + cell counts in one query per sheet
+    all_rows = db.query(WorkspaceRow).filter(
+        WorkspaceRow.sheet_id.in_(sheet_ids)
+    ).all()
+    total_rows = len(all_rows)
+    row_ids = [r.id for r in all_rows]
+
+    # Batch 3: all cells (for total count)
     total_cells = 0
-    done_rows = 0
-
-    done_col_ids = []
-    for sheet in sheets:
-        done_col = db.query(WorkspaceColumn).filter(
-            WorkspaceColumn.sheet_id == sheet.id,
-            WorkspaceColumn.column_key == "done",
-        ).first()
-        if done_col:
-            done_col_ids.append(done_col.id)
-
-    for sheet in sheets:
-        rows = db.query(WorkspaceRow).filter(
-            WorkspaceRow.sheet_id == sheet.id
+    cells_by_row = {}
+    if row_ids:
+        all_cells = db.query(WorkspaceCell).filter(
+            WorkspaceCell.row_id.in_(row_ids)
         ).all()
-        total_rows += len(rows)
+        total_cells = len(all_cells)
+        for cell in all_cells:
+            cells_by_row.setdefault(cell.row_id, []).append(cell)
 
-        for row in rows:
-            cells = db.query(WorkspaceCell).filter(
-                WorkspaceCell.row_id == row.id
-            ).all()
-            total_cells += len(cells)
-
-            # Check if done (done column has value_bool=True)
-            if done_col_ids:
-                done_cells = db.query(WorkspaceCell).filter(
-                    WorkspaceCell.row_id == row.id,
-                    WorkspaceCell.column_id.in_(done_col_ids),
-                    WorkspaceCell.value_bool == True,
-                ).count()
-                if done_cells > 0:
-                    done_rows += 1
+    # Batch 4: done cell counts (single query for all done cols)
+    done_rows = 0
+    if done_col_ids:
+        done_cells = db.query(WorkspaceCell).filter(
+            WorkspaceCell.column_id.in_(done_col_ids),
+            WorkspaceCell.value_bool == True,
+        ).all()
+        # Count unique rows that have at least one done cell
+        done_row_ids = {cell.row_id for cell in done_cells}
+        done_rows = len(done_row_ids)
 
     progress = round(done_rows / total_rows * 100) if total_rows > 0 else 0
 
