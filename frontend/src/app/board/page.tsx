@@ -2,76 +2,19 @@
 
 import { useState, useEffect } from "react";
 import { apiFetch } from "../../lib/api";
-import { Plus, Trash2, Calendar, User, MessageSquare, CheckSquare, X, Archive, ArchiveRestore, Activity } from "lucide-react";
+import { Plus, Trash2, Archive, ArchiveRestore, X, User, Calendar, MessageSquare, CheckSquare, Activity } from "lucide-react";
 import Toast from "../../components/Toast";
 import ConfirmModal from "../../components/ConfirmModal";
 import { useAuth } from "../../contexts/AuthContext";
+import { BoardColumnItem } from "../../components/board/BoardColumn";
+import { BoardOverviewCard } from "../../components/board/BoardOverview";
+import { COLUMN_COLORS, BOARD_TOP_BORDER, CARD_COLORS, LABEL_COLORS } from "../../components/board/types";
+import type { Lead, Project, BoardCard, BoardColumn, Board, BoardOverview } from "../../components/board/types";
 
 const COLORS = {
   primary: "bg-amber-500 hover:bg-amber-600 text-white",
   secondary: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700",
 };
-
-const COLUMN_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  yellow: { bg: "bg-yellow-50 dark:bg-yellow-900/20", border: "border-yellow-300 dark:border-yellow-700", text: "text-yellow-700 dark:text-yellow-300" },
-  red: { bg: "bg-red-50 dark:bg-red-900/20", border: "border-red-300 dark:border-red-700", text: "text-red-700 dark:text-red-300" },
-  orange: { bg: "bg-orange-50 dark:bg-orange-900/20", border: "border-orange-300 dark:border-orange-700", text: "text-orange-700 dark:text-orange-300" },
-  green: { bg: "bg-green-50 dark:bg-green-900/20", border: "border-green-300 dark:border-green-700", text: "text-green-700 dark:text-green-300" },
-  blue: { bg: "bg-blue-50 dark:bg-blue-900/20", border: "border-blue-300 dark:border-blue-700", text: "text-blue-700 dark:text-blue-300" },
-  purple: { bg: "bg-purple-50 dark:bg-purple-900/20", border: "border-purple-300 dark:border-purple-700", text: "text-purple-700 dark:text-purple-300" },
-  pink: { bg: "bg-pink-50 dark:bg-pink-900/20", border: "border-pink-300 dark:border-pink-700", text: "text-pink-700 dark:text-pink-300" },
-  slate: { bg: "bg-slate-50 dark:bg-slate-900/20", border: "border-slate-300 dark:border-slate-600", text: "text-slate-700 dark:text-slate-300" },
-};
-
-// Card colors: tinted background only, no extra border
-const CARD_COLORS: Record<string, { bg: string; accent: string; text: string }> = {
-  yellow: { bg: "bg-yellow-50 dark:bg-yellow-900/25", accent: "", text: "text-yellow-700 dark:text-yellow-300" },
-  red: { bg: "bg-red-50 dark:bg-red-900/25", accent: "", text: "text-red-700 dark:text-red-300" },
-  orange: { bg: "bg-orange-50 dark:bg-orange-900/25", accent: "", text: "text-orange-700 dark:text-orange-300" },
-  green: { bg: "bg-green-50 dark:bg-green-900/25", accent: "", text: "text-green-700 dark:text-green-300" },
-  blue: { bg: "bg-blue-50 dark:bg-blue-900/25", accent: "", text: "text-blue-700 dark:text-blue-300" },
-  purple: { bg: "bg-purple-50 dark:bg-purple-900/25", accent: "", text: "text-purple-700 dark:text-purple-300" },
-  pink: { bg: "bg-pink-50 dark:bg-pink-900/25", accent: "", text: "text-pink-700 dark:text-pink-300" },
-  slate: { bg: "bg-slate-50 dark:bg-slate-900/25", accent: "", text: "text-slate-700 dark:text-slate-300" },
-};
-
-// Board accent: thick top border for the board container
-const BOARD_TOP_BORDER: Record<string, string> = {
-  yellow: "border-t-4 border-yellow-400",
-  red: "border-t-4 border-red-400",
-  orange: "border-t-4 border-orange-400",
-  green: "border-t-4 border-green-400",
-  blue: "border-t-4 border-blue-400",
-  purple: "border-t-4 border-purple-400",
-  pink: "border-t-4 border-pink-400",
-  slate: "border-t-4 border-slate-400",
-};
-
-const LABEL_COLORS: Record<string, string> = {
-  red: "bg-red-500", orange: "bg-orange-500", yellow: "bg-amber-500",
-  green: "bg-green-500", blue: "bg-blue-500", purple: "bg-purple-500", pink: "bg-pink-500",
-};
-
-interface Lead { id: number; business_name: string; }
-interface Project { id: string; name: string; type: string; status: string; lead_id: number | null; color?: string; is_archived?: boolean; nominal?: number; }
-interface BoardCard {
-  id: string; column_id: string; title: string; description: string | null;
-  assignee: string | null; due_date: string | null; labels: string[];
-  position: number; is_archived: boolean; created_at: string; updated_at: string | null;
-  lead_id?: number | null; lead?: Lead | null; color?: string;
-  is_workspace_linked?: boolean;
-  comments: { id: string; content: string; author: string; created_at: string }[];
-  checklist: { id: string; text: string; is_done: boolean }[];
-  activity: { id: string; action: string; description: string; actor: string; created_at: string }[];
-}
-interface BoardColumn { id: string; board_id: string; name: string; position: number; color?: string; cards: BoardCard[]; }
-interface Board { id: string; project_id: string; created_at: string; color?: string; columns: BoardColumn[]; }
-interface BoardOverview {
-  project_id: string; project_name: string; board_id: string;
-  cards_count: number; columns_count: number; client_name?: string;
-  overdue_cards?: string[]; due_soon_cards?: string[];
-  color?: string; project_lead_id?: number | null; is_archived?: boolean;
-}
 
 function Modal({ open, onClose, title, children, size = "md" }: {
   open: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: "sm" | "md" | "lg"
@@ -498,69 +441,21 @@ export default function BoardPage() {
               <p className="text-xs text-neutral-400 mt-1">Klik "Proyek Baru" untuk mulai.</p>
             </div>
           )}
-          {overview.map(item => {
-            const itemColor = COLUMN_COLORS[item.color || "yellow"] || COLUMN_COLORS.yellow;
-            return (
-              <div key={item.project_id}
-                className={`rounded-xl border p-4 transition-all hover:shadow-md ${itemColor.bg} ${itemColor.border} ${item.is_archived ? "opacity-60" : ""}`}>
-                {/* Header row */}
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <h3 className="font-semibold text-neutral-800 dark:text-neutral-200 leading-tight cursor-pointer flex-1" onClick={() => !item.is_archived && setSelectedProject(item.project_id)}>
-                    {item.project_name}
-                  </h3>
-                  {/* Action buttons */}
-                  <div className="flex gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                    {isAdmin && !item.is_archived && (
-                      <button title="Edit proyek" onClick={() => {
-                        const p = projects.find(x => x.id === item.project_id);
-                        if (p) {
-                          setEditProjectForm({ name: p.name, type: p.type as "FIXED"|"RETAINER", status: p.status, nominal: (p as any).nominal || 0, lead_id: p.lead_id, color: p.color || "yellow" });
-                          setEditProjectModal({ open: true, projectId: p.id });
-                        }
-                      }} className="p-1.5 text-neutral-400 hover:text-amber-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-xl transition-colors">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                      </button>
-                    )}
-                    {isAdmin && <button title={item.is_archived ? "Pulihkan proyek" : "Arsipkan proyek"}
-                      onClick={() => archiveProject(item.project_id, !item.is_archived)}
-                      className="p-1.5 text-neutral-400 hover:text-amber-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-xl transition-colors">
-                      {item.is_archived ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
-                    </button>}
-                    {isAdmin && <button title="Hapus proyek"
-                      onClick={() => showConfirm("Hapus Proyek", `Proyek "${item.project_name}" beserta semua board, kolom, dan card-nya akan dihapus permanen.`, () => deleteProjectFromBoard(item.project_id, item.project_name))}
-                      className="p-1.5 text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>}
-                  </div>
-                </div>
-
-                {/* Client name */}
-                {item.client_name && (
-                  <p className="text-xs font-medium text-amber-600 dark:text-yellow-400 mb-2 flex items-center gap-1">
-                    <User className="w-3 h-3" /> {item.client_name}
-                  </p>
-                )}
-
-                {/* Stats */}
-                <div className="flex items-center gap-3 text-sm text-neutral-500 mb-2">
-                  <span>{item.cards_count} card</span>
-                  <span>{item.columns_count} kolom</span>
-                </div>
-
-                {/* Badges */}
-                {((item.overdue_cards?.length || 0) > 0 || (item.due_soon_cards?.length || 0) > 0) && (
-                  <div className="flex gap-1 flex-wrap">
-                    {(item.overdue_cards?.length || 0) > 0 && (
-                      <span className="text-xs bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full">{item.overdue_cards?.length} overdue</span>
-                    )}
-                    {(item.due_soon_cards?.length || 0) > 0 && (
-                      <span className="text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full">{item.due_soon_cards?.length} due soon</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {overview.map(item => (
+            <BoardOverviewCard
+              key={item.project_id}
+              item={item}
+              projects={projects}
+              onSelectProject={setSelectedProject}
+              onArchiveProject={archiveProject}
+              onDeleteProject={deleteProjectFromBoard}
+              onShowConfirm={showConfirm}
+              onEditProject={p => {
+                setEditProjectForm({ name: p.name, type: p.type as "FIXED"|"RETAINER", status: p.status, nominal: (p as any).nominal || 0, lead_id: p.lead_id, color: p.color || "yellow" });
+                setEditProjectModal({ open: true, projectId: p.id });
+              }}
+            />
+          ))}
         </div>
       )}
 
@@ -568,103 +463,29 @@ export default function BoardPage() {
       {viewMode === "board" && board && (
         <div className="flex-1 overflow-x-auto">
           <div className="flex gap-4 min-w-max pb-4 h-full">
-            {board.columns.map(column => {
-              const colColor = COLUMN_COLORS[column.color || "yellow"] || COLUMN_COLORS.yellow;
-              const isDropTarget = dragOverColumn === column.id && draggedCard !== null;
-              let cards = Array.isArray(column.cards) ? column.cards : [];
-              cards = cards.filter(c => showArchived ? c.is_archived : !c.is_archived);
-              if (filterAssignee) cards = cards.filter(c => c.assignee === filterAssignee);
-              if (filterDue === "overdue") cards = cards.filter(c => c.due_date && new Date(c.due_date) < new Date());
-              if (filterDue === "soon") cards = cards.filter(c => c.due_date && new Date(c.due_date) <= new Date(Date.now() + 3 * 24 * 60 * 60 * 1000));
-
-              const colTopBorder = BOARD_TOP_BORDER[column.color || "yellow"] || BOARD_TOP_BORDER.yellow;
-              return (
-                <div key={column.id}
-                  className={`w-72 shrink-0 rounded-xl flex flex-col transition-all ${colColor.bg} ${colTopBorder} ${isDropTarget ? `ring-2 ring-yellow-400 ring-inset shadow-lg` : ""}`}
-                  onDragOver={e => handleDragOver(e, column.id)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={() => handleDrop(column.id)}
-                >
-                  <div className={`p-3 border-b ${colColor.border} flex items-center justify-between`}>
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${COLUMN_COLORS[column.color || "yellow"].border.replace("border-", "bg-").split(" ")[0]}`} />
-                      <h3 className={`font-semibold text-sm ${colColor.text}`}>{column.name}</h3>
-                      <span className="text-xs text-neutral-400 bg-white/60 dark:bg-black/20 px-1.5 py-0.5 rounded-full">{cards.length}</span>
-                    </div>
-                    <div className="flex items-center gap-0.5">
-                      <button onClick={() => { setColumnModal({ open: true, column }); setColumnName(column.name); setColumnColor(column.color || "yellow"); }} className="p-1 text-neutral-400 hover:text-amber-500 rounded text-xs">Edit</button>
-                      <button onClick={() => showConfirm("Hapus Kolom", `Kolom "${column.name}" dan semua card di dalamnya akan dihapus permanen.`, () => deleteColumn(column.id))} className="p-1 text-neutral-400 hover:text-red-500 rounded"><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
-                  </div>
-
-                  <div className={`flex-1 overflow-y-auto p-2 space-y-2 min-h-[80px] transition-colors ${isDropTarget ? "bg-yellow-50/50 dark:bg-yellow-900/10" : ""}`}>
-                    {cards.map(card => {
-                      const cc = CARD_COLORS[card.color || "yellow"] || CARD_COLORS.yellow;
-                      const isDragging = draggedCard?.card.id === card.id;
-                      return (
-                        <div key={card.id} draggable
-                          onDragStart={() => handleDragStart(card, column.id)}
-                          onDragEnd={handleDragEnd}
-                          onClick={() => openEditCardModal(card, column.id)}
-                          className={`rounded-xl p-3 shadow-sm cursor-pointer select-none transition-all duration-150
-                            ${cc.bg} ${cc.accent}
-                            ${card.is_archived ? "opacity-50" : ""}
-                            ${isDragging ? "opacity-40 scale-95 rotate-1 shadow-xl" : "hover:shadow-md hover:-translate-y-0.5"}`}
-                        >
-                          {Array.isArray(card.labels) && card.labels.length > 0 && (
-                            <div className="flex gap-1 mb-2">
-                              {card.labels.map(label => <span key={label} className={`h-1.5 w-8 rounded-full ${LABEL_COLORS[label]}`} />)}
-                            </div>
-                          )}
-                          <div className="flex items-start gap-1">
-                            <h4 className="font-medium text-neutral-800 dark:text-neutral-200 text-sm leading-snug flex-1">{card.title}</h4>
-                            {card.is_workspace_linked && (
-                              <span title="Nama diatur dari Workspace" className="shrink-0 mt-0.5">
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                              </span>
-                            )}
-                          </div>
-                          {(card.lead?.business_name || leads.find(l => l.id === card.lead_id)?.business_name) && (
-                            <p className="text-xs text-amber-600 dark:text-yellow-400 mt-1">
-                              {card.lead?.business_name || leads.find(l => l.id === card.lead_id)?.business_name}
-                            </p>
-                          )}
-                          <div className="flex items-center gap-2 mt-2 flex-wrap">
-                            {card.due_date && (
-                              <span className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${new Date(card.due_date) < new Date() ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" : "text-neutral-500"}`}>
-                                <Calendar className="w-3 h-3" />{formatDate(card.due_date)}
-                              </span>
-                            )}
-                            {card.assignee && <span className="flex items-center gap-1 text-xs text-neutral-500"><User className="w-3 h-3" />{card.assignee}</span>}
-                            {(card.comments?.length || 0) > 0 && <span className="flex items-center gap-1 text-xs text-neutral-500"><MessageSquare className="w-3 h-3" />{card.comments.length}</span>}
-                            {(card.checklist?.length || 0) > 0 && (
-                              <span className="flex items-center gap-1 text-xs text-neutral-500">
-                                <CheckSquare className="w-3 h-3" />
-                                {card.checklist.filter(c => c.is_done).length}/{card.checklist.length}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {/* Drop indicator */}
-                    {isDropTarget && (
-                      <div className="h-12 rounded-xl border-2 border-dashed border-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/10 flex items-center justify-center">
-                        <span className="text-xs text-amber-500">Lepas di sini</span>
-                      </div>
-                    )}
-
-                    {!showArchived && (
-                      <button onClick={() => openNewCardModal(column.id)}
-                        className="w-full p-2 text-sm text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-white/60 dark:hover:bg-black/20 rounded-xl flex items-center justify-center gap-1 transition-colors">
-                        <Plus className="w-4 h-4" /> Tambah Card
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {board.columns.map(column => (
+              <BoardColumnItem
+                key={column.id}
+                column={column}
+                COLUMN_COLORS={COLUMN_COLORS}
+                BOARD_TOP_BORDER={BOARD_TOP_BORDER}
+                leads={leads}
+                draggedCard={draggedCard}
+                dragOverColumn={dragOverColumn}
+                showArchived={showArchived}
+                filterAssignee={filterAssignee}
+                filterDue={filterDue}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDragOver={setDragOverColumn}
+                onDragLeave={() => setDragOverColumn(null)}
+                onDrop={handleDrop}
+                onOpenEditCard={openEditCardModal}
+                onOpenNewCard={openNewCardModal}
+                onEditColumn={col => { const c = board?.columns.find(x => x.id === col.id); setColumnModal({ open: true, column: c || { id: col.id, board_id: "", name: col.name, color: col.color, position: 0, cards: [] } }); setColumnName(col.name); setColumnColor(col.color || "yellow"); }}
+                onDeleteColumn={(id, name) => showConfirm("Hapus Kolom", `Kolom "${name}" dan semua card di dalamnya akan dihapus permanen.`, () => deleteColumn(id))}
+              />
+            ))}
           </div>
         </div>
       )}
