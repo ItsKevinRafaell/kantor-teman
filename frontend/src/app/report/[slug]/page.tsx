@@ -4,6 +4,9 @@ import { formatRupiah } from "../../../utils/formatter";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { useTheme } from "next-themes";
+import { ReportHero } from "../../../components/report/ReportHero";
+import { AuditScore } from "../../../components/report/AuditScore";
+import { BeforeAfterComparison } from "../../../components/report/BeforeAfterComparison";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
