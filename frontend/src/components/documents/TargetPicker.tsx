@@ -2,26 +2,22 @@
 
 import { Search } from "lucide-react";
 
-interface Lead { id: number; business_name: string; phone_number: string; product_interest: string | null; }
-interface Contact { id: number; business_name: string; owner_name: string | null; phone_number: string; purchased_product: string | null; }
-interface Project { id: string; lead_id: number | null; name: string; nominal: number; service_type: string | null; }
-
 type TargetType = "empty" | "lead" | "contact" | "project";
 
 interface Props {
   targetType: TargetType;
   targetSearch: string;
-  leads: Lead[];
-  contacts: Contact[];
-  projects: Project[];
-  selectedLead: Lead | null;
-  selectedContact: Contact | null;
-  selectedProject: Project | null;
+  leads: any[];
+  contacts: any[];
+  projects: any[];
+  selectedLead: any | null;
+  selectedContact: any | null;
+  selectedProject: any | null;
   onTargetTypeChange: (t: TargetType) => void;
   onSearchChange: (s: string) => void;
-  onPickLead: (l: Lead) => void;
-  onPickContact: (c: Contact) => void;
-  onPickProject: (p: Project) => void;
+  onPickLead: (l: any) => void;
+  onPickContact: (c: any) => void;
+  onPickProject: (p: any) => void;
 }
 
 export function TargetPicker({

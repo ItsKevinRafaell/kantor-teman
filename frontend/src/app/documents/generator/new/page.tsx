@@ -5,6 +5,9 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { apiFetch } from "../../../../lib/api";
 import { ChevronRight, ChevronLeft, Download, Mail, Check, Search, Plus, Trash2, X, BookOpen, Save } from "lucide-react";
 import Toast from "../../../../components/Toast";
+import { TemplateStepper, TemplatePicker } from "../../../../components/documents/TemplatePicker";
+import { TargetPicker } from "../../../../components/documents/TargetPicker";
+import { VariableInputForm } from "../../../../components/documents/VariableInputForm";
 
 interface PaymentMethod { id: number; name: string; account_number: string; account_name: string; notes: string | null; is_active: boolean; }
 
@@ -620,138 +623,35 @@ export default function DocumentNewPage() {
       </div>
 
       {/* Stepper */}
-      <div className="flex items-center gap-1">
-        {STEPS.map((s, i) => (
-          <div key={i} className="flex items-center gap-1">
-            <div className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold transition-colors ${i < step ? "bg-green-500 text-white" : i === step ? "bg-amber-500 text-white" : "bg-gray-200 dark:bg-neutral-700 text-gray-500"}`}>
-              {i < step ? <Check size={12} /> : i + 1}
-            </div>
-            <span className={`text-xs font-medium hidden sm:block ${i === step ? "text-amber-600" : "text-gray-400"}`}>{s}</span>
-            {i < STEPS.length - 1 && <div className="w-4 h-px bg-gray-200 dark:bg-neutral-700 mx-1" />}
-          </div>
-        ))}
-      </div>
+      <TemplateStepper step={step} />
 
       {/* Step 0: Pick Template */}
       {step === 0 && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-bold text-neutral-700 dark:text-neutral-300">Pilih Template</h2>
-          {templates.length === 0 && <p className="text-sm text-gray-400">Belum ada template. Buat di halaman Templates dulu.</p>}
-          {templates.map(t => (
-            <button key={t.id} onClick={() => selectTemplate(t)}
-              className={`w-full text-left p-4 rounded-xl border-2 transition-colors ${selectedTemplate?.id === t.id ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20" : "border-[var(--border-default)] bg-white dark:bg-neutral-900 hover:border-amber-300"}`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{t.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Variabel: {t.variables.join(", ") || "—"}</p>
-                </div>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 font-bold uppercase">{t.type}</span>
-              </div>
-            </button>
-          ))}
-          <div className="flex justify-end pt-2">
-            <button onClick={() => setStep(1)} disabled={!selectedTemplate}
-              className="flex items-center gap-1.5 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl disabled:opacity-50">
-              Lanjut <ChevronRight size={16} />
-            </button>
-          </div>
-        </div>
+        <TemplatePicker
+          templates={templates}
+          selectedTemplate={selectedTemplate}
+          onSelect={selectTemplate}
+          onNext={() => setStep(1)}
+        />
       )}
 
       {/* Step 1: Pick Target */}
       {step === 1 && (
-        <div className="space-y-4">
-          <h2 className="text-sm font-bold text-neutral-700 dark:text-neutral-300">Pilih Target (opsional)</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <button onClick={() => { setTargetType("empty"); setSelectedLead(null); setSelectedContact(null); setSelectedProject(null); }}
-              className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold transition-colors ${targetType === "empty" ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20 text-amber-700" : "border-[var(--border-default)] text-gray-600 hover:border-amber-300"}`}>
-              Tanpa Target
-            </button>
-            <button onClick={() => setTargetType("lead")}
-              className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold transition-colors ${targetType === "lead" ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20 text-amber-700" : "border-[var(--border-default)] text-gray-600 hover:border-amber-300"}`}>
-              Dari Lead
-            </button>
-            <button onClick={() => setTargetType("contact")}
-              className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold transition-colors ${targetType === "contact" ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20 text-amber-700" : "border-[var(--border-default)] text-gray-600 hover:border-amber-300"}`}>
-              Dari Klien
-            </button>
-            <button onClick={() => setTargetType("project")}
-              className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold transition-colors ${targetType === "project" ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20 text-amber-700" : "border-[var(--border-default)] text-gray-600 hover:border-amber-300"}`}>
-              Dari Proyek
-            </button>
-          </div>
-
-          {(targetType === "lead" || targetType === "contact" || targetType === "project") && (
-            <>
-              <div className="relative">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  value={targetSearch}
-                  onChange={e => setTargetSearch(e.target.value)}
-                  placeholder={`Cari ${targetType === "lead" ? "lead" : targetType === "project" ? "proyek" : "klien"} berdasarkan nama atau layanan...`}
-                  className="w-full pl-10 pr-3 py-2.5 text-sm border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-800"
-                />
-              </div>
-
-              {targetType === "lead" && (
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {filteredLeads.length === 0 && <p className="text-sm text-gray-400 text-center py-4">Tidak ada lead.</p>}
-                  {filteredLeads.map(l => (
-                    <button key={l.id} onClick={() => pickLead(l)}
-                      className={`w-full text-left p-3 rounded-xl border transition-colors ${selectedLead?.id === l.id ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20" : "border-[var(--border-default)] bg-white dark:bg-neutral-900 hover:border-amber-300"}`}>
-                      <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{l.business_name}</p>
-                      <p className="text-xs text-gray-500">{l.product_interest || "—"} · {l.phone_number}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {targetType === "contact" && (
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {filteredContacts.length === 0 && <p className="text-sm text-gray-400 text-center py-4">Tidak ada klien.</p>}
-                  {filteredContacts.map(c => (
-                    <button key={c.id} onClick={() => pickContact(c)}
-                      className={`w-full text-left p-3 rounded-xl border transition-colors ${selectedContact?.id === c.id ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20" : "border-[var(--border-default)] bg-white dark:bg-neutral-900 hover:border-amber-300"}`}>
-                      <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{c.business_name}</p>
-                      <p className="text-xs text-gray-500">{c.purchased_product || "—"} · {c.phone_number}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {targetType === "project" && (
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {filteredProjects.length === 0 && <p className="text-sm text-gray-400 text-center py-4">Tidak ada proyek.</p>}
-                  {filteredProjects.map(project => (
-                    <button key={project.id} onClick={() => pickProject(project)}
-                      className={`w-full text-left p-3 rounded-xl border transition-colors ${selectedProject?.id === project.id ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20" : "border-[var(--border-default)] bg-white dark:bg-neutral-900 hover:border-amber-300"}`}>
-                      <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{project.name}</p>
-                      <p className="text-xs text-gray-500">{project.service_type || "Layanan umum"} · {formatRupiah(project.nominal || 0)}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-
-          <div className="flex justify-between pt-2">
-            <button onClick={() => setStep(0)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-gray-600 border border-gray-200 rounded-xl">
-              <ChevronLeft size={16} /> Kembali
-            </button>
-            <button onClick={() => {
-                if (selectedTemplate) {
-                  const ttype = selectedProject ? "project" : selectedLead ? "lead" : selectedContact ? "contact" : "empty";
-                  const tid = selectedProject?.id ?? selectedLead?.id ?? selectedContact?.id ?? null;
-                  fetchAndApplyDefaults(selectedTemplate, ttype, tid);
-                }
-                setStep(2);
-              }}
-              className="flex items-center gap-1.5 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl">
-              Lanjut <ChevronRight size={16} />
-            </button>
-          </div>
-        </div>
+        <TargetPicker
+          targetType={targetType}
+          targetSearch={targetSearch}
+          leads={filteredLeads}
+          contacts={filteredContacts}
+          projects={filteredProjects}
+          selectedLead={selectedLead}
+          selectedContact={selectedContact}
+          selectedProject={selectedProject}
+          onTargetTypeChange={t => { setTargetType(t); setSelectedLead(null); setSelectedContact(null); setSelectedProject(null); }}
+          onSearchChange={setTargetSearch}
+          onPickLead={pickLead}
+          onPickContact={pickContact}
+          onPickProject={pickProject}
+        />
       )}
 
       {/* Step 2: Fill Variables */}
