@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../lib/api";
+import { downloadBlob } from "../../utils/download";
 import Toast from "../../components/Toast";
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────

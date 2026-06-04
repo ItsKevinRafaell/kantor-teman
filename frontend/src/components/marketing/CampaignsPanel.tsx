@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "../../lib/api";
 import Modal from "../Modal";
 import Toast from "../Toast";
-import { formatRupiahInput, cleanRupiahInput } from "../../utils/formatter";
+import { formatRupiah, formatRupiahInput, cleanRupiahInput } from "../../utils/formatter";
 import { Plus, Trash2, ExternalLink, TrendingUp, Target, DollarSign } from "lucide-react";
 
 interface Campaign {
@@ -21,9 +21,6 @@ interface Campaign {
   cost_per_lead: number | null;
 }
 
-function formatRupiah(num: number): string {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num);
-}
 
 const STATUS_COLORS: Record<string, string> = {
   PLANNING: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",

@@ -1,3 +1,7 @@
+export function formatRupiah(num: number): string {
+  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num);
+}
+
 export function formatRupiahInput(value: string | number): string {
   const num = typeof value === "number" ? value : cleanRupiahInput(value);
   if (num === 0 && typeof value === "string" && value === "") return "";

@@ -1,9 +1,11 @@
 "use client";
+import { inputCls, inputClsLarge } from "../../lib/inputCls";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../lib/api";
 import { Plus, Wallet, TrendingUp, Target, PieChart, Edit2, Trash2, X, Download, RotateCcw } from "lucide-react";
-import { formatRupiahInput, cleanRupiahInput } from "../../utils/formatter";
+import { formatRupiah, formatRupiahInput, cleanRupiahInput } from "../../utils/formatter";
+import { downloadBlob } from "../../utils/download";
 import Modal from "../Modal";
 import Toast from "../Toast";
 
@@ -41,9 +43,6 @@ interface ClientData {
   business_name: string;
 }
 
-function formatRupiah(num: number): string {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num);
-}
 
 const COLORS = ["#f59e0b", "#3b82f6", "#10b981", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
 
@@ -191,7 +190,6 @@ export default function FinancePanel() {
 
   const totalExpenseCategory = report?.expense_by_category.reduce((s, c) => s + c.amount, 0) || 0;
 
-  const inputCls = "w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-neutral-50 dark:bg-neutral-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-yellow/50 transition";
 
   if (loading) {
     return (

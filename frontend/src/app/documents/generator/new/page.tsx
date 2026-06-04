@@ -1,4 +1,5 @@
 "use client";
+import { formatRupiah } from "../../../../utils/formatter";
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { apiFetch } from "../../../../lib/api";
@@ -167,9 +168,6 @@ function extractImgSrc(html: string): string {
   return m ? m[1] : "";
 }
 
-function formatRupiah(num: number): string {
-  return "Rp " + new Intl.NumberFormat("id-ID").format(num);
-}
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, char => ({

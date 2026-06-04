@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
+import { formatRupiah } from "../../../utils/formatter";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -48,9 +49,6 @@ interface Proposal {
   discount_expires_at?: string | null;
 }
 
-function formatRupiah(num: number): string {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num);
-}
 
 function formatDate(iso: string | null): string {
   if (!iso) return "-";

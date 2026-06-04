@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../lib/api";
+import { downloadBlob } from "../utils/download";
 import StarRating from "./StarRating";
 import { getScoreLabel, getScoreColor } from "../lib/leadScore";
 import { Search, Download, Plus, Pencil, Trash2, Target, Phone, Moon, Flame, Mail, Star, RefreshCw } from "lucide-react";

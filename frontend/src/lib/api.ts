@@ -1,8 +1,9 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(fn: () => void) { onUnauthorized = fn; }
+
 export function setToken(_token: string, name: string, email: string, role: string = "admin") {
-  // Token is now set as HttpOnly cookie by the backend on login.
-  // We only persist non-sensitive UI metadata in localStorage.
   localStorage.setItem("kt_name", name);
   localStorage.setItem("kt_email", email);
   localStorage.setItem("kt_role", role);
@@ -41,7 +42,11 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
     localStorage.removeItem("kt_name");
     localStorage.removeItem("kt_email");
     localStorage.removeItem("kt_role");
-    window.location.href = "/login";
+    if (onUnauthorized) {
+      onUnauthorized();
+    } else {
+      window.location.href = "/login";
+    }
   }
   return res;
 }

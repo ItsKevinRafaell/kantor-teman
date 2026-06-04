@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { apiFetch } from "../../lib/api";
+import { downloadBlob } from "../../utils/download";
 import Toast from "../../components/Toast";
 import { Download, RotateCcw, AlertTriangle, Database } from "lucide-react";
 
@@ -97,14 +98,7 @@ export default function DataTab() {
       const disposition = res.headers.get("Content-Disposition") ?? "";
       const match = disposition.match(/filename="?([^"]+)"?/);
       const filename = match ? match[1] : `kantorteman-backup-${Date.now()}.zip`;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, filename);
       showToast("Backup terunduh.");
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Backup gagal", "error");

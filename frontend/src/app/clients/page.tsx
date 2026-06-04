@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../lib/api";
 import { FileText, Copy, CheckCircle, Eye, ExternalLink, Download, Plus, Trash2 } from "lucide-react";
-import { formatRupiahInput, cleanRupiahInput } from "../../utils/formatter";
+import { formatRupiah, formatRupiahInput, cleanRupiahInput } from "../../utils/formatter";
+import { downloadBlob } from "../../utils/download";
+import { inputCls, inputClsLarge } from "../../lib/inputCls";
 import Modal from "../../components/Modal";
 import Toast from "../../components/Toast";
 import { useUserRole } from "../../lib/useUserRole";
@@ -58,10 +60,6 @@ interface ProposalRecord {
   business_name: string | null;
   phone_number: string | null;
   slug: string | null;
-}
-
-function formatRupiah(num: number): string {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num);
 }
 
 export default function ClientsPage() {
@@ -182,12 +180,7 @@ export default function ClientsPage() {
     const res = await apiFetch("/api/export/leads");
     if (res.ok) {
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "leads_export.csv";
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, "leads_export.csv");
     }
   }
 
@@ -531,7 +524,7 @@ export default function ClientsPage() {
                   <div>
                     <label className="block text-[10px] text-gray-400 uppercase mb-0.5">Fitur</label>
                     <textarea value={svc.features} onChange={(e) => updateSelectedService(svc.id, "features", e.target.value)}
-                      rows={2} className={inputCls + " resize-none"} />
+                      rows={2} className={inputClsLarge} />
                   </div>
                 </div>
               ))}
@@ -595,7 +588,7 @@ export default function ClientsPage() {
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">Penyesuaian Tambahan <span className="normal-case font-normal">(Opsional)</span></label>
             <textarea value={additionalOptions} onChange={(e) => setAdditionalOptions(e.target.value)}
               rows={2} placeholder="Catatan khusus, diskon, bonus, dll."
-              className={inputCls + " resize-none"} />
+              className={inputClsLarge} />
           </div>
 
           {/* ROI & Comparison Toggle */}
@@ -976,7 +969,7 @@ export default function ClientsPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Catatan</label>
-                <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))} rows={3} className={inputCls + " resize-none"} />
+                <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))} rows={3} className={inputClsLarge} />
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-2">

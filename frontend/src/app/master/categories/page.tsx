@@ -1,4 +1,5 @@
 "use client";
+import { inputCls, inputClsLarge } from "../../../lib/inputCls";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../../lib/api";
@@ -64,7 +65,6 @@ export default function CategoriesPage() {
     setDeleteId(null);
   }
 
-  const inputCls = "w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-neutral-50 dark:bg-neutral-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-yellow/50 transition";
 
   if (loading) {
     return (
@@ -152,7 +152,7 @@ export default function CategoriesPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Deskripsi Singkat</label>
-                <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} className={inputCls + " resize-none"} placeholder="Deskripsi opsional tentang kategori ini..." />
+                <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} className={inputClsLarge} placeholder="Deskripsi opsional tentang kategori ini..." />
               </div>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={form.is_active} onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))} className="w-4 h-4 rounded border-gray-300 text-brand-yellow focus:ring-brand-yellow/50" />

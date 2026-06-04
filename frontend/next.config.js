@@ -20,7 +20,7 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.kantorteman.
 const nextConfig = {
   trailingSlash: true,
   images: {
-    unoptimized: true,
+    unoptimized: false,
   },
   async rewrites() {
     return [
@@ -28,6 +28,14 @@ const nextConfig = {
       { source: "/r/:slug/", destination: `${BACKEND_URL}/r/:slug` },
       { source: "/p/:slug", destination: `${BACKEND_URL}/p/:slug` },
       { source: "/p/:slug/", destination: `${BACKEND_URL}/p/:slug` },
+    ];
+  },
+  async redirects() {
+    return [
+      { source: "/map", destination: "/leads?tab=peta", permanent: true },
+      { source: "/map/", destination: "/leads?tab=peta", permanent: true },
+      { source: "/scraper", destination: "/leads?tab=scrape", permanent: true },
+      { source: "/scraper/", destination: "/leads?tab=scrape", permanent: true },
     ];
   },
 };

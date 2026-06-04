@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../../lib/api";
 import { Plus, Edit2, Trash2, X, Package } from "lucide-react";
-import { formatRupiahInput, cleanRupiahInput } from "../../../utils/formatter";
+import { formatRupiah, formatRupiahInput, cleanRupiahInput } from "../../../utils/formatter";
+import { inputCls, inputClsLarge } from "../../../lib/inputCls";
 import Pagination from "../../../components/Pagination";
 import Modal from "../../../components/Modal";
 import Toast from "../../../components/Toast";
@@ -23,10 +24,6 @@ interface Product {
 interface CategoryOption {
   id: string;
   name: string;
-}
-
-function formatRupiah(num: number): string {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num);
 }
 
 export default function ProductsPage() {
@@ -106,7 +103,6 @@ export default function ProductsPage() {
     setDeleteId(null);
   }
 
-  const inputCls = "w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-neutral-50 dark:bg-neutral-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-yellow/50 transition";
 
   if (loading) {
     return (
@@ -222,7 +218,7 @@ export default function ProductsPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Fitur (satu per baris)</label>
-                <textarea value={form.features} onChange={e => setForm(f => ({ ...f, features: e.target.value }))} rows={4} className={inputCls + " resize-none"} placeholder="Riset keyword&#10;Optimasi on-page&#10;Backlink building" />
+                <textarea value={form.features} onChange={e => setForm(f => ({ ...f, features: e.target.value }))} rows={4} className={inputClsLarge} placeholder="Riset keyword&#10;Optimasi on-page&#10;Backlink building" />
               </div>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={form.is_active} onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))} className="w-4 h-4 rounded border-gray-300 text-brand-yellow focus:ring-brand-yellow/50" />

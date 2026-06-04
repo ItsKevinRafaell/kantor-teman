@@ -1,9 +1,10 @@
 "use client";
+import { inputCls, inputClsLarge } from "../../lib/inputCls";
 
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "../../lib/api";
 import { Plus, Edit2, Trash2, X, AlertTriangle } from "lucide-react";
-import { formatRupiahInput, cleanRupiahInput } from "../../utils/formatter";
+import { formatRupiah, formatRupiahInput, cleanRupiahInput } from "../../utils/formatter";
 import Modal from "../Modal";
 import Toast from "../Toast";
 
@@ -24,9 +25,6 @@ interface SubscriptionData {
   wallet_name: string | null;
 }
 
-function formatRupiah(num: number): string {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num);
-}
 
 function daysUntil(dateStr: string): number {
   const target = new Date(dateStr);
@@ -112,7 +110,6 @@ export default function SubscriptionsPanel() {
     }
   }
 
-  const inputCls = "w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-neutral-50 dark:bg-neutral-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-yellow/50 transition";
 
   const totalMonthly = subscriptions.filter(s => s.is_active).reduce((sum, s) => {
     return sum + (s.billing_cycle === "monthly" ? s.amount : s.amount / 12);

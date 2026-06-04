@@ -1,14 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { setUnauthorizedHandler } from "../lib/api";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import ProgressWidget from "./ProgressWidget";
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => router.push("/login"));
+  }, [router]);
 
   if (pathname === "/login" || pathname === "/login/" || pathname.startsWith("/proposal/") || pathname.startsWith("/report/")) {
     return <>{children}</>;

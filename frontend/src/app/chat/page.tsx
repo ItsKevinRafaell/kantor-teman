@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { downloadBlob } from "../../utils/download";
 import { Pencil } from "lucide-react";
 
 interface ChatProject {

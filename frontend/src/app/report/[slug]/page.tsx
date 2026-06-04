@@ -1,4 +1,5 @@
 "use client";
+import { formatRupiah } from "../../../utils/formatter";
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
@@ -38,13 +39,6 @@ interface ReportData {
   admin_name?: string;
 }
 
-function formatRupiah(num: number): string {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-  }).format(num);
-}
 
 function extractCity(address: string | null): string {
   if (!address) return "kota Anda";

@@ -1,4 +1,5 @@
 "use client";
+import { formatRupiah } from "../../utils/formatter";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../lib/api";
@@ -21,9 +22,6 @@ interface ProposalRecord {
   slug: string | null;
 }
 
-function formatRupiah(num: number): string {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num);
-}
 
 export default function ProposalsPage() {
   const [proposals, setProposals] = useState<ProposalRecord[]>([]);

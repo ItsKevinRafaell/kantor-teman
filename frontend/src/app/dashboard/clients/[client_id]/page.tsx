@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiFetch } from "../../../../lib/api";
-import { formatRupiahInput, cleanRupiahInput } from "../../../../utils/formatter";
+import { formatRupiah, formatRupiahInput, cleanRupiahInput } from "../../../../utils/formatter";
 import { ArrowLeft, Plus, AlertTriangle, TrendingUp, CreditCard, Wallet, Eye, EyeOff, Copy, Key, FileText, ExternalLink, Trash2 } from "lucide-react";
 import Toast from "../../../../components/Toast";
 import Modal from "../../../../components/Modal";
@@ -61,9 +61,6 @@ interface DocumentData {
   created_at: string;
 }
 
-function formatRupiah(num: number): string {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num);
-}
 
 function daysLeft(dateStr: string | null): number | null {
   if (!dateStr) return null;
