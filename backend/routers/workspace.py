@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse,
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import Base, engine, SessionLocal, get_db, log_audit, User, Lead, Contact, Project, Proposal, ProposalAnalytics, Transaction, Wallet, Subscription, PaymentMethod, AuditLog, Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, WorkspaceAttachment, DynamicTemplate, Document, DocumentFolder, DocumentTemplate, GeneratedDocument, BrandKit, BrandAsset, DocumentSequence, ServiceItem, Category, Product, ClientNote, ClientCredential, ClientDocument, AdsCampaign, BlastCampaign, BlastMessage, FollowUpSequence, MessageTemplate, ScrapeHistory, LeadActivityLog, LeadAnalysis, AIProxy, ContentProvider, ContentSession, ContentGeneration, SystemSettings, AIModel, ProviderConfig, ContentSchedule
+from models import get_db, log_audit, User, Lead, Project, Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, WorkspaceAttachment, DocumentTemplate, GeneratedDocument, Category
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, FRONTEND_URL, UPLOADS_DIR,
     _get_setting, get_fonnte_token, get_9router_config, build_analysis_prompt,
