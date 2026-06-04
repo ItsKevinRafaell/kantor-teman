@@ -11,6 +11,12 @@ import Modal from "./Modal";
 import Toast from "./Toast";
 import Pagination from "./Pagination";
 
+// Extracted lead components
+import SalesModal from "./leads/SalesModal";
+import FollowUpModal from "./leads/FollowUpModal";
+import WaPreviewModal from "./leads/WaPreviewModal";
+import BlastModal from "./leads/BlastModal";
+
 const STATUSES = ["Scraped", "Contacted", "Replied", "Closed/Lost", "Closed/Client"] as const;
 type Status = (typeof STATUSES)[number];
 
