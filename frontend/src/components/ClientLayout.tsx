@@ -6,8 +6,9 @@ import { setUnauthorizedHandler } from "../lib/api";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import ProgressWidget from "./ProgressWidget";
+import { AuthProvider } from "../contexts/AuthContext";
 
-export default function ClientLayout({ children }: { children: React.ReactNode }) {
+function LayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -20,7 +21,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     return <>{children}</>;
   }
 
-
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--bg-canvas)]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
@@ -32,5 +32,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       </div>
       <ProgressWidget />
     </div>
+  );
+}
+
+export default function ClientLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <AuthProvider>
+      <LayoutContent>{children}</LayoutContent>
+    </AuthProvider>
   );
 }

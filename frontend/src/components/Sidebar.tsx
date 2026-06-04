@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useUserRole } from "../lib/useUserRole";
+import { useAuth } from "../contexts/AuthContext";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -168,7 +168,7 @@ const NAV_GROUPS: NavGroup[] = [
 
 export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
-  const { isAdmin } = useUserRole();
+  const { isAdmin } = useAuth();
   const [customizing, setCustomizing] = useState(false);
   const [hiddenItems, setHiddenItems] = useState<Set<string>>(new Set());
   const [logoUrl, setLogoUrl] = useState<string | null>(null);

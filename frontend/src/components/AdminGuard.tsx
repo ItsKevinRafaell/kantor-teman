@@ -2,18 +2,18 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useUserRole } from "../lib/useUserRole";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function AdminGuard({ children }: { children: React.ReactNode }) {
-  const { isAdmin } = useUserRole();
+  const { isAdmin, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (!isLoading && !isAdmin) {
       router.replace("/dashboard");
     }
-  }, [isAdmin, router]);
+  }, [isAdmin, isLoading, router]);
 
-  if (!isAdmin) return null;
+  if (isLoading || !isAdmin) return null;
   return <>{children}</>;
 }
