@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse,
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import Base, engine, SessionLocal, get_db, log_audit, User, Lead, Contact, Project, Proposal, ProposalAnalytics, Transaction, Wallet, Subscription, PaymentMethod, AuditLog, Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, WorkspaceAttachment, DynamicTemplate, Document, DocumentFolder, DocumentTemplate, GeneratedDocument, BrandKit, BrandAsset, DocumentSequence, ServiceItem, Category, Product, ClientNote, ClientCredential, ClientDocument, AdsCampaign, BlastCampaign, BlastMessage, FollowUpSequence, MessageTemplate, ScrapeHistory, LeadActivityLog, LeadAnalysis, AIProxy, ContentProvider, ContentSession, ContentGeneration, SystemSettings, AIModel, ProviderConfig, ContentSchedule
+from models import get_db, log_audit, User, Lead, Contact, Proposal, ProposalAnalytics, Product, FollowUpSequence, ScrapeHistory, LeadAnalysis
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, GOOGLE_API_KEY,
     FRONTEND_URL, _check_simple_rate_limit, search_semaphore,
@@ -19,6 +19,12 @@ from app.core.dependencies import (get_current_user, require_admin, GOOGLE_API_K
     log_ai_cost, log_outreach_cost,
     get_ai_config, build_analysis_prompt, _call_ai_sync, call_ai_provider, parse_ai_response,
     _analysis_jobs, _blast_jobs,
+)
+from app.services.lead_service import (
+    get_leads_with_ghost_viewer_flag,
+    update_lead_status as _svc_update_lead_status,
+    recalculate_lead_score as _svc_recalculate_lead_score,
+    recalculate_all_lead_scores,
 )
 
 router = APIRouter()
@@ -238,57 +244,10 @@ def list_leads(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    query = db.query(Lead)
-    if archived_only:
-        query = query.filter(Lead.is_archived == True)
-    elif not include_archived:
-        query = query.filter(Lead.is_archived == False)
-    if status:
-        query = query.filter(Lead.status == status)
-    if batch_name:
-        query = query.filter(Lead.batch_name == batch_name)
-    leads = query.order_by(Lead.id.desc()).all()
-
-    # Ghost Viewer aggregation: count LINK_CLICKED in last 48h, threshold >= 5
-    ghost_lead_ids: set[int] = set()
-    if leads:
-        threshold_48h = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
-        lead_ids = [l.id for l in leads]
-        ghost_rows = db.query(
-            LeadActivityLog.lead_id, func.count(LeadActivityLog.id).label("click_count")
-        ).filter(
-            LeadActivityLog.lead_id.in_(lead_ids),
-            LeadActivityLog.activity_type == "LINK_CLICKED",
-            LeadActivityLog.created_at >= threshold_48h,
-        ).group_by(LeadActivityLog.lead_id).having(func.count(LeadActivityLog.id) >= 5).all()
-        ghost_lead_ids = {row[0] for row in ghost_rows}
-
-    results = []
-    for lead in leads:
-        results.append({
-            "id": lead.id,
-            "business_name": lead.business_name,
-            "phone_number": lead.phone_number,
-            "address": lead.address,
-            "original_url": lead.original_url,
-            "status": lead.status,
-            "product_interest": lead.product_interest,
-            "batch_name": lead.batch_name,
-            "rating": lead.rating or 0,
-            "is_archived": lead.is_archived,
-            "deleted_at": lead.deleted_at,
-            "lead_score": lead.lead_score or 0,
-            "is_ghost_viewer": lead.id in ghost_lead_ids,
-            "action_recommendation": _score_to_action(lead.lead_score or 0),
-            "google_rating": lead.google_rating,
-            "review_count": lead.review_count,
-            "website_url": lead.website_url,
-            "sales_owner": lead.sales_owner,
-            "next_action_at": lead.next_action_at,
-            "loss_reason": lead.loss_reason,
-            "do_not_contact": bool(lead.do_not_contact),
-        })
-    return results
+    return get_leads_with_ghost_viewer_flag(
+        db, status=status, batch_name=batch_name,
+        include_archived=include_archived, archived_only=archived_only,
+    )
 
 
 
@@ -373,26 +332,13 @@ def get_batches(current_user: User = Depends(get_current_user), db: Session = De
 
 @router.post("/api/leads/recalculate-scores")
 def recalculate_all_scores(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    leads = db.query(Lead).filter(Lead.is_archived == False).all()
-    updated = 0
-    for lead in leads:
-        new_score, _ = calculate_lead_score_full(lead)
-        if lead.lead_score != new_score:
-            lead.lead_score = new_score
-            updated += 1
-    db.commit()
-    return {"total": len(leads), "updated": updated}
+    return recalculate_all_lead_scores(db)
 
 
 
 @router.post("/api/leads/{lead_id}/recalculate")
 def recalculate_lead_score(lead_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    lead = db.query(Lead).filter(Lead.id == lead_id).first()
-    if not lead:
-        raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
-    score, breakdown = calculate_lead_score_full(lead)
-    lead.lead_score = score
-    db.commit()
+    score, breakdown = _svc_recalculate_lead_score(db, lead_id)
     return {"lead_id": lead_id, "score": score, "breakdown": breakdown}
 
 
@@ -420,28 +366,7 @@ def get_top_scored_leads(limit: int = 10, current_user: User = Depends(get_curre
 
 @router.patch("/api/leads/{lead_id}/status", response_model=LeadOut)
 def update_lead_status(lead_id: int, body: StatusUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    if body.status not in VALID_STATUSES:
-        raise HTTPException(status_code=400, detail="Status tidak valid.")
-    lead = db.query(Lead).filter(Lead.id == lead_id).first()
-    if not lead:
-        raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
-    old_status = lead.status
-    lead.status = body.status
-    lead.last_followup_at = datetime.now(timezone.utc).isoformat()
-    if body.status == "Replied":
-        now_iso = datetime.now(timezone.utc).isoformat()
-        pending = db.query(BlastMessage).filter(
-            BlastMessage.lead_id == lead_id,
-            BlastMessage.replied_at.is_(None),
-        ).all()
-        for bm in pending:
-            bm.replied_at = now_iso
-            bm.status = "replied"
-    db.commit()
-    db.refresh(lead)
-    lead.lead_score, _ = calculate_lead_score_full(lead)
-    db.commit()
-    log_audit(db, current_user.name, "UPDATE", "leads", lead_id, {"field": "status", "old": old_status, "new": body.status})
+    lead = _svc_update_lead_status(db, lead_id, body.status, current_user.name)
     return lead
 
 

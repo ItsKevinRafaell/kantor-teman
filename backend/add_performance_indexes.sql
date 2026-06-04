@@ -62,6 +62,31 @@ CREATE INDEX IF NOT EXISTS idx_board_card_activity_created_at ON board_card_acti
 CREATE INDEX IF NOT EXISTS idx_leads_archived_deleted ON leads(is_archived, deleted_at);
 CREATE INDEX IF NOT EXISTS idx_board_cards_archived ON board_cards(is_archived);
 
+-- Workspace: ordered lookups + done-cell counting
+CREATE INDEX IF NOT EXISTS idx_workspace_sheets_project_sheet ON workspace_sheets(project_id, sheet_index);
+CREATE INDEX IF NOT EXISTS idx_workspace_columns_sheet_key ON workspace_columns(sheet_id, column_key);
+CREATE INDEX IF NOT EXISTS idx_workspace_rows_sheet_order ON workspace_rows(sheet_id, row_order);
+
+-- Lead: status filtering + score sorting
+CREATE INDEX IF NOT EXISTS idx_leads_archived_status ON leads(is_archived, status);
+CREATE INDEX IF NOT EXISTS idx_leads_archived_score ON leads(is_archived, lead_score DESC);
+CREATE INDEX IF NOT EXISTS idx_leads_archived_batch ON leads(is_archived, batch_name);
+
+-- Board: card listing with position
+CREATE INDEX IF NOT EXISTS idx_board_cards_col_archived_pos ON board_cards(column_id, is_archived, position);
+
+-- Subscription: billing aggregation
+CREATE INDEX IF NOT EXISTS idx_subscriptions_active_cycle ON subscriptions(is_active, billing_cycle);
+
+-- Transaction: report filtering
+CREATE INDEX IF NOT EXISTS idx_transactions_wallet_archived_date ON transactions(wallet_id, is_archived, date);
+
+-- LeadActivityLog: ghost viewer aggregation
+CREATE INDEX IF NOT EXISTS idx_lead_activity_log_type_created ON lead_activity_log(lead_id, activity_type, created_at);
+
+-- Unique constraint on workspace cell (row_id, column_id)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_cells_unique_row_col ON workspace_cells(row_id, column_id);
+
 -- MySQL verification query - check index sizes
 -- SELECT
 --     table_name,

@@ -1,4 +1,3 @@
-import re, html as html_mod, random, asyncio, uuid, json, csv, io, base64, hmac, time, httpx
 import os
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -8,10 +7,20 @@ from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse,
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import Base, engine, SessionLocal, get_db, log_audit, User, Lead, Contact, Project, Proposal, ProposalAnalytics, Transaction, Wallet, Subscription, PaymentMethod, AuditLog, Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, WorkspaceAttachment, DynamicTemplate, Document, DocumentFolder, DocumentTemplate, GeneratedDocument, BrandKit, BrandAsset, DocumentSequence, ServiceItem, Category, Product, ClientNote, ClientCredential, ClientDocument, AdsCampaign, BlastCampaign, BlastMessage, FollowUpSequence, MessageTemplate, ScrapeHistory, LeadActivityLog, LeadAnalysis, AIProxy, ContentProvider, ContentSession, ContentGeneration, SystemSettings, AIModel, ProviderConfig, ContentSchedule
+from models import get_db, log_audit, User, Transaction, Wallet, Subscription, Lead, PaymentMethod, BlastCampaign, ProviderConfig
 from sqlalchemy import func, select
 from schemas import *
 from app.core.dependencies import get_current_user, require_admin, _deduct_due_subscriptions
+from app.services.finance_service import (
+    get_transactions as _svc_get_transactions,
+    create_transaction as _svc_create_transaction,
+    calculate_financial_summary,
+    invalidate_wallet_cache,
+)
+from app.core.cache import (
+    cached, make_request_cache_key,
+    invalidate_transaction_cache,
+)
 
 router = APIRouter()
 
@@ -64,57 +73,22 @@ def delete_wallet(wallet_id: int, current_user: User = Depends(require_admin), d
 
 @router.get("/api/finance/transactions", response_model=list[TransactionOut])
 def get_transactions(
+    request: Request,
     wallet_id: Optional[int] = Query(None),
     type: Optional[str] = Query(None),
     include_archived: bool = Query(False),
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    query = db.query(Transaction)
-    if not include_archived:
-        query = query.filter(Transaction.is_archived == False)
-    if wallet_id:
-        query = query.filter(Transaction.wallet_id == wallet_id)
-    if type:
-        query = query.filter(Transaction.type == type)
-    transactions = query.options(joinedload(Transaction.lead)).order_by(Transaction.date.desc()).all()
-    results = []
-    for t in transactions:
-        lead_name = t.lead.business_name if t.lead else None
-        results.append(TransactionOut(
-            id=t.id, wallet_id=t.wallet_id, type=t.type, amount=t.amount,
-            category=t.category, date=t.date, notes=t.notes,
-            lead_id=t.lead_id, is_billed=t.is_billed, lead_name=lead_name,
-        ))
-    return results
+    return _svc_get_transactions(db, wallet_id=wallet_id, txn_type=type, include_archived=include_archived)
 
 
 
 @router.post("/api/finance/transactions", response_model=TransactionOut, status_code=201)
 def create_transaction(body: TransactionIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    wallet = db.query(Wallet).filter(Wallet.id == body.wallet_id).first()
-    if not wallet:
-        raise HTTPException(status_code=404, detail="Wallet tidak ditemukan")
-    if body.type not in ("income", "expense"):
-        raise HTTPException(status_code=400, detail="Type harus 'income' atau 'expense'")
-    txn = Transaction(**body.model_dump())
-    db.add(txn)
-    if body.type == "income":
-        wallet.balance += body.amount
-    else:
-        wallet.balance -= body.amount
-    db.commit()
-    db.refresh(txn)
-    log_audit(db, current_user.name, "CREATE", "transactions", txn.id, {"type": body.type, "amount": body.amount, "category": body.category})
-    lead_name = None
-    if txn.lead_id:
-        lead = db.query(Lead).filter(Lead.id == txn.lead_id).first()
-        lead_name = lead.business_name if lead else None
-    return TransactionOut(
-        id=txn.id, wallet_id=txn.wallet_id, type=txn.type, amount=txn.amount,
-        category=txn.category, date=txn.date, notes=txn.notes,
-        lead_id=txn.lead_id, is_billed=txn.is_billed, lead_name=lead_name,
-    )
+    result = _svc_create_transaction(body, current_user.name, db)
+    invalidate_transaction_cache(body.wallet_id)
+    return result
 
 
 
@@ -175,6 +149,7 @@ def delete_transaction(txn_id: int, current_user: User = Depends(require_admin),
     txn.deleted_at = datetime.now(timezone.utc).isoformat()
     db.commit()
     log_audit(db, current_user.name, "DELETE", "transactions", txn_id, {"amount": txn.amount, "category": txn.category})
+    invalidate_transaction_cache(txn.wallet_id)
 
 
 
@@ -220,13 +195,17 @@ def restore_transaction(txn_id: int, current_user: User = Depends(require_admin)
 @router.get("/api/finance/subscriptions", response_model=list[SubscriptionOut])
 def get_subscriptions(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     subs = db.query(Subscription).all()
+    if not subs:
+        return []
+    # Batch load wallets (fix N+1)
+    wallet_ids = list({s.wallet_id for s in subs})
+    wallets = {w.id: w for w in db.query(Wallet).filter(Wallet.id.in_(wallet_ids)).all()}
     results = []
     for s in subs:
-        wallet = db.query(Wallet).filter(Wallet.id == s.wallet_id).first()
         results.append(SubscriptionOut(
             id=s.id, wallet_id=s.wallet_id, name=s.name, amount=s.amount,
             billing_cycle=s.billing_cycle, next_billing_date=s.next_billing_date,
-            is_active=s.is_active, wallet_name=wallet.name if wallet else None,
+            is_active=s.is_active, wallet_name=wallets.get(s.wallet_id).name if s.wallet_id in wallets else None,
         ))
     return results
 
@@ -291,53 +270,7 @@ def delete_subscription(sub_id: int, current_user: User = Depends(require_admin)
 
 @router.get("/api/finance/reports", response_model=FinanceReportOut)
 def get_finance_reports(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    total_balance = db.query(func.coalesce(func.sum(Wallet.balance), 0)).scalar() or 0
-
-    now = datetime.now()
-    current_month = now.strftime("%Y-%m")
-    monthly_expenses = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
-        Transaction.type == "expense",
-        Transaction.date.like(f"{current_month}%"),
-        Transaction.is_archived == False,
-    ).scalar() or 0
-
-    total_subscription_monthly = 0
-    active_subs = db.query(Subscription).filter(Subscription.is_active == True).all()
-    for sub in active_subs:
-        if sub.billing_cycle == "monthly":
-            total_subscription_monthly += sub.amount
-        else:
-            total_subscription_monthly += sub.amount / 12
-
-    recorded_subscription_expenses = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
-        Transaction.type == "expense",
-        Transaction.date.like(f"{current_month}%"),
-        Transaction.category == "Subscription",
-        Transaction.is_archived == False,
-    ).scalar() or 0
-    subscription_forecast_remaining = max(0, total_subscription_monthly - recorded_subscription_expenses)
-    break_even_point = monthly_expenses + subscription_forecast_remaining
-
-    financial_runway = round(total_balance / break_even_point, 1) if break_even_point > 0 else 99.0
-
-    category_rows = db.execute(
-        select(Transaction.category, func.sum(Transaction.amount).label("total"))
-        .where(
-            Transaction.type == "expense",
-            Transaction.date.like(f"{current_month}%"),
-            Transaction.is_archived == False,
-        )
-        .group_by(Transaction.category)
-        .order_by(func.sum(Transaction.amount).desc())
-    ).all()
-    expense_by_category = [{"category": r[0] or "Lainnya", "amount": r[1]} for r in category_rows]
-
-    return FinanceReportOut(
-        total_balance=total_balance,
-        break_even_point=break_even_point,
-        financial_runway_months=financial_runway,
-        expense_by_category=expense_by_category,
-    )
+    return calculate_financial_summary(db)
 
 
 # ---------------------------------------------------------------------------

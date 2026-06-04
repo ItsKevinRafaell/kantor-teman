@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse,
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import Base, engine, SessionLocal, get_db, log_audit, User, Lead, Contact, Project, Proposal, ProposalAnalytics, Transaction, Wallet, Subscription, PaymentMethod, AuditLog, Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, WorkspaceAttachment, DynamicTemplate, Document, DocumentFolder, DocumentTemplate, GeneratedDocument, BrandKit, BrandAsset, DocumentSequence, ServiceItem, Category, Product, ClientNote, ClientCredential, ClientDocument, AdsCampaign, BlastCampaign, BlastMessage, FollowUpSequence, MessageTemplate, ScrapeHistory, LeadActivityLog, LeadAnalysis, AIProxy, ContentProvider, ContentSession, ContentGeneration, SystemSettings, AIModel, ProviderConfig, ContentSchedule
+from models import get_db, log_audit, User, Lead, Project, Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, WorkspaceAttachment, DocumentTemplate, GeneratedDocument, Category
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, FRONTEND_URL, UPLOADS_DIR,
     _get_setting, get_fonnte_token, get_9router_config, build_analysis_prompt,
@@ -17,6 +17,11 @@ from app.core.dependencies import (get_current_user, require_admin, FRONTEND_URL
     WORKSPACE_TEMPLATES, build_sheets_for_service, build_sheets_for_days, _BASE_COLS,
     sync_row_to_board, sync_row_status_to_board,
 )
+from app.services.workspace_service import (
+    get_workspace_data,
+    get_workspace_list_data,
+)
+from app.core.cache import invalidate_workspace_list_cache
 
 router = APIRouter()
 
@@ -295,45 +300,80 @@ def card_to_out(card: BoardCard, workspace_linked_ids: set = None) -> BoardCardO
 
 @router.get("/api/boards/overview")
 def get_boards_overview(show_archived: bool = Query(False), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Get overview of all boards across projects"""
-    query = db.query(Project)
+    """Get overview of all boards across projects using batch queries."""
     if show_archived:
-        query = query.filter(Project.is_archived == True)
+        projects = db.query(Project).filter(Project.is_archived == True).all()
     else:
-        query = query.filter(Project.is_archived == False)
-    projects = query.all()
+        projects = db.query(Project).filter(Project.is_archived == False).all()
+
+    if not projects:
+        return []
+
+    project_ids = [p.id for p in projects]
+    lead_ids = [p.lead_id for p in projects if p.lead_id]
+
+    # Batch 1: all leads
+    leads = {l.id: l for l in db.query(Lead).filter(Lead.id.in_(lead_ids)).all()} if lead_ids else {}
+
+    # Batch 2: all boards for these projects
+    boards = {b.project_id: b for b in db.query(Board).filter(Board.project_id.in_(project_ids)).all()}
+    board_ids = [b.id for b in boards.values()]
+
+    # Batch 3: all columns for all boards
+    all_columns = db.query(BoardColumn).filter(BoardColumn.board_id.in_(board_ids)).all()
+    cols_by_board = defaultdict(list)
+    for col in all_columns:
+        cols_by_board[col.board_id].append(col)
+    col_ids = [c.id for c in all_columns]
+
+    # Batch 4: all cards (only non-archived)
+    all_cards = db.query(BoardCard).filter(
+        BoardCard.column_id.in_(col_ids),
+        BoardCard.is_archived == False,
+    ).all()
+
+    # Group cards by column_id
+    cards_by_col = defaultdict(list)
+    for card in all_cards:
+        cards_by_col[card.column_id].append(card)
+
+    # Build result
+    today = datetime.now(timezone.utc).date()
     result = []
     for p in projects:
-        board = db.query(Board).filter(Board.project_id == p.id).first()
-        if board:
-            columns = db.query(BoardColumn).filter(BoardColumn.board_id == board.id).all()
-            cards_count = 0
-            overdue_cards = []
-            due_soon_cards = []
-            today = datetime.now(timezone.utc).date()
-            for col in columns:
-                cards = db.query(BoardCard).filter(BoardCard.column_id == col.id, BoardCard.is_archived == False).all()
-                cards_count += len(cards)
-                for c in cards:
-                    if c.due_date:
+        board = boards.get(p.id)
+        if not board:
+            continue
+        columns = cols_by_board.get(board.id, [])
+        cards_count = 0
+        overdue_cards = []
+        due_soon_cards = []
+        for col in columns:
+            cards = cards_by_col.get(col.id, [])
+            cards_count += len(cards)
+            for c in cards:
+                if c.due_date:
+                    try:
                         due = datetime.fromisoformat(c.due_date.replace('Z', '+00:00')).date()
                         if due < today:
                             overdue_cards.append(c.title)
                         elif due <= today + timedelta(days=3):
                             due_soon_cards.append(c.title)
-            result.append({
-                "project_id": p.id,
-                "project_name": p.name,
-                "board_id": board.id,
-                "cards_count": cards_count,
-                "columns_count": len(columns),
-                "client_name": p.lead.business_name if p.lead else None,
-                "overdue_cards": overdue_cards,
-                "due_soon_cards": due_soon_cards,
-                "color": p.color or "yellow",
-                "project_lead_id": p.lead_id,
-                "is_archived": p.is_archived,
-            })
+                    except Exception:
+                        pass
+        result.append({
+            "project_id": p.id,
+            "project_name": p.name,
+            "board_id": board.id,
+            "cards_count": cards_count,
+            "columns_count": len(columns),
+            "client_name": leads.get(p.lead_id).business_name if p.lead_id and p.lead_id in leads else None,
+            "overdue_cards": overdue_cards,
+            "due_soon_cards": due_soon_cards,
+            "color": p.color or "yellow",
+            "project_lead_id": p.lead_id,
+            "is_archived": p.is_archived,
+        })
     return result
 
 
@@ -432,7 +472,7 @@ def init_workspace(body: WorkspaceInitIn, current_user: User = Depends(get_curre
 
     existing = db.query(WorkspaceSheet).filter(WorkspaceSheet.project_id == body.project_id).first()
     if existing:
-        return {"message": "Workspace sudah ada", "sheets": _get_workspace_data(body.project_id, db)["sheets"]}
+        return {"message": "Workspace sudah ada", "sheets": get_workspace_data(db, body.project_id)["sheets"]}
 
     if body.service_type not in WORKSPACE_TEMPLATES:
         raise HTTPException(status_code=400, detail=f"service_type tidak valid: {body.service_type}")
@@ -559,64 +599,7 @@ def _get_workspace_data(project_id: str, db: Session) -> dict:
 
 @router.get("/api/workspace-list")
 def get_workspace_list(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    projects = db.query(Project).filter(Project.is_archived == False).order_by(Project.status).all()
-    project_ids = [p.id for p in projects]
-    lead_ids = [p.lead_id for p in projects if p.lead_id]
-    
-    # Bulk fetch leads
-    leads = {l.id: l for l in db.query(Lead).filter(Lead.id.in_(lead_ids)).all()} if lead_ids else {}
-    
-    # Bulk fetch sheets
-    sheets = {s.project_id: s for s in db.query(WorkspaceSheet).filter(WorkspaceSheet.project_id.in_(project_ids)).all()}
-    sheet_ids = [s.id for s in sheets.values()]
-    
-    # Bulk fetch rows
-    rows_by_sheet = {}
-    if sheet_ids:
-        rows = db.query(WorkspaceRow).filter(WorkspaceRow.sheet_id.in_(sheet_ids)).all()
-        for r in rows:
-            rows_by_sheet.setdefault(r.sheet_id, []).append(r)
-            
-    # Bulk fetch done columns
-    done_cols = {c.sheet_id: c for c in db.query(WorkspaceColumn).filter(WorkspaceColumn.sheet_id.in_(sheet_ids), WorkspaceColumn.column_key == "done").all()}
-    
-    # Bulk fetch done cells count (group by column_id)
-    done_counts = {}
-    if done_cols:
-        done_col_ids = [c.id for c in done_cols.values()]
-        counts = db.query(WorkspaceCell.column_id, func.count(WorkspaceCell.id)).filter(
-            WorkspaceCell.column_id.in_(done_col_ids),
-            WorkspaceCell.value_bool == True
-        ).group_by(WorkspaceCell.column_id).all()
-        for col_id, count in counts:
-            done_counts[col_id] = count
-
-    result = []
-    for p in projects:
-        lead = leads.get(p.lead_id) if p.lead_id else None
-        sheet = sheets.get(p.id)
-        has_workspace = sheet is not None
-        progress = None
-        
-        if has_workspace and sheet:
-            rows = rows_by_sheet.get(sheet.id, [])
-            if rows:
-                done_col = done_cols.get(sheet.id)
-                if done_col:
-                    done_count = done_counts.get(done_col.id, 0)
-                    progress = round(done_count / len(rows) * 100) if rows else 0
-                    
-        result.append({
-            "id": p.id,
-            "name": p.name,
-            "service_type": p.service_type,
-            "contract_months": p.contract_months,
-            "lead_name": lead.business_name if lead else None,
-            "status": p.status,
-            "has_workspace": has_workspace,
-            "progress": progress,
-        })
-    return result
+    return get_workspace_list_data(db)
 
 
 
@@ -625,7 +608,7 @@ def get_workspace(project_id: str, current_user: User = Depends(get_current_user
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project tidak ditemukan")
-    return _get_workspace_data(project_id, db)
+    return get_workspace_data(db, project_id)
 
 
 
