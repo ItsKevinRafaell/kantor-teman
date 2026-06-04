@@ -422,157 +422,26 @@ export default function PublicReportPage() {
         {/* ============================================================ */}
         {/* KOMPONEN: AUDIT SCORE */}
         {/* ============================================================ */}
-        <section className="bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-700 rounded-2xl p-6 shadow-sm">
-          <p className="text-[10px] uppercase tracking-widest text-zinc-600 dark:text-zinc-400 font-bold mb-4">Skor Kesehatan Digital</p>
-          <div className="flex items-center gap-6">
-            {/* Speedometer */}
-            <div className="relative w-28 h-28 shrink-0">
-              <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
-                <circle cx="60" cy="60" r="50" fill="none" stroke="#e4e4e7" strokeWidth="12" className="dark:stroke-zinc-700" />
-                <circle cx="60" cy="60" r="50" fill="none" stroke={(() => {
-                  const score = Math.max(10, Math.min(100, Math.round(
-                    (report.competitor_count > 3 ? 10 : 25) +
-                    (report.monthly_search_volume > 500 ? 5 : 15) +
-                    (painPoints.length >= 3 ? 5 : 20) +
-                    (report.digital_analysis ? 10 : 0)
-                  )));
-                  if (score <= 30) return "#ef4444";
-                  if (score <= 60) return "#f59e0b";
-                  return "#22c55e";
-                })()} strokeWidth="12" strokeLinecap="round"
-                  strokeDasharray={`${Math.round(
-                    ((Math.max(10, Math.min(100, Math.round(
-                      (report.competitor_count > 3 ? 10 : 25) +
-                      (report.monthly_search_volume > 500 ? 5 : 15) +
-                      (painPoints.length >= 3 ? 5 : 20) +
-                      (report.digital_analysis ? 10 : 0)
-                    )))) / 100) * 314
-                  )} 314`}
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-black text-zinc-900 dark:text-white">{Math.max(10, Math.min(100, Math.round(
-                  (report.competitor_count > 3 ? 10 : 25) +
-                  (report.monthly_search_volume > 500 ? 5 : 15) +
-                  (painPoints.length >= 3 ? 5 : 20) +
-                  (report.digital_analysis ? 10 : 0)
-                )))}</span>
-                <span className="text-[9px] text-zinc-500 font-bold">/100</span>
-              </div>
-            </div>
-            <div className="flex-1 space-y-2">
-              <p className="text-base font-bold text-zinc-900 dark:text-white">
-                {(() => {
-                  const score = Math.max(10, Math.min(100, Math.round(
-                    (report.competitor_count > 3 ? 10 : 25) +
-                    (report.monthly_search_volume > 500 ? 5 : 15) +
-                    (painPoints.length >= 3 ? 5 : 20) +
-                    (report.digital_analysis ? 10 : 0)
-                  )));
-                  if (score <= 30) return "Kondisi Kritis — Perlu Tindakan Segera";
-                  if (score <= 60) return "Perlu Perbaikan Signifikan";
-                  return "Cukup Baik, Bisa Ditingkatkan";
-                })()}
-              </p>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
-                Skor ini dihitung berdasarkan visibilitas Google, tingkat kompetisi di {city}, dan kesiapan digital {report.nama_usaha} saat ini.
-              </p>
-              <div className="flex flex-wrap gap-2 mt-2">
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold dark:bg-red-900/30 dark:text-red-400">SEO: Lemah</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold dark:bg-red-900/30 dark:text-red-400">Maps: Tidak Terlihat</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold dark:bg-amber-900/30 dark:text-amber-400">Konversi: Rendah</span>
-              </div>
-            </div>
-          </div>
-        </section>
+        <AuditScore
+          competitor_count={report.competitor_count}
+          monthly_search_volume={report.monthly_search_volume}
+          painPoints={painPoints}
+          hasDigitalAnalysis={!!report.digital_analysis}
+          city={city}
+          nama_usaha={report.nama_usaha}
+        />
 
         {/* ============================================================ */}
         {/* KOMPONEN: BEFORE vs AFTER */}
         {/* ============================================================ */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Before */}
-          <div className="bg-zinc-100 dark:bg-zinc-800 border-2 border-zinc-200 dark:border-zinc-700 rounded-2xl p-5 space-y-4 transition-all duration-300 ease-in-out">
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] uppercase tracking-widest text-zinc-600 dark:text-zinc-400 font-bold">Kondisi Saat Ini</p>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-200 border-2 border-zinc-300 text-[10px] font-bold text-zinc-600">Masalah Kritis</span>
-            </div>
-            <h3 className="text-sm font-bold text-zinc-800">{report.nama_usaha}</h3>
-            <div className="space-y-3">
-              <div className="flex items-start gap-2">
-                <div className="w-5 h-5 rounded-full bg-zinc-200 border-2 border-zinc-300 flex items-center justify-center shrink-0 mt-0.5"><span className="text-zinc-600 text-[9px] font-bold">!</span></div>
-                <div>
-                  <p className="text-sm text-zinc-600">Skor Kecepatan Web: <span className="text-zinc-500 line-through font-medium">32/100</span></p>
-                  <p className="text-[11px] text-zinc-500">Pengunjung menunggu &gt;5 detik</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2">
-                <div className="w-5 h-5 rounded-full bg-zinc-200 border-2 border-zinc-300 flex items-center justify-center shrink-0 mt-0.5"><span className="text-zinc-600 text-[9px] font-bold">!</span></div>
-                <div>
-                  <p className="text-sm text-zinc-600">Google Maps: <span className="text-zinc-500 line-through font-medium">Tidak Terlihat</span></p>
-                  <p className="text-[11px] text-zinc-500">Tidak muncul di halaman utama {city}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2">
-                <div className="w-5 h-5 rounded-full bg-zinc-200 border-2 border-zinc-300 flex items-center justify-center shrink-0 mt-0.5"><span className="text-zinc-600 text-[9px] font-bold">!</span></div>
-                <div>
-                  <p className="text-sm text-zinc-600">SEO Lokal: <span className="text-zinc-500 line-through font-medium">Tidak Teroptimasi</span></p>
-                  <p className="text-[11px] text-zinc-500">Kalah saing dari kompetitor</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2">
-                <div className="w-5 h-5 rounded-full bg-zinc-200 border-2 border-zinc-300 flex items-center justify-center shrink-0 mt-0.5"><span className="text-zinc-600 text-[9px] font-bold">!</span></div>
-                <div>
-                  <p className="text-sm text-zinc-600">Konversi: <span className="text-zinc-500 line-through font-medium">&lt;1%</span></p>
-                  <p className="text-[11px] text-zinc-500">Tidak ada sistem penangkap leads</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* After */}
-          <div className="bg-white dark:bg-zinc-900 border-2 border-amber-200 dark:border-amber-800 rounded-2xl p-5 space-y-4 transition-all duration-300 ease-in-out hover:border-amber-500 shadow-sm">
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] uppercase tracking-widest text-zinc-600 font-bold">Proyeksi Perbaikan</p>
-              <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 border-2 border-amber-300 text-xs px-2.5 py-1 rounded-full font-bold">Peringkat #1</span>
-            </div>
-            <h3 className="text-sm font-bold text-zinc-900 dark:text-white">Bersama Kantor Teman</h3>
-
-            {/* Mockup Google Search */}
-            <div className="rounded-xl border-2 border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3.5 space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <div className="w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center">
-                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                </div>
-                <span className="text-[10px] text-zinc-600">kantorteman.com › {report.slug}</span>
-              </div>
-              <p className="text-sm font-bold text-blue-700">{report.nama_usaha} — Solusi Terpercaya di {city}</p>
-              <div className="flex items-center gap-1">
-                <span className="text-amber-500 text-xs flex items-center gap-0.5"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></span>
-                <span className="text-[10px] text-zinc-600">5.0 · Terverifikasi</span>
-              </div>
-              <p className="text-[11px] text-zinc-600">Layanan profesional {report.category || "bisnis"} terbaik di {city}.</p>
-            </div>
-
-            <div className="space-y-2.5">
-              <div className="flex items-center gap-2">
-                <span className="text-amber-600 text-sm font-bold"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="inline"><polyline points="20 6 9 17 4 12"/></svg></span>
-                <p className="text-sm text-zinc-900">Kecepatan Web: <span className="text-amber-600 font-bold">98/100</span></p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-amber-600 text-sm font-bold"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="inline"><polyline points="20 6 9 17 4 12"/></svg></span>
-                <p className="text-sm text-zinc-900">Google Maps: <span className="text-amber-600 font-bold">Peringkat 1 di {city}</span></p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-amber-600 text-sm font-bold"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="inline"><polyline points="20 6 9 17 4 12"/></svg></span>
-                <p className="text-sm text-zinc-900">SEO Lokal: <span className="text-amber-600 font-bold">Fully Optimized</span></p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-amber-600 text-sm font-bold"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="inline"><polyline points="20 6 9 17 4 12"/></svg></span>
-                <p className="text-sm text-zinc-900">Konversi: <span className="text-amber-600 font-bold">8-12%</span></p>
-              </div>
-            </div>
-          </div>
-        </section>
+        <BeforeAfterComparison
+          nama_usaha={report.nama_usaha}
+          category={report.category}
+          city={city}
+          slug={report.slug}
+          base_price={report.base_price}
+          discount_price={report.discount_price}
+        />
 
         {/* ============================================================ */}
         {/* KOMPONEN 2: THE PLEASURE BRIDGE */}
