@@ -61,13 +61,16 @@ def calculate_financial_summary(db: Session) -> FinanceReportOut:
         Transaction.is_archived == False,
     ).scalar() or 0
 
-    total_subscription_monthly = 0
-    active_subs = db.query(Subscription).filter(Subscription.is_active == True).all()
-    for sub in active_subs:
-        if sub.billing_cycle == "monthly":
-            total_subscription_monthly += sub.amount
-        else:
-            total_subscription_monthly += sub.amount / 12
+    # Aggregate subscriptions in SQL (fix Python-side loop)
+    monthly_total = db.query(func.coalesce(func.sum(Subscription.amount), 0)).filter(
+        Subscription.is_active == True,
+        Subscription.billing_cycle == "monthly",
+    ).scalar() or 0
+    yearly_total = db.query(func.coalesce(func.sum(Subscription.amount), 0)).filter(
+        Subscription.is_active == True,
+        Subscription.billing_cycle == "yearly",
+    ).scalar() or 0
+    total_subscription_monthly = monthly_total + (yearly_total / 12)
 
     recorded_subscription_expenses = db.query(
         func.coalesce(func.sum(Transaction.amount), 0)

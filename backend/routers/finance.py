@@ -196,13 +196,17 @@ def restore_transaction(txn_id: int, current_user: User = Depends(require_admin)
 @router.get("/api/finance/subscriptions", response_model=list[SubscriptionOut])
 def get_subscriptions(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     subs = db.query(Subscription).all()
+    if not subs:
+        return []
+    # Batch load wallets (fix N+1)
+    wallet_ids = list({s.wallet_id for s in subs})
+    wallets = {w.id: w for w in db.query(Wallet).filter(Wallet.id.in_(wallet_ids)).all()}
     results = []
     for s in subs:
-        wallet = db.query(Wallet).filter(Wallet.id == s.wallet_id).first()
         results.append(SubscriptionOut(
             id=s.id, wallet_id=s.wallet_id, name=s.name, amount=s.amount,
             billing_cycle=s.billing_cycle, next_billing_date=s.next_billing_date,
-            is_active=s.is_active, wallet_name=wallet.name if wallet else None,
+            is_active=s.is_active, wallet_name=wallets.get(s.wallet_id).name if s.wallet_id in wallets else None,
         ))
     return results
 
