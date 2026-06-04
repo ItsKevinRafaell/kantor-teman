@@ -4,9 +4,12 @@ import tempfile
 import unittest
 import uuid
 from datetime import datetime
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from cryptography.fernet import Fernet
 from fastapi import HTTPException
+from fastapi.responses import Response
 
 
 TEST_DIR = tempfile.mkdtemp(prefix="kantorteman-tests-")
@@ -17,6 +20,7 @@ os.environ["ENABLE_BACKGROUND_SCHEDULER"] = "false"
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import main  # noqa: E402
+import routers.documents  # noqa: E402
 
 
 class HardeningRegressionTests(unittest.TestCase):
@@ -161,6 +165,75 @@ class HardeningRegressionTests(unittest.TestCase):
         self.assertIsNone(saved.folder_id)
         self.assertIsNone(saved.body)
         self.assertIsNone(saved.url)
+
+    def test_pdf_preview_returns_complete_buffered_response(self):
+        request = SimpleNamespace(headers={})
+        template = SimpleNamespace(id="template-id")
+        query = self.db.query(main.DocumentTemplate)
+        with patch.object(self.db, "query", return_value=query), \
+             patch.object(query, "filter", return_value=query), \
+             patch.object(query, "first", return_value=template), \
+             patch.object(routers.documents, "_prepare_document_vars", return_value={}), \
+             patch.object(routers.documents, "_render_document_pdf", return_value=b"%PDF-1.7\ncomplete"):
+            response = main.preview_document(
+                request,
+                main.DocumentGenerateIn(template_id="template-id", variables={}),
+                current_user=self.admin,
+                db=self.db,
+            )
+
+        self.assertIsInstance(response, Response)
+        self.assertEqual(response.body, b"%PDF-1.7\ncomplete")
+
+    def test_pdf_renderer_rejects_invalid_output(self):
+        template = SimpleNamespace(html_template="<html><body>Test</body></html>")
+        with patch("weasyprint.HTML") as html:
+            html.return_value.write_pdf.return_value = b""
+            with self.assertRaises(HTTPException):
+                main._render_document_pdf(template, {})
+
+    def test_pdf_renderer_uses_starter_when_builtin_template_is_empty(self):
+        template = SimpleNamespace(type="invoice", html_template="")
+        with patch("weasyprint.HTML") as html:
+            html.return_value.write_pdf.return_value = b"%PDF" + (b"x" * 1024)
+            main._render_document_pdf(template, {})
+
+        self.assertIn("INVOICE", html.call_args.kwargs["string"])
+
+    def test_pdf_renderer_rejects_empty_custom_template(self):
+        template = SimpleNamespace(type="custom", html_template="")
+        with self.assertRaises(HTTPException) as caught:
+            main._render_document_pdf(template, {})
+
+        self.assertEqual(caught.exception.status_code, 400)
+
+    def test_pdf_renderer_replaces_legacy_proposal_template(self):
+        template = SimpleNamespace(
+            name="Proposal Penawaran PDF",
+            type="proposal_pdf",
+            html_template="<html><body><div class='service'>{{services_html}}</div>{{faqs_html}}</body></html>",
+        )
+        with patch("weasyprint.HTML") as html:
+            html.return_value.write_pdf.return_value = b"%PDF" + (b"x" * 1024)
+            main._render_document_pdf(template, {"klien": "PT Contoh", "layanan": "Website"})
+
+        rendered = html.call_args.kwargs["string"]
+        self.assertIn("PROPOSAL PENAWARAN", rendered)
+        self.assertIn("PT Contoh", rendered)
+        self.assertNotIn("services_html", rendered)
+
+    def test_document_vars_do_not_replace_defaults_with_empty_strings(self):
+        template = SimpleNamespace(name="Invoice", type="invoice")
+        body = main.DocumentGenerateIn(
+            template_id="template-id",
+            variables={"tanggal": "", "klien": "PT Contoh"},
+        )
+        with patch.object(routers.documents, "_build_default_vars", return_value={"tanggal": "2 Juni 2026", "klien": "Default"}), \
+             patch.object(routers.documents, "_build_brand_context", return_value={"logo": ""}):
+            variables = main._prepare_document_vars(self.db, template, body)
+
+        self.assertEqual(variables["tanggal"], "2 Juni 2026")
+        self.assertEqual(variables["klien"], "PT Contoh")
 
 
 if __name__ == "__main__":
