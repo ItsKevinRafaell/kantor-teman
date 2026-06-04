@@ -8,3 +8,4 @@
 - Prefer deliberate, structured workflow over rapid vibecoding — explain branch strategy, PR practices, and project handling patterns. User explicitly wants to learn proper engineering discipline after recognizing vibecoding has been too uncontrolled. Confidence: 0.80
 - Use `git worktree` for parallel sessions across different domains (backend/frontend/hermes) — each domain gets its own worktree directory on a separate feature branch, preventing working directory conflicts when multiple sessions run concurrently. Confidence: 0.75
 - Use commit format: `<domain>(<scope>): <deskripsi dalam Bahasa Indonesia>` (e.g., `feat(frontend): consolidasi formatRupiah`). Never mix backend and frontend changes in a single commit. Confidence: 0.75
+- When handing off work to another Claude Code session, provide ready-to-paste task prompts with exact file paths, commands, and verification steps — user explicitly wants "prompt untuk claude code untuk hasil maksimal." Confidence: 0.80

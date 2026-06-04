@@ -18,13 +18,14 @@ from app.services.finance_service import (
     invalidate_wallet_cache,
 )
 from app.core.cache import (
-    cached, make_request_cache_key,
+    cached, make_request_cache_key, clear_cache_prefix,
     invalidate_transaction_cache,
 )
 
 router = APIRouter()
 
 @router.get("/api/finance/wallets", response_model=list[WalletOut])
+@cached(ttl_seconds=60, key_func=lambda r: f"cache:/api/finance/wallets")
 def get_wallets(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     return db.query(Wallet).all()
 
@@ -36,6 +37,7 @@ def create_wallet(body: WalletIn, current_user: User = Depends(require_admin), d
     db.add(wallet)
     db.commit()
     db.refresh(wallet)
+    clear_cache_prefix("cache:/api/finance/wallets")
     return wallet
 
 
@@ -51,6 +53,7 @@ def update_wallet(wallet_id: int, body: WalletIn, current_user: User = Depends(r
     wallet.color = body.color
     db.commit()
     db.refresh(wallet)
+    clear_cache_prefix("cache:/api/finance/wallets")
     return wallet
 
 
@@ -64,6 +67,7 @@ def delete_wallet(wallet_id: int, current_user: User = Depends(require_admin), d
         raise HTTPException(status_code=409, detail="Wallet masih memiliki transaksi atau langganan. Arsipkan data terkait terlebih dahulu.")
     db.delete(wallet)
     db.commit()
+    clear_cache_prefix("cache:/api/finance/wallets")
 
 
 # ---------------------------------------------------------------------------
@@ -72,6 +76,7 @@ def delete_wallet(wallet_id: int, current_user: User = Depends(require_admin), d
 
 
 @router.get("/api/finance/transactions", response_model=list[TransactionOut])
+@cached(ttl_seconds=60, key_func=make_request_cache_key)
 def get_transactions(
     request: Request,
     wallet_id: Optional[int] = Query(None),
@@ -269,6 +274,7 @@ def delete_subscription(sub_id: int, current_user: User = Depends(require_admin)
 
 
 @router.get("/api/finance/reports", response_model=FinanceReportOut)
+@cached(ttl_seconds=120, key_func=lambda r: "cache:/api/finance/reports")
 def get_finance_reports(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     return calculate_financial_summary(db)
 

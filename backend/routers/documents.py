@@ -9,7 +9,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
 from models import get_db, log_audit, User, Lead, Contact, Project, Proposal, ProposalAnalytics, Transaction, ClientNote, ClientCredential, ClientDocument, DynamicTemplate, MessageTemplate, BrandKit, BrandAsset, Document, DocumentFolder, DocumentTemplate, GeneratedDocument, DocumentSequence, PaymentMethod, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, WorkspaceRow
-from schemas import *
+from schemas import *  # noqa: F403
+from app.core.cache import cached, clear_cache_prefix
 from app.core.dependencies import (get_current_user, require_admin, UPLOADS_DIR,
     _cors_list, _get_setting, HERMES_GATEWAY_URL, _hermes_headers, _office_profile, _ads_out)
 from document_template_library import get_document_template_starters
@@ -81,6 +82,7 @@ def get_random_template(
 
 
 @router.get("/api/documents", response_model=list[DocumentOut])
+@cached(ttl_seconds=60, key_func=lambda r: f"cache:/api/documents")
 def get_documents(
     lead_id: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
@@ -108,6 +110,7 @@ def create_document(body: DocumentIn, current_user: User = Depends(get_current_u
     db.commit()
     db.refresh(doc)
     log_audit(db, current_user.name, "CREATE", "client_documents", doc.id, {"title": body.title})
+    clear_cache_prefix("cache:/api/documents")
     return doc
 
 
@@ -120,6 +123,7 @@ def delete_document(doc_id: str, current_user: User = Depends(require_admin), db
     log_audit(db, current_user.name, "DELETE", "client_documents", doc_id, {"title": doc.title})
     db.delete(doc)
     db.commit()
+    clear_cache_prefix("cache:/api/documents")
 
 
 # ---------------------------------------------------------------------------

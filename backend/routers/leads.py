@@ -26,6 +26,7 @@ from app.services.lead_service import (
     recalculate_lead_score as _svc_recalculate_lead_score,
     recalculate_all_lead_scores,
 )
+from app.core.cache import cached, clear_cache_prefix
 
 router = APIRouter()
 
@@ -186,6 +187,7 @@ async def search_businesses(
 
 
 @router.get("/api/leads/map")
+@cached(ttl_seconds=30, key_func=lambda r: f"cache:/api/leads/map")
 def get_leads_map(
     status: Optional[str] = Query(None),
     batch_name: Optional[str] = Query(None),
@@ -236,6 +238,7 @@ class LeadEdit(BaseModel):
 
 
 @router.get("/api/leads", response_model=list[LeadOut])
+@cached(ttl_seconds=30, key_func=lambda r: f"cache:/api/leads")
 def list_leads(
     status: Optional[str] = Query(None),
     batch_name: Optional[str] = Query(None),
@@ -270,6 +273,7 @@ def create_lead_manual(body: LeadCreate, current_user: User = Depends(require_ad
     db.commit()
     db.refresh(lead)
     log_audit(db, current_user.name, "CREATE", "leads", lead.id, {"source": "manual"})
+    clear_cache_prefix("cache:/api/leads")
     return lead
 
 
@@ -306,6 +310,7 @@ def update_lead(lead_id: int, body: LeadEdit, current_user: User = Depends(requi
     db.commit()
     if changes:
         log_audit(db, current_user.name, "UPDATE", "leads", lead_id, changes)
+    clear_cache_prefix("cache:/api/leads")
     return lead
 
 
@@ -319,6 +324,7 @@ def delete_lead(lead_id: int, current_user: User = Depends(require_admin), db: S
     lead.deleted_at = datetime.now(timezone.utc).isoformat()
     db.commit()
     log_audit(db, current_user.name, "ARCHIVE", "leads", lead_id, {"business_name": lead.business_name})
+    clear_cache_prefix("cache:/api/leads")
     return {"detail": "Lead berhasil diarsipkan"}
 
 

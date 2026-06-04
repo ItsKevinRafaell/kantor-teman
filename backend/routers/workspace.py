@@ -21,7 +21,7 @@ from app.services.workspace_service import (
     get_workspace_data,
     get_workspace_list_data,
 )
-from app.core.cache import invalidate_workspace_list_cache
+from app.core.cache import invalidate_workspace_list_cache, cached
 
 router = APIRouter()
 
@@ -185,6 +185,7 @@ def update_project(project_id: str, body: ProjectIn, current_user: User = Depend
     db.commit()
     db.refresh(project)
     log_audit(db, current_user.name, "UPDATE", "projects", project_id, {"name": body.name})
+    invalidate_workspace_list_cache()
     return project
 
 
@@ -224,6 +225,7 @@ def delete_project(project_id: str, current_user: User = Depends(require_admin),
     db.delete(project)
     db.commit()
     log_audit(db, current_user.name, "DELETE", "projects", project_id, {"name": project_name})
+    invalidate_workspace_list_cache()
 
 
 
@@ -239,6 +241,7 @@ def archive_project(
         raise HTTPException(status_code=404, detail="Project tidak ditemukan")
     project.is_archived = is_archived
     db.commit()
+    invalidate_workspace_list_cache()
     return {"id": project_id, "is_archived": is_archived}
 
 
@@ -255,6 +258,7 @@ def update_project_color(
         raise HTTPException(status_code=404, detail="Project tidak ditemukan")
     project.color = color
     db.commit()
+    invalidate_workspace_list_cache()
     return {"id": project_id, "color": color}
 
 
@@ -598,6 +602,7 @@ def _get_workspace_data(project_id: str, db: Session) -> dict:
 
 
 @router.get("/api/workspace-list")
+@cached(ttl_seconds=30, key_func=lambda r: "cache:/api/workspace-list")
 def get_workspace_list(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return get_workspace_list_data(db)
 
