@@ -39,7 +39,6 @@ from main import (
     Lead, Contact, Proposal, ScrapeHistory, LeadActivityLog, LeadAnalysis,
     Project, Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity,
     BlastCampaign, FollowUpSequence, ReengagementAlert, AdsCampaign,
-    ChatProject, ChatConversation, ChatMessage, ChatMemory, ChatSummary,
     ContentSession, ContentGeneration, ContentSchedule,
     Document, DocumentFolder,
     ClientNote, ClientCredential, ClientDocument,
@@ -71,11 +70,12 @@ try:
     db.query(Project).delete()
 
     print("[2/4] Hapus AI chat + content gen...")
-    db.query(ChatMessage).delete()
-    db.query(ChatSummary).delete()
-    db.query(ChatConversation).delete()
-    db.query(ChatMemory).delete()
-    db.query(ChatProject).delete()
+    # Chat models removed from codebase
+    # db.query(ChatMessage).delete()
+    # db.query(ChatSummary).delete()
+    # db.query(ChatConversation).delete()
+    # db.query(ChatMemory).delete()
+    # db.query(ChatProject).delete()
     db.query(ContentGeneration).delete()
     db.query(ContentSession).delete()
     db.query(ContentSchedule).delete()

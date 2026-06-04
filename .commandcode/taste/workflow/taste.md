@@ -1,5 +1,6 @@
 # Workflow
 - User prefers assistant to handle server/terminal tasks autonomously — avoid asking user to run curl, check logs, or do manual terminal work. Confidence: 0.80
+- When user explicitly designates this terminal as PM/auditor role: only review, document issues, and save findings — do NOT fix code. User will do the actual coding in a separate Claude Code terminal. Confidence: 0.80
 - After designing a plan, save it to file and wait for user confirmation before executing — user explicitly said "just save the plan first, dont execute". Confidence: 0.70
 - Backend is manually uploaded (main.py, migrate.py) to shared hosting; frontend is deployed via Vercel git push. Confidence: 0.85
 - Run migrate.py on production server after uploading backend changes that modify database schema. Confidence: 0.80

@@ -40,7 +40,6 @@ from main import (
     Lead, Contact, Proposal, ScrapeHistory, LeadActivityLog, LeadAnalysis,
     Project, Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity,
     BlastCampaign, FollowUpSequence, ReengagementAlert, AdsCampaign,
-    ChatProject, ChatConversation, ChatMessage, ChatMemory, ChatSummary,
     ContentSession, ContentGeneration, ContentSchedule,
     Document, DocumentFolder,
     ClientNote, ClientCredential, ClientDocument,
@@ -66,17 +65,17 @@ try:
     deleted = db.query(Board).delete()
     print(f"  Deleted {deleted} boards")
 
-    # --- AI Chat ---
-    deleted = db.query(ChatMessage).delete()
-    print(f"  Deleted {deleted} chat_messages")
-    deleted = db.query(ChatSummary).delete()
-    print(f"  Deleted {deleted} chat_summaries")
-    deleted = db.query(ChatConversation).delete()
-    print(f"  Deleted {deleted} chat_conversations")
-    deleted = db.query(ChatMemory).delete()
-    print(f"  Deleted {deleted} chat_memories")
-    deleted = db.query(ChatProject).delete()
-    print(f"  Deleted {deleted} chat_projects")
+    # --- AI Chat (Chat models removed from codebase) ---
+    # deleted = db.query(ChatMessage).delete()
+    # print(f"  Deleted {deleted} chat_messages")
+    # deleted = db.query(ChatSummary).delete()
+    # print(f"  Deleted {deleted} chat_summaries")
+    # deleted = db.query(ChatConversation).delete()
+    # print(f"  Deleted {deleted} chat_conversations")
+    # deleted = db.query(ChatMemory).delete()
+    # print(f"  Deleted {deleted} chat_memories")
+    # deleted = db.query(ChatProject).delete()
+    # print(f"  Deleted {deleted} chat_projects")
 
     # --- Content Generator ---
     deleted = db.query(ContentGeneration).delete()

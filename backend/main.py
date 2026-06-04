@@ -152,8 +152,7 @@ app.include_router(analytics.router)
 app.include_router(office.router)
 app.include_router(other.router)
 
-# ── Backward compatibility: re-export endpoint functions for tests/scripts ─────
-# These used to live in main.py but now reside in router modules.
+# ── Backward compatibility: re-export functions used by tests/scripts ─────────
 from routers.auth import login, logout, list_users, get_me, update_me  # noqa: E402
 from routers.leads import delete_lead  # noqa: E402
 from routers.other import send_wa_manual  # noqa: E402
