@@ -1,0 +1,9 @@
+# Workflow
+- User prefers assistant to handle server/terminal tasks autonomously — avoid asking user to run curl, check logs, or do manual terminal work. Confidence: 0.80
+- After designing a plan, save it to file and wait for user confirmation before executing — user explicitly said "just save the plan first, dont execute". Confidence: 0.70
+- Backend is manually uploaded (main.py, migrate.py) to shared hosting; frontend is deployed via Vercel git push. Confidence: 0.85
+- Run migrate.py on production server after uploading backend changes that modify database schema. Confidence: 0.80
+- After executing each phase of a multi-phase plan, save progress to a markdown file showing what's been completed and what remains. Confidence: 0.70
+- Prefer deliberate, structured workflow over rapid vibecoding — explain branch strategy, PR practices, and project handling patterns. User explicitly wants to learn proper engineering discipline after recognizing vibecoding has been too uncontrolled. Confidence: 0.80
+- Use `git worktree` for parallel sessions across different domains (backend/frontend/hermes) — each domain gets its own worktree directory on a separate feature branch, preventing working directory conflicts when multiple sessions run concurrently. Confidence: 0.75
+- Use commit format: `<domain>(<scope>): <deskripsi dalam Bahasa Indonesia>` (e.g., `feat(frontend): consolidasi formatRupiah`). Never mix backend and frontend changes in a single commit. Confidence: 0.75
