@@ -5,7 +5,7 @@ import { apiFetch } from "../../lib/api";
 import Toast from "../../components/Toast";
 import ConfirmModal from "../../components/Modal";
 import { Plus, Trash2, ExternalLink, Folder, FileText, Search, Edit2, X } from "lucide-react";
-import { useUserRole } from "../../lib/useUserRole";
+import { useAuth } from "../../contexts/AuthContext";
 
 interface DocumentFolder {
   id: string;
@@ -57,7 +57,7 @@ function Modal({ open, onClose, title, children }: { open: boolean; onClose: () 
 }
 
 export default function DocumentsPage() {
-  const { isAdmin } = useUserRole();
+  const { isAdmin } = useAuth();
   const [folders, setFolders] = useState<DocumentFolder[]>([]);
   const [docs, setDocs] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);

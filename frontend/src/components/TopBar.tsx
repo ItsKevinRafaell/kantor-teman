@@ -1,19 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTheme } from "next-themes";
 import { Sun, Moon, Menu } from "lucide-react";
-import { getUserInfo } from "../lib/api";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function TopBar({ onMenuClick, hideMenu }: { onMenuClick?: () => void; hideMenu?: boolean }) {
-  const [name, setName] = useState("Admin");
+  const { user } = useAuth();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setName(getUserInfo().name);
-    setMounted(true);
-  }, []);
+  // Handle mount for SSR theme
+  useState(() => setMounted(true));
+
+  const name = user?.name ?? "Admin";
 
   return (
     <header className="h-14 shrink-0 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)] flex items-center px-4 sm:px-6 justify-between">

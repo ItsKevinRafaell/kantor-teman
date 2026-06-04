@@ -5,7 +5,7 @@ import { apiFetch } from "../../lib/api";
 import { Plus, Trash2, Calendar, User, MessageSquare, CheckSquare, X, Archive, ArchiveRestore, Activity } from "lucide-react";
 import Toast from "../../components/Toast";
 import ConfirmModal from "../../components/ConfirmModal";
-import { useUserRole } from "../../lib/useUserRole";
+import { useAuth } from "../../contexts/AuthContext";
 
 const COLORS = {
   primary: "bg-amber-500 hover:bg-amber-600 text-white",
@@ -98,7 +98,7 @@ function Modal({ open, onClose, title, children, size = "md" }: {
 }
 
 export default function BoardPage() {
-  const { isAdmin } = useUserRole();
+  const { isAdmin } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>("");

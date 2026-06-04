@@ -1,38 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, useRef, useCallback, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { apiFetch } from "../../lib/api";
+import { useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { BarChart3, LayoutDashboard, Flame } from "lucide-react";
+import { useDashboardData } from "../../hooks/useDashboard";
 import { getScoreColor, getScoreLabel } from "../../lib/leadScore";
-import { Flame, BarChart3, LayoutDashboard } from "lucide-react";
-
-interface Analytics {
-  total_leads: number;
-  total_clients: number;
-  conversion_rate: number;
-  leads_by_product: { product: string; count: number }[];
-  leads_by_status: { status: string; count: number }[];
-}
-
-interface Patterns {
-  by_category: { segment: string; total: number; converted: number; rate: number }[];
-  by_city: { segment: string; total: number; converted: number; rate: number }[];
-  by_rating: { segment: string; total: number; converted: number; rate: number }[];
-  recommendation: string;
-}
-
-interface BoardOverview {
-  project_id: string;
-  overdue_cards: string[];
-  due_soon_cards: string[];
-}
-
-interface FinanceOverview {
-  total_balance: number;
-  break_even_point: number;
-  financial_runway_months: number;
-}
+import { apiFetch } from "../../lib/api";
 
 const STATUS_COLORS: Record<string, string> = {
   Scraped: "bg-gray-400",
@@ -45,96 +19,46 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const QUICK_ACTIONS = [
-  {
-    href: "/leads?tab=scrape",
-    title: "Mulai Scrape Maps",
-    desc: "Cari bisnis baru dari Google Places",
-    bg: "bg-amber-500",
-    icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>,
-  },
-  {
-    href: "/leads",
-    title: "Lihat Pipeline CRM",
-    desc: "Kelola dan update status semua leads",
-    bg: "bg-neutral-800 dark:bg-neutral-700",
-    icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>,
-  },
-  {
-    href: "/clients",
-    title: "Buku Klien",
-    desc: "Lihat dan kelola klien aktif",
-    bg: "bg-neutral-800 dark:bg-neutral-700",
-    icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>,
-  },
+  { href: "/leads?tab=scrape", title: "Mulai Scrape Maps", desc: "Cari bisnis baru dari Google Places", bg: "bg-amber-500",
+    icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg> },
+  { href: "/leads", title: "Lihat Pipeline CRM", desc: "Kelola dan update status semua leads", bg: "bg-neutral-800 dark:bg-neutral-700",
+    icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg> },
+  { href: "/clients", title: "Buku Klien", desc: "Lihat dan kelola klien aktif", bg: "bg-neutral-800 dark:bg-neutral-700",
+    icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg> },
+];
+
+const TABS = [
+  { key: "overview" as const, label: "Overview", Icon: LayoutDashboard },
+  { key: "analitik" as const, label: "Analitik", Icon: BarChart3 },
 ];
 
 type Tab = "overview" | "analitik";
 
-const TABS: { key: Tab; label: string; Icon: typeof LayoutDashboard }[] = [
-  { key: "overview", label: "Overview", Icon: LayoutDashboard },
-  { key: "analitik", label: "Analitik", Icon: BarChart3 },
-];
-
 function DashboardContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get("tab") as Tab) || "overview";
   const [tab, setTab] = useState<Tab>(initialTab);
 
-  const [analytics, setAnalytics] = useState<Analytics | null>(null);
-  const [patterns, setPatterns] = useState<Patterns | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [hotLeads, setHotLeads] = useState<{ lead_id: number; business_name: string; phone_number: string; category: string | null; status: string; last_active: string; total_opens: number; proposal_slug: string | null }[]>([]);
-  const [topScoredLeads, setTopScoredLeads] = useState<{ id: number; business_name: string; phone_number: string; lead_score: number; status: string; product_interest: string | null; address: string | null }[]>([]);
-  const [alerts, setAlerts] = useState<{ id: string; lead_id: number; business_name: string; phone_number: string; category: string | null; triggered_at: string; days_since_first_view: number; proposal_slug: string | null }[]>([]);
-  const [boardOverview, setBoardOverview] = useState<BoardOverview[]>([]);
-  const [financeOverview, setFinanceOverview] = useState<FinanceOverview | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const { analytics, patterns, hotLeads, topScoredLeads, alerts, boardOverview, financeOverview, isLoading } = useDashboardData();
 
-  useEffect(() => {
-    if (!localStorage.getItem("kt_email")) router.replace("/login");
-  }, [router]);
-
-  const fetchAll = useCallback(() => {
-    apiFetch("/api/analytics")
-      .then((r) => {
-        if (r.status === 401 || r.status === 403) { router.replace("/login"); return null; }
-        return r.ok ? r.json() : null;
-      })
-      .then((data) => { if (data) setAnalytics(data); })
-      .finally(() => setLoading(false));
-    apiFetch("/api/leads/hot").then((r) => r.ok ? r.json() : null).then((data) => { if (data) setHotLeads(data); }).catch(() => {});
-    apiFetch("/api/alerts/reengagement").then((r) => r.ok ? r.json() : null).then((data) => { if (data) setAlerts(data); }).catch(() => {});
-    apiFetch("/api/leads/top-scored?limit=10").then((r) => r.ok ? r.json() : null).then((data) => { if (data) setTopScoredLeads(data); }).catch(() => {});
-    apiFetch("/api/analytics/patterns").then((r) => r.ok ? r.json() : null).then((data) => { if (data) setPatterns(data); }).catch(() => {});
-    apiFetch("/api/boards/overview").then((r) => r.ok ? r.json() : null).then((data) => { if (data) setBoardOverview(data); }).catch(() => {});
-    apiFetch("/api/finance/reports").then((r) => r.ok ? r.json() : null).then((data) => { if (data) setFinanceOverview(data); }).catch(() => {});
-  }, [router]);
-
-  useEffect(() => {
-    fetchAll();
-    intervalRef.current = setInterval(fetchAll, 60000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [fetchAll]);
-
-  const maxProduct = analytics ? Math.max(...(analytics.leads_by_product ?? []).map((p) => p.count), 1) : 1;
-  const maxStatus = analytics ? Math.max(...(analytics.leads_by_status ?? []).map((s) => s.count), 1) : 1;
-
+  const maxProduct = analytics ? Math.max(...(analytics.leads_by_product ?? []).map(p => p.count), 1) : 1;
+  const maxStatus = analytics ? Math.max(...(analytics.leads_by_status ?? []).map(s => s.count), 1) : 1;
   const urgentCount = hotLeads.length + alerts.length;
-  const overdueTasks = boardOverview.reduce((total, project) => total + project.overdue_cards.length, 0);
-  const dueSoonTasks = boardOverview.reduce((total, project) => total + project.due_soon_cards.length, 0);
-  const formatIdr = (value: number) => new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(value);
+  const overdueTasks = boardOverview.reduce((t, p) => t + p.overdue_cards.length, 0);
+  const dueSoonTasks = boardOverview.reduce((t, p) => t + p.due_soon_cards.length, 0);
+  const formatIdr = (v: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(v);
 
   const STAT_CARDS = [
-    { label: "Total Leads", value: loading ? "—" : analytics?.total_leads ?? 0, sub: "Semua prospek tersimpan", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
-    { label: "Total Klien", value: loading ? "—" : analytics?.total_clients ?? 0, sub: "Sudah dikonversi", color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/20" },
-    { label: "Conversion Rate", value: loading ? "—" : `${analytics?.conversion_rate ?? 0}%`, sub: "Klien / Total Leads", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
-    { label: "Kategori Aktif", value: loading ? "—" : analytics?.leads_by_product?.length ?? 0, sub: "Jenis layanan diminati", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
+    { label: "Total Leads", value: isLoading ? "—" : analytics?.total_leads ?? 0, sub: "Semua prospek tersimpan", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
+    { label: "Total Klien", value: isLoading ? "—" : analytics?.total_clients ?? 0, sub: "Sudah dikonversi", color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/20" },
+    { label: "Conversion Rate", value: isLoading ? "—" : `${analytics?.conversion_rate ?? 0}%`, sub: "Klien / Total Leads", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
+    { label: "Kategori Aktif", value: isLoading ? "—" : analytics?.leads_by_product?.length ?? 0, sub: "Jenis layanan diminati", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
   ];
+
+  async function dismissAlert(id: string) {
+    await apiFetch(`/api/alerts/reengagement/${id}/read`, { method: "POST" });
+    // SWR will auto-revalidate
+  }
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -144,40 +68,29 @@ function DashboardContent() {
       </div>
 
       <div className="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 rounded-xl p-1 w-fit">
-        {TABS.map((t) => {
+        {TABS.map(t => {
           const isActive = tab === t.key;
           const badge = t.key === "overview" && urgentCount > 0 ? urgentCount : null;
           return (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                isActive
-                  ? "bg-white dark:bg-neutral-900 text-brand-yellow shadow-sm"
-                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-              }`}
-            >
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${isActive ? "bg-white dark:bg-neutral-900 text-brand-yellow shadow-sm" : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"}`}>
               <t.Icon size={14} />
               {t.label}
-              {badge !== null && (
-                <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${isActive ? "bg-brand-yellow/20 text-brand-yellow" : "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"}`}>{badge}</span>
-              )}
+              {badge !== null && <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${isActive ? "bg-brand-yellow/20 text-brand-yellow" : "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"}`}>{badge}</span>}
             </button>
           );
         })}
       </div>
 
-      {/* OVERVIEW TAB — stats + urgent items + quick actions */}
+      {/* OVERVIEW TAB */}
       {tab === "overview" && (
         <div className="space-y-6">
-          {/* Stat cards */}
+          {/* Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {STAT_CARDS.map((card) => (
+            {STAT_CARDS.map(card => (
               <div key={card.label} className="card-hover p-5 flex flex-col gap-3 cursor-default">
                 <div className={`w-10 h-10 rounded-xl ${card.bg} ${card.color} flex items-center justify-center`}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
-                  </svg>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
                 </div>
                 <div>
                   <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
@@ -188,11 +101,12 @@ function DashboardContent() {
             ))}
           </div>
 
+          {/* Kontrol Operasional */}
           <div className="card p-5">
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
                 <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Kontrol Operasional Owner</h2>
-                <p className="text-xs text-neutral-400 mt-0.5">Pantau pekerjaan tim dan kesehatan kas tanpa membuka banyak modul.</p>
+                <p className="text-xs text-neutral-400 mt-0.5">Pantau pekerjaan tim dan kesehatan kas.</p>
               </div>
               <div className="flex gap-2 text-xs font-semibold">
                 <Link href="/board" className="text-amber-600 hover:text-amber-700">Board</Link>
@@ -206,7 +120,7 @@ function DashboardContent() {
                 { label: "Jatuh Tempo <= 3 Hari", value: dueSoonTasks, alert: dueSoonTasks > 0 },
                 { label: "Total Saldo", value: financeOverview ? formatIdr(financeOverview.total_balance) : "Khusus admin", alert: false },
                 { label: "Runway", value: financeOverview ? `${financeOverview.financial_runway_months} bulan` : "Khusus admin", alert: financeOverview ? financeOverview.financial_runway_months < 3 : false },
-              ].map((item) => (
+              ].map(item => (
                 <div key={item.label} className={`rounded-xl px-3 py-3 border ${item.alert ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900" : "bg-neutral-50 dark:bg-neutral-800/50 border-neutral-100 dark:border-neutral-700"}`}>
                   <p className={`text-lg font-bold ${item.alert ? "text-red-600 dark:text-red-400" : "text-neutral-800 dark:text-neutral-100"}`}>{item.value}</p>
                   <p className="text-[10px] uppercase tracking-wide font-semibold text-neutral-400 mt-1">{item.label}</p>
@@ -215,7 +129,7 @@ function DashboardContent() {
             </div>
           </div>
 
-          {/* Hot leads — highest urgency */}
+          {/* Hot Leads */}
           {hotLeads.length > 0 && (
             <div className="card p-5">
               <div className="flex items-center justify-between mb-4">
@@ -226,7 +140,7 @@ function DashboardContent() {
                 <span className="text-[10px] text-neutral-400 uppercase tracking-wide font-bold">{hotLeads.length} lead</span>
               </div>
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                {hotLeads.map((lead) => (
+                {hotLeads.map(lead => (
                   <div key={lead.lead_id} className="flex items-center justify-between py-2 px-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-700">
                     <div className="flex items-center gap-3">
                       <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${lead.status === "online" ? "bg-green-500 animate-pulse" : lead.status === "recent" ? "bg-amber-500" : "bg-neutral-300"}`}></span>
@@ -235,7 +149,7 @@ function DashboardContent() {
                         <p className="text-[10px] text-neutral-400">{lead.category || "—"} · {lead.total_opens}x buka · {lead.status === "online" ? "Sedang online" : lead.status === "recent" ? "Baru buka" : "Hari ini"}</p>
                       </div>
                     </div>
-                    <a href={`https://wa.me/${lead.phone_number}?text=${encodeURIComponent(`Halo ${lead.business_name}, saya notice Anda baru saja membuka laporan audit digital yang kami kirimkan. Apakah ada pertanyaan atau hal yang ingin didiskusikan lebih lanjut? Saya siap bantu.`)}`} target="_blank" rel="noopener noreferrer"
+                    <a href={`https://wa.me/${lead.phone_number}?text=${encodeURIComponent(`Halo ${lead.business_name}, saya notice Anda baru saja membuka laporan audit digital. Apakah ada pertanyaan?`)}`} target="_blank" rel="noopener noreferrer"
                       className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg transition-colors whitespace-nowrap">
                       Follow Up
                     </a>
@@ -256,19 +170,16 @@ function DashboardContent() {
                 <span className="text-[10px] text-amber-600 font-bold">{alerts.length} alert</span>
               </div>
               <div className="space-y-2 max-h-48 overflow-y-auto">
-                {alerts.map((alert) => (
+                {alerts.map(alert => (
                   <div key={alert.id} className="flex items-center justify-between py-2 px-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
                     <div>
                       <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">{alert.business_name}</p>
                       <p className="text-[10px] text-neutral-500">Buka report lagi setelah <span className="font-bold text-amber-600">{alert.days_since_first_view} hari</span> — kemungkinan masih tertarik</p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex gap-2">
                       <a href={`https://wa.me/${alert.phone_number}`} target="_blank" rel="noopener noreferrer"
-                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg transition-colors whitespace-nowrap">
-                        WA Sekarang
-                      </a>
-                      <button onClick={() => { apiFetch(`/api/alerts/reengagement/${alert.id}/read`, { method: "POST" }); setAlerts(prev => prev.filter(a => a.id !== alert.id)); }}
-                        className="p-1.5 text-neutral-400 hover:text-neutral-600 transition-colors" title="Dismiss">
+                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg transition-colors whitespace-nowrap">WA Sekarang</a>
+                      <button onClick={() => dismissAlert(alert.id)} className="p-1.5 text-neutral-400 hover:text-neutral-600 transition-colors">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                       </button>
                     </div>
@@ -278,18 +189,18 @@ function DashboardContent() {
             </div>
           )}
 
-          {/* Empty state when no urgent items */}
-          {hotLeads.length === 0 && alerts.length === 0 && !loading && (
+          {/* Empty state */}
+          {hotLeads.length === 0 && alerts.length === 0 && !isLoading && (
             <div className="card p-6 text-center border border-dashed border-neutral-200 dark:border-neutral-700">
-              <p className="text-sm text-neutral-400">Tidak ada aktivitas mendesak saat ini. Kirim proposal untuk mulai memantau hot leads.</p>
+              <p className="text-sm text-neutral-400">Tidak ada aktivitas mendesak saat ini.</p>
             </div>
           )}
 
-          {/* Quick actions */}
+          {/* Quick Actions */}
           <div>
             <h2 className="text-sm font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-3">Quick Actions</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {QUICK_ACTIONS.map((action) => (
+              {QUICK_ACTIONS.map(action => (
                 <Link key={action.title} href={action.href}
                   className={`${action.bg} rounded-2xl p-4 text-white flex items-center gap-4 hover:opacity-90 hover:scale-[1.01] transition-all duration-200 shadow-card hover:shadow-card-hover`}>
                   <div className="bg-white/20 rounded-xl p-2 shrink-0">{action.icon}</div>
@@ -304,27 +215,26 @@ function DashboardContent() {
         </div>
       )}
 
-      {/* ANALITIK TAB — charts + patterns + top scored */}
+      {/* ANALITIK TAB */}
       {tab === "analitik" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="card p-6">
               <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-4">Layanan Paling Diminati</h2>
-              {loading ? (
+              {isLoading ? (
                 <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-6 bg-neutral-100 dark:bg-neutral-800 rounded animate-pulse" />)}</div>
               ) : analytics?.leads_by_product.length === 0 ? (
                 <p className="text-xs text-neutral-400 italic">Belum ada data.</p>
               ) : (
                 <div className="space-y-3">
-                  {analytics?.leads_by_product.map((p) => (
+                  {analytics?.leads_by_product.map(p => (
                     <div key={p.product}>
                       <div className="flex justify-between text-xs mb-1">
                         <span className="font-medium text-neutral-700 dark:text-neutral-300">{p.product}</span>
                         <span className="text-neutral-400 dark:text-neutral-500">{p.count} leads</span>
                       </div>
                       <div className="h-2 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-amber-500 to-yellow-500 rounded-full transition-all duration-700"
-                          style={{ width: `${(p.count / maxProduct) * 100}%` }} />
+                        <div className="h-full bg-gradient-to-r from-amber-500 to-yellow-500 rounded-full transition-all duration-700" style={{ width: `${(p.count / maxProduct) * 100}%` }} />
                       </div>
                     </div>
                   ))}
@@ -334,21 +244,20 @@ function DashboardContent() {
 
             <div className="card p-6">
               <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-4">Distribusi Status Pipeline</h2>
-              {loading ? (
+              {isLoading ? (
                 <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-6 bg-neutral-100 dark:bg-neutral-800 rounded animate-pulse" />)}</div>
               ) : analytics?.leads_by_status.length === 0 ? (
                 <p className="text-xs text-neutral-400 italic">Belum ada data.</p>
               ) : (
                 <div className="space-y-3">
-                  {analytics?.leads_by_status.map((s) => (
+                  {analytics?.leads_by_status.map(s => (
                     <div key={s.status}>
                       <div className="flex justify-between text-xs mb-1">
                         <span className="font-medium text-neutral-700 dark:text-neutral-300">{s.status}</span>
                         <span className="text-neutral-400">{s.count}</span>
                       </div>
                       <div className="h-2 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full transition-all duration-500 ${STATUS_COLORS[s.status] ?? "bg-gray-400"}`}
-                          style={{ width: `${(s.count / maxStatus) * 100}%` }} />
+                        <div className={`h-full rounded-full transition-all duration-500 ${STATUS_COLORS[s.status] ?? "bg-gray-400"}`} style={{ width: `${(s.count / maxStatus) * 100}%` }} />
                       </div>
                     </div>
                   ))}
@@ -368,11 +277,11 @@ function DashboardContent() {
                 <span className="text-[10px] text-neutral-400 uppercase tracking-wide font-bold">{topScoredLeads.length} prioritas</span>
               </div>
               <div className="space-y-2 max-h-72 overflow-y-auto">
-                {topScoredLeads.map((lead) => {
+                {topScoredLeads.map(lead => {
                   const score = lead.lead_score ?? 0;
                   const color = getScoreColor(score);
                   const tierLabel = getScoreLabel(score);
-                  const waMsg = `Halo ${lead.business_name}, saya dari Kantor Teman. Ingin diskusi soal kebutuhan ${lead.product_interest || "digital"} bisnis Anda. Apakah ada waktu sebentar?`;
+                  const waMsg = `Halo ${lead.business_name}, saya dari Kantor Teman. Ingin diskusi soal kebutuhan ${lead.product_interest || "digital"} bisnis Anda. Apakah ada waktu?`;
                   return (
                     <div key={lead.id} className="flex items-center justify-between py-2 px-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-700">
                       <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -390,9 +299,7 @@ function DashboardContent() {
                         </div>
                       </div>
                       <a href={`https://wa.me/${lead.phone_number}?text=${encodeURIComponent(waMsg)}`} target="_blank" rel="noopener noreferrer"
-                        className="ml-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg transition-colors whitespace-nowrap shrink-0">
-                        Follow Up
-                      </a>
+                        className="ml-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg transition-colors whitespace-nowrap shrink-0">Follow Up</a>
                     </div>
                   );
                 })}

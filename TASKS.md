@@ -1,26 +1,27 @@
-# feat/backend-caching — Phase 2: Cleanup Routers
+# feat/frontend-optimize — Phase 2: Selesaikan yang mangkrak
 
-> Branch: `feat/backend-caching` | Worktree: backend
+> Branch: `feat/frontend-optimize` | Worktree: frontend
 
 ## ⚠️ Rules
-- Jangan ubah endpoint signature
+- Build pass tiap commit
+- Mobile + dark mode tetap jalan
 - Commit 1 task = 1 commit
-- Service layer sudah ada — router tinggal panggil service
 
 ---
 
-## Task 1: Bersihin import finance router
-- `routers/finance.py` import 53 model + ~40 dependencies. Ganti import model jadi spesifik (cuma yang dipakai: Transaction, Wallet, Subscription, Lead, AuditLog).
-- Dependencies yang nggak dipakai dihapus dari import
+## Task 1: Migrasi SWR di dashboard + leads
+- Ganti `useState + useEffect + apiFetch` jadi `useApi` di 2 halaman
+- Dashboard: fetch summary pakai SWR caching
+- Leads page: fetch leads + batches pakai SWR
 
-## Task 2: Bersihin import leads router  
-- Sama — `routers/leads.py` import semua model tapi cuma pakai sebagian
+## Task 2: Split LeadsTable state management  
+- Ekstrak state polling + fetch logic dari LeadsTable ke custom hook `useLeadsTable`
+- LeadsTable.tsx jadi ~300L (view only + panggil hook)
 
-## Task 3: Bersihin import workspace router
-- Sama — `routers/workspace.py`
-
-## Task 4: Bersihin import router sisanya (10 file)
-- `routers/auth.py`, `routers/clients.py`, `routers/content.py`, `routers/campaign.py`, `routers/documents.py`, `routers/proposals.py`, `routers/settings.py`, `routers/analytics.py`, `routers/office.py`, `routers/other.py`
+## Task 3: Split client detail page
+- `dashboard/clients/[client_id]/page.tsx` = 1159L
+- Ekstrak jadi: `ClientProfile.tsx`, `ClientProjects.tsx`, `ClientCredentials.tsx`, `ClientNotes.tsx`
+- Page jadi thin wrapper ~50L
 
 ---
 
