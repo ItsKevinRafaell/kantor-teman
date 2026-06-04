@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import { formatRupiah } from "../../../utils/formatter";
+import { ServiceCardList } from "../../../components/proposal/ServiceCardList";
+import { ProposalTimeline } from "../../../components/proposal/ProposalTimeline";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -376,92 +378,12 @@ export default function ProposalPage() {
         {/* ============================================================ */}
         {/* PRODUCT SHOWCASE */}
         {/* ============================================================ */}
-        <section className="space-y-4 mb-12">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-600 mb-2">Solusi yang Kami Siapkan untuk Anda</h2>
-          <div className="grid grid-cols-1 gap-4">
-            {proposal.services_detail.map((service, i) => {
-              const benefits = getBenefits(service.name);
-              const description = getServiceDescription(service.name);
-              return (
-                <div
-                  key={i}
-                  className="bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-700 rounded-2xl p-6 shadow-sm transition-all duration-300 ease-in-out hover:shadow-md hover:border-amber-500 break-inside-avoid print:border-zinc-300 print:shadow-none"
-                >
-                  <div className="flex items-start justify-between gap-4 mb-3">
-                    <div>
-                      <h3 className="text-lg font-bold text-zinc-900 dark:text-white print:text-black">{service.name}</h3>
-                      <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1 leading-relaxed print:text-zinc-700">{description}</p>
-                    </div>
-                    <span className="shrink-0 text-sm font-bold text-amber-600 whitespace-nowrap print:text-amber-700">
-                      {formatRupiah(service.price)}
-                    </span>
-                  </div>
-                  <div className="border-t-2 border-zinc-100 pt-3 mt-3 print:border-zinc-200">
-                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-2">Dampak Langsung ke Bisnis Anda</p>
-                    <ul className="space-y-1.5">
-                      {benefits.map((b, j) => (
-                        <li key={j} className="flex items-start gap-2 text-sm text-zinc-700 print:text-zinc-800">
-                          <svg className="w-4 h-4 text-amber-500 mt-0.5 shrink-0 print:text-amber-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                          </svg>
-                          <span>{b}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
+        <ServiceCardList services={proposal.services_detail} />
 
         {/* ============================================================ */}
         {/* TIMELINE INTERAKTIF */}
         {/* ============================================================ */}
-        {timeline.length > 0 && (
-          <section className="mb-12 break-inside-avoid">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-600 mb-4">Alur Kerja & Timeline Pengerjaan</h2>
-            <div className="bg-white border-2 border-zinc-200 rounded-2xl p-6 shadow-sm print:border-zinc-300 print:shadow-none">
-              {/* Progress bar */}
-              <div className="relative mb-6">
-                <div className="h-2 bg-zinc-100 rounded-full">
-                  <div className="h-2 bg-amber-500 rounded-full transition-all duration-500" style={{ width: "8%" }}></div>
-                </div>
-                <div className="flex justify-between mt-2">
-                  <span className="text-[9px] text-amber-600 font-bold">Anda di sini</span>
-                  <span className="text-xs font-semibold text-zinc-500">Proyek Selesai</span>
-                </div>
-              </div>
-              <div className="space-y-0">
-                {timeline.map((phase, idx) => (
-                  <div key={idx} className="relative flex items-start gap-4 pb-5 last:pb-0">
-                    {idx < timeline.length - 1 && (
-                      <div className="absolute left-4 top-9 w-0.5 h-full bg-amber-200"></div>
-                    )}
-                    <div className="w-8 h-8 rounded-full bg-amber-500 text-white text-sm font-bold flex items-center justify-center shrink-0 mt-0.5 relative z-10 print:bg-amber-600">
-                      {phase.sequence}
-                    </div>
-                    <div className="flex-1 pb-4 border-b border-zinc-100 last:border-0">
-                      <h4 className="text-base font-bold text-zinc-900 print:text-black">{phase.title}</h4>
-                      <p className="text-sm text-zinc-600 leading-relaxed mt-1 print:text-zinc-700">{phase.description}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Print-only timeline format */}
-            <div className="hidden print:block mt-4">
-              <ol className="list-none space-y-2">
-                {timeline.map((phase) => (
-                  <li key={phase.sequence} className="text-sm text-black">
-                    <span className="font-bold">[{phase.sequence}] - {phase.title}:</span> {phase.description}
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </section>
-        )}
+        <ProposalTimeline timeline={timeline} />
 
         {/* ============================================================ */}
         {/* POSIBILITAS KEUNTUNGAN MASA DEPAN */}
