@@ -232,10 +232,14 @@ if __name__ == "__main__":
     # Seed DocumentTemplates from document_template_library
     from document_template_library import get_document_template_starters
     starters = get_document_template_starters()
-    existing_template_types = {t.type for t in db.query(DocumentTemplate).all()}
-    templates_added = 0
     for doc_type, data in starters.items():
-        if doc_type not in existing_template_types:
+        existing = db.query(DocumentTemplate).filter(DocumentTemplate.type == doc_type).first()
+        if existing:
+            # Update with full template
+            existing.name = data["name"]
+            existing.html_template = data["html_template"]
+            existing.variables = json.dumps(data["variables"])
+        else:
             db.add(DocumentTemplate(
                 id=str(uuid.uuid4()),
                 name=data["name"],
@@ -244,9 +248,8 @@ if __name__ == "__main__":
                 variables=json.dumps(data["variables"]),
                 is_active=True,
             ))
-            templates_added += 1
     db.commit()
-    print(f"Seeded: {templates_added} document templates (skipped {len(starters) - templates_added} existing)")
+    print(f"Seeded/Updated: {len(starters)} document templates")
 
     # Seed default BrandKit if not exists
     existing_kits = db.query(BrandKit).filter(BrandKit.is_active == True).count()
