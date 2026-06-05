@@ -662,7 +662,14 @@ def _render_document_html(html_template: str, full_vars: dict) -> str:
     try:
         from jinja2.sandbox import SandboxedEnvironment
         from jinja2 import Undefined
-        env = SandboxedEnvironment(undefined=Undefined)
+
+        class SilentUndefined(Undefined):
+            """Renders as {{variable}} so fallback can catch it."""
+            def _fail_with_undefined_error(self, *args, **kwargs):
+                return f"{{{{{self._undefined_name}}}}}"
+            __str__ = __repr__ = _fail_with_undefined_error
+
+        env = SandboxedEnvironment(undefined=SilentUndefined)
         template = env.from_string(html_template)
         rendered_html = template.render(**full_vars)
         # Fallback: catch any remaining {{key}} that Jinja2 left as literal text
