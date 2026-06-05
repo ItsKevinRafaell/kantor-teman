@@ -613,8 +613,10 @@ def _prepare_document_vars(db: Session, template: DocumentTemplate, body: Docume
     template_type = _document_template_type(template)
     defaults = _build_default_vars(db, template_type, body.target_type, body.target_id)
     brand_ctx = _build_brand_context(db)
-    # Defaults first, then brand_ctx (brand_ctx has priority for brand-specific fields)
-    full_vars = {**defaults, **brand_ctx}
+    # brand_ctx first, then defaults so lead data (klien, alamat, phone, layanan)
+    # takes priority over brand kit values, while brand fields (logo, tagline,
+    # company info) that defaults doesn't set still come through.
+    full_vars = {**brand_ctx, **defaults}
     for key, value in body.variables.items():
         if value not in (None, "") or key not in full_vars:
             full_vars[key] = value
