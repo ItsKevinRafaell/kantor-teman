@@ -1,279 +1,112 @@
 "use client";
-import { inputCls, inputClsLarge } from "../../lib/inputCls";
-
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "../../lib/api";
-import { Plus, Edit2, Trash2, X, Star, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
+import { RefreshCw, CheckCircle2, XCircle } from "lucide-react";
 import ConfirmModal from "../../components/ConfirmModal";
+import ModelRegistrySection from "./ai/ModelRegistrySection";
+import ProxiesSection from "./ai/ProxiesSection";
+import { inputCls } from "../../lib/inputCls";
 
 interface AIModel {
-  id: string;
-  name: string;
-  model_id: string;
-  description: string | null;
-  capabilities: string[];
-  is_active: boolean;
-  is_default_chat: boolean;
-  is_default_image: boolean;
-  is_default_article: boolean;
-  is_default_analysis: boolean;
+  id: string; name: string; model_id: string; description: string | null;
+  capabilities: string[]; is_active: boolean;
+  is_default_chat: boolean; is_default_image: boolean;
+  is_default_article: boolean; is_default_analysis: boolean;
 }
 
 interface AIProxy {
-  id: string;
-  name: string;
-  base_url: string;
-  api_key: string;
-  model: string;
-  feature: string | null;
-  is_active: boolean;
-  created_at: string;
+  id: string; name: string; base_url: string; api_key: string;
+  model: string; feature: string | null; is_active: boolean; created_at: string;
 }
 
-interface Combo {
-  name: string;
-  display_name: string;
-}
-
-interface HealthState {
-  status: "connected" | "offline" | "loading";
-  proxy_url: string;
-}
-
-const CAPABILITIES = ["chat", "image", "article", "analysis"] as const;
-const CAP_LABELS: Record<string, string> = { chat: "Chat", image: "Image", article: "Artikel", analysis: "Analisa" };
-const CAP_COLORS: Record<string, string> = {
-  chat: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  image: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-  article: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-  analysis: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-};
+interface Combo { name: string; display_name: string; }
+interface HealthState { status: "connected" | "offline" | "loading"; proxy_url: string; }
 
 const COMBO_LABELS: Record<string, string> = {
-  "combo-kiro": "Kiro (Claude)",
-  "combo-mimo": "MiMo v2.5 Pro",
-  "combo-deepseek": "DeepSeek",
-  "combo-freemodel": "Free Model",
-  "combo-test-mimo": "MiMo Test",
+  "combo-kiro": "Kiro (Claude)", "combo-mimo": "MiMo v2.5 Pro",
+  "combo-deepseek": "DeepSeek", "combo-freemodel": "Free Model", "combo-test-mimo": "MiMo Test",
 };
 
 const FEATURES = [
-  { key: "chat", label: "Chat & Agent" },
-  { key: "article", label: "Generate Artikel SEO" },
-  { key: "image", label: "Generate Gambar" },
-  { key: "analysis", label: "Analisa Lead" },
+  { key: "chat", label: "Chat & Agent" }, { key: "article", label: "Generate Artikel SEO" },
+  { key: "image", label: "Generate Gambar" }, { key: "analysis", label: "Analisa Lead" },
   { key: "caption", label: "Generate Caption Sosmed" },
 ] as const;
 
 export default function AIEngineTab() {
   const [models, setModels] = useState<AIModel[]>([]);
   const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState(false);
-  const [editing, setEditing] = useState<AIModel | null>(null);
-  const [form, setForm] = useState({ name: "", model_id: "", description: "", capabilities: ["chat"] as string[], is_active: true });
-  const [toast, setToast] = useState<string | null>(null);
-
   const [combos, setCombos] = useState<Combo[]>([]);
   const [activeCombo, setActiveCombo] = useState<string>("");
   const [switching, setSwitching] = useState<string | null>(null);
   const [health, setHealth] = useState<HealthState>({ status: "loading", proxy_url: "" });
   const [proxyUrlInput, setProxyUrlInput] = useState<string>("");
   const [savingUrl, setSavingUrl] = useState(false);
-
   const [featureDefaults, setFeatureDefaults] = useState<Record<string, string>>({});
   const [savingDefaults, setSavingDefaults] = useState(false);
-
   const [proxies, setProxies] = useState<AIProxy[]>([]);
-  const [proxyModal, setProxyModal] = useState(false);
-  const [editingProxy, setEditingProxy] = useState<AIProxy | null>(null);
-  const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; message: string; onConfirm: () => void }>({ open: false, title: "", message: "", onConfirm: () => {} });
+  const [confirmState, setConfirmState] = useState({ open: false, title: "", message: "", onConfirm: () => {} });
+  const [toast, setToast] = useState<string | null>(null);
 
-  function openConfirm(title: string, message: string, onConfirm: () => void) {
-    setConfirmState({ open: true, title, message, onConfirm });
-  }
-  const [proxyForm, setProxyForm] = useState({ name: "", base_url: "", api_key: "", model: "", feature: "" });
-  const [activatingProxy, setActivatingProxy] = useState<string | null>(null);
-
-  const PROXY_FEATURES = [
-    { key: "", label: "Fallback (semua fitur)" },
-    { key: "chat", label: "Chat (Business Partner)" },
-    { key: "agent", label: "Agent (Task Executor)" },
-    { key: "content", label: "Content Generator" },
-    { key: "analysis", label: "Lead Analysis" },
-    { key: "followup", label: "Followup Otomatis" },
-  ];
+  function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(null), 3000); }
+  function openConfirm(title: string, message: string, onConfirm: () => void) { setConfirmState({ open: true, title, message, onConfirm }); }
 
   const fetchModels = useCallback(async () => {
-    try {
-      const res = await apiFetch("/api/ai-models");
-      if (res.ok) setModels(await res.json());
-    } finally { setLoading(false); }
+    try { const r = await apiFetch("/api/ai-models"); if (r.ok) setModels(await r.json()); }
+    finally { setLoading(false); }
   }, []);
-
   const fetchCombos = useCallback(async () => {
-    const [combosRes, activeRes] = await Promise.all([
-      apiFetch("/api/ai/combos"),
-      apiFetch("/api/ai/active-combo"),
-    ]);
+    const [combosRes, activeRes] = await Promise.all([apiFetch("/api/ai/combos"), apiFetch("/api/ai/active-combo")]);
     if (combosRes.ok) setCombos(await combosRes.json());
-    if (activeRes.ok) {
-      const data = await activeRes.json();
-      setActiveCombo(data.combo);
-      if (data.proxy_url) setProxyUrlInput(data.proxy_url);
-    }
+    if (activeRes.ok) { const d = await activeRes.json(); setActiveCombo(d.combo); if (d.proxy_url) setProxyUrlInput(d.proxy_url); }
   }, []);
-
   const checkHealth = useCallback(async () => {
     setHealth(h => ({ ...h, status: "loading" }));
     try {
       const res = await apiFetch("/api/ai/health");
-      if (res.ok) {
-        const data = await res.json();
-        setHealth(data);
-        if (data.proxy_url) setProxyUrlInput(data.proxy_url);
-      }
-    } catch {
-      setHealth({ status: "offline", proxy_url: "" });
-    }
+      if (res.ok) { const d = await res.json(); setHealth(d); if (d.proxy_url) setProxyUrlInput(d.proxy_url); }
+    } catch { setHealth({ status: "offline", proxy_url: "" }); }
   }, []);
-
   const fetchFeatureDefaults = useCallback(async () => {
-    try {
-      const res = await apiFetch("/api/ai/feature-defaults");
-      if (res.ok) setFeatureDefaults(await res.json());
-    } catch {}
+    try { const r = await apiFetch("/api/ai/feature-defaults"); if (r.ok) setFeatureDefaults(await r.json()); } catch {}
   }, []);
-
   const fetchProxies = useCallback(async () => {
-    try {
-      const res = await apiFetch("/api/ai-proxies");
-      if (res.ok) setProxies(await res.json());
-    } catch {}
+    try { const r = await apiFetch("/api/ai-proxies"); if (r.ok) setProxies(await r.json()); } catch {}
   }, []);
 
-  useEffect(() => { fetchModels(); fetchCombos(); checkHealth(); fetchFeatureDefaults(); fetchProxies(); }, [fetchModels, fetchCombos, checkHealth, fetchFeatureDefaults, fetchProxies]);
+  useEffect(() => { fetchModels(); fetchCombos(); checkHealth(); fetchFeatureDefaults(); fetchProxies(); },
+    [fetchModels, fetchCombos, checkHealth, fetchFeatureDefaults, fetchProxies]);
 
-  function openProxyModal(p: AIProxy | null) {
-    setEditingProxy(p);
-    setProxyForm(p
-      ? { name: p.name, base_url: p.base_url, api_key: "", model: p.model, feature: p.feature || "" }
-      : { name: "", base_url: "", api_key: "", model: "", feature: "" });
-    setProxyModal(true);
-  }
-
-  async function saveProxy() {
-    if (!proxyForm.name || !proxyForm.base_url) { showToast("Nama dan Base URL wajib diisi"); return; }
-    const payload = { ...proxyForm, feature: proxyForm.feature || null };
-    const res = editingProxy
-      ? await apiFetch(`/api/ai-proxies/${editingProxy.id}`, { method: "PUT", body: JSON.stringify(payload) })
-      : await apiFetch("/api/ai-proxies", { method: "POST", body: JSON.stringify(payload) });
-    if (res.ok) { setProxyModal(false); fetchProxies(); showToast(editingProxy ? "Proxy diupdate" : "Proxy ditambahkan"); }
-    else showToast("Gagal simpan proxy");
-  }
-
-  async function deleteProxy(id: string) {
-    openConfirm("Hapus Proxy", "Yakin mau hapus proxy ini?", async () => {
-      const res = await apiFetch(`/api/ai-proxies/${id}`, { method: "DELETE" });
-      if (res.ok) { fetchProxies(); showToast("Proxy dihapus"); }
-    });
-  }
-
-  async function activateProxy(id: string) {
-    setActivatingProxy(id);
+  async function saveProxyUrl() {
+    const url = proxyUrlInput.trim();
+    if (!url || !/^https?:\/\//.test(url)) { showToast("URL harus diawali http:// atau https://"); return; }
+    setSavingUrl(true);
     try {
-      const res = await apiFetch(`/api/ai-proxies/${id}/activate`, { method: "POST" });
-      if (res.ok) { fetchProxies(); showToast("Proxy diaktifkan"); }
-    } finally { setActivatingProxy(null); }
-  }
-
-  function featureLabel(f: string | null) {
-    return PROXY_FEATURES.find(x => x.key === (f || ""))?.label || f || "Fallback";
-  }
-
-  function comboDisplayName(name: string) {
-    return COMBO_LABELS[name] || name;
+      const res = await apiFetch("/api/ai/proxy-url", { method: "POST", body: JSON.stringify({ url }) });
+      if (res.ok) { const d = await res.json(); setProxyUrlInput(d.proxy_url); showToast("Proxy URL disimpan"); checkHealth(); }
+      else { const e = await res.json().catch(() => ({})); showToast(e.detail || "Gagal menyimpan URL"); }
+    } finally { setSavingUrl(false); }
   }
 
   async function selectCombo(name: string) {
     if (name === activeCombo || switching) return;
-    openConfirm("Ganti Combo", `Ganti combo aktif ke "${comboDisplayName(name)}"?`, async () => {
+    openConfirm("Ganti Combo", `Ganti combo aktif ke "${COMBO_LABELS[name] || name}"?`, async () => {
       setSwitching(name);
       try {
-        const res = await apiFetch("/api/ai/active-combo", {
-          method: "POST",
-          body: JSON.stringify({ combo: name }),
-        });
-        if (res.ok) {
-          setActiveCombo(name);
-          showToast(`Combo diubah ke ${comboDisplayName(name)}`);
-        } else {
-          const err = await res.json().catch(() => ({}));
-          showToast(err.detail || "Gagal mengubah combo");
-        }
+        const res = await apiFetch("/api/ai/active-combo", { method: "POST", body: JSON.stringify({ combo: name }) });
+        if (res.ok) { setActiveCombo(name); showToast(`Combo diubah ke ${COMBO_LABELS[name] || name}`); }
+        else { const e = await res.json().catch(() => ({})); showToast(e.detail || "Gagal mengubah combo"); }
       } finally { setSwitching(null); }
     });
-  }
-
-  async function saveProxyUrl() {
-    const url = proxyUrlInput.trim();
-    if (!url) return;
-    if (!/^https?:\/\//.test(url)) {
-      showToast("URL harus diawali http:// atau https://");
-      return;
-    }
-    setSavingUrl(true);
-    try {
-      const res = await apiFetch("/api/ai/proxy-url", {
-        method: "POST",
-        body: JSON.stringify({ url }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setProxyUrlInput(data.proxy_url);
-        showToast("Proxy URL disimpan");
-        checkHealth();
-      } else {
-        const err = await res.json().catch(() => ({}));
-        showToast(err.detail || "Gagal menyimpan URL");
-      }
-    } finally { setSavingUrl(false); }
   }
 
   async function saveFeatureDefaultsHandler() {
     setSavingDefaults(true);
     try {
-      const res = await apiFetch("/api/ai/feature-defaults", {
-        method: "POST",
-        body: JSON.stringify(featureDefaults),
-      });
-      if (res.ok) {
-        setFeatureDefaults(await res.json());
-        showToast("Default per fitur disimpan");
-      } else {
-        const err = await res.json().catch(() => ({}));
-        showToast(err.detail || "Gagal menyimpan");
-      }
+      const res = await apiFetch("/api/ai/feature-defaults", { method: "POST", body: JSON.stringify(featureDefaults) });
+      if (res.ok) { setFeatureDefaults(await res.json()); showToast("Default per fitur disimpan"); }
+      else { const e = await res.json().catch(() => ({})); showToast(e.detail || "Gagal menyimpan"); }
     } finally { setSavingDefaults(false); }
-  }
-
-  function openNew() {
-    setEditing(null);
-    setForm({ name: "", model_id: "", description: "", capabilities: ["chat"], is_active: true });
-    setModal(true);
-  }
-
-  function openEdit(m: AIModel) {
-    setEditing(m);
-    setForm({ name: m.name, model_id: m.model_id, description: m.description || "", capabilities: m.capabilities, is_active: m.is_active });
-    setModal(true);
-  }
-
-  async function save() {
-    if (!form.name || !form.model_id) return;
-    const method = editing ? "PUT" : "POST";
-    const url = editing ? `/api/ai-models/${editing.id}` : "/api/ai-models";
-    const res = await apiFetch(url, { method, body: JSON.stringify(form) });
-    if (res.ok) { setModal(false); fetchModels(); showToast(editing ? "Model diupdate" : "Model ditambahkan"); }
   }
 
   async function deleteModel(id: string) {
@@ -283,23 +116,8 @@ export default function AIEngineTab() {
 
   async function setDefault(id: string, capability: string) {
     const res = await apiFetch(`/api/ai-models/${id}/set-default?capability=${capability}`, { method: "POST" });
-    if (res.ok) { fetchModels(); showToast(`Default ${CAP_LABELS[capability]} diset`); }
+    if (res.ok) { fetchModels(); showToast(`Default ${capability} diset`); }
   }
-
-  function toggleCapability(cap: string) {
-    setForm(f => ({
-      ...f,
-      capabilities: f.capabilities.includes(cap)
-        ? f.capabilities.filter(c => c !== cap)
-        : [...f.capabilities, cap],
-    }));
-  }
-
-  function showToast(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  }
-
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -309,7 +127,7 @@ export default function AIEngineTab() {
         </div>
       )}
 
-      {/* Section 1: AI Model Endpoint */}
+      {/* AI Model Endpoint */}
       <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 space-y-3">
         <div className="flex items-center justify-between">
           <div>
@@ -328,33 +146,20 @@ export default function AIEngineTab() {
               </span>
             )}
             {health.status === "loading" && (
-              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-500 rounded-xl text-xs font-semibold">
-                Mengecek...
-              </span>
+              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-500 rounded-xl text-xs font-semibold">Mengecek...</span>
             )}
-            <button onClick={checkHealth} className="p-2 text-gray-400 hover:text-brand-yellow rounded-lg transition-colors" title="Refresh">
-              <RefreshCw size={14} />
-            </button>
+            <button onClick={checkHealth} className="p-2 text-gray-400 hover:text-brand-yellow rounded-lg transition-colors" title="Refresh"><RefreshCw size={14} /></button>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <input
-            value={proxyUrlInput}
-            onChange={e => setProxyUrlInput(e.target.value)}
-            placeholder="http://localhost:20128/v1"
-            className={inputCls}
-          />
-          <button
-            onClick={saveProxyUrl}
-            disabled={savingUrl}
-            className="shrink-0 px-4 py-2.5 text-sm font-semibold bg-brand-yellow hover:bg-amber-600 text-white rounded-xl transition-colors disabled:opacity-50"
-          >
+          <input value={proxyUrlInput} onChange={e => setProxyUrlInput(e.target.value)} placeholder="http://localhost:20128/v1" className={inputCls} />
+          <button onClick={saveProxyUrl} disabled={savingUrl} className="shrink-0 px-4 py-2.5 text-sm font-semibold bg-brand-yellow hover:bg-amber-600 text-white rounded-xl transition-colors disabled:opacity-50">
             {savingUrl ? "..." : "Simpan"}
           </button>
         </div>
       </div>
 
-      {/* Section 2: Active Combo */}
+      {/* Active Combo */}
       <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 space-y-4">
         <div>
           <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Combo Aktif (Default)</h2>
@@ -368,27 +173,15 @@ export default function AIEngineTab() {
               const isActive = c.name === activeCombo;
               const isSwitching = switching === c.name;
               return (
-                <button
-                  key={c.name}
-                  onClick={() => selectCombo(c.name)}
-                  disabled={isSwitching || isActive}
-                  className={`text-left p-4 rounded-xl border-2 transition-all ${
-                    isActive
-                      ? "border-[#f5a700] bg-amber-50/50 dark:bg-amber-900/10"
-                      : "border-[var(--border-subtle)] hover:border-amber-300 hover:bg-amber-50/30 dark:hover:bg-amber-900/5"
-                  } ${isSwitching ? "opacity-60" : ""}`}
-                >
+                <button key={c.name} onClick={() => selectCombo(c.name)} disabled={isSwitching || isActive}
+                  className={`text-left p-4 rounded-xl border-2 transition-all ${isActive ? "border-[#f5a700] bg-amber-50/50 dark:bg-amber-900/10" : "border-[var(--border-subtle)] hover:border-amber-300 hover:bg-amber-50/30 dark:hover:bg-amber-900/5"} ${isSwitching ? "opacity-60" : ""}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">{comboDisplayName(c.name)}</p>
+                      <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">{COMBO_LABELS[c.name] || c.name}</p>
                       <p className="text-[11px] text-neutral-400 font-mono mt-0.5">{c.name}</p>
                     </div>
-                    {isActive && (
-                      <span className="shrink-0 px-2 py-0.5 bg-brand-yellow text-white text-[10px] font-bold uppercase rounded">Aktif</span>
-                    )}
-                    {isSwitching && (
-                      <span className="shrink-0 text-[10px] text-amber-600">Switching...</span>
-                    )}
+                    {isActive && <span className="shrink-0 px-2 py-0.5 bg-brand-yellow text-white text-[10px] font-bold uppercase rounded">Aktif</span>}
+                    {isSwitching && <span className="shrink-0 text-[10px] text-amber-600">Switching...</span>}
                   </div>
                 </button>
               );
@@ -397,7 +190,7 @@ export default function AIEngineTab() {
         )}
       </div>
 
-      {/* Section 3: Default Model per Fitur */}
+      {/* Default per Fitur */}
       <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 space-y-4">
         <div>
           <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Default Model per Fitur</h2>
@@ -407,202 +200,31 @@ export default function AIEngineTab() {
           {FEATURES.map(f => (
             <div key={f.key} className="flex items-center gap-4">
               <label className="text-sm text-neutral-700 dark:text-neutral-300 w-48 shrink-0">{f.label}</label>
-              <select
-                value={featureDefaults[f.key] || ""}
-                onChange={e => setFeatureDefaults(prev => ({ ...prev, [f.key]: e.target.value }))}
-                className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-neutral-50 dark:bg-neutral-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-yellow/50 transition"
-              >
+              <select value={featureDefaults[f.key] || ""} onChange={e => setFeatureDefaults(prev => ({ ...prev, [f.key]: e.target.value }))}
+                className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-neutral-50 dark:bg-neutral-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-yellow/50 transition">
                 <option value="">Default (combo aktif)</option>
-                {combos.map(c => (
-                  <option key={c.name} value={c.name}>{comboDisplayName(c.name)}</option>
-                ))}
+                {combos.map(c => <option key={c.name} value={c.name}>{COMBO_LABELS[c.name] || c.name}</option>)}
               </select>
             </div>
           ))}
         </div>
-        <button
-          onClick={saveFeatureDefaultsHandler}
-          disabled={savingDefaults}
-          className="px-5 py-2.5 text-sm font-semibold bg-brand-yellow hover:bg-amber-600 text-white rounded-xl transition-colors disabled:opacity-50"
-        >
+        <button onClick={saveFeatureDefaultsHandler} disabled={savingDefaults}
+          className="px-5 py-2.5 text-sm font-semibold bg-brand-yellow hover:bg-amber-600 text-white rounded-xl transition-colors disabled:opacity-50">
           {savingDefaults ? "Menyimpan..." : "Simpan Default"}
         </button>
       </div>
 
-      {/* Section 4: Model Registry */}
-      <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] overflow-hidden">
-        <div className="px-5 py-4 border-b border-[var(--border-subtle)]">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Model Registry ({models.length})</h2>
-            <button onClick={openNew} className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-yellow hover:bg-amber-600 text-white text-xs font-semibold rounded-xl transition-colors">
-              <Plus size={14} /> Tambah Model
-            </button>
-          </div>
-          <p className="text-xs text-neutral-500 mt-2">Override capability tertentu (image gen). Kosong = pakai default per fitur.</p>
-        </div>
-
-        {loading ? (
-          <div className="p-8 text-center text-sm text-neutral-400">Memuat...</div>
-        ) : models.length === 0 ? (
-          <div className="p-8 text-center text-sm text-neutral-400">Belum ada override. Default pakai combo aktif.</div>
-        ) : (
-          <div className="divide-y divide-[var(--border-subtle)]">
-            {models.map(m => (
-              <div key={m.id} className="px-5 py-3 flex items-center gap-4 hover:bg-[var(--bg-surface-hover)] transition-colors">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">{m.name}</p>
-                    {!m.is_active && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-700 text-gray-500">Nonaktif</span>}
-                  </div>
-                  <p className="text-xs text-neutral-400 font-mono">{m.model_id}</p>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    {m.capabilities.map(cap => (
-                      <span key={cap} className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${CAP_COLORS[cap] || "bg-gray-100 text-gray-600"}`}>
-                        {CAP_LABELS[cap] || cap}
-                        {(cap === "chat" && m.is_default_chat) || (cap === "image" && m.is_default_image) || (cap === "article" && m.is_default_article) || (cap === "analysis" && m.is_default_analysis) ? " *" : ""}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  {m.capabilities.map(cap => (
-                    <button key={cap} onClick={() => setDefault(m.id, cap)}
-                      title={`Set default ${CAP_LABELS[cap]}`}
-                      className={`p-1.5 rounded-lg transition-colors ${
-                        (cap === "chat" && m.is_default_chat) || (cap === "image" && m.is_default_image) || (cap === "article" && m.is_default_article) || (cap === "analysis" && m.is_default_analysis)
-                          ? "text-brand-yellow" : "text-gray-300 hover:text-brand-yellow"
-                      }`}>
-                      <Star size={12} fill={(cap === "chat" && m.is_default_chat) || (cap === "image" && m.is_default_image) || (cap === "article" && m.is_default_article) || (cap === "analysis" && m.is_default_analysis) ? "currentColor" : "none"} />
-                    </button>
-                  ))}
-                  <button onClick={() => openEdit(m)} className="p-1.5 text-gray-400 hover:text-brand-yellow rounded-lg transition-colors"><Edit2 size={14} /></button>
-                  <button onClick={() => deleteModel(m.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors"><Trash2 size={14} /></button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Section 5: AI Proxies (Per-Feature) */}
-      <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">AI Proxies ({proxies.length})</h2>
-            <p className="text-xs text-neutral-500 mt-0.5">Provider per fitur — setiap fitur bisa pakai model berbeda</p>
-          </div>
-          <button onClick={() => openProxyModal(null)} className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-yellow hover:bg-amber-600 text-white text-xs font-semibold rounded-xl transition-colors">
-            <Plus size={14} /> Tambah
-          </button>
-        </div>
-
-        {proxies.length === 0 ? (
-          <p className="text-sm text-neutral-400 text-center py-4">Belum ada proxy. Tambah proxy untuk koneksi ke AI provider.</p>
-        ) : (
-          <div className="space-y-2">
-            {proxies.map(p => (
-              <div key={p.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors ${p.is_active ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-900/10" : "border-[var(--border-default)]"}`}>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">{p.name}</span>
-                    {p.is_active && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">AKTIF</span>}
-                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500">{featureLabel(p.feature)}</span>
-                  </div>
-                  <p className="text-xs text-neutral-400 truncate mt-0.5">{p.base_url} • {p.model || "default"}</p>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {!p.is_active && (
-                    <button onClick={() => activateProxy(p.id)} disabled={activatingProxy === p.id} className="px-2.5 py-1.5 text-[11px] font-semibold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors disabled:opacity-50">
-                      {activatingProxy === p.id ? "..." : "Aktifkan"}
-                    </button>
-                  )}
-                  <button onClick={() => openProxyModal(p)} className="p-1.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"><Edit2 size={14} /></button>
-                  <button onClick={() => deleteProxy(p.id)} className="p-1.5 text-neutral-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Proxy Modal */}
-      {proxyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setProxyModal(false)} />
-          <div className="relative bg-[var(--bg-surface)] rounded-2xl shadow-2xl border border-[var(--border-default)] w-full max-w-md p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-neutral-900 dark:text-neutral-50">{editingProxy ? "Edit Proxy" : "Tambah Proxy"}</h3>
-              <button onClick={() => setProxyModal(false)} className="text-neutral-400 hover:text-neutral-700"><X size={18} /></button>
-            </div>
-            <div className="space-y-3">
-              <input value={proxyForm.name} onChange={e => setProxyForm({...proxyForm, name: e.target.value})} placeholder="Nama (misal: Claude Direct)" className={inputCls} />
-              <input value={proxyForm.base_url} onChange={e => setProxyForm({...proxyForm, base_url: e.target.value})} placeholder="Base URL (misal: https://api.anthropic.com/v1)" className={inputCls} />
-              <input value={proxyForm.api_key} onChange={e => setProxyForm({...proxyForm, api_key: e.target.value})} placeholder={editingProxy ? "API Key (kosongkan jika tidak berubah)" : "API Key"} type="password" className={inputCls} />
-              <input value={proxyForm.model} onChange={e => setProxyForm({...proxyForm, model: e.target.value})} placeholder="Model ID (misal: claude-sonnet-4-6-20250514)" className={inputCls} />
-              <select value={proxyForm.feature} onChange={e => setProxyForm({...proxyForm, feature: e.target.value})} className={inputCls}>
-                {PROXY_FEATURES.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-              </select>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => setProxyModal(false)} className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl transition-colors">Batal</button>
-              <button onClick={saveProxy} className="px-4 py-2 text-sm font-semibold bg-brand-yellow hover:bg-amber-600 text-white rounded-xl transition-colors">Simpan</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal */}
-      {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setModal(false)} />
-          <div className="relative bg-[var(--bg-surface)] rounded-2xl shadow-2xl border border-[var(--border-default)] w-full max-w-md p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-50">{editing ? "Edit Model" : "Tambah Model Override"}</h3>
-              <button onClick={() => setModal(false)} className="p-1 text-gray-400 hover:text-gray-600"><X size={18} /></button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Nama Display</label>
-                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder="Claude Haiku 4.5" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Model ID</label>
-                <input value={form.model_id} onChange={e => setForm(f => ({ ...f, model_id: e.target.value }))} className={inputCls} placeholder="claude-haiku-4-5-20251001" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Deskripsi (opsional)</label>
-                <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className={inputCls} placeholder="Override khusus untuk image gen" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Capabilities</label>
-                <div className="flex flex-wrap gap-2 mt-1">
-                  {CAPABILITIES.map(cap => (
-                    <button key={cap} type="button" onClick={() => toggleCapability(cap)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${form.capabilities.includes(cap) ? CAP_COLORS[cap] : "bg-gray-100 dark:bg-gray-800 text-gray-400"}`}>
-                      {CAP_LABELS[cap]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={form.is_active} onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))} className="w-4 h-4 rounded border-gray-300 text-brand-yellow focus:ring-brand-yellow/50" />
-                <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">Aktif</span>
-              </label>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => setModal(false)} className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl transition-colors">Batal</button>
-              <button onClick={save} className="px-4 py-2 text-sm font-semibold bg-brand-yellow hover:bg-amber-600 text-white rounded-xl transition-colors">Simpan</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Extracted sections */}
+      <ModelRegistrySection
+        models={models} loading={loading}
+        onFetchModels={fetchModels} onDeleteModel={deleteModel} onSetDefault={setDefault}
+        showToast={showToast}
+      />
+      <ProxiesSection proxies={proxies} onFetchProxies={fetchProxies} showToast={showToast} />
 
       <ConfirmModal
-        open={confirmState.open}
-        onClose={() => setConfirmState(s => ({ ...s, open: false }))}
-        onConfirm={confirmState.onConfirm}
-        title={confirmState.title}
-        message={confirmState.message}
+        open={confirmState.open} onClose={() => setConfirmState(s => ({ ...s, open: false }))}
+        onConfirm={confirmState.onConfirm} title={confirmState.title} message={confirmState.message}
       />
     </div>
   );

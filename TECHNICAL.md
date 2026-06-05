@@ -5,7 +5,7 @@
 | Layer | Teknologi |
 |---|---|
 | Frontend | Next.js 14 (App Router), TypeScript, Tailwind CSS |
-| Backend | FastAPI (Python), SQLAlchemy ORM, SQLite |
+| Backend | FastAPI (Python), SQLAlchemy ORM, MySQL (production), SQLite (dev) |
 | Auth | JWT (HS256), bcrypt password hashing |
 | Deployment | LiteSpeed WSGI via `passenger_wsgi.py`, static Next.js build |
 | AI | 9router (local OpenAI-compatible proxy → Claude Sonnet 4.6/4.7, DeepSeek v4, MiMo v2.5, GPT-5) |
@@ -17,13 +17,16 @@
 ```
 kantorteman/
 ├── backend/
-│   ├── main.py          # FastAPI app, semua model & endpoint
-│   ├── migrate.py       # Migration script SQLite (idempotent)
-│   └── leads.db         # SQLite database
+│   ├── main.py          # FastAPI app entry (206L)
+│   ├── models/          # SQLAlchemy models
+│   ├── schemas/         # Pydantic schemas
+│   ├── routers/         # 13 route modules
+│   ├── migrate.py       # Database migration
+│   └── app/             # Core, services, schedulers
 └── frontend/
     ├── src/app/         # Next.js pages (App Router)
-    ├── src/components/  # Shared components (Sidebar, Toast, dll)
-    └── src/lib/api.ts   # apiFetch wrapper + auth token
+    ├── src/components/  # Shared + extracted components
+    └── src/lib/         # Utilities, API client
 ```
 
 ---

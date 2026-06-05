@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, List, Any
 from models import get_db, log_audit, User, Lead, Contact, ScrapeHistory, LeadActivityLog, Proposal, ReengagementAlert, Transaction, AuditLog
 from schemas import *
-from app.core.dependencies import get_current_user, require_admin
+from app.core.dependencies import get_current_user, require_admin, _check_simple_rate_limit
 
 router = APIRouter()
 
@@ -309,6 +309,7 @@ def get_audit_logs(
 
 @router.get("/api/export/leads")
 def export_leads_csv(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    _check_simple_rate_limit(f"export_leads:{current_user.id}", 10, 60)
     leads = db.query(Lead).filter(Lead.is_archived == False).all()
     output = io.StringIO()
     writer = csv.writer(output)
@@ -327,6 +328,7 @@ def export_leads_csv(current_user: User = Depends(get_current_user), db: Session
 
 @router.get("/api/export/finance")
 def export_finance_csv(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    _check_simple_rate_limit(f"export_finance:{current_user.id}", 10, 60)
     transactions = db.query(Transaction).filter(Transaction.is_archived == False).order_by(Transaction.date.desc()).all()
     output = io.StringIO()
     writer = csv.writer(output)

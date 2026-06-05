@@ -15,7 +15,7 @@ from app.core.dependencies import (get_current_user, require_admin, FONNTE_WEBHO
     get_fonnte_token, _ads_out, _send_fonnte_sync, send_fonnte_message,
     _get_setting, normalize_phone, _normalize_phone, log_outreach_cost,
     WORKSPACE_TEMPLATES, build_sheets_for_service, build_sheets_for_days,
-    sync_row_to_board, sync_row_status_to_board,
+    sync_row_to_board, sync_row_status_to_board, _check_simple_rate_limit,
     _run_async_job, process_pending_blasts, _blast_jobs,
 )
 
@@ -27,6 +27,7 @@ async def start_blast(
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    _check_simple_rate_limit(f"blast:{current_user.id}", 10, 60)
     import threading
     campaign = BlastCampaign(
         id=str(uuid.uuid4()),
@@ -115,6 +116,7 @@ async def fonnte_incoming(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/api/followup/start")
 def start_followup(body: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    _check_simple_rate_limit(f"followup_start:{current_user.id}", 10, 60)
     lead_id = body.get("lead_id")
     template_ids = body.get("template_ids", [])
     delays = body.get("delays", [1, 3, 7])
@@ -189,6 +191,7 @@ def get_active_followups(current_user: User = Depends(get_current_user), db: Ses
 
 @router.post("/api/followup/process")
 async def process_followups(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    _check_simple_rate_limit(f"followup_process:{current_user.id}", 10, 60)
     now = datetime.now(timezone.utc)
     sequences = db.query(FollowUpSequence).filter(
         FollowUpSequence.status == "ACTIVE",

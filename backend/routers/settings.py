@@ -475,7 +475,8 @@ async def test_api_connection(
         try:
             async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.post(
-                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={config['gemini_key']}",
+                    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+                    headers={"x-goog-api-key": config["gemini_key"]},
                     json={"contents": [{"parts": [{"text": "Balas dengan satu kata: OK"}]}]},
                 )
                 if resp.status_code == 200:

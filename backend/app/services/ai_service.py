@@ -230,7 +230,8 @@ def call_ai_sync(prompt: str, config: dict, httpx_module) -> str:
             if not config["gemini_key"]:
                 raise Exception("Gemini API Key belum dikonfigurasi.")
             resp = client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={config['gemini_key']}",
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+                headers={"x-goog-api-key": config["gemini_key"]},
                 json={"contents": [{"parts": [{"text": prompt}]}]},
             )
             if resp.status_code != 200:

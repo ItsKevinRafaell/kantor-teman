@@ -15,12 +15,14 @@ from app.core.dependencies import (get_current_user, require_admin, UPLOADS_DIR,
     get_fonnte_token, _send_fonnte_sync, log_outreach_cost,
     get_ai_config, build_analysis_prompt, call_ai_provider, parse_ai_response,
     _detect_project_type, _detect_service_type, _detect_contract_months,
+    _check_simple_rate_limit,
 )
 
 router = APIRouter()
 
 @router.post("/api/wa/send")
 def send_wa_manual(body: WaSendIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    _check_simple_rate_limit(f"wa_send:{current_user.id}", 20, 60)
     print(f"[WA SEND] lead_id={body.lead_id}", flush=True)
     lead = db.query(Lead).filter(Lead.id == body.lead_id).first()
     if not lead:
@@ -28,7 +30,7 @@ def send_wa_manual(body: WaSendIn, current_user: User = Depends(get_current_user
     if lead.do_not_contact:
         raise HTTPException(status_code=409, detail="Lead memilih opt-out. Pengiriman WhatsApp diblokir.")
     token = get_fonnte_token(db)
-    print(f"[WA SEND] phone={lead.phone_number} token={token[:10] if token else 'EMPTY'}...", flush=True)
+    print(f"[WA SEND] phone={lead.phone_number} token=***", flush=True)
     if not token:
         raise HTTPException(status_code=400, detail="Fonnte token belum dikonfigurasi.")
     import httpx as _httpx
@@ -198,7 +200,8 @@ def _call_ai_sync(prompt: str, config: dict, _httpx) -> str:
             if not config["gemini_key"]:
                 raise Exception("Gemini API Key belum dikonfigurasi.")
             resp = client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={config['gemini_key']}",
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+                headers={"x-goog-api-key": config["gemini_key"]},
                 json={"contents": [{"parts": [{"text": prompt}]}]},
             )
             if resp.status_code != 200:
@@ -258,7 +261,8 @@ async def call_ai_provider(prompt: str, config: dict) -> str:
             if not config["gemini_key"]:
                 raise HTTPException(status_code=400, detail="Gemini API Key belum dikonfigurasi.")
             resp = await client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={config['gemini_key']}",
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+                headers={"x-goog-api-key": config["gemini_key"]},
                 json={"contents": [{"parts": [{"text": prompt}]}]},
             )
             if resp.status_code != 200:
@@ -271,7 +275,7 @@ async def call_ai_provider(prompt: str, config: dict) -> str:
             base_url = config.get("base_url") or "https://api.openai.com/v1"
             model = config.get("model") or "claude-haiku-4-5-20251001"
             url = f"{base_url.rstrip('/')}/chat/completions"
-            print(f"[AI CALL] provider=claude url={url} model={model} key={config['claude_key'][:10]}...", flush=True)
+            print(f"[AI CALL] provider=claude url={url} model={model} key=***", flush=True)
             resp = await client.post(
                 url,
                 headers={
@@ -286,8 +290,8 @@ async def call_ai_provider(prompt: str, config: dict) -> str:
             )
             print(f"[AI RESPONSE] status={resp.status_code} length={len(resp.text)}", flush=True)
             if resp.status_code != 200:
-                print(f"[AI CALL ERROR] status={resp.status_code} body={resp.text[:500]}", flush=True)
-                raise HTTPException(status_code=502, detail=f"Claude API error: {resp.status_code} - {resp.text[:200]}")
+                print(f"[AI CALL ERROR] status={resp.status_code} body_len={len(resp.text)}", flush=True)
+                raise HTTPException(status_code=502, detail=f"Claude API error: {resp.status_code}")
             return resp.json()["choices"][0]["message"]["content"]
 
         elif provider == "openai":

@@ -15,7 +15,7 @@ from fastapi.responses import Response
 TEST_DIR = tempfile.mkdtemp(prefix="kantorteman-tests-")
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DIR}/test.db"
 os.environ["SECRET_ENCRYPTION_KEY"] = Fernet.generate_key().decode()
-os.environ["JWT_SECRET"] = "test-secret-at-least-16-chars"
+os.environ["JWT_SECRET"] = "test-jwt-secret-for-unit-tests-minimum-32-bytes"  # min 32 bytes for HS256
 os.environ["ENABLE_BACKGROUND_SCHEDULER"] = "false"
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 

@@ -639,8 +639,10 @@ def _document_template_html(template: DocumentTemplate) -> str:
 
 def _render_document_html(html_template: str, full_vars: dict) -> str:
     try:
-        from jinja2 import Template as JinjaTemplate
-        rendered_html = JinjaTemplate(html_template).render(**full_vars)
+        from jinja2.sandbox import SandboxedEnvironment
+        env = SandboxedEnvironment()
+        template = env.from_string(html_template)
+        rendered_html = template.render(**full_vars)
         for k, v in full_vars.items():
             if isinstance(v, str):
                 rendered_html = rendered_html.replace(f"{{{{{k}}}}}", v)

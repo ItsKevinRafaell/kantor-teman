@@ -50,11 +50,3 @@ export default function Pagination({ page, pageSize, total, onPageChange, itemLa
     </div>
   );
 }
-
-export function usePaginated<T>(items: T[], pageSize: number = 20) {
-  return {
-    paginate: (page: number) => items.slice((page - 1) * pageSize, page * pageSize),
-    total: items.length,
-    pageSize,
-  };
-}

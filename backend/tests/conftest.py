@@ -6,7 +6,7 @@ import sys
 os.environ["DATABASE_URL"] = "sqlite:///test_memory.db"
 from cryptography.fernet import Fernet
 os.environ["SECRET_ENCRYPTION_KEY"] = Fernet.generate_key().decode()
-os.environ["JWT_SECRET"] = "test-jwt-secret-for-unit-tests!"
+os.environ["JWT_SECRET"] = "test-jwt-secret-for-unit-tests-minimum-32-bytes"  # min 32 bytes for HS256
 os.environ["ENV_FILE"] = ".env.test"
 os.environ["FONNTE_TOKEN"] = "test-fonnte-token"
 

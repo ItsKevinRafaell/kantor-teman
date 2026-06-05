@@ -22,6 +22,36 @@ const nextConfig = {
   images: {
     unoptimized: false,
   },
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=31536000; includeSubDomains",
+          },
+          {
+            key: "Content-Security-Policy",
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline'",
+              // Note: 'unsafe-inline' required for Next.js App Router dynamic styles/scripts
+              // 'unsafe-eval' removed — not needed by App Router
+              "style-src 'self' 'unsafe-inline'",
+              // Note: 'unsafe-inline' required; Next.js generates inline styles dynamically
+              "img-src 'self' data: https://api.kantorteman.my.id blob:",
+              "font-src 'self'",
+              "connect-src 'self' https://api.kantorteman.my.id wss:",
+              "frame-ancestors 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+            ].join("; "),
+          },
+        ],
+      },
+    ];
+  },
   async rewrites() {
     return [
       { source: "/r/:slug", destination: `${BACKEND_URL}/r/:slug` },

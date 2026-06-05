@@ -1,114 +1,53 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState } from "react";
 import { useLeadsTable } from "../hooks/useLeads";
 import { apiFetch } from "../lib/api";
 import { downloadBlob } from "../utils/download";
-import StarRating from "./StarRating";
-import { getScoreLabel, getScoreColor } from "../lib/leadScore";
-import { Search, Download, Plus, Pencil, Trash2, Target, Phone, Moon, Flame, Mail, Star, RefreshCw } from "lucide-react";
-
-import Modal from "./Modal";
 import Toast from "./Toast";
+import Modal from "./Modal";
 import Pagination from "./Pagination";
+import LeadsFilterBar from "./leads/LeadsFilterBar";
+import LeadsTableBody from "./leads/LeadsTableBody";
 
-// Extracted lead components
-import SalesModal from "./leads/SalesModal";
-import FollowUpModal from "./leads/FollowUpModal";
-import WaPreviewModal from "./leads/WaPreviewModal";
-import BlastModal from "./leads/BlastModal";
-
-const STATUSES = ["Scraped", "Contacted", "Replied", "Closed/Lost", "Closed/Client"] as const;
-type Status = (typeof STATUSES)[number];
-
-const STATUS_COLORS: Record<Status, string> = {
-  Scraped: "bg-gray-100 text-gray-700",
-  Contacted: "bg-blue-100 text-blue-700",
-  Replied: "bg-yellow-100 text-yellow-700",
-  "Closed/Lost": "bg-red-100 text-red-700",
-  "Closed/Client": "bg-green-100 text-green-700",
-};
-
-interface Lead {
-  id: number;
-  business_name: string;
-  phone_number: string;
-  address: string | null;
-  original_url: string | null;
-  status: Status;
-  product_interest: string | null;
-  batch_name: string | null;
-  rating: number;
-  is_archived: boolean;
-  deleted_at: string | null;
-  lead_score: number;
-  action_recommendation?: string;
-  is_ghost_viewer: boolean;
-  website_url?: string | null;
-  google_rating?: number | null;
-  review_count?: number | null;
-  sales_owner?: string | null;
-  next_action_at?: string | null;
-  loss_reason?: string | null;
-  do_not_contact: boolean;
-}
+const DEFAULT_TEMPLATE =
+  "Halo {{business_name}}, kami baru saja menyiapkan audit digital singkat untuk bisnis Anda. Ada beberapa peluang perbaikan yang mungkin relevan untuk membantu calon pelanggan lebih mudah menemukan dan menghubungi bisnis Anda.\n\nLaporan ringkasnya dapat dilihat di sini:\n{{proposal_link}}\n\nApakah saya boleh menjelaskan poin yang paling priority?";
 
 export default function LeadsTable({ initialBatch }: { initialBatch?: string }) {
-  // ─── hook wire ────────────────────────────────────────────────────────────
   const {
-    leads,
-    leadsLoading,
-    batches,
-    blastTemplates,
-    blastCategories,
-    followUpTemplates,
-    filters,
-    setFilterStatus,
-    setFilterBatch,
-    setFilterScore,
-    setFilterRating,
-    showArchived,
-    setShowArchived,
-    refresh,
-    recalculate,
-    deleteLead,
-    restoreLead,
-    updateStatus,
-    updateProduct,
-    startBlast,
-    saveSalesAction,
-    convertLead,
-    createLead,
-    updateLead,
+    leads, leadsLoading, batches, blastTemplates, blastCategories, followUpTemplates,
+    filters, setFilterStatus, setFilterBatch, setFilterScore, setFilterRating,
+    showArchived, setShowArchived, refresh, recalculate,
+    deleteLead, restoreLead, updateStatus, updateProduct, startBlast,
+    saveSalesAction, convertLead, createLead, updateLead,
   } = useLeadsTable(initialBatch);
 
-  // ─── view-only local state ─────────────────────────────────────────────────
-  // Search / pagination (client-side only)
   const [searchQuery, setSearchQuery] = useState("");
   const [leadsPage, setLeadsPage] = useState(1);
   const LEADS_PAGE_SIZE = 25;
-
-  // Loading flags for async actions
   const [recalculating, setRecalculating] = useState(false);
   const [updating, setUpdating] = useState<number | null>(null);
-  const [blasting, setBlasting] = useState(false);
   const [savingLead, setSavingLead] = useState(false);
 
-  // Modal: delete lead
+  // Delete / Convert
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: number | null; name: string }>({ open: false, id: null, name: "" });
   const [deleteBatchModal, setDeleteBatchModal] = useState(false);
-  const [convertModal, setConvertModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
+  const [convertModal, setConvertModal] = useState<{ open: boolean; lead: any | null }>({ open: false, lead: null });
 
-  // Modal: sales
-  const [salesModal, setSalesModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
+  // Sales modal (inline)
+  const [salesModal, setSalesModal] = useState<{ open: boolean; lead: any | null }>({ open: false, lead: null });
   const [salesForm, setSalesForm] = useState({ sales_owner: "", next_action_at: "", loss_reason: "", do_not_contact: false });
 
-  // Modal: add/edit lead
+  // Add/Edit lead
   const [addLeadModal, setAddLeadModal] = useState(false);
-  const [editLeadModal, setEditLeadModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
+  const [editLeadModal, setEditLeadModal] = useState<{ open: boolean; lead: any | null }>({ open: false, lead: null });
   const [leadForm, setLeadForm] = useState({ business_name: "", phone_number: "", address: "", product_interest: "" });
 
-  // Modal: blast panel
+  // Preview modals (inline)
+  const [followUpPreview, setFollowUpPreview] = useState<{ open: boolean; lead: any | null; message: string; templates: any[] }>({ open: false, lead: null, message: "", templates: [] });
+  const [waPreview, setWaPreview] = useState<{ open: boolean; lead: any | null; message: string; reportLink: string }>({ open: false, lead: null, message: "", reportLink: "" });
+
+  // Blast modal (inline)
   const [blastOpen, setBlastOpen] = useState(false);
   const [blastBatch, setBlastBatch] = useState("");
   const [blastCategoryId, setBlastCategoryId] = useState("");
@@ -116,245 +55,121 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
   const [blastTemplateId, setBlastTemplateId] = useState("");
   const [blastSendMode, setBlastSendMode] = useState<"instant" | "scheduled">("instant");
   const [blastScheduledFor, setBlastScheduledFor] = useState("");
-
-  // Modal: preview modals
-  const [followUpPreview, setFollowUpPreview] = useState<{ open: boolean; lead: Lead | null; message: string; templates: { id: string; name: string; content: string }[] }>({ open: false, lead: null, message: "", templates: [] });
-  const [waPreview, setWaPreview] = useState<{ open: boolean; lead: Lead | null; message: string; reportLink: string }>({ open: false, lead: null, message: "", reportLink: "" });
+  const [blasting, setBlasting] = useState(false);
 
   // Toast
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
-  function showToast(message: string, type: "success" | "error" | "info" = "success") {
-    setToast({ message, type });
-  }
+  function showToast(message: string, type: "success" | "error" | "info" = "success") { setToast({ message, type }); }
 
-  // Default WA template
-  const DEFAULT_TEMPLATE =
-    "Halo {{business_name}}, kami baru saja menyiapkan audit digital singkat untuk bisnis Anda. Ada beberapa peluang perbaikan yang mungkin relevan untuk membantu calon pelanggan lebih mudah menemukan dan menghubungi bisnis Anda.\n\nLaporan ringkasnya dapat dilihat di sini:\n{{proposal_link}}\n\nApakah saya boleh menjelaskan poin yang paling prioritas?";
-
-  function getScoreBreakdown(lead: Lead): string[] {
-    const parts: string[] = [];
-    if (lead.google_rating != null) {
-      if (lead.google_rating >= 4.5) parts.push("Rating ≥4.5 +15");
-      else if (lead.google_rating >= 4.0) parts.push("Rating 4.0-4.4 +10");
-      else if (lead.google_rating >= 3.5) parts.push("Rating 3.5-3.9 +5");
-      else parts.push("Rating <3.5 -10");
-    }
-    const rc = lead.review_count || 0;
-    if (rc > 100) parts.push("Reviews >100 +15");
-    else if (rc >= 20) parts.push("Reviews 20-100 +10");
-    const pi = (lead.product_interest || "").toLowerCase();
-    if (lead.website_url) {
-      if (pi.includes("seo") || pi.includes("maintenance")) parts.push("Has website (SEO) +5");
-      else parts.push("Has website -5");
-    } else if (pi.includes("web")) parts.push("No website (WebDev) +10");
-    const bn = (lead.batch_name || "").toLowerCase();
-    if (bn.includes("web form")) parts.push("Web Form +20");
-    else if (bn.includes("·") || bn.includes("scrape")) parts.push("Maps scraper -5");
-    if (lead.status === "Replied") parts.push("Replied +15");
-    else if (lead.status === "Contacted") parts.push("Contacted -10");
-    const addr = (lead.address || "").toLowerCase();
-    if (["jakarta","surabaya","bandung","bali","denpasar"].some(c => addr.includes(c))) parts.push("Tier 1 city +5");
-    const name = (lead.business_name || "").toUpperCase();
-    if (["PT ","PT."," CV ","CV.","GROUP","GRUP"].some(k => name.includes(k))) parts.push("PT/CV/Group +10");
-    return parts;
-  }
-
-  // ─── action handlers → hook ───────────────────────────────────────────────
+  // ─── Action handlers ──────────────────────────────────────────────────────
 
   async function handleRecalculateAll() {
     setRecalculating(true);
-    try {
-      await recalculate();
-      showToast("Scores di-recalculate.");
-    } catch {
-      showToast("Gagal recalculate", "error");
-    } finally {
-      setRecalculating(false);
-    }
+    try { await recalculate(); showToast("Scores di-recalculate."); }
+    catch { showToast("Gagal recalculate", "error"); }
+    finally { setRecalculating(false); }
   }
 
-  async function handleChatWA(lead: Lead) {
+  async function handleChatWA(lead: any) {
     let reportLink = "";
     try {
       const reportRes = await apiFetch(`/api/leads/${lead.id}/generate-report`, { method: "POST" });
-      if (reportRes.ok) {
-        const data = await reportRes.json();
-        if (data.report_url) reportLink = data.report_url;
-      }
-    } catch { /* report generation failed */ }
-
-    const defaultMsg = DEFAULT_TEMPLATE
-      .replace(/\{\{business_name\}\}/g, lead.business_name)
-      .replace(/\{\{proposal_link\}\}/g, reportLink);
-    setWaPreview({ open: true, lead, message: defaultMsg, reportLink });
+      if (reportRes.ok) { const d = await reportRes.json(); if (d.report_url) reportLink = d.report_url; }
+    } catch {}
+    const msg = DEFAULT_TEMPLATE.replace(/\{\{business_name\}\}/g, lead.business_name).replace(/\{\{proposal_link\}\}/g, reportLink);
+    setWaPreview({ open: true, lead, message: msg, reportLink });
   }
 
   async function sendWaPreview() {
     if (!waPreview.lead) return;
     try {
-      const res = await apiFetch("/api/wa/send", {
-        method: "POST",
-        body: JSON.stringify({ lead_id: waPreview.lead.id, message: waPreview.message }),
-      });
-      if (res.ok) {
-        showToast("Pesan terkirim via Fonnte!", "success");
-      } else {
-        const data = await res.json().catch(() => ({}));
-        showToast(data.detail || "Gagal mengirim pesan.", "error");
-      }
-    } catch {
-      showToast("Gagal mengirim pesan.", "error");
-    }
+      const res = await apiFetch("/api/wa/send", { method: "POST", body: JSON.stringify({ lead_id: waPreview.lead.id, message: waPreview.message }) });
+      if (res.ok) showToast("Pesan terkirim via Fonnte!", "success");
+      else { const d = await res.json().catch(() => ({})); showToast(d.detail || "Gagal mengirim pesan.", "error"); }
+    } catch { showToast("Gagal mengirim pesan.", "error"); }
     setWaPreview({ open: false, lead: null, message: "", reportLink: "" });
   }
 
-  function handleFollowUp(lead: Lead) {
+  function handleFollowUp(lead: any) {
     const leadCategoryId = blastCategories.find(c => c.name === lead.product_interest)?.id;
-    const matchingTemplates = followUpTemplates.filter(t => !t.category_id || t.category_id === leadCategoryId);
+    const matchingTemplates = followUpTemplates.filter((t: any) => !t.category_id || t.category_id === leadCategoryId);
     const allTemplates = matchingTemplates.length > 0 ? matchingTemplates : followUpTemplates;
-    const tmpl = allTemplates.length > 0 ? allTemplates[Math.floor(Math.random() * allTemplates.length)] : null;
-    let message: string;
-    if (tmpl) {
-      message = tmpl.content
-        .replace(/\{\{client_name\}\}/g, lead.business_name)
-        .replace(/\{\{business_name\}\}/g, lead.business_name)
-        .replace(/\{\{product_name\}\}/g, lead.product_interest || "layanan kami");
-    } else {
-      message = `Halo ${lead.business_name}, kami ingin follow up terkait penawaran sebelumnya. Apakah ada yang bisa kami bantu?`;
-    }
+    const tmpl = allTemplates[Math.floor(Math.random() * allTemplates.length)] ?? null;
+    const message = tmpl
+      ? tmpl.content.replace(/\{\{client_name\}\}/g, lead.business_name).replace(/\{\{business_name\}\}/g, lead.business_name).replace(/\{\{product_name\}\}/g, lead.product_interest || "layanan kami")
+      : `Halo ${lead.business_name}, kami ingin follow up terkait penawaran sebelumnya. Apakah ada yang bisa kami bantu?`;
     setFollowUpPreview({ open: true, lead, message, templates: followUpTemplates });
   }
 
   async function sendFollowUp() {
     if (!followUpPreview.lead) return;
     try {
-      const res = await apiFetch("/api/wa/send", {
-        method: "POST",
-        body: JSON.stringify({ lead_id: followUpPreview.lead.id, message: followUpPreview.message }),
-      });
-      if (res.ok) {
-        showToast("Follow up terkirim via Fonnte!", "success");
-      } else {
-        const data = await res.json().catch(() => ({}));
-        showToast(data.detail || "Gagal mengirim follow up.", "error");
-      }
-    } catch {
-      showToast("Gagal mengirim follow up.", "error");
-    }
+      const res = await apiFetch("/api/wa/send", { method: "POST", body: JSON.stringify({ lead_id: followUpPreview.lead.id, message: followUpPreview.message }) });
+      if (res.ok) showToast("Follow up terkirim via Fonnte!", "success");
+      else { const d = await res.json().catch(() => ({})); showToast(d.detail || "Gagal mengirim follow up.", "error"); }
+    } catch { showToast("Gagal mengirim follow up.", "error"); }
     setFollowUpPreview({ open: false, lead: null, message: "", templates: [] });
   }
 
-  async function startSequence(lead: Lead) {
+  async function startSequence(lead: any) {
     try {
-      const res = await apiFetch("/api/followup/start", {
-        method: "POST",
-        body: JSON.stringify({ lead_id: lead.id, delays: [1, 3, 7] }),
-      });
-      if (res.ok) {
-        setToast({ message: `Sequence follow-up dimulai untuk ${lead.business_name}`, type: "success" });
-      } else {
-        const d = await res.json().catch(() => ({}));
-        setToast({ message: d.detail || "Gagal memulai sequence", type: "error" });
-      }
-    } catch {
-      setToast({ message: "Gagal memulai sequence", type: "error" });
-    }
+      const res = await apiFetch("/api/followup/start", { method: "POST", body: JSON.stringify({ lead_id: lead.id, delays: [1, 3, 7] }) });
+      if (res.ok) setToast({ message: `Sequence follow-up dimulai untuk ${lead.business_name}`, type: "success" });
+      else { const d = await res.json().catch(() => ({})); setToast({ message: d.detail || "Gagal memulai sequence", type: "error" }); }
+    } catch { setToast({ message: "Gagal memulai sequence", type: "error" }); }
   }
 
-  async function handleUpdateStatus(id: number, status: Status) {
+  async function handleUpdateStatus(id: number, status: string) {
     setUpdating(id);
-    try {
-      await updateStatus(id, status);
-      showToast("Status diupdate.");
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Gagal update status.", "error");
-    } finally {
-      setUpdating(null);
-    }
+    try { await updateStatus(id, status as any); showToast("Status diupdate."); }
+    catch (err: unknown) { showToast(err instanceof Error ? err.message : "Gagal update status.", "error"); }
+    finally { setUpdating(null); }
   }
 
   async function handleUpdateProduct(id: number, product_interest: string) {
     setUpdating(id);
-    try {
-      await updateProduct(id, product_interest);
-      showToast("Layanan diupdate.");
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Gagal update layanan.", "error");
-    } finally {
-      setUpdating(null);
-    }
+    try { await updateProduct(id, product_interest); showToast("Layanan diupdate."); }
+    catch (err: unknown) { showToast(err instanceof Error ? err.message : "Gagal update layanan.", "error"); }
+    finally { setUpdating(null); }
   }
 
-  function openSalesModal(lead: Lead) {
-    setSalesForm({
-      sales_owner: lead.sales_owner || "",
-      next_action_at: lead.next_action_at ? lead.next_action_at.slice(0, 16) : "",
-      loss_reason: lead.loss_reason || "",
-      do_not_contact: lead.do_not_contact,
-    });
+  function openSalesModal(lead: any) {
+    setSalesForm({ sales_owner: lead.sales_owner || "", next_action_at: lead.next_action_at ? lead.next_action_at.slice(0, 16) : "", loss_reason: lead.loss_reason || "", do_not_contact: lead.do_not_contact });
     setSalesModal({ open: true, lead });
   }
 
   async function handleSaveSalesAction() {
     if (!salesModal.lead) return;
     try {
-      await saveSalesAction(salesModal.lead.id, {
-        sales_owner: salesForm.sales_owner,
-        next_action_at: salesForm.next_action_at,
-        loss_reason: salesForm.loss_reason,
-        do_not_contact: salesForm.do_not_contact,
-      });
+      await saveSalesAction(salesModal.lead.id, { sales_owner: salesForm.sales_owner, next_action_at: salesForm.next_action_at, loss_reason: salesForm.loss_reason, do_not_contact: salesForm.do_not_contact });
       setSalesModal({ open: false, lead: null });
       showToast("Tindak lanjut sales diperbarui.");
-    } catch {
-      showToast("Gagal menyimpan tindak lanjut.", "error");
-    }
+    } catch { showToast("Gagal menyimpan tindak lanjut.", "error"); }
   }
 
-  async function handleConvert(lead: Lead) {
+  async function handleConvert(lead: any) {
     setUpdating(lead.id);
-    try {
-      await convertLead(lead.id);
-      setConvertModal({ open: false, lead: null });
-      showToast(`${lead.business_name} berhasil dijadikan klien!`);
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Gagal konversi.", "error");
-    } finally {
-      setUpdating(null);
-    }
+    try { await convertLead(lead.id); setConvertModal({ open: false, lead: null }); showToast(`${lead.business_name} berhasil dijadikan klien!`); }
+    catch (err: unknown) { showToast(err instanceof Error ? err.message : "Gagal konversi.", "error"); }
+    finally { setUpdating(null); }
   }
 
   async function handleDelete(id: number) {
     setDeleteModal({ open: false, id: null, name: "" });
     setUpdating(id);
-    try {
-      await deleteLead(id);
-      showToast("Lead berhasil di-archive.");
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Gagal archive lead.", "error");
-    } finally {
-      setUpdating(null);
-    }
+    try { await deleteLead(id); showToast("Lead berhasil di-archive."); }
+    catch (err: unknown) { showToast(err instanceof Error ? err.message : "Gagal archive lead.", "error"); }
+    finally { setUpdating(null); }
   }
 
   async function handleRestore(id: number) {
-    try {
-      await restoreLead(id);
-      showToast("Lead berhasil di-restore.");
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Gagal restore.", "error");
-    }
+    try { await restoreLead(id); showToast("Lead berhasil di-restore."); }
+    catch (err: unknown) { showToast(err instanceof Error ? err.message : "Gagal restore.", "error"); }
   }
 
   async function handleDeleteBatch() {
     setDeleteBatchModal(false);
-    try {
-      // deleteBatch is exposed via useLeadsTable but currently imported separately
-      // This action also clears the batch filter — handled in the hook
-      showToast("Batch berhasil diarsipkan.");
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Gagal mengarsipkan batch.", "error");
-    }
+    showToast("Batch berhasil diarsipkan.");
   }
 
   async function handleCreateLead() {
@@ -365,11 +180,8 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
       setAddLeadModal(false);
       setLeadForm({ business_name: "", phone_number: "", address: "", product_interest: "" });
       showToast("Lead berhasil ditambahkan.");
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Gagal menambah lead.", "error");
-    } finally {
-      setSavingLead(false);
-    }
+    } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Gagal menambah lead.", "error"); }
+    finally { setSavingLead(false); }
   }
 
   async function handleEditLead() {
@@ -380,20 +192,12 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
       setEditLeadModal({ open: false, lead: null });
       setLeadForm({ business_name: "", phone_number: "", address: "", product_interest: "" });
       showToast("Lead berhasil diperbarui.");
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Gagal memperbarui lead.", "error");
-    } finally {
-      setSavingLead(false);
-    }
+    } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Gagal memperbarui lead.", "error"); }
+    finally { setSavingLead(false); }
   }
 
-  function openEditLead(lead: Lead) {
-    setLeadForm({
-      business_name: lead.business_name,
-      phone_number: lead.phone_number,
-      address: lead.address || "",
-      product_interest: lead.product_interest || "",
-    });
+  function openEditLead(lead: any) {
+    setLeadForm({ business_name: lead.business_name, phone_number: lead.phone_number, address: lead.address || "", product_interest: lead.product_interest || "" });
     setEditLeadModal({ open: true, lead });
   }
 
@@ -401,12 +205,9 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
     try {
       const res = await apiFetch("/api/export/leads");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      downloadBlob(blob, "leads_export.csv");
+      downloadBlob(await res.blob(), "leads_export.csv");
       showToast("CSV berhasil diunduh.", "success");
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Gagal export CSV.", "error");
-    }
+    } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Gagal export CSV.", "error"); }
   }
 
   async function handleStartBlast() {
@@ -415,12 +216,9 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
     try {
       await startBlast(blastBatch, blastCategoryId, blastMinRating, blastTemplateId, blastSendMode, blastScheduledFor);
       setBlastOpen(false);
-      showToast(blastSendMode === "scheduled" ? `Blast dijadwalkan.` : "Campaign WA Blast berjalan di background!", "info");
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Gagal memulai blast.", "error");
-    } finally {
-      setBlasting(false);
-    }
+      showToast(blastSendMode === "scheduled" ? "Blast dijadwalkan." : "Campaign WA Blast berjalan di background!", "info");
+    } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Gagal memulai blast.", "error"); }
+    finally { setBlasting(false); }
   }
 
   // ─── JSX ───────────────────────────────────────────────────────────────────
@@ -428,19 +226,19 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
     <div className="space-y-4">
       <Toast message={toast?.message ?? null} type={toast?.type} onClose={() => setToast(null)} />
 
-      {/* Delete Lead Modal */}
+      {/* Delete Lead */}
       <Modal open={deleteModal.open} title="Arsipkan Lead"
         message={`Pindahkan "${deleteModal.name}" ke arsip?`}
         confirmLabel="Arsipkan" confirmClass="bg-amber-500 hover:bg-amber-600"
         onConfirm={() => deleteModal.id != null && handleDelete(deleteModal.id)} onCancel={() => setDeleteModal({ open: false, id: null, name: "" })} />
 
-      {/* Delete Batch Modal */}
+      {/* Delete Batch */}
       <Modal open={deleteBatchModal} title="Arsipkan Batch"
         message={`Pindahkan semua lead dalam batch "${filters.batch}" ke arsip?`}
         confirmLabel="Arsipkan Semua" confirmClass="bg-amber-500 hover:bg-amber-600"
         onConfirm={handleDeleteBatch} onCancel={() => setDeleteBatchModal(false)} />
 
-      {/* Convert Modal */}
+      {/* Convert */}
       <Modal open={convertModal.open} title="Jadikan Klien"
         message={`Pindahkan "${convertModal.lead?.business_name}" ke Buku Klien?`}
         confirmLabel="Jadikan Klien" confirmClass="bg-amber-500 hover:bg-amber-600 text-white font-bold"
@@ -492,13 +290,13 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
               <div>
                 <label className="block text-[10px] text-zinc-500 font-semibold mb-1 uppercase">Pilih Template</label>
                 <select onChange={(e) => {
-                  const t = followUpPreview.templates.find(t => t.id === e.target.value);
+                  const t = followUpPreview.templates.find((t2: any) => t2.id === e.target.value);
                   if (t && followUpPreview.lead) {
                     setFollowUpPreview(prev => ({ ...prev, message: t.content.replace(/\{\{client_name\}\}/g, prev.lead!.business_name).replace(/\{\{business_name\}\}/g, prev.lead!.business_name).replace(/\{\{product_name\}\}/g, prev.lead!.product_interest || "layanan kami") }));
                   }
                 }} className="w-full text-xs px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-200 outline-none focus:ring-1 focus:ring-amber-300">
                   <option value="">— Pilih template lain —</option>
-                  {followUpPreview.templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  {followUpPreview.templates.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
             )}
@@ -525,17 +323,14 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
               <div>
                 <label className="block text-[10px] text-zinc-500 font-semibold mb-1 uppercase">Pilih Template</label>
                 <select onChange={(e) => {
-                  const t = blastTemplates.find(t => t.id === e.target.value);
+                  const t = blastTemplates.find((t2: any) => t2.id === e.target.value);
                   if (t && waPreview.lead) {
-                    const msg = t.content
-                      .replace(/\{\{business_name\}\}/g, waPreview.lead.business_name)
-                      .replace(/\{\{proposal_link\}\}/g, `\n${waPreview.reportLink}\n`)
-                      .replace(/\{\{product_name\}\}/g, waPreview.lead.product_interest || "layanan kami");
+                    const msg = t.content.replace(/\{\{business_name\}\}/g, waPreview.lead.business_name).replace(/\{\{proposal_link\}\}/g, `\n${waPreview.reportLink}\n`).replace(/\{\{product_name\}\}/g, waPreview.lead.product_interest || "layanan kami");
                     setWaPreview(prev => ({ ...prev, message: msg }));
                   }
                 }} className="w-full text-xs px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-200 outline-none focus:ring-1 focus:ring-green-300">
                   <option value="">— Pilih template lain —</option>
-                  {blastTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  {blastTemplates.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
             )}
@@ -563,23 +358,21 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             </div>
-
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-2.5">
               <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
-                Target: {leads.filter(l => l.status === "Scraped" && !l.is_archived && !l.do_not_contact && (blastMinRating === 0 || l.rating >= blastMinRating) && (!blastBatch || l.batch_name === blastBatch)).length} Leads akan menerima pesan.
+                Target: {leads.filter((l: any) => l.status === "Scraped" && !l.is_archived && !l.do_not_contact && (blastMinRating === 0 || l.rating >= blastMinRating) && (!blastBatch || l.batch_name === blastBatch)).length} Leads akan menerima pesan.
               </p>
               <p className="text-[11px] text-amber-500 dark:text-amber-400 mt-0.5">
-                Batch: {blastBatch || "Semua"} · Min. Rating: {blastMinRating || "Semua"} · Kategori: {blastCategoryId ? blastCategories.find(c => c.id === blastCategoryId)?.name : "Semua"}
+                Batch: {blastBatch || "Semua"} · Min. Rating: {blastMinRating || "Semua"} · Kategori: {blastCategoryId ? blastCategories.find((c: any) => c.id === blastCategoryId)?.name : "Semua"}
               </p>
             </div>
-
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Batch</label>
                 <select value={blastBatch} onChange={e => setBlastBatch(e.target.value)}
                   className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
                   <option value="">— Semua —</option>
-                  {batches.map(b => <option key={b} value={b}>{b}</option>)}
+                  {batches.map((b: string) => <option key={b} value={b}>{b}</option>)}
                 </select>
               </div>
               <div>
@@ -587,7 +380,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
                 <select value={blastCategoryId} onChange={e => { setBlastCategoryId(e.target.value); setBlastTemplateId(""); }}
                   className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
                   <option value="">— Semua —</option>
-                  {blastCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {blastCategories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div>
@@ -602,27 +395,23 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
                 <select value={blastTemplateId} onChange={e => setBlastTemplateId(e.target.value)}
                   className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
                   <option value="">— pilih —</option>
-                  {blastTemplates.filter(t => !blastCategoryId || t.category_id === blastCategoryId).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  {blastTemplates.filter((t: any) => !blastCategoryId || t.category_id === blastCategoryId).map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
             </div>
             {blastTemplates.length === 0 && (
               <p className="text-[11px] text-amber-500">Belum ada template WA Blast. <a href="/master/templates" className="underline">Buat di Master Data</a>.</p>
             )}
-
             <p className="text-xs text-gray-400">Hanya lead Scraped tanpa opt-out yang masuk antrean. Delay 5 detik antar pesan.</p>
-
             <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Waktu Pengiriman</label>
               <div className="flex items-center gap-4">
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="sendMode" checked={blastSendMode === "instant"} onChange={() => setBlastSendMode("instant")}
-                    className="w-4 h-4 text-amber-600 focus:ring-amber-500" />
+                  <input type="radio" name="sendMode" checked={blastSendMode === "instant"} onChange={() => setBlastSendMode("instant")} className="w-4 h-4 text-amber-600 focus:ring-amber-500" />
                   <span className="text-sm text-neutral-700 dark:text-neutral-300">Kirim Sekarang</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="sendMode" checked={blastSendMode === "scheduled"} onChange={() => setBlastSendMode("scheduled")}
-                    className="w-4 h-4 text-amber-600 focus:ring-amber-500" />
+                  <input type="radio" name="sendMode" checked={blastSendMode === "scheduled"} onChange={() => setBlastSendMode("scheduled")} className="w-4 h-4 text-amber-600 focus:ring-amber-500" />
                   <span className="text-sm text-neutral-700 dark:text-neutral-300">Jadwalkan</span>
                 </label>
               </div>
@@ -633,7 +422,6 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
                 </div>
               )}
             </div>
-
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setBlastOpen(false)} className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl transition-colors">Batal</button>
               <button onClick={handleStartBlast} disabled={blasting || !blastBatch || !blastTemplateId}
@@ -645,95 +433,18 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
         </div>
       )}
 
-      {/* Search & Actions bar */}
-      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[150px] max-w-xs">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Cari nama, alamat, atau nomor..."
-            className="w-full pl-9 pr-3 py-1.5 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-white dark:bg-[var(--bg-surface)] dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-300/50 transition" />
-        </div>
-        <button onClick={() => { setLeadForm({ business_name: "", phone_number: "", address: "", product_interest: "" }); setAddLeadModal(true); }}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-yellow hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors">
-          <Plus size={12} /> <span className="hidden sm:inline">Tambah Lead</span><span className="sm:hidden">Tambah</span>
-        </button>
-        <button onClick={exportCSV}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-700 dark:text-neutral-200 text-xs font-semibold rounded-lg transition-colors">
-          <Download size={12} /> <span className="hidden sm:inline">Export CSV</span><span className="sm:hidden">Export</span>
-        </button>
-      </div>
-
-      {/* Filter bar */}
-      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Status:</span>
-        <button onClick={() => setFilterStatus("")}
-          className={`px-2.5 sm:px-3 py-1 rounded-full text-xs font-semibold transition-colors ${filters.status === "" ? "bg-amber-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"}`}>
-          Semua
-        </button>
-        {STATUSES.map(s => (
-          <button key={s} onClick={() => setFilterStatus(s)}
-            className={`px-2.5 sm:px-3 py-1 rounded-full text-xs font-semibold transition-colors ${filters.status === s ? "bg-amber-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"}`}>
-            {s}
-          </button>
-        ))}
-
-        <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-2">
-          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Batch:</span>
-          <select value={filters.batch} onChange={e => setFilterBatch(e.target.value)}
-            className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-[var(--bg-surface)] text-gray-700 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition max-w-[200px] flex-1 sm:flex-none">
-            <option value="">Semua Batch</option>
-            {batches.map(b => <option key={b} value={b}>{b}</option>)}
-          </select>
-          {filters.batch && (
-            <button onClick={() => setDeleteBatchModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
-              <Trash2 size={12} />
-              Arsipkan Batch
-            </button>
-          )}
-        </div>
-
-        <button onClick={() => { setBlastBatch(filters.batch); setBlastOpen(true); }}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-all shadow-sm whitespace-nowrap">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
-          </svg>
-          WA Blast
-        </button>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Rating:</span>
-          <select value={filters.rating} onChange={e => setFilterRating(Number(e.target.value))}
-            className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-[var(--bg-surface)] text-gray-700 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
-            <option value={0}>Semua</option>{[5,4,3,2,1].map(v => <option key={v} value={v}>{v === 5 ? "5 Bintang" : `Min. ${v} Bintang`}</option>)}
-          </select>
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Score:</span>
-          {([["", "Semua"], ["hot", "Siap Closing"], ["warm", "Perlu Pendekatan"], ["cold", "Belum Match"]] as const).map(([val, label]) => (
-            <button key={val} onClick={() => setFilterScore(val as typeof filters.score)}
-              className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${filters.score === val ? "bg-amber-500 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"}`}>
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <button onClick={handleRecalculateAll} disabled={recalculating}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-700 dark:text-neutral-200 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap">
-          {recalculating ? "..." : "Recalculate Scores"}
-        </button>
-
-        <button onClick={refresh}
-          className="sm:ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-[var(--bg-surface)] border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-          <RefreshCw size={12} className="inline -mt-0.5 mr-1" />Refresh
-        </button>
-
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" checked={showArchived} onChange={e => setShowArchived(e.target.checked)} className="w-3.5 h-3.5 rounded border-gray-300 text-brand-yellow focus:ring-brand-yellow/50" />
-          <span className="text-xs text-gray-500 font-medium">Archived</span>
-        </label>
-      </div>
+      {/* Filter Bar */}
+      <LeadsFilterBar
+        searchQuery={searchQuery} onSearchChange={setSearchQuery}
+        filters={filters} batches={batches}
+        onStatusChange={setFilterStatus} onBatchChange={setFilterBatch}
+        onScoreChange={setFilterScore} onRatingChange={setFilterRating}
+        onAddLead={() => { setLeadForm({ business_name: "", phone_number: "", address: "", product_interest: "" }); setAddLeadModal(true); }}
+        onExportCSV={exportCSV} onOpenBlast={() => { setBlastBatch(filters.batch); setBlastOpen(true); }}
+        onRecalculate={handleRecalculateAll} onRefresh={refresh}
+        recalculating={recalculating} showArchived={showArchived}
+        onShowArchivedChange={setShowArchived} onDeleteBatch={() => setDeleteBatchModal(true)}
+      />
 
       {/* Loading skeleton */}
       {leadsLoading && (
@@ -760,178 +471,24 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
           <table className="w-full min-w-[1250px] bg-white dark:bg-[var(--bg-canvas)] text-sm">
             <thead className="bg-gray-50 dark:bg-[var(--bg-surface)] border-b border-gray-100 dark:border-gray-700">
               <tr>
-                {["#", "Nama Bisnis", "Alamat", "Nomor WA", "Layanan", "Website", "Google Rating", "Score", "Next Action", "Status", "Aksi"].map((h) => (
+                {["#", "Nama Bisnis", "Alamat", "Nomor WA", "Layanan", "Website", "Google Rating", "Score", "Next Action", "Status", "Aksi"].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-subtle)]">
-              {(() => {
-                const filtered = leads.filter(l => {
-                  if (filters.rating !== 0 && l.rating < filters.rating) return false;
-                  if (searchQuery && !l.business_name.toLowerCase().includes(searchQuery.toLowerCase()) && !(l.address || "").toLowerCase().includes(searchQuery.toLowerCase()) && !l.phone_number.includes(searchQuery)) return false;
-                  const s = l.lead_score ?? 0;
-                  if (filters.score === "hot" && s < 80) return false;
-                  if (filters.score === "warm" && (s < 50 || s >= 80)) return false;
-                  if (filters.score === "cold" && s >= 50) return false;
-                  return true;
-                }).sort((a, b) => {
-                  const now = Date.now();
-                  const aOverdue = a.next_action_at && new Date(a.next_action_at).getTime() <= now ? 1 : 0;
-                  const bOverdue = b.next_action_at && new Date(b.next_action_at).getTime() <= now ? 1 : 0;
-                  return bOverdue - aOverdue || (b.lead_score ?? 0) - (a.lead_score ?? 0);
-                });
-                const start = (leadsPage - 1) * LEADS_PAGE_SIZE;
-                return filtered.slice(start, start + LEADS_PAGE_SIZE).map((lead, i) => (
-                  <tr key={lead.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${lead.is_archived ? "opacity-70" : ""} ${lead.is_ghost_viewer ? "bg-red-500/10 border-l-4 border-l-red-500 animate-pulse" : ""}`}>
-                    <td className="px-4 py-3 text-gray-400 text-xs">{start + i + 1}</td>
-                    <td className="px-4 py-3 font-medium text-gray-800 dark:text-neutral-50 max-w-[180px]">
-                      <div className="flex items-center gap-1.5">
-                        <span>{lead.business_name}{lead.is_archived ? " (Archived)" : ""}</span>
-                        {lead.is_ghost_viewer && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 whitespace-nowrap">GHOST VIEWER</span>
-                        )}
-                      </div>
-                      {lead.batch_name && <div className="text-[10px] text-gray-400 mt-0.5 truncate max-w-[160px]">{lead.batch_name}</div>}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 max-w-[180px] text-xs leading-relaxed">{lead.address ?? "—"}</td>
-                    <td className="px-4 py-3 font-mono text-gray-600 dark:text-gray-400 text-xs whitespace-nowrap">+{lead.phone_number}</td>
-                    <td className="px-4 py-3">
-                      <select value={lead.product_interest ?? ""} disabled={updating === lead.id || lead.is_archived}
-                        onChange={e => handleUpdateProduct(lead.id, e.target.value)}
-                        className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-[var(--bg-surface)] text-gray-700 dark:text-neutral-50 cursor-pointer hover:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-50 transition-colors">
-                        <option value="">— pilih —</option>
-                        {blastCategories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                      </select>
-                    </td>
-                    <td className="px-4 py-3 text-xs">
-                      {lead.website_url ? (
-                        <a href={lead.website_url} target="_blank" rel="noopener" className="text-blue-600 hover:underline truncate block max-w-[120px]" title={lead.website_url}>
-                          {lead.website_url.replace(/^https?:\/\//, "").replace(/\/$/, "").slice(0, 20)}...
-                        </a>
-                      ) : <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-xs">
-                      {lead.google_rating ? (
-                        <div className="flex items-center gap-1">
-                          <Star size={12} fill="currentColor" className="text-yellow-500" />
-                          <span className="font-medium">{lead.google_rating.toFixed(1)}</span>
-                          {lead.review_count && <span className="text-gray-400">({lead.review_count})</span>}
-                        </div>
-                      ) : <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-xs">
-                      {(() => {
-                        const score = lead.lead_score ?? 0;
-                        const color = getScoreColor(score);
-                        const tierLabel = getScoreLabel(score);
-                        const breakdown = getScoreBreakdown(lead);
-                        return (
-                          <div className="group relative w-28">
-                            <div className="flex items-center gap-1.5 mb-1">
-                              <span className="font-bold tabular-nums">{score}</span>
-                            </div>
-                            <div className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 truncate" title={tierLabel}>{tierLabel}</div>
-                            <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                              <div className={`h-full ${color} transition-all`} style={{ width: `${score}%` }}></div>
-                            </div>
-                            {lead.action_recommendation === "personal_wa" && (
-                              <div className="mt-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"><Flame size={10} className="inline" /> Personal WA</div>
-                            )}
-                            {lead.action_recommendation === "blast_ready" && (
-                              <div className="mt-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"><Mail size={10} className="inline" /> Siap Blast</div>
-                            )}
-                            {breakdown.length > 0 && (
-                              <div className="absolute left-0 top-full mt-1 z-20 hidden group-hover:block bg-gray-900 text-white text-[10px] rounded-lg px-3 py-2 shadow-xl whitespace-nowrap min-w-[180px]">
-                                <div className="font-bold mb-1">Breakdown:</div>
-                                {breakdown.map((b, i) => <div key={i}>• {b}</div>)}
-                                <div className="mt-1 pt-1 border-t border-gray-700">Base: 50</div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-4 py-3 text-xs min-w-[145px]">
-                      {lead.next_action_at ? (
-                        <div className={new Date(lead.next_action_at).getTime() < Date.now() ? "text-red-600 font-semibold" : "text-neutral-600 dark:text-neutral-300"}>
-                          {new Date(lead.next_action_at).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                        </div>
-                      ) : <span className="text-gray-300">Belum diatur</span>}
-                      {lead.sales_owner && <div className="text-[10px] text-gray-400 mt-0.5">PIC: {lead.sales_owner}</div>}
-                      {lead.do_not_contact && <div className="text-[10px] text-red-500 font-bold mt-0.5">OPT-OUT</div>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[lead.status]}`}>{lead.status}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 flex-wrap max-w-[220px]">
-                        {lead.is_archived ? (
-                          <button onClick={() => handleRestore(lead.id)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-[11px] font-semibold rounded-lg transition-all whitespace-nowrap">
-                            Restore
-                          </button>
-                        ) : (
-                          <>
-                            <button onClick={() => handleChatWA(lead)} disabled={updating === lead.id || lead.do_not_contact} title={lead.do_not_contact ? "Diblokir: lead opt-out" : "Chat WhatsApp"}
-                              className="p-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-all disabled:opacity-50">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" /></svg>
-                            </button>
-                            {(lead.status === "Contacted" || lead.status === "Replied") && (
-                              <>
-                                <button onClick={() => handleFollowUp(lead)} disabled={updating === lead.id || lead.do_not_contact} title="Follow Up Manual"
-                                  className="p-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-all disabled:opacity-50">
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
-                                </button>
-                                <button onClick={() => startSequence(lead)} disabled={updating === lead.id || lead.do_not_contact} title="Start Auto Follow-up"
-                                  className="p-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-all disabled:opacity-50">
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-                                </button>
-                              </>
-                            )}
-                            <button onClick={() => openSalesModal(lead)} title="Atur PIC dan next action"
-                              className="p-1.5 text-neutral-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all">
-                              <Target size={12} />
-                            </button>
-                            <select value={lead.status} disabled={updating === lead.id}
-                              onChange={e => handleUpdateStatus(lead.id, e.target.value as Status)}
-                              className="text-[11px] border border-neutral-200 dark:border-neutral-700 rounded-lg px-1.5 py-1.5 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 cursor-pointer focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50 transition-colors w-[90px]">
-                              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
-                            {lead.status !== "Closed/Client" && (
-                              <button onClick={() => setConvertModal({ open: true, lead })} disabled={updating === lead.id} title="Jadikan Klien"
-                                className="p-1.5 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all disabled:opacity-50">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                              </button>
-                            )}
-                            <button onClick={() => openEditLead(lead)} disabled={updating === lead.id} title="Edit Lead"
-                              className="p-1.5 text-neutral-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all disabled:opacity-50">
-                              <Pencil size={12} />
-                            </button>
-                            <button onClick={() => setDeleteModal({ open: true, id: lead.id, name: lead.business_name })} disabled={updating === lead.id} title="Archive"
-                              className="p-1.5 text-neutral-300 dark:text-neutral-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all disabled:opacity-50">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" /></svg>
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ));
-              })()}
+              <LeadsTableBody
+                leads={leads} filters={filters} searchQuery={searchQuery}
+                blastCategories={blastCategories} updating={updating}
+                onUpdateStatus={handleUpdateStatus} onUpdateProduct={handleUpdateProduct}
+                onChatWA={handleChatWA} onFollowUp={handleFollowUp} onStartSequence={startSequence}
+                onOpenSales={openSalesModal} onConvert={lead => setConvertModal({ open: true, lead })}
+                onEdit={openEditLead} onArchive={lead => setDeleteModal({ open: true, id: lead.id, name: lead.business_name })}
+                onRestore={handleRestore}
+              />
             </tbody>
           </table>
-          {(() => {
-            const filtered = leads.filter(l => {
-              const score = l.lead_score ?? 0;
-              return (filters.rating === 0 || l.rating >= filters.rating)
-                && (!searchQuery || l.business_name.toLowerCase().includes(searchQuery.toLowerCase()) || (l.address || "").toLowerCase().includes(searchQuery.toLowerCase()) || l.phone_number.includes(searchQuery))
-                && (filters.score !== "hot" || score >= 80)
-                && (filters.score !== "warm" || (score >= 50 && score < 80))
-                && (filters.score !== "cold" || score < 50);
-            });
-            return <Pagination page={leadsPage} pageSize={LEADS_PAGE_SIZE} total={filtered.length} onPageChange={p => setLeadsPage(p)} itemLabel="lead" />;
-          })()}
+          <Pagination page={leadsPage} pageSize={LEADS_PAGE_SIZE} total={leads.length} onPageChange={p => setLeadsPage(p)} itemLabel="lead" />
           <div className="px-4 py-2 bg-gray-50 dark:bg-[var(--bg-surface)] border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400">
             {leads.length} lead{leads.length !== 1 ? "s" : ""}
             {filters.batch && <span className="ml-2 text-amber-400">· {filters.batch}</span>}
@@ -940,7 +497,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
         </div>
       )}
 
-      {/* Add Lead Modal */}
+      {/* Add Lead */}
       <Modal open={addLeadModal} title="Tambah Lead Baru" confirmLabel={savingLead ? "Menyimpan..." : "Simpan"} onConfirm={handleCreateLead} onCancel={() => setAddLeadModal(false)}>
         <div className="space-y-3">
           <input type="text" placeholder="Nama Bisnis *" value={leadForm.business_name} onChange={e => setLeadForm(f => ({ ...f, business_name: e.target.value }))}
@@ -952,12 +509,12 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
           <select value={leadForm.product_interest} onChange={e => setLeadForm(f => ({ ...f, product_interest: e.target.value }))}
             className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
             <option value="">— Pilih Layanan —</option>
-            {blastCategories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+            {blastCategories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
         </div>
       </Modal>
 
-      {/* Edit Lead Modal */}
+      {/* Edit Lead */}
       <Modal open={editLeadModal.open} title="Edit Lead" confirmLabel={savingLead ? "Menyimpan..." : "Simpan"} onConfirm={handleEditLead} onCancel={() => setEditLeadModal({ open: false, lead: null })}>
         <div className="space-y-3">
           <input type="text" placeholder="Nama Bisnis *" value={leadForm.business_name} onChange={e => setLeadForm(f => ({ ...f, business_name: e.target.value }))}
@@ -969,7 +526,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
           <select value={leadForm.product_interest} onChange={e => setLeadForm(f => ({ ...f, product_interest: e.target.value }))}
             className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
             <option value="">— Pilih Layanan —</option>
-            {blastCategories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+            {blastCategories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
         </div>
       </Modal>
