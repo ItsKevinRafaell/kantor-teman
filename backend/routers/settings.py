@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse,
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import get_db, log_audit, User, Lead, Product, Category, DynamicTemplate, MessageTemplate, BoardCardComment, BoardCardChecklist, BoardCardActivity, BoardCard, BoardColumn, Board, Project, ContentGeneration, ContentSession, ContentSchedule, Document, DocumentFolder, ReengagementAlert, FollowUpSequence, ClientNote, ClientCredential, ClientDocument, LeadActivityLog, LeadAnalysis, Proposal, BlastMessage, BlastCampaign, AdsCampaign, ScrapeHistory, Contact, Subscription, Transaction, Wallet, ServiceItem, SystemSettings
+from models import get_db, log_audit, AIModel, User, Lead, Product, Category, DynamicTemplate, MessageTemplate, BoardCardComment, BoardCardChecklist, BoardCardActivity, BoardCard, BoardColumn, Board, Project, ContentGeneration, ContentSession, ContentSchedule, Document, DocumentFolder, ReengagementAlert, FollowUpSequence, ClientNote, ClientCredential, ClientDocument, LeadActivityLog, LeadAnalysis, Proposal, BlastMessage, BlastCampaign, AdsCampaign, ScrapeHistory, Contact, Subscription, Transaction, Wallet, ServiceItem, SystemSettings
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, verify_password,
     seed_data, get_fonnte_token, _send_fonnte_sync, _normalize_phone,
