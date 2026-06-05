@@ -259,8 +259,13 @@ export function useDocumentGenerator() {
       const res = await apiFetch("/api/documents/preview", { method: "POST", body: JSON.stringify(buildDocumentPayload()) });
       clearTimeout(timeoutId);
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || "Preview gagal"); }
-      const nextUrl = URL.createObjectURL(await res.blob());
-      setPreviewUrl(prev => { if (prev) URL.revokeObjectURL(prev); return nextUrl; });
+      const blob = await res.blob();
+      const reader = new FileReader();
+      const dataUrl: string = await new Promise((resolve) => {
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+      setPreviewUrl(prev => { if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev); return dataUrl; });
       setStep(3);
     } catch (e: unknown) { clearTimeout(timeoutId); setToast({ message: e instanceof Error ? e.message : "Preview gagal", type: "error" }); }
     finally { setPreviewing(false); }
