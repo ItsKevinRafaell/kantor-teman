@@ -127,11 +127,12 @@ if __name__ == "__main__":
     Base.metadata.create_all(engine)
     db = SessionLocal()
 
-    db.query(Product).delete()
-    db.query(Category).delete()
-    db.query(DynamicTemplate).filter(DynamicTemplate.type.in_(["WA_BLAST", "FOLLOW_UP"])).delete()
+    # Delete in FK order: child tables first
+    db.query(DynamicTemplate).filter(DynamicTemplate.type.in_(["WA_BLAST", "FOLLOW_UP"])).delete(synchronize_session=False)
+    db.query(Product).delete(synchronize_session=False)
+    db.query(Category).delete(synchronize_session=False)
     db.commit()
-    print("Cleaned: products, categories, templates")
+    print("Cleaned: templates, products, categories")
 
     cat_objects = {}
     for key, cat in categories.items():
