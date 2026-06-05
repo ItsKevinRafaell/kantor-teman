@@ -37,6 +37,12 @@ class BrandKit(Base):
     kit_name = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    brand_name = Column(String(255), default="")
+    tagline = Column(String(255), default="")
+    phone = Column(String(50), default="")
+    email = Column(String(255), default="")
+    address = Column(Text, default="")
+    logo = Column(Text, default="")
 
 
 class BrandAsset(Base):
