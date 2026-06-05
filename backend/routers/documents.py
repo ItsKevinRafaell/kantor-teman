@@ -11,6 +11,7 @@ from typing import Optional, List, Any
 from models import get_db, log_audit, BlastMessage, User, Lead, Contact, Project, Proposal, ProposalAnalytics, Transaction, ClientNote, ClientCredential, ClientDocument, DynamicTemplate, MessageTemplate, BrandKit, BrandAsset, Document, DocumentFolder, DocumentTemplate, GeneratedDocument, DocumentSequence, PaymentMethod, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, WorkspaceRow
 from schemas import *  # noqa: F403
 from app.core.cache import cached, clear_cache_prefix
+from app.services import _serialize_template
 from app.core.dependencies import (get_current_user, require_admin, UPLOADS_DIR,
     _cors_list, _get_setting, HERMES_GATEWAY_URL, _hermes_headers, _office_profile, _ads_out)
 from document_template_library import get_document_template_starters
