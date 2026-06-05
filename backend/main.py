@@ -58,7 +58,14 @@ async def query_timing_middleware(request: Request, call_next):
 @app.middleware("http")
 async def cors_error_safety(request: Request, call_next):
     try:
-        return await call_next(request)
+        response = await call_next(request)
+        # Add CORS headers to all responses
+        origin = request.headers.get("origin", "")
+        if origin in _cors_list:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Vary"] = "Origin"
+        return response
     except Exception as e:
         import traceback
         traceback.print_exc()
