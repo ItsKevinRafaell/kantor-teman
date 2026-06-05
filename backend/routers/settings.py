@@ -343,7 +343,7 @@ def admin_data_seed_demo(
     _verify_admin_password(current_user, body.password)
     try:
         from seed import categories, products_data, templates_data
-    from document_template_library import get_document_template_starters, wallets_data, clients_data
+        from document_template_library import get_document_template_starters
         import uuid as _uuid
 
         db.query(Product).delete()
