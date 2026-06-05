@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse,
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import get_db, log_audit, User, Lead, BlastCampaign, FollowUpSequence, DynamicTemplate, BlastMessage, LeadActivityLog, Transaction, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, Board, BoardColumn, BoardCard, Project
+from models import get_db, log_audit, User, Lead, BlastCampaign, FollowUpSequence, DynamicTemplate, BlastMessage, LeadActivityLog, Transaction, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, Board, BoardColumn, BoardCard, Project, AdsCampaign
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, FONNTE_WEBHOOK_SECRET,
     GOOGLE_CALENDAR_ID, GOOGLE_SERVICE_ACCOUNT_JSON, _get_google_calendar_service,
