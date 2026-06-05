@@ -661,17 +661,21 @@ def _document_template_html(template: DocumentTemplate) -> str:
 def _render_document_html(html_template: str, full_vars: dict) -> str:
     try:
         from jinja2.sandbox import SandboxedEnvironment
-        env = SandboxedEnvironment()
+        from jinja2 import Undefined
+        env = SandboxedEnvironment(undefined=Undefined)
         template = env.from_string(html_template)
         rendered_html = template.render(**full_vars)
+        # Fallback: catch any remaining {{key}} that Jinja2 left as literal text
         for k, v in full_vars.items():
             if isinstance(v, str):
-                rendered_html = rendered_html.replace(f"{{{{{k}}}}}", v)
+                placeholder = "{{" + k + "}}"
+                rendered_html = rendered_html.replace(placeholder, v)
     except ImportError:
         rendered_html = html_template
         for k, v in full_vars.items():
             if isinstance(v, str):
-                rendered_html = rendered_html.replace(f"{{{{{k}}}}}", v)
+                placeholder = "{{" + k + "}}"
+                rendered_html = rendered_html.replace(placeholder, v)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Render template gagal: {e}")
     return rendered_html

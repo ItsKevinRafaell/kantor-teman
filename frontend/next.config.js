@@ -41,6 +41,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline'",
               // Note: 'unsafe-inline' required; Next.js generates inline styles dynamically
               "img-src 'self' data: https://api.kantorteman.my.id blob:",
+              "frame-src 'self' data: blob:",
               "font-src 'self'",
               "connect-src 'self' https://api.kantorteman.my.id wss:",
               "frame-ancestors 'none'",
