@@ -82,6 +82,8 @@ from app.services.document_service import (
     _serialize_template,
     _next_doc_sequence,
     _peek_doc_sequence,
+    _slugify_name,
+    _DOC_TYPE_PREFIX,
     render_document_html,
     visible_text_from_html,
     inject_pdf_font,
@@ -93,7 +95,6 @@ from app.services.document_service import (
     delete_document_template,
     get_invoice_sequence,
     set_invoice_sequence,
-    _DOC_TYPE_PREFIX,
 )
 
 from app.services.proposal_service import (
