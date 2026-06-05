@@ -745,7 +745,7 @@ def generate_document(request: Request, body: DocumentGenerateIn, current_user: 
 
         # Filename: prefer document number + client name when available
         display_name = _build_pdf_display_name(db, template.type or "custom", body.target_type, body.target_id, full_vars)
-        file_url = f"/uploads/documents/{pdf_filename}"
+        file_url = pdf_filename
         doc = GeneratedDocument(
             id=file_id,
             template_id=template.id,
@@ -775,7 +775,9 @@ def download_document(did: str, current_user: User = Depends(get_current_user), 
     doc = db.query(GeneratedDocument).filter(GeneratedDocument.id == did).first()
     if not doc or not doc.file_url:
         raise HTTPException(status_code=404, detail="Document tidak ditemukan")
-    fpath = os.path.join(os.path.dirname(__file__), doc.file_url.lstrip("/"))
+    # Use DOCUMENTS_DIR for the path
+    filename = os.path.basename(doc.file_url)
+    fpath = os.path.join(DOCUMENTS_DIR, filename)
     if not os.path.exists(fpath):
         raise HTTPException(status_code=404, detail="File tidak ada di disk")
     if doc.target_id and doc.target_id.isdigit():
