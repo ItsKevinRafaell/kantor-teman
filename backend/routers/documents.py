@@ -336,10 +336,20 @@ def set_invoice_sequence(body: InvoiceSequenceIn, current_user: User = Depends(r
 
 def _build_brand_context(db: Session) -> dict:
     kit = db.query(BrandKit).filter(BrandKit.is_active == True).first() or db.query(BrandKit).first()
-    ctx = {"logo": "", "colors": {}, "fonts": {}, "tagline": "", "brand_name": "", "alamat_perusahaan": "", "phone_perusahaan": "", "email_perusahaan": ""}
+    ctx = {
+        "logo": "", "colors": {}, "fonts": {},
+        "tagline": "", "nama_perusahaan": "", "brand_name": "",
+        "alamat_perusahaan": "", "phone_perusahaan": "", "email_perusahaan": ""
+    }
     if not kit:
         return ctx
+    # Map brand kit fields to template variables
+    ctx["nama_perusahaan"] = kit.brand_name or kit.kit_name or ""
     ctx["brand_name"] = kit.kit_name or ""
+    ctx["tagline"] = kit.tagline or ""
+    ctx["alamat_perusahaan"] = kit.address or ""
+    ctx["phone_perusahaan"] = kit.phone or ""
+    ctx["email_perusahaan"] = kit.email or ""
     assets = db.query(BrandAsset).filter(BrandAsset.kit_id == kit.id).all()
     for a in assets:
         if a.asset_type == "logo_primary" and a.file_url:
