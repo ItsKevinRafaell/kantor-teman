@@ -507,6 +507,11 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
         defaults["perihal"] = f"Penawaran Jasa {service_name}".strip()
         defaults["terms"] = "Penawaran ini berlaku 14 hari sejak tanggal surat. Harga belum termasuk pajak kecuali disebutkan lain."
 
+    # Add default items_rows for document types that need it
+    if template_type in ["invoice", "receipt", "surat_penawaran", "proposal_pdf", "kontrak"]:
+        if "items_rows" not in defaults or not defaults.get("items_rows"):
+            defaults["items_rows"] = '<tr><td colspan="4" style="text-align:center;color:#999;">Tidak ada item</td></tr>'
+
     return defaults
 
 
@@ -598,7 +603,8 @@ def _prepare_document_vars(db: Session, template: DocumentTemplate, body: Docume
     template_type = _document_template_type(template)
     defaults = _build_default_vars(db, template_type, body.target_type, body.target_id)
     brand_ctx = _build_brand_context(db)
-    full_vars = {**brand_ctx, **defaults}
+    # Defaults first, then brand_ctx (brand_ctx has priority for brand-specific fields)
+    full_vars = {**defaults, **brand_ctx}
     for key, value in body.variables.items():
         if value not in (None, "") or key not in full_vars:
             full_vars[key] = value
