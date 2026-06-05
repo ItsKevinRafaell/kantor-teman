@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse,
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import get_db, log_audit, User, Lead, MessageTemplate, ClientDocument, BrandKit, BrandAsset, DocumentTemplate, GeneratedDocument, Document, DocumentFolder, DocumentSequence, PaymentMethod
+from models import get_db, log_audit, User, Lead, MessageTemplate, ClientDocument, BrandKit, BrandAsset, DocumentTemplate, GeneratedDocument, Document, DocumentFolder, DocumentSequence, PaymentMethod, SystemSettings, ClientCredential, ProviderConfig, DynamicTemplate
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, UPLOADS_DIR,
     encrypt_password, decrypt_password,

@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks, UploadFile, File, Form, Query, Body
 from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy import select
 from typing import Optional, List, Any
 from models import get_db, log_audit, User, Lead, Contact, Proposal, ProposalAnalytics, Product, FollowUpSequence, ScrapeHistory, LeadAnalysis
 from schemas import *

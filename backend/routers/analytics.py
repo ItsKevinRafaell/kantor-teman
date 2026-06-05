@@ -6,11 +6,11 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks, UploadFile, File, Form, Query, Body
 from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
 from typing import Optional, List, Any
 from models import get_db, log_audit, User, Lead, Contact, ScrapeHistory, LeadActivityLog, Proposal, ReengagementAlert, Transaction, AuditLog
 from schemas import *
-from app.core.dependencies import get_current_user, require_admin, _check_simple_rate_limit
+from app.core.dependencies import get_current_user, require_admin, _check_simple_rate_limit, _analysis_jobs, _blast_jobs
 
 router = APIRouter()
 
