@@ -16,6 +16,9 @@ from app.core.dependencies import (get_current_user, require_admin, UPLOADS_DIR,
     _cors_list, _get_setting, HERMES_GATEWAY_URL, _hermes_headers, _office_profile, _ads_out)
 from document_template_library import get_document_template_starters
 
+DOCUMENTS_DIR = os.path.join(UPLOADS_DIR, "generated_documents")
+os.makedirs(DOCUMENTS_DIR, exist_ok=True)
+
 router = APIRouter()
 
 @router.get("/api/templates", response_model=list[TemplateOut])

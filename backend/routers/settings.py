@@ -150,6 +150,7 @@ def _send_wa_auto_reply_sync(lead_id: int, phone: str, name: str, product_intere
 def run_seed_endpoint(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Run seeder via HTTP — use once after first deploy."""
     from seed import categories, products_data, templates_data
+    from document_template_library import get_document_template_starters
     import uuid as _uuid
 
     db.query(Product).delete()
@@ -179,8 +180,36 @@ def run_seed_endpoint(current_user: User = Depends(require_admin), db: Session =
         ))
     db.commit()
 
+    # Seed DocumentTemplates
+    starters = get_document_template_starters()
+    existing_template_types = {t.type for t in db.query(DocumentTemplate).all()}
+    for doc_type, data in starters.items():
+        if doc_type not in existing_template_types:
+            db.add(DocumentTemplate(
+                id=str(_uuid.uuid4()),
+                name=data["name"],
+                type=doc_type,
+                html_template=data["html_template"],
+                variables=json.dumps(data["variables"]),
+                is_active=True,
+            ))
+    db.commit()
+
+    # Seed default BrandKit
+    existing_kits = db.query(BrandKit).filter(BrandKit.is_active == True).count()
+    if existing_kits == 0:
+        db.add(BrandKit(
+            id=str(_uuid.uuid4()),
+            kit_name="Kantor Teman",
+            brand_name="Kantor Teman",
+            tagline="Partner Digital Bisnis Anda",
+            phone="", email="", address="", logo="",
+            is_active=True,
+        ))
+        db.commit()
+
     seed_data(db)
-    return {"ok": True, "message": "Seed berhasil: categories, products, templates"}
+    return {"ok": True, "message": "Seed berhasil: categories, products, templates, document templates, brand kit"}
 
 
 # ============================================================================
@@ -313,7 +342,8 @@ def admin_data_seed_demo(
     """Re-seed demo data: categories, products, templates, wallets, sample clients."""
     _verify_admin_password(current_user, body.password)
     try:
-        from seed import categories, products_data, templates_data, wallets_data, clients_data
+        from seed import categories, products_data, templates_data
+    from document_template_library import get_document_template_starters, wallets_data, clients_data
         import uuid as _uuid
 
         db.query(Product).delete()

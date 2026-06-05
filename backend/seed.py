@@ -121,6 +121,7 @@ if __name__ == "__main__":
     from main import (
         engine, SessionLocal, Base,
         Category, Product, DynamicTemplate, Wallet, Lead, Project, Transaction,
+        DocumentTemplate, BrandKit,
     )
 
     Base.metadata.create_all(engine)
@@ -227,6 +228,44 @@ if __name__ == "__main__":
         print(f"Seeded: {tx_added} transactions (skipped {len(transactions_data) - tx_added} existing)")
     else:
         print("WARNING: Wallet 'Rekening Utama' not found, skipping transactions")
+
+    # Seed DocumentTemplates from document_template_library
+    from document_template_library import get_document_template_starters
+    starters = get_document_template_starters()
+    existing_template_types = {t.type for t in db.query(DocumentTemplate).all()}
+    templates_added = 0
+    for doc_type, data in starters.items():
+        if doc_type not in existing_template_types:
+            db.add(DocumentTemplate(
+                id=str(uuid.uuid4()),
+                name=data["name"],
+                type=doc_type,
+                html_template=data["html_template"],
+                variables=json.dumps(data["variables"]),
+                is_active=True,
+            ))
+            templates_added += 1
+    db.commit()
+    print(f"Seeded: {templates_added} document templates (skipped {len(starters) - templates_added} existing)")
+
+    # Seed default BrandKit if not exists
+    existing_kits = db.query(BrandKit).filter(BrandKit.is_active == True).count()
+    if existing_kits == 0:
+        db.add(BrandKit(
+            id=str(uuid.uuid4()),
+            kit_name="Kantor Teman",
+            brand_name="Kantor Teman",
+            tagline="Partner Digital Bisnis Anda",
+            phone="",
+            email="",
+            address="",
+            logo="",
+            is_active=True,
+        ))
+        db.commit()
+        print("Seeded: 1 BrandKit")
+    else:
+        print(f"Skipped: BrandKit already exists ({existing_kits})")
 
     db.close()
     print("\nSeeder selesai!")
