@@ -260,6 +260,12 @@ def _extract_doc_parts(rendered_html: str) -> dict:
     terms = _first_value([r"Ketentuan\s+(.+?)\s+Catatan", r"Syarat dan Ketentuan\s+(.+?)(?:\s+Demikian|$)"], text)
     note = _first_value([r"Catatan\s+(.+?)\s+Kantor Teman"], text)
     footer = _first_value([r"(Dokumen ini dibuat secara digital\.?)"], text)
+    # Extract tagline from text - line between brand and "Dokumen"
+    tagline = ""
+    if "Dokumen ini dibuat" in text:
+        before_footer = text.split("Dokumen ini dibuat")[0].strip()
+        lines = [l.strip() for l in before_footer.splitlines() if l.strip()]
+        tagline = lines[-1] if len(lines) > 1 else ""
 
     return {
         "text": text,
@@ -272,6 +278,7 @@ def _extract_doc_parts(rendered_html: str) -> dict:
         "terms": terms,
         "note": note,
         "footer": footer,
+        "tagline": tagline,
         "items_table": items_table,
     }
 
@@ -282,7 +289,7 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import mm
-    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
     parts = _extract_doc_parts(rendered_html)
     buffer = io.BytesIO()
@@ -295,13 +302,13 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
         bottomMargin=16 * mm,
     )
     styles = getSampleStyleSheet()
-    normal = ParagraphStyle("KTNormal", parent=styles["Normal"], fontName="Helvetica", fontSize=9, leading=12, textColor=colors.HexColor("#334155"))
-    small = ParagraphStyle("KTSmall", parent=normal, fontSize=8, leading=10, textColor=colors.HexColor("#64748b"))
-    table_text = ParagraphStyle("KTTableText", parent=normal, fontSize=7.6, leading=9.2, textColor=colors.HexColor("#334155"))
+    normal = ParagraphStyle("KTNormal", parent=styles["Normal"], fontName="Helvetica", fontSize=9, leading=12, textColor=colors.HexColor("#1f2937"))
+    small = ParagraphStyle("KTSmall", parent=normal, fontSize=8, leading=10, textColor=colors.HexColor("#6b7280"))
+    table_text = ParagraphStyle("KTTableText", parent=normal, fontSize=7.6, leading=9.2, textColor=colors.HexColor("#1f2937"))
     table_header = ParagraphStyle("KTTableHeader", parent=table_text, fontName="Helvetica-Bold", fontSize=7.2, leading=8.6, textColor=colors.HexColor("#475569"))
     table_right = ParagraphStyle("KTTableRight", parent=table_text, alignment=TA_RIGHT)
     title = ParagraphStyle("KTTitle", parent=styles["Title"], fontName="Helvetica-Bold", fontSize=22, leading=26, textColor=colors.HexColor("#111827"))
-    label = ParagraphStyle("KTLabel", parent=normal, fontName="Helvetica-Bold", fontSize=7, leading=9, textColor=colors.HexColor("#64748b"))
+    label = ParagraphStyle("KTLabel", parent=normal, fontName="Helvetica-Bold", fontSize=8, leading=9, textColor=colors.HexColor("#4b5563"))
     right_small = ParagraphStyle("KTRightSmall", parent=small, alignment=TA_RIGHT)
 
     story = []
@@ -313,7 +320,7 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
         colWidths=[115 * mm, 55 * mm],
     )
     header.setStyle(TableStyle([
-        ("LINEBELOW", (0, 0), (-1, -1), 1.6, colors.HexColor("#111827")),
+        ("LINEBELOW", (0, 0), (-1, -1), 2, colors.HexColor("#111827")),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
@@ -328,8 +335,8 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
         hAlign="LEFT",
     )
     cards.setStyle(TableStyle([
-        ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#d1d5db")),
-        ("INNERGRID", (0, 0), (-1, -1), 0.6, colors.HexColor("#d1d5db")),
+        ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#d1d5db")),
+        ("INNERGRID", (0, 0), (-1, -1), 1, colors.HexColor("#d1d5db")),
         ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
         ("PADDING", (0, 0), (-1, -1), 9),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -337,6 +344,8 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
     story.extend([cards, Spacer(1, 7 * mm)])
 
     if parts["items_table"]:
+        story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#d1d5db")))
+        story.append(Spacer(1, 2 * mm))
         story.append(Paragraph("RINCIAN TAGIHAN", label))
         table_data = []
         for row_idx, row in enumerate(parts["items_table"]):
@@ -380,8 +389,8 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
         hAlign="LEFT",
     )
     info.setStyle(TableStyle([
-        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#f59e0b")),
-        ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#fde68a")),
+        ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#f59e0b")),
+        ("INNERGRID", (0, 0), (-1, -1), 1, colors.HexColor("#fde68a")),
         ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#fffbeb")),
         ("PADDING", (0, 0), (-1, -1), 8),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -390,7 +399,13 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
 
     if parts["note"]:
         story.extend([Paragraph("CATATAN", label), Paragraph(html_mod.escape(parts["note"]), small), Spacer(1, 8 * mm)])
-    story.append(Paragraph(f"<b>{html_mod.escape(parts['brand'])}</b><br/>{html_mod.escape(parts['footer'] or 'Dokumen ini dibuat secara digital.')}", small))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#d1d5db")))
+    story.append(Spacer(1, 3 * mm))
+    footer_parts = [html_mod.escape(parts["brand"])]
+    if parts.get("tagline"):
+        footer_parts.append(html_mod.escape(parts["tagline"]))
+    footer_parts.append(html_mod.escape(parts["footer"] or "Dokumen ini dibuat secara digital."))
+    story.append(Paragraph("<br/>".join(footer_parts), small))
 
     doc.build(story)
     pdf = buffer.getvalue()
