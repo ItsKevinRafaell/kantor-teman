@@ -248,44 +248,67 @@ def _extract_doc_parts(rendered_html: str) -> dict:
             title = match.group(1).upper()
             break
 
-    brand = _first_value([r"^(.+?)\s+INVOICE", r"^(.+?)\s+PROPOSAL", r"^(.+?)\s+SURAT"], text) or "Kantor Teman"
+    # Extract invoice number
+    invoice_num = _first_value([r"INVOICE\s+(INV[/\-][A-Z0-9/\-]+)", r"(INV[/\-]\d+)"], text) or ""
+
+    brand = _first_value([r"^(.+?)\s+INVOICE", r"^(.+?)\s+PROPOSAL", r"^(.+?)\s+SURAT"], text) or "Teman UMKM Kita"
     client = _first_value([
         r"Ditagihkan Kepada\s+(.+?)\s+Rincian",
         r"Kepada\s+(.+?)\s+Rincian",
         r"Disiapkan Untuk\s+(.+?)\s+Layanan",
     ], text)
+
+    # Extract client contact info (address, phone, email, web)
+    client_address = _first_value([r"Alamat:\s*(.+?)(?:\s+Telepon|\s+Email|\s+Website|\s+Rincian|$)"], text)
+    client_phone = _first_value([r"(?:Telepon|Phone|Telp)[:\s]+(.+?)(?:\s+Email|\s+Website|\s+Rincian|$)"], text)
+    client_email = _first_value([r"(?:Email|E-mail)[:\s]+([^\s]+@[^\s]+)"], text)
+    client_web = _first_value([r"(?:Website|Web|URL)[:\s]+(.+?)(?:\s+Rincian|\s+Catatan|$)"], text)
+
+    # Brand contact info
+    brand_address = _first_value([r"(?:Alamat|Perusahaan).*?(Indonesia|Malaysia|Singapore|\w+\s+\d+)"], text)
+    brand_email = _first_value([r"([^\s]+@[^\s]+\.[^\s]+)"], text)
+
     tanggal = _first_value([r"Tanggal:\s+(.+?)(?:\s+Jatuh|\s+Dari|\s+Berlaku|$)"], text)
     due_date = _first_value([r"Jatuh tempo:\s+(.+?)(?:\s+Dari|\s+Ditagihkan|$)", r"Jatuh Tempo:\s+(.+?)(?:\s+Dari|\s+Ditagihkan|$)"], text)
     payment = _first_value([r"Pembayaran\s+(.+?)\s+Ketentuan"], text)
     terms = _first_value([r"Ketentuan\s+(.+?)\s+Catatan", r"Syarat dan Ketentuan\s+(.+?)(?:\s+Demikian|$)"], text)
-    note = _first_value([r"Catatan\s+(.+?)\s+Kantor Teman"], text)
+    note = _first_value([r"Catatan\s+(.+?)\s+(?:Teman|Dokumen)"], text)
     footer = _first_value([r"(Dokumen ini dibuat secara digital\.?)"], text)
-    # Extract tagline from text - line between brand and "Dokumen"
-    tagline = ""
-    if "Dokumen ini dibuat" in text:
-        before_footer = text.split("Dokumen ini dibuat")[0].strip()
-        lines = [l.strip() for l in before_footer.splitlines() if l.strip()]
-        tagline = lines[-1] if len(lines) > 1 else ""
+
+    # Extract total amount from items table
+    total_amount = ""
+    for row in items_table:
+        for cell in row:
+            if "total" in cell.lower() and any(c.isdigit() for c in cell):
+                total_amount = cell
+                break
 
     return {
         "text": text,
         "title": title,
+        "invoice_num": invoice_num,
         "brand": brand,
         "client": client,
+        "client_address": client_address,
+        "client_phone": client_phone,
+        "client_email": client_email,
+        "client_web": client_web,
+        "brand_address": brand_address,
+        "brand_email": brand_email,
         "tanggal": tanggal,
         "due_date": due_date,
         "payment": payment,
         "terms": terms,
         "note": note,
         "footer": footer,
-        "tagline": tagline,
+        "total_amount": total_amount,
         "items_table": items_table,
     }
 
 
 def render_pdf_with_reportlab(rendered_html: str) -> bytes:
     from reportlab.lib import colors
-    from reportlab.lib.enums import TA_RIGHT
+    from reportlab.lib.enums import TA_CENTER, TA_RIGHT
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import mm
@@ -302,110 +325,270 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
         bottomMargin=16 * mm,
     )
     styles = getSampleStyleSheet()
-    normal = ParagraphStyle("KTNormal", parent=styles["Normal"], fontName="Helvetica", fontSize=9, leading=12, textColor=colors.HexColor("#1f2937"))
-    small = ParagraphStyle("KTSmall", parent=normal, fontSize=8, leading=10, textColor=colors.HexColor("#6b7280"))
-    table_text = ParagraphStyle("KTTableText", parent=normal, fontSize=7.6, leading=9.2, textColor=colors.HexColor("#1f2937"))
-    table_header = ParagraphStyle("KTTableHeader", parent=table_text, fontName="Helvetica-Bold", fontSize=7.2, leading=8.6, textColor=colors.HexColor("#475569"))
-    table_right = ParagraphStyle("KTTableRight", parent=table_text, alignment=TA_RIGHT)
-    title = ParagraphStyle("KTTitle", parent=styles["Title"], fontName="Helvetica-Bold", fontSize=22, leading=26, textColor=colors.HexColor("#111827"))
-    label = ParagraphStyle("KTLabel", parent=normal, fontName="Helvetica-Bold", fontSize=8, leading=9, textColor=colors.HexColor("#4b5563"))
-    right_small = ParagraphStyle("KTRightSmall", parent=small, alignment=TA_RIGHT)
+
+    # Style definitions - matching Zoho aesthetic
+    invoice_title = ParagraphStyle("InvoiceTitle", parent=styles["Normal"], fontName="Helvetica-Bold",
+                                    fontSize=28, leading=32, textColor=colors.HexColor("#111827"), alignment=TA_CENTER)
+    invoice_num = ParagraphStyle("InvoiceNum", parent=styles["Normal"], fontName="Helvetica",
+                                  fontSize=12, leading=16, textColor=colors.HexColor("#374151"), alignment=TA_CENTER)
+    bill_to_label = ParagraphStyle("BillToLabel", parent=styles["Normal"], fontName="Helvetica-Bold",
+                                    fontSize=7, leading=9, textColor=colors.HexColor("#6b7280"), textTransform="uppercase")
+    client_name = ParagraphStyle("ClientName", parent=styles["Normal"], fontName="Helvetica-Bold",
+                                  fontSize=12, leading=14, textColor=colors.HexColor("#111827"))
+    client_detail = ParagraphStyle("ClientDetail", parent=styles["Normal"], fontName="Helvetica",
+                                   fontSize=8, leading=10, textColor=colors.HexColor("#4b5563"))
+    meta_label = ParagraphStyle("MetaLabel", parent=styles["Normal"], fontName="Helvetica",
+                                 fontSize=8, leading=10, textColor=colors.HexColor("#6b7280"))
+    meta_value = ParagraphStyle("MetaValue", parent=styles["Normal"], fontName="Helvetica-Bold",
+                                 fontSize=8, leading=10, textColor=colors.HexColor("#111827"))
+    balance_label = ParagraphStyle("BalanceLabel", parent=styles["Normal"], fontName="Helvetica-Bold",
+                                    fontSize=9, leading=11, textColor=colors.HexColor("#92400e"))
+    balance_amount = ParagraphStyle("BalanceAmount", parent=styles["Normal"], fontName="Helvetica-Bold",
+                                    fontSize=14, leading=18, textColor=colors.HexColor("#111827"))
+    table_header = ParagraphStyle("TableHeader", parent=styles["Normal"], fontName="Helvetica-Bold",
+                                   fontSize=7.5, leading=9, textColor=colors.HexColor("#374151"))
+    table_text = ParagraphStyle("TableText", parent=styles["Normal"], fontName="Helvetica",
+                                 fontSize=7.5, leading=9.5, textColor=colors.HexColor("#1f2937"))
+    table_right = ParagraphStyle("TableRight", parent=table_text, alignment=TA_RIGHT)
+    section_title = ParagraphStyle("SectionTitle", parent=styles["Normal"], fontName="Helvetica-Bold",
+                                   fontSize=8, leading=10, textColor=colors.HexColor("#4b5563"))
+    footer_brand = ParagraphStyle("FooterBrand", parent=styles["Normal"], fontName="Helvetica-Bold",
+                                   fontSize=9, leading=12, textColor=colors.HexColor("#111827"))
+    footer_detail = ParagraphStyle("FooterDetail", parent=styles["Normal"], fontName="Helvetica",
+                                    fontSize=7.5, leading=10, textColor=colors.HexColor("#6b7280"))
 
     story = []
-    header = Table(
-        [[
-            Paragraph(f"<b>{html_mod.escape(parts['brand'])}</b><br/><font size='18'><b>{html_mod.escape(parts['title'])}</b></font>", title),
-            Paragraph(f"Tanggal: <b>{html_mod.escape(parts['tanggal'])}</b><br/>Jatuh tempo: <b>{html_mod.escape(parts['due_date'])}</b>", right_small),
-        ]],
-        colWidths=[115 * mm, 55 * mm],
-    )
-    header.setStyle(TableStyle([
-        ("LINEBELOW", (0, 0), (-1, -1), 2, colors.HexColor("#111827")),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-    ]))
-    story.extend([header, Spacer(1, 9 * mm)])
 
-    cards = Table(
-        [[
-            Paragraph(f"<font size='7'><b>DARI</b></font><br/><b>{html_mod.escape(parts['brand'])}</b>", normal),
-            Paragraph(f"<font size='7'><b>DITAGIHKAN KEPADA</b></font><br/><b>{html_mod.escape(parts['client'])}</b>", normal),
-        ]],
-        colWidths=[82 * mm, 82 * mm],
-        hAlign="LEFT",
-    )
-    cards.setStyle(TableStyle([
+    # === 1. HEADER: Centered INVOICE + Number ===
+    story.append(Paragraph("INVOICE", invoice_title))
+    if parts.get("invoice_num"):
+        story.append(Paragraph(f"#{parts['invoice_num']}", invoice_num))
+    else:
+        story.append(Paragraph(f"#{parts.get('title', 'DOKUMEN')}", invoice_num))
+    story.append(Spacer(1, 8 * mm))
+
+    # === 2. BILL TO + META GRID ===
+    # Left: Bill To section
+    bill_to_content = [
+        Paragraph("Bill To", bill_to_label),
+        Spacer(1, 2 * mm),
+        Paragraph(html_mod.escape(parts["client"]) or "Klien", client_name),
+    ]
+    # Add client details stacked (only if exists)
+    if parts.get("client_address"):
+        bill_to_content.append(Paragraph(html_mod.escape(parts["client_address"]), client_detail))
+    if parts.get("client_phone"):
+        bill_to_content.append(Paragraph(html_mod.escape(parts["client_phone"]), client_detail))
+    if parts.get("client_email"):
+        bill_to_content.append(Paragraph(html_mod.escape(parts["client_email"]), client_detail))
+    if parts.get("client_web"):
+        bill_to_content.append(Paragraph(html_mod.escape(parts["client_web"]), client_detail))
+
+    # Right: Invoice metadata
+    meta_content = [
+        Paragraph(f"Invoice Date: <b>{html_mod.escape(parts.get('tanggal') or '-')}</b>", meta_label),
+        Spacer(1, 2 * mm),
+        Paragraph(f"Due Date: <b>{html_mod.escape(parts.get('due_date') or '-')}</b>", meta_label),
+    ]
+
+    # Balance Due box
+    balance_content = [
+        Spacer(1, 6 * mm),
+        Paragraph("Balance Due", balance_label),
+        Paragraph(html_mod.escape(parts.get("total_amount") or "IDR 0"), balance_amount),
+    ]
+
+    # Build 2-column table: Bill To | Meta + Balance
+    meta_table_data = [[
+        # Left cell: Bill To (as nested content)
+        bill_to_content,
+        # Right cell: Meta + Balance
+        meta_content + balance_content,
+    ]]
+    meta_table = Table(meta_table_data, colWidths=[95 * mm, 69 * mm])
+    meta_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+
+    # Use a wrapper table with the meta block having background
+    wrapper_data = [[meta_table]]
+    wrapper = Table(wrapper_data, colWidths=[170 * mm])
+    wrapper.setStyle(TableStyle([
         ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#d1d5db")),
-        ("INNERGRID", (0, 0), (-1, -1), 1, colors.HexColor("#d1d5db")),
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
-        ("PADDING", (0, 0), (-1, -1), 9),
+        ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#f8fafc")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+        ("TOPPADDING", (0, 0), (-1, -1), 12),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
-    story.extend([cards, Spacer(1, 7 * mm)])
 
+    # Balance box inside wrapper
+    balance_box_data = [[
+        [Paragraph(html_mod.escape(parts.get("client") or ""), client_name)],
+        [Paragraph(f"Invoice Date: {html_mod.escape(parts.get('tanggal') or '-')}", meta_label),
+         Paragraph(f"Due Date: {html_mod.escape(parts.get('due_date') or '-')}", meta_label),
+         Spacer(1, 8 * mm),
+         Paragraph("Balance Due", balance_label),
+         Paragraph(html_mod.escape(parts.get("total_amount") or "IDR 0"), balance_amount)]
+    ]]
+    balance_box = Table(balance_box_data, colWidths=[85 * mm, 70 * mm])
+    balance_box.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    # Wrap balance box with background
+    balance_wrapper_data = [[balance_box]]
+    balance_wrapper = Table(balance_wrapper_data, colWidths=[170 * mm])
+    balance_wrapper.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#d1d5db")),
+        ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#f8fafc")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+        ("TOPPADDING", (0, 0), (-1, -1), 12),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+
+    # Final header section
+    header_section = Table([[
+        # Left: Bill To
+        [Paragraph("Bill To", bill_to_label), Spacer(1, 2 * mm),
+         Paragraph(html_mod.escape(parts["client"]) or "Klien", client_name)] +
+        ([Paragraph(html_mod.escape(parts["client_address"]), client_detail)] if parts.get("client_address") else []) +
+        ([Paragraph(html_mod.escape(parts["client_phone"]), client_detail)] if parts.get("client_phone") else []) +
+        ([Paragraph(html_mod.escape(parts["client_email"]), client_detail)] if parts.get("client_email") else []) +
+        ([Paragraph(html_mod.escape(parts["client_web"]), client_detail)] if parts.get("client_web") else []),
+        # Right: Date + Balance box
+        [Paragraph(f"Invoice Date: <b>{html_mod.escape(parts.get('tanggal') or '-')}</b>", meta_label),
+         Spacer(1, 1 * mm),
+         Paragraph(f"Due Date: <b>{html_mod.escape(parts.get('due_date') or '-')}</b>", meta_label),
+         Spacer(1, 6 * mm),
+         Paragraph("Balance Due", balance_label),
+         Paragraph(html_mod.escape(parts.get("total_amount") or "IDR 0"), balance_amount)]
+    ]], colWidths=[95 * mm, 75 * mm])
+    header_section.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+
+    # Full header box
+    full_header = Table([[header_section]], colWidths=[170 * mm])
+    full_header.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#d1d5db")),
+        ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#f8fafc")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 14),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+        ("TOPPADDING", (0, 0), (-1, -1), 14),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 14),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(full_header)
+    story.append(Spacer(1, 10 * mm))
+
+    # === 3. ITEMS TABLE ===
     if parts["items_table"]:
         story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#d1d5db")))
-        story.append(Spacer(1, 2 * mm))
-        story.append(Paragraph("RINCIAN TAGIHAN", label))
+        story.append(Spacer(1, 3 * mm))
+
         table_data = []
         for row_idx, row in enumerate(parts["items_table"]):
             rendered_row = []
             for col_idx, cell in enumerate(row):
-                style = table_header if row_idx == 0 else table_text
-                if row_idx > 0 and col_idx >= 3:
+                if row_idx == 0:
+                    style = table_header
+                elif col_idx >= 3:
                     style = table_right
+                else:
+                    style = table_text
                 rendered_row.append(Paragraph(html_mod.escape(cell), style))
             table_data.append(rendered_row)
-        max_cols = max(len(row) for row in table_data)
+
+        max_cols = max(len(row) for row in table_data) if table_data else 6
         for row in table_data:
             while len(row) < max_cols:
                 row.append(Paragraph("", table_text))
-        col_widths = [11 * mm, 30 * mm, 61 * mm, 12 * mm, 25 * mm, 29 * mm][:max_cols]
+
+        # Column widths: #, Description, Qty, Rate, Amount
+        col_widths = [10 * mm, 70 * mm, 15 * mm, 25 * mm, 25 * mm][:max_cols]
         if len(col_widths) < max_cols:
             col_widths.extend([25 * mm] * (max_cols - len(col_widths)))
+
         items = Table(table_data, colWidths=col_widths, repeatRows=1)
         items.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#475569")),
-            ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e5e7eb")),
-            ("LEFTPADDING", (0, 0), (-1, -1), 4),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e5e7eb")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#374151")),
+            ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#d1d5db")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 5),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("ALIGN", (3, 1), (-1, -1), "RIGHT"),
+            ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
             ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
             ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#fffbeb")),
-            ("LINEABOVE", (0, -1), (-1, -1), 0.8, colors.HexColor("#f59e0b")),
+            ("LINEABOVE", (0, -1), (-1, -1), 1, colors.HexColor("#f59e0b")),
         ]))
-        story.extend([items, Spacer(1, 7 * mm)])
+        story.append(items)
+        story.append(Spacer(1, 10 * mm))
 
-    info = Table(
-        [[
-            Paragraph(f"<font size='7'><b>PEMBAYARAN</b></font><br/>{html_mod.escape(parts['payment'])}", normal),
-            Paragraph(f"<font size='7'><b>KETENTUAN</b></font><br/>{html_mod.escape(parts['terms'])}", normal),
-        ]],
-        colWidths=[95 * mm, 69 * mm],
-        hAlign="LEFT",
-    )
-    info.setStyle(TableStyle([
-        ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#f59e0b")),
-        ("INNERGRID", (0, 0), (-1, -1), 1, colors.HexColor("#fde68a")),
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#fffbeb")),
-        ("PADDING", (0, 0), (-1, -1), 8),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-    ]))
-    story.extend([info, Spacer(1, 6 * mm)])
+    # === 4. PAYMENT INFO + TERMS ===
+    if parts.get("payment") or parts.get("terms"):
+        payment_table = Table([[
+            [Paragraph("Payment Methods", section_title), Spacer(1, 2 * mm),
+             Paragraph(html_mod.escape(parts.get("payment") or "-"), table_text)],
+            [Paragraph("Terms & Conditions", section_title), Spacer(1, 2 * mm),
+             Paragraph(html_mod.escape(parts.get("terms") or "-"), table_text)]
+        ]], colWidths=[85 * mm, 85 * mm])
+        payment_table.setStyle(TableStyle([
+            ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#f59e0b")),
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#fffbeb")),
+            ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#fde68a")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 10),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+            ("TOPPADDING", (0, 0), (-1, -1), 10),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(payment_table)
+        story.append(Spacer(1, 10 * mm))
 
-    if parts["note"]:
-        story.extend([Paragraph("CATATAN", label), Paragraph(html_mod.escape(parts["note"]), small), Spacer(1, 8 * mm)])
+    # === 5. NOTES ===
+    if parts.get("note"):
+        story.append(Paragraph("Notes", section_title))
+        story.append(Paragraph(html_mod.escape(parts["note"]), table_text))
+        story.append(Spacer(1, 10 * mm))
+
+    # === 6. FOOTER: Brand info left, notes right ===
     story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#d1d5db")))
-    story.append(Spacer(1, 3 * mm))
-    footer_parts = [html_mod.escape(parts["brand"])]
-    if parts.get("tagline"):
-        footer_parts.append(html_mod.escape(parts["tagline"]))
-    footer_parts.append(html_mod.escape(parts["footer"] or "Dokumen ini dibuat secara digital."))
-    story.append(Paragraph("<br/>".join(footer_parts), small))
+    story.append(Spacer(1, 4 * mm))
+
+    footer_table = Table([[
+        # Left: Brand info
+        [Paragraph(html_mod.escape(parts["brand"]) or "Teman UMKM Kita", footer_brand),
+         Paragraph(html_mod.escape(parts.get("brand_address") or "Indonesia"), footer_detail),
+         Paragraph(html_mod.escape(parts.get("brand_email") or ""), footer_detail)],
+        # Right: Digital footer
+        [Paragraph(html_mod.escape(parts.get("footer") or "Dokumen ini dibuat secara digital."), footer_detail)]
+    ]], colWidths=[120 * mm, 50 * mm])
+    footer_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    story.append(footer_table)
 
     doc.build(story)
     pdf = buffer.getvalue()
