@@ -122,7 +122,7 @@ if "mysql" in _db_url:
         from document_template_library import DEFAULT_DOCUMENT_TEMPLATES
         import json as _json_templates
         import uuid as _uuid_templates
-        _template_version = "client_ready_v3"
+        _template_version = "client_ready_v4"
         _should_upgrade = True
         if _table_exists("system_settings"):
             _cur.execute("SELECT value FROM system_settings WHERE `key` = %s", ("document_templates_version",))
@@ -148,9 +148,9 @@ if "mysql" in _db_url:
                     "INSERT INTO system_settings (`key`, value) VALUES (%s, %s) ON DUPLICATE KEY UPDATE value = VALUES(value)",
                     ("document_templates_version", _template_version),
                 )
-            print("+ MySQL: built-in document templates upgraded ke client_ready_v2")
+            print("+ MySQL: built-in document templates upgraded ke client_ready_v4")
         else:
-            print("= MySQL: built-in document templates sudah client_ready_v2, skip")
+            print("= MySQL: built-in document templates sudah client_ready_v4, skip")
 
     # Make projects.lead_id nullable (was NOT NULL, breaks create-project-without-lead)
     if _table_exists("projects") and _col_exists("projects", "lead_id"):
@@ -1107,7 +1107,7 @@ from document_template_library import DEFAULT_DOCUMENT_TEMPLATES
 import json as _json_templates
 import uuid as _uuid_templates
 
-_template_version = "client_ready_v3"
+_template_version = "client_ready_v4"
 cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='system_settings'")
 _has_settings = cur.fetchone() is not None
 _should_upgrade = True
@@ -1137,9 +1137,9 @@ if _should_upgrade:
             ("document_templates_version", _template_version),
         )
     conn.commit()
-    print("+ built-in document templates upgraded ke client_ready_v2")
+    print("+ built-in document templates upgraded ke client_ready_v4")
 else:
-    print("= built-in document templates sudah client_ready_v2, skip")
+    print("= built-in document templates sudah client_ready_v4, skip")
 
 # ---------------------------------------------------------------------------
 # Migrasi: blast_messages table

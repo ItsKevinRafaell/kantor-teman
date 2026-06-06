@@ -185,12 +185,14 @@ class HardeningRegressionTests(unittest.TestCase):
         self.assertIsInstance(response, Response)
         self.assertEqual(response.body, b"%PDF-1.7\ncomplete")
 
-    def test_pdf_renderer_rejects_invalid_output(self):
+    def test_pdf_renderer_falls_back_when_primary_output_is_invalid(self):
         template = SimpleNamespace(html_template="<html><body>Test</body></html>")
         with patch("weasyprint.HTML") as html:
             html.return_value.write_pdf.return_value = b""
-            with self.assertRaises(HTTPException):
-                main._render_document_pdf(template, {})
+            pdf = main._render_document_pdf(template, {})
+
+        self.assertTrue(pdf.startswith(b"%PDF"))
+        self.assertIn(b"Test", pdf)
 
     def test_pdf_renderer_uses_starter_when_builtin_template_is_empty(self):
         template = SimpleNamespace(type="invoice", html_template="")

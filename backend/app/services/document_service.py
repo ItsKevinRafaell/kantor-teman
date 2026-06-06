@@ -14,6 +14,7 @@ from models import (
     PaymentMethod, Lead, Contact, Project, Document, DocumentFolder,
 )
 from app.core.dependencies import _get_setting, UPLOADS_DIR
+from app.services.pdf_renderer import render_pdf_from_html
 
 try:
     from document_template_library import get_document_template_starters
@@ -625,24 +626,8 @@ def _render_document_pdf_bytes(template: DocumentTemplate, full_vars: dict) -> b
     if not visible_text_from_html(rendered_html):
         raise ValueError("Template PDF kosong. Isi HTML template terlebih dahulu.")
 
-    rendered_html = inject_pdf_font(rendered_html)
-
-    def _pdf_url_fetcher(url: str, **kw):
-        return {"string": b"", "mime_type": "text/plain"}
-
     try:
-        from weasyprint import HTML
-        pdf = HTML(string=rendered_html, url_fetcher=_pdf_url_fetcher).write_pdf()
-        if not pdf or not pdf.startswith(b"%PDF") or len(pdf) < 1024:
-            raise ValueError("PDF generation menghasilkan halaman kosong")
-        if (
-            os.getenv("PDF_FORCE_TEXT_FALLBACK", "").lower() == "true"
-            or len(pdf) < int(os.getenv("PDF_BLANK_FALLBACK_MAX_BYTES", "8192"))
-        ):
-            return render_text_fallback_pdf(rendered_html)
-        return pdf
-    except ImportError:
-        raise ValueError("WeasyPrint tidak terinstall. Jalankan: pip install weasyprint")
+        return render_pdf_from_html(rendered_html, UPLOADS_DIR)
     except Exception as e:
         raise ValueError(f"PDF generation gagal: {e}")
 

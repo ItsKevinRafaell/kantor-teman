@@ -12,6 +12,8 @@ from models import get_db, log_audit, BlastMessage, User, Lead, Contact, Project
 from schemas import *  # noqa: F403
 from app.core.cache import cached, clear_cache_prefix
 from app.services import _serialize_template, _next_doc_sequence, _peek_doc_sequence, _DOC_TYPE_PREFIX, _slugify_name
+from app.services.pdf_renderer import inject_pdf_font as _inject_pdf_font
+from app.services.pdf_renderer import render_pdf_from_html
 from app.services.archive_service import parent_creates_cycle as _archive_parent_creates_cycle
 from app.core.dependencies import (get_current_user, require_admin, UPLOADS_DIR,
     _cors_list, _get_setting, HERMES_GATEWAY_URL, _hermes_headers, _office_profile, _ads_out)
@@ -597,139 +599,6 @@ def get_template_defaults(
     return {"defaults": defaults, "template_type": ttype}
 
 
-_PDF_FONT_CSS = """
-@font-face {
-    font-family: 'PDF Sans';
-    src: local('DejaVu Sans'), local('Arial'), local('Helvetica'), local('Liberation Sans');
-    font-weight: normal;
-    font-style: normal;
-}
-@font-face {
-    font-family: 'PDF Sans';
-    src: local('DejaVu Sans Bold'), local('Arial Bold'), local('Helvetica Bold'), local('Liberation Sans Bold');
-    font-weight: bold;
-    font-style: normal;
-}
-* { font-family: 'PDF Sans', sans-serif !important; }
-"""
-
-
-def _pdf_url_fetcher(url: str, **kw):
-    return {"string": b"", "mime_type": "text/plain"}
-
-
-def _inject_pdf_font(html: str) -> str:
-    font_tag = f"<style>{_PDF_FONT_CSS}</style>"
-    if "<head>" in html:
-        return html.replace("<head>", f"<head>{font_tag}", 1)
-    if "<html>" in html:
-        return html.replace("<html>", f"<html><head>{font_tag}</head>", 1)
-    return f"<html><head>{font_tag}</head><body>{html}</body></html>"
-
-
-def _pdf_escape_text(text: str) -> str:
-    text = (
-        text.replace("\u00a0", " ")
-        .replace("\u2013", "-")
-        .replace("\u2014", "-")
-        .replace("\u2018", "'")
-        .replace("\u2019", "'")
-        .replace("\u201c", '"')
-        .replace("\u201d", '"')
-    )
-    text = text.encode("latin-1", "replace").decode("latin-1")
-    return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-
-
-def _html_to_pdf_lines(rendered_html: str) -> list[str]:
-    text_html = re.sub(r"<(style|script)\b[^>]*>.*?</\1>", " ", rendered_html, flags=re.IGNORECASE | re.DOTALL)
-    text_html = re.sub(r"<\s*br\s*/?\s*>", "\n", text_html, flags=re.IGNORECASE)
-    text_html = re.sub(r"</\s*(p|div|h[1-6]|tr|section|table|thead|tbody|tfoot)\s*>", "\n", text_html, flags=re.IGNORECASE)
-    text_html = re.sub(r"</\s*(td|th)\s*>", " | ", text_html, flags=re.IGNORECASE)
-    text = html_mod.unescape(re.sub(r"<[^>]+>", " ", text_html))
-    raw_lines = [" ".join(line.split()) for line in text.splitlines()]
-    lines: list[str] = []
-    for line in raw_lines:
-        if not line:
-            if lines and lines[-1]:
-                lines.append("")
-            continue
-        while len(line) > 96:
-            split_at = line.rfind(" ", 0, 96)
-            if split_at < 40:
-                split_at = 96
-            lines.append(line[:split_at].strip())
-            line = line[split_at:].strip()
-        lines.append(line)
-    return lines or ["Dokumen tidak memiliki teks yang dapat ditampilkan."]
-
-
-def _render_text_fallback_pdf(rendered_html: str) -> bytes:
-    lines = _html_to_pdf_lines(rendered_html)
-    page_width = 595
-    page_height = 842
-    margin_x = 46
-    start_y = 792
-    lines_per_page = 55
-    pages = [lines[i:i + lines_per_page] for i in range(0, len(lines), lines_per_page)] or [[]]
-
-    objects: list[bytes] = []
-
-    def add_object(data: bytes) -> int:
-        objects.append(data)
-        return len(objects)
-
-    catalog_id = add_object(b"<< /Type /Catalog /Pages 2 0 R >>")
-    pages_id = add_object(b"")
-    font_id = add_object(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
-    page_ids: list[int] = []
-
-    for page_lines in pages:
-        content_parts = ["BT", "/F1 10 Tf", f"{margin_x} {start_y} Td", "14 TL"]
-        first = True
-        for line in page_lines:
-            if not first:
-                content_parts.append("T*")
-            first = False
-            if line:
-                content_parts.append(f"({_pdf_escape_text(line)}) Tj")
-        content_parts.append("ET")
-        stream = "\n".join(content_parts).encode("latin-1", "replace")
-        content_id = add_object(
-            b"<< /Length " + str(len(stream)).encode("ascii") + b" >>\nstream\n" + stream + b"\nendstream"
-        )
-        page_id = add_object(
-            (
-                f"<< /Type /Page /Parent {pages_id} 0 R /MediaBox [0 0 {page_width} {page_height}] "
-                f"/Resources << /Font << /F1 {font_id} 0 R >> >> /Contents {content_id} 0 R >>"
-            ).encode("ascii")
-        )
-        page_ids.append(page_id)
-
-    kids = " ".join(f"{page_id} 0 R" for page_id in page_ids)
-    objects[pages_id - 1] = f"<< /Type /Pages /Kids [{kids}] /Count {len(page_ids)} >>".encode("ascii")
-
-    pdf = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
-    offsets = [0]
-    for index, obj in enumerate(objects, start=1):
-        offsets.append(len(pdf))
-        pdf.extend(f"{index} 0 obj\n".encode("ascii"))
-        pdf.extend(obj)
-        pdf.extend(b"\nendobj\n")
-    xref_offset = len(pdf)
-    pdf.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
-    pdf.extend(b"0000000000 65535 f \n")
-    for offset in offsets[1:]:
-        pdf.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
-    pdf.extend(
-        (
-            f"trailer\n<< /Size {len(objects) + 1} /Root {catalog_id} 0 R >>\n"
-            f"startxref\n{xref_offset}\n%%EOF\n"
-        ).encode("ascii")
-    )
-    return bytes(pdf)
-
-
 def _build_pdf_display_name(db, template_type: str, target_type, target_id, full_vars: dict) -> str:
     # Try to build: TYPE_ClientName_InvoiceNo or TYPE_ClientName_seq_YYYYMM
     client_name = full_vars.get("klien") or full_vars.get("nama") or ""
@@ -865,22 +734,10 @@ def _render_document_pdf(template: DocumentTemplate, full_vars: dict) -> bytes:
     if not _visible_document_text(rendered_html):
         raise HTTPException(status_code=400, detail="Template PDF kosong. Isi HTML template terlebih dahulu.")
 
-    rendered_html = _inject_pdf_font(rendered_html)
     try:
-        from weasyprint import HTML
-        pdf = HTML(string=rendered_html, url_fetcher=_pdf_url_fetcher).write_pdf()
-        if not pdf or not pdf.startswith(b"%PDF") or len(pdf) < 1024:
-            raise HTTPException(status_code=500, detail="PDF generation menghasilkan halaman kosong")
-        if (
-            os.getenv("PDF_FORCE_TEXT_FALLBACK", "").lower() == "true"
-            or len(pdf) < int(os.getenv("PDF_BLANK_FALLBACK_MAX_BYTES", "8192"))
-        ):
-            return _render_text_fallback_pdf(rendered_html)
-        return pdf
+        return render_pdf_from_html(rendered_html, UPLOADS_DIR)
     except HTTPException:
         raise
-    except ImportError:
-        raise HTTPException(status_code=500, detail="WeasyPrint tidak terinstall. Jalankan: pip install weasyprint")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"PDF generation gagal: {e}")
 
