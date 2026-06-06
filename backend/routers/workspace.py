@@ -73,7 +73,7 @@ def create_project(body: ProjectIn, current_user: User = Depends(require_admin),
         nominal=body.nominal,
         start_date=body.start_date,
         end_date=body.end_date,
-        color=body.color or "yellow",
+        color=body.color or "gray",
         service_type=body.service_type,
         contract_months=months,
     )
@@ -85,12 +85,12 @@ def create_project(body: ProjectIn, current_user: User = Depends(require_admin),
     db.add(board)
     db.flush()
 
-    # Default columns: To Do, In Progress, Review, Done
+    # Default columns: To Do, In Progress, Review, Done (neutral colors)
     default_columns = [
-        ("To Do", "yellow"),
-        ("In Progress", "blue"),
-        ("Review", "purple"),
-        ("Done", "green"),
+        ("To Do", "gray"),
+        ("In Progress", "slate"),
+        ("Review", "neutral"),
+        ("Done", "stone"),
     ]
     for i, (name, color) in enumerate(default_columns):
         col = BoardColumn(id=str(uuid.uuid4()), board_id=board.id, name=name, position=i, color=color)
@@ -179,7 +179,7 @@ def update_project(project_id: str, body: ProjectIn, current_user: User = Depend
     project.nominal = body.nominal
     project.start_date = body.start_date
     project.end_date = body.end_date
-    project.color = body.color or "yellow"
+    project.color = body.color or "gray"
     project.service_type = body.service_type
     project.contract_months = body.contract_months
     db.commit()
@@ -293,7 +293,7 @@ def card_to_out(card: BoardCard, workspace_linked_ids: set = None) -> BoardCardO
         updated_at=card.updated_at,
         lead_id=card.lead_id,
         lead=lead_out,
-        color=card.color or "yellow",
+        color=card.color or "gray",
         is_workspace_linked=bool(workspace_linked_ids and card.id in workspace_linked_ids),
         comments=[BoardCardCommentOut.model_validate(c) for c in card.comments] if hasattr(card, 'comments') else [],
         checklist=[BoardCardChecklistOut.model_validate(c) for c in card.checklist] if hasattr(card, 'checklist') else [],
@@ -374,7 +374,7 @@ def get_boards_overview(show_archived: bool = Query(False), current_user: User =
             "client_name": leads.get(p.lead_id).business_name if p.lead_id and p.lead_id in leads else None,
             "overdue_cards": overdue_cards,
             "due_soon_cards": due_soon_cards,
-            "color": p.color or "yellow",
+            "color": p.color or "gray",
             "project_lead_id": p.lead_id,
             "is_archived": p.is_archived,
         })
@@ -396,7 +396,7 @@ def get_project_board(project_id: str, current_user: User = Depends(get_current_
         db.add(board)
         db.flush()
         # Create default columns
-        default_columns = [("To Do", "yellow"), ("In Progress", "blue"), ("Review", "purple"), ("Done", "green")]
+        default_columns = [("To Do", "gray"), ("In Progress", "slate"), ("Review", "neutral"), ("Done", "stone")]
         for i, (name, color) in enumerate(default_columns):
             col = BoardColumn(id=str(uuid.uuid4()), board_id=board.id, name=name, position=i, color=color)
             db.add(col)
@@ -418,7 +418,7 @@ def get_project_board(project_id: str, current_user: User = Depends(get_current_
             id=col.id, board_id=col.board_id, name=col.name, position=col.position, color=col.color, cards=card_outs
         ))
 
-    return BoardOut(id=board.id, project_id=board.project_id, created_at=board.created_at, color=board.color or "yellow", columns=column_outs)
+    return BoardOut(id=board.id, project_id=board.project_id, created_at=board.created_at, color=board.color or "gray", columns=column_outs)
 
 
 
@@ -429,7 +429,7 @@ def create_board_column(board_id: str, body: BoardColumnIn, current_user: User =
     if not board:
         raise HTTPException(status_code=404, detail="Board tidak ditemukan")
     max_pos = db.query(BoardColumn).filter(BoardColumn.board_id == board_id).count()
-    col = BoardColumn(id=str(uuid.uuid4()), board_id=board_id, name=body.name, position=body.position if body.position is not None else max_pos, color=body.color or "yellow")
+    col = BoardColumn(id=str(uuid.uuid4()), board_id=board_id, name=body.name, position=body.position if body.position is not None else max_pos, color=body.color or "gray")
     db.add(col)
     db.commit()
     db.refresh(col)

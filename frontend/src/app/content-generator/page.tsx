@@ -169,17 +169,22 @@ export default function ContentGeneratorPage() {
           setShowProviderModal(true);
         }}
         activeTool={activeTool}
+        onToolChange={setActiveTool}
       />
 
       <div className="flex-1 flex flex-col gap-4 min-w-0 overflow-y-auto">
 
-        {/* Session badge */}
-        {selectedSession && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl w-fit">
-            <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-300">{selectedSession.name}</span>
-            {selectedSession.description && <span className="text-xs text-neutral-400">{selectedSession.description}</span>}
-          </div>
-        )}
+        {/* Active tool indicator + session badge */}
+        <div className="flex items-center gap-3">
+          <h2 className="text-base font-bold text-neutral-800 dark:text-neutral-100">
+            {activeTool === "seo_article" ? "SEO Article Generator" : activeTool === "image" ? "Image Generator" : "Caption Sosmed"}
+          </h2>
+          {selectedSession && (
+            <span className="px-2.5 py-1 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 text-xs font-semibold rounded-full">
+              {selectedSession.name}
+            </span>
+          )}
+        </div>
 
         {/* CMS Config */}
         <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -211,17 +216,6 @@ export default function ContentGeneratorPage() {
               </button>
             </div>
           )}
-        </div>
-
-        {/* Tool selector */}
-        <div className="flex gap-2">
-          {(["seo_article", "image", "caption"] as Tool[]).map(t => (
-            <button key={t} onClick={() => setActiveTool(t)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all
-                ${activeTool === t ? "bg-amber-500 text-white shadow-sm" : "bg-gray-100 dark:bg-gray-800 text-neutral-500 hover:bg-gray-200"}`}>
-              {t === "seo_article" ? "SEO Article" : t === "image" ? "Image Generator" : "Caption Sosmed"}
-            </button>
-          ))}
         </div>
 
         {/* Tool Panels */}

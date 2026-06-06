@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { apiFetch } from "../../lib/api";
 import { formatRupiah, formatRupiahInput, cleanRupiahInput } from "../../utils/formatter";
 import { inputClsLarge } from "../../lib/inputCls";
+import { Search, X } from "lucide-react";
 import type { Contact, ProductItem, ServiceItem, TimelinePhase, TimelineTemplate } from "../../types";
 
 interface SelectedService { id: string; name: string; price: number; features: string; }
@@ -14,9 +15,13 @@ interface ProposalModalProps {
   onClose: () => void;
   onSuccess: (url: string) => void;
   setToast: (toast: { message: string; type: "success" | "error" | "info" } | null) => void;
+  /** When true, shows client search step before the proposal form */
+  searchMode?: boolean;
+  /** Contacts list for search mode */
+  contacts?: Contact[];
 }
 
-export default function ProposalModal({ contact, open, onClose, onSuccess, setToast }: ProposalModalProps) {
+export default function ProposalModal({ contact: initialContact, open, onClose, onSuccess, setToast, searchMode, contacts = [] }: ProposalModalProps) {
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
@@ -29,6 +34,14 @@ export default function ProposalModal({ contact, open, onClose, onSuccess, setTo
   const [saving, setSaving] = useState(false);
   const [unbilledTotal, setUnbilledTotal] = useState(0);
 
+  // Search mode state
+  const [step, setStep] = useState<"search" | "form">("form");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+
+  // Effective contact (from search or prop)
+  const contact = searchMode && !initialContact ? selectedContact : initialContact;
+
   useEffect(() => {
     if (!open) return;
     Promise.all([
@@ -40,7 +53,10 @@ export default function ProposalModal({ contact, open, onClose, onSuccess, setTo
       setProducts(p);
       setTimelineTemplates(t);
     }).catch(() => {});
+  }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
     if (contact) {
       apiFetch(`/api/finance/client/${contact.id}/unbilled`)
         .then(r => r.ok ? r.json() : { unbilled_total: 0, count: 0 })
@@ -48,6 +64,21 @@ export default function ProposalModal({ contact, open, onClose, onSuccess, setTo
         .catch(() => setUnbilledTotal(0));
     }
   }, [open, contact]);
+
+  // Reset when modal opens
+  useEffect(() => {
+    if (open) {
+      setStep(searchMode && !initialContact ? "search" : "form");
+      setSelectedContact(null);
+      setSearchQuery("");
+      setSelectedServices([]);
+      setAdditionalOptions("");
+      setTimelinePhases([]);
+      setRoiEnabled(true);
+      setRetainerPeriod(0);
+      setUnbilledTotal(0);
+    }
+  }, [open, searchMode, initialContact]);
 
   function toggleService(serviceId: string) {
     const existing = selectedServices.find(s => s.id === serviceId);
@@ -110,18 +141,98 @@ export default function ProposalModal({ contact, open, onClose, onSuccess, setTo
     }
   }
 
-  if (!open || !contact) return null;
+  if (!open) return null;
+
+  // ─── Search step (search mode only) ─────────────────────────────────────────
+  if (searchMode && step === "search") {
+    const filtered = contacts.filter(c =>
+      !searchQuery ||
+      c.business_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.owner_name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.phone_number.includes(searchQuery)
+    );
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+        <div className="relative bg-[var(--bg-surface)] rounded-2xl shadow-2xl border border-[var(--border-default)] w-full max-w-md max-h-[80vh] flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-default)]">
+            <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-50">Pilih Klien</h3>
+            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600">
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Search */}
+          <div className="px-5 py-3 border-b border-[var(--border-default)]">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Cari nama bisnis, owner, atau WA..."
+                autoFocus
+                className="w-full pl-9 pr-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-neutral-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-yellow/50 transition"
+              />
+            </div>
+          </div>
+
+          {/* Client list */}
+          <div className="flex-1 overflow-y-auto divide-y divide-[var(--border-subtle)]">
+            {filtered.length === 0 ? (
+              <div className="text-center py-12 text-sm text-neutral-400">
+                {searchQuery ? "Tidak ada klien yang cocok." : "Belum ada klien."}
+              </div>
+            ) : (
+              filtered.slice(0, 20).map(c => (
+                <button
+                  key={c.id}
+                  onClick={() => {
+                    setSelectedContact(c);
+                    setStep("form");
+                  }}
+                  className="w-full text-left px-5 py-3.5 hover:bg-[var(--bg-surface-hover)] transition-colors"
+                >
+                  <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{c.business_name}</p>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    {[c.owner_name, `+${c.phone_number}`].filter(Boolean).join(" · ")}
+                  </p>
+                </button>
+              ))
+            )}
+          </div>
+
+          <div className="px-5 py-3 border-t border-[var(--border-default)] text-center">
+            <button onClick={onClose} className="text-xs text-neutral-400 hover:text-neutral-600">Batal</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!contact) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-[var(--bg-surface)] rounded-2xl shadow-2xl border border-[var(--border-default)] w-full max-w-2xl p-6 space-y-4 max-h-[85vh] overflow-y-auto">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-50">Buat Proposal</h3>
+          <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-50">
+            {searchMode ? `Proposal — ${contact.business_name}` : "Buat Proposal"}
+          </h3>
           <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
           </button>
         </div>
+
+        {searchMode && (
+          <button onClick={() => { setStep("search"); setSelectedServices([]); }}
+            className="text-xs text-neutral-400 hover:text-amber-600 flex items-center gap-1">
+            ← Ganti klien
+          </button>
+        )}
 
         <p className="text-xs text-neutral-500 dark:text-neutral-400">Proposal untuk: <span className="font-semibold text-gray-700 dark:text-neutral-50">{contact.business_name}</span></p>
 

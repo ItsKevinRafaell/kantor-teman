@@ -48,15 +48,15 @@ interface Props {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  "To Do": "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300",
-  "In Progress": "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  "Done": "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-  "Draft": "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
-  "Approved": "bg-blue-100 text-blue-700",
-  "Posted": "bg-green-100 text-green-700",
-  "Published": "bg-green-100 text-green-700",
-  "Revision": "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
-  "Review": "bg-purple-100 text-purple-700",
+  "To Do": "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300",
+  "In Progress": "bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400",
+  "Done": "bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400",
+  "Draft": "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300",
+  "Approved": "bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400",
+  "Posted": "bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400",
+  "Published": "bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400",
+  "Revision": "bg-orange-50/70 dark:bg-orange-950/40 text-orange-700 dark:text-orange-400",
+  "Review": "bg-violet-50/70 dark:bg-violet-950/40 text-violet-700 dark:text-violet-400",
 };
 
 const COL_WIDTHS: Record<string, string> = {

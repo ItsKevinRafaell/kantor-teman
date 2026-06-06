@@ -17,14 +17,23 @@ const LINE_ITEM_KEYS = ["items_rows", "items_table", "line_items", "items"];
 const TOTAL_KEYS = ["total", "total_harga", "grand_total", "total_bayar", "total_amount", "jumlah_total", "total_tagihan"];
 const INVOICE_NUMBER_KEYS = ["nomor_invoice", "no_invoice", "nomor"];
 
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
+  })[char] || char);
+}
+
 function lineItemsToHtml(items: LineItem[]): string {
   if (items.length === 0) return "";
   const rows = items.map((item, i) => {
     const subtotal = item.qty * item.price;
-    return `<tr><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb">${i + 1}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb">${item.name}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb">${item.description}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:center">${item.qty}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right">${formatRupiah(item.price)}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600">${formatRupiah(subtotal)}</td></tr>`;
+    const description = item.description
+      ? `<div style="margin-top:3px;color:#6b7280;font-size:11px;line-height:1.45">${escapeHtml(item.description)}</div>`
+      : "";
+    return `<tr><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb"><strong>${i + 1}. ${escapeHtml(item.name)}</strong>${description}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:center">${item.qty}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right">${formatRupiah(item.price)}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600">${formatRupiah(subtotal)}</td></tr>`;
   }).join("");
   const total = items.reduce((s, i) => s + i.qty * i.price, 0);
-  return `<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f3f4f6"><th style="padding:8px;text-align:left">No</th><th style="padding:8px;text-align:left">Item</th><th style="padding:8px;text-align:left">Deskripsi</th><th style="padding:8px;text-align:center">Qty</th><th style="padding:8px;text-align:right">Harga</th><th style="padding:8px;text-align:right">Subtotal</th></tr></thead><tbody>${rows}</tbody><tfoot><tr style="background:#fef3c7"><td colspan="5" style="padding:8px;text-align:right;font-weight:bold">Total</td><td style="padding:8px;text-align:right;font-weight:bold">${formatRupiah(total)}</td></tr></tfoot></table>`;
+  return `<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f3f4f6"><th style="padding:8px;text-align:left">Layanan</th><th style="padding:8px;text-align:center">Jumlah</th><th style="padding:8px;text-align:right">Harga</th><th style="padding:8px;text-align:right">Total</th></tr></thead><tbody>${rows}</tbody><tfoot><tr style="background:#fef3c7"><td colspan="3" style="padding:8px;text-align:right;font-weight:bold">Total Tagihan</td><td style="padding:8px;text-align:right;font-weight:bold">${formatRupiah(total)}</td></tr></tfoot></table>`;
 }
 
 function syncTotalVariable(variables: Record<string, string>, items: LineItem[], setVariables: React.Dispatch<React.SetStateAction<Record<string, string>>>) {

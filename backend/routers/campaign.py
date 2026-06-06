@@ -59,7 +59,7 @@ async def start_blast(
 async def fonnte_incoming(request: Request, db: Session = Depends(get_db)):
     """
     Fonnte webhook for incoming WA messages.
-    Auto-update lead status to 'Replied' when sender matches a Contacted lead.
+    Auto-update lead status to 'Replied' and update BlastMessage.replied_at.
     Configure in Fonnte dashboard: webhook URL = https://api.kantorteman.my.id/api/webhook/fonnte-incoming
     """
     try:
@@ -98,18 +98,34 @@ async def fonnte_incoming(request: Request, db: Session = Depends(get_db)):
         log_audit(db, "fonnte-webhook", "UPDATE", "leads", lead.id, {"field": "do_not_contact", "new": True, "via": "wa_opt_out"})
         return {"ok": True, "lead_id": lead.id, "do_not_contact": True}
 
+    # Update BlastMessage.replied_at for latest sent message
+    now = datetime.now(timezone.utc).isoformat()
+    latest_msg = db.query(BlastMessage).filter(
+        BlastMessage.phone_number == sender_digits,
+        BlastMessage.sent_at.isnot(None),
+    ).order_by(BlastMessage.sent_at.desc()).first()
+    if latest_msg and not latest_msg.replied_at:
+        latest_msg.replied_at = now
+        latest_msg.status = "replied"
+
     # Only auto-promote Contacted → Replied. Don't downgrade other statuses.
     if lead.status == "Contacted":
         lead.status = "Replied"
         db.add(LeadActivityLog(
             lead_id=lead.id,
             activity_type="WA_REPLIED",
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=now,
         ))
+        # Stop active follow-up sequences
+        db.query(FollowUpSequence).filter(
+            FollowUpSequence.lead_id == lead.id,
+            FollowUpSequence.status == "ACTIVE",
+        ).update({"status": "STOPPED", "stopped_reason": "client_replied"}, synchronize_session=False)
         db.commit()
         log_audit(db, "fonnte-webhook", "UPDATE", "leads", lead.id, {"field": "status", "old": "Contacted", "new": "Replied", "via": "wa_reply"})
         return {"ok": True, "lead_id": lead.id, "new_status": "Replied"}
 
+    db.commit()
     return {"ok": True, "lead_id": lead.id, "current_status": lead.status}
 
 
@@ -512,7 +528,7 @@ class FonnteWebhookIn(BaseModel):
 
 @router.post("/api/blast/webhook/fonnte")
 def fonnte_webhook(body: FonnteWebhookIn, request: Request, db: Session = Depends(get_db)):
-    """Fonnte callback for delivery/read status updates."""
+    """Fonnte callback for delivery/read/replied status updates."""
     if FONNTE_WEBHOOK_SECRET and not hmac.compare_digest(
         request.headers.get("x-fonnte-webhook-secret", ""),
         FONNTE_WEBHOOK_SECRET,
@@ -531,6 +547,9 @@ def fonnte_webhook(body: FonnteWebhookIn, request: Request, db: Session = Depend
             elif body.status == "read" and not msg.read_at:
                 msg.read_at = now
                 msg.status = "read"
+            elif body.status == "replied" and not msg.replied_at:
+                msg.replied_at = now
+                msg.status = "replied"
         db.commit()
     except Exception as e:
         print(f"[FONNTE_WEBHOOK] {e}", flush=True)

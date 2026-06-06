@@ -435,9 +435,16 @@ def convert_lead(lead_id: int, current_user: User = Depends(get_current_user), d
     existing = db.query(Contact).filter(Contact.phone_number == lead.phone_number).first()
     if existing:
         lead.status = "Closed/Client"
+        if not existing.lead_id:
+            existing.lead_id = lead.id  # Link if not set
         db.commit()
         return existing
-    contact = Contact(business_name=lead.business_name, phone_number=lead.phone_number, purchased_product=lead.product_interest)
+    contact = Contact(
+        business_name=lead.business_name,
+        phone_number=lead.phone_number,
+        purchased_product=lead.product_interest,
+        lead_id=lead.id,  # Link Contact to Lead
+    )
     db.add(contact)
     lead.status = "Closed/Client"
     db.commit()
@@ -492,12 +499,26 @@ def create_contact(body: ContactUpdate, current_user: User = Depends(get_current
     existing = db.query(Contact).filter(Contact.phone_number == body.phone_number).first()
     if existing:
         raise HTTPException(status_code=400, detail="Nomor WA sudah terdaftar")
+
+    # Auto-create Lead if not exists (for Project linkage)
+    lead = db.query(Lead).filter(Lead.phone_number == body.phone_number).first()
+    if not lead:
+        lead = Lead(
+            business_name=body.business_name,
+            phone_number=body.phone_number,
+            status="Closed/Client",
+            product_interest=body.purchased_product,
+        )
+        db.add(lead)
+        db.flush()  # Get lead.id before creating contact
+
     contact = Contact(
         business_name=body.business_name,
         phone_number=body.phone_number,
         owner_name=body.owner_name,
         purchased_product=body.purchased_product,
         notes=body.notes,
+        lead_id=lead.id,  # Link Contact to Lead
     )
     db.add(contact)
     db.commit()
@@ -512,12 +533,25 @@ def update_contact(contact_id: int, body: ContactUpdate, current_user: User = De
     contact = db.query(Contact).filter(Contact.id == contact_id).first()
     if not contact:
         raise HTTPException(status_code=404, detail="Kontak tidak ditemukan")
+
     if body.owner_name is not None:
         contact.owner_name = body.owner_name
     if body.purchased_product is not None:
         contact.purchased_product = body.purchased_product
     if body.notes is not None:
         contact.notes = body.notes
+
+    # Sync to Lead if linked
+    if contact.lead_id:
+        lead = db.query(Lead).filter(Lead.id == contact.lead_id).first()
+        if lead:
+            if body.business_name is not None:
+                lead.business_name = body.business_name
+            if body.phone_number is not None:
+                lead.phone_number = body.phone_number
+            if body.purchased_product is not None:
+                lead.product_interest = body.purchased_product
+
     db.commit()
     db.refresh(contact)
     return contact

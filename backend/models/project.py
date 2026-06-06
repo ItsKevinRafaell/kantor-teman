@@ -15,7 +15,7 @@ class Project(Base):
     nominal = Column(Float, nullable=False, default=0)
     start_date = Column(String(255), nullable=True)
     end_date = Column(String(255), nullable=True)
-    color = Column(String(50), nullable=True, default="yellow")
+    color = Column(String(50), nullable=True, default="gray")
     is_archived = Column(Boolean, default=False, nullable=False)
     service_type = Column(String(50), nullable=True)
     contract_months = Column(Integer, nullable=True, default=1)

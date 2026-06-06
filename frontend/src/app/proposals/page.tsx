@@ -4,10 +4,11 @@ import { formatRupiah } from "../../utils/formatter";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../lib/api";
 import { Search, Copy, Trash2, ArrowUpDown, Plus } from "lucide-react";
-import Link from "next/link";
 import Toast from "../../components/Toast";
 import Modal from "../../components/Modal";
 import Pagination from "../../components/Pagination";
+import ProposalModal from "../../components/clients/ProposalModal";
+import type { Contact } from "../../types";
 
 interface ProposalRecord {
   id: string;
@@ -32,6 +33,10 @@ export default function ProposalsPage() {
   const [analyticsMap, setAnalyticsMap] = useState<Record<string, { total_opens: number; total_time_seconds: number; last_opened: string | null }>>({});
   const [page, setPage] = useState(1);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [proposalModalOpen, setProposalModalOpen] = useState(false);
+  const [proposalSuccess, setProposalSuccess] = useState<{ open: boolean; url: string }>({ open: false, url: "" });
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [copied, setCopied] = useState(false);
   const PAGE_SIZE = 20;
 
   const fetchProposals = useCallback(async () => {
@@ -59,9 +64,16 @@ export default function ProposalsPage() {
 
   useEffect(() => {
     fetchProposals(); fetchAnalytics();
+    apiFetch("/api/contacts").then(r => r.ok ? r.json() : []).then(setContacts).catch(() => {});
     intervalRef.current = setInterval(() => { fetchProposals(); fetchAnalytics(); }, 30000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchProposals, fetchAnalytics]);
+
+  function copySuccessUrl() {
+    navigator.clipboard.writeText(proposalSuccess.url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   const filteredProposals = proposals
     .filter((p) =>
@@ -103,16 +115,45 @@ export default function ProposalsPage() {
         onConfirm={() => deleteId && deleteProposal(deleteId)}
         onCancel={() => setDeleteId(null)}
       />
+      <Modal open={proposalSuccess.open} title="Proposal Berhasil Dibuat!"
+        confirmLabel="Tutup" confirmClass="bg-gray-200 hover:bg-gray-300 text-gray-700"
+        onConfirm={() => setProposalSuccess({ open: false, url: "" })}
+        onCancel={() => setProposalSuccess({ open: false, url: "" })}>
+        <div className="space-y-3 text-center">
+          <div className="flex justify-center">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-500"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-300">Kirim link ini ke klien:</p>
+          <div className="flex items-center gap-2 bg-neutral-50 dark:bg-neutral-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5">
+            <input type="text" readOnly value={proposalSuccess.url}
+              className="flex-1 text-xs bg-transparent text-gray-700 dark:text-gray-200 outline-none truncate" />
+            <button onClick={copySuccessUrl}
+              className="flex items-center gap-1 px-3 py-1.5 bg-brand-yellow hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors">
+              {copied ? "Tersalin!" : "Copy"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+      <ProposalModal
+        contact={null}
+        open={proposalModalOpen}
+        onClose={() => setProposalModalOpen(false)}
+        onSuccess={(url) => { setProposalModalOpen(false); setProposalSuccess({ open: true, url }); }}
+        setToast={setToast}
+        searchMode
+        contacts={contacts}
+      />
 
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">Riwayat Proposal</h1>
           <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Semua proposal yang pernah dibuat untuk klien.</p>
         </div>
-        <Link href="/clients" className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl shadow-sm transition-colors">
+        <button onClick={() => setProposalModalOpen(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl shadow-sm transition-colors">
           <Plus size={16} />
           Proposal Baru
-        </Link>
+        </button>
       </div>
 
       <div className="space-y-4">

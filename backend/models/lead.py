@@ -39,6 +39,8 @@ class Contact(Base):
     phone_number = Column(String(255), unique=True, nullable=False)
     purchased_product = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
+    # FK to Lead - auto-created when Contact is created standalone
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=True)
 
 
 class MessageTemplate(Base):

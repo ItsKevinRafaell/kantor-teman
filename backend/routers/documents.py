@@ -390,8 +390,8 @@ _DATE_VALUE_LABEL_RE = re.compile(
     re.IGNORECASE,
 )
 _SERVER_OWNED_DOCUMENT_KEYS = {
-    "logo", "brand_name", "nama_perusahaan", "nama_klien", "perusahaan_klien",
-    "alamat_perusahaan", "phone_perusahaan", "email_perusahaan", "tagline",
+    # Truly server-owned - user input ignored
+    "logo", "brand_name", "nama_perusahaan", "tagline",
 }
 
 
@@ -794,7 +794,7 @@ def generate_document(request: Request, body: DocumentGenerateIn, current_user: 
             pdf_file.write(pdf_bytes)
 
         # Filename: prefer document number + client name when available
-        display_name = _build_pdf_display_name(db, template.type or "custom", body.target_type, body.target_id, full_vars)
+        display_name = _build_pdf_display_name(db, _document_template_type(template), body.target_type, body.target_id, full_vars)
         file_url = pdf_filename
         doc = GeneratedDocument(
             id=file_id,

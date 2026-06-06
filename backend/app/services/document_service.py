@@ -101,6 +101,10 @@ def build_brand_context(db: Session) -> dict:
     brand_name = getattr(kit, "brand_name", None) or kit.kit_name or ""
     ctx["nama_perusahaan"] = brand_name
     ctx["brand_name"] = brand_name
+    ctx["tagline"] = getattr(kit, "tagline", None) or ""
+    ctx["alamat_perusahaan"] = getattr(kit, "address", None) or ""
+    ctx["phone_perusahaan"] = getattr(kit, "phone", None) or ""
+    ctx["email_perusahaan"] = getattr(kit, "email", None) or ""
     assets = db.query(BrandAsset).filter(BrandAsset.kit_id == kit.id).all()
     for a in assets:
         if a.asset_type == "logo_primary" and a.file_url:
@@ -442,8 +446,8 @@ _DATE_VALUE_LABEL_RE = re.compile(
     re.IGNORECASE,
 )
 _SERVER_OWNED_DOCUMENT_KEYS = {
-    "logo", "brand_name", "nama_perusahaan", "nama_klien", "perusahaan_klien",
-    "alamat_perusahaan", "phone_perusahaan", "email_perusahaan", "tagline",
+    # Truly server-owned - user input ignored
+    "logo", "brand_name", "nama_perusahaan", "tagline",
 }
 
 

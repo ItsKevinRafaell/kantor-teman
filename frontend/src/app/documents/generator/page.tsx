@@ -6,6 +6,7 @@ import { Download, Trash2, Mail, FileText, Plus } from "lucide-react";
 import Link from "next/link";
 import Toast from "../../../components/Toast";
 import Modal from "../../../components/Modal";
+import Breadcrumb from "../../../components/Breadcrumb";
 
 interface GeneratedDoc {
   id: string;
@@ -53,6 +54,7 @@ export default function DocumentGeneratorPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <Breadcrumb items={[{ label: "Dokumen" }, { label: "Document Generator" }]} />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-neutral-800 dark:text-neutral-100">Document Generator</h1>

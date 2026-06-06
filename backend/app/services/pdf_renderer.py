@@ -160,6 +160,8 @@ class _TableParser(HTMLParser):
                 self._current_colspan = max(1, int(attrs_dict.get("colspan", "1")))
             except ValueError:
                 self._current_colspan = 1
+        elif tag in {"br", "div", "p"} and self._current_cell is not None:
+            self._current_cell.append("\n")
 
     def handle_data(self, data):
         if self._current_cell is not None:
@@ -168,7 +170,8 @@ class _TableParser(HTMLParser):
     def handle_endtag(self, tag):
         tag = tag.lower()
         if tag in {"td", "th"} and self._current_cell is not None and self._current_row is not None:
-            cell_text = " ".join("".join(self._current_cell).split())
+            raw_text = "".join(self._current_cell)
+            cell_text = "\n".join(" ".join(part.split()) for part in raw_text.splitlines() if " ".join(part.split()))
             if self._current_colspan > 1 and cell_text.lower() in {"total", "subtotal", "grand total"}:
                 self._current_row.extend([""] * (self._current_colspan - 1))
                 self._current_row.append(cell_text)
@@ -185,12 +188,57 @@ class _TableParser(HTMLParser):
             if self._current_table:
                 self.tables.append(self._current_table)
             self._current_table = None
+        elif tag in {"div", "p"} and self._current_cell is not None:
+            self._current_cell.append("\n")
 
 
 def _extract_tables(rendered_html: str) -> list[list[list[str]]]:
     parser = _TableParser()
     parser.feed(rendered_html)
     return parser.tables
+
+
+def _text_lines_from_html(rendered_html: str) -> list[str]:
+    text_html = re.sub(r"<(style|script)\b[^>]*>.*?</\1>", " ", rendered_html, flags=re.IGNORECASE | re.DOTALL)
+    text_html = re.sub(r"<\s*br\s*/?\s*>", "\n", text_html, flags=re.IGNORECASE)
+    text_html = re.sub(
+        r"</\s*(p|div|h[1-6]|tr|td|th|section|table|thead|tbody|tfoot|li)\s*>",
+        "\n",
+        text_html,
+        flags=re.IGNORECASE,
+    )
+    text = html_mod.unescape(re.sub(r"<[^>]+>", " ", text_html))
+    return [" ".join(line.split()) for line in text.splitlines() if " ".join(line.split())]
+
+
+def _section_lines(lines: list[str], start_labels: set[str], end_labels: set[str]) -> list[str]:
+    start_idx = None
+    normalized_starts = {label.lower() for label in start_labels}
+    normalized_ends = {label.lower() for label in end_labels}
+    for idx, line in enumerate(lines):
+        if line.strip().lower() in normalized_starts:
+            start_idx = idx + 1
+            break
+    if start_idx is None:
+        return []
+    end_idx = len(lines)
+    for idx in range(start_idx, len(lines)):
+        lowered = lines[idx].strip().lower()
+        if lowered in normalized_ends:
+            end_idx = idx
+            break
+    return [line for line in lines[start_idx:end_idx] if line.strip()]
+
+
+def _clean_label_value(value: str) -> str:
+    value = re.sub(r"^\s*\d+[\.\)]\s*", "", value or "").strip()
+    value = re.sub(r"^\s*(?:tanggal|jatuh\s+tempo|due\s+date)\s*:\s*", "", value, flags=re.IGNORECASE).strip()
+    return value
+
+
+def _clean_date_value(value: str) -> str:
+    value = _clean_label_value(value)
+    return re.sub(r"\s*[·|]\s*$", "", value).strip()
 
 
 def _normalize_items_table(table: list[list[str]]) -> list[list[str]]:
@@ -232,6 +280,8 @@ def _first_value(patterns: list[str], text: str) -> str:
 
 def _extract_doc_parts(rendered_html: str) -> dict:
     text = visible_text_from_html(rendered_html)
+    lines = _text_lines_from_html(rendered_html)
+    line_text = "\n".join(lines)
     tables = _extract_tables(rendered_html)
     items_table = _normalize_items_table(max(tables, key=lambda table: len(table), default=[]))
 
@@ -257,26 +307,27 @@ def _extract_doc_parts(rendered_html: str) -> dict:
     # Extract invoice number
     invoice_num = _first_value([r"INVOICE\s+(INV[/\-][A-Z0-9/\-]+)", r"(INV[/\-]\d+)"], text) or ""
 
-    # Brand info (from "Dari" section - uses template variables)
-    brand = _first_value([r"Dari\s*\n\s*(.+?)(?:\n|$)"], text) or "Teman UMKM Kita"
-    # Clean up brand name - remove any numbering
-    brand = re.sub(r"^\d+[\.\)]\s*", "", brand).strip()
+    section_end_labels = {
+        "ditagihkan kepada", "kepada", "rincian tagihan", "rincian layanan",
+        "rincian investasi", "layanan yang ditawarkan", "pembayaran",
+        "metode pembayaran", "syarat & ketentuan", "ketentuan", "catatan",
+    }
+    brand_details = _section_lines(lines, {"Dari"}, section_end_labels)
+    client_details = _section_lines(
+        lines,
+        {"Ditagihkan Kepada", "Kepada", "Disiapkan Untuk"},
+        section_end_labels - {"ditagihkan kepada", "kepada"},
+    )
 
-    # Client info (from "Ditagihkan Kepada" section)
-    # Look for the block between "Ditagihkan Kepada" and next section header
-    client_block = re.search(r"Ditagihkan Kepada\s*\n\s*(.+?)(?=\n\s*(?:Rincian|Layanan|Total|$))", text, re.DOTALL)
-    if client_block:
-        client_text = client_block.group(1).strip()
-        # First line is client name
-        lines = [l.strip() for l in client_text.split("\n") if l.strip()]
-        client = lines[0] if lines else ""
-        # Remove numbering from client name
-        client = re.sub(r"^\d+[\.\)]\s*", "", client).strip()
-        # Rest are contact details
-        client_details = lines[1:] if len(lines) > 1 else []
-    else:
-        client = _first_value([r"Ditagihkan Kepada\s*\n\s*(.+?)(?:\n|$)"], text) or ""
-        client_details = []
+    brand = _clean_label_value(brand_details[0]) if brand_details else ""
+    if not brand:
+        brand = _first_value([r"Dari\s+(.+?)(?:\s+(?:Ditagihkan Kepada|Kepada|Rincian)|$)"], line_text) or "Teman UMKM Kita"
+    client = _clean_label_value(client_details[0]) if client_details else ""
+    if not client:
+        client = _first_value([r"(?:Ditagihkan Kepada|Kepada)\s+(.+?)(?:\s+(?:Rincian|Layanan|Pembayaran|$))"], line_text)
+
+    brand_contact_lines = brand_details[1:] if len(brand_details) > 1 else []
+    client_contact_lines = client_details[1:] if len(client_details) > 1 else []
 
     # Extract client contact info
     client_address = ""
@@ -284,7 +335,7 @@ def _extract_doc_parts(rendered_html: str) -> dict:
     client_email = ""
     client_web = ""
 
-    for detail in client_details:
+    for detail in client_contact_lines:
         detail_clean = detail.strip()
         # Phone pattern
         phone_match = re.search(r"(?:08\d{8,12}|\+62\d{9,12})", detail_clean)
@@ -304,26 +355,23 @@ def _extract_doc_parts(rendered_html: str) -> dict:
                 client_address = detail_clean
 
     # Brand contact info
-    brand_block = re.search(r"Dari\s*\n\s*(.+?)(?=\n\s*Ditagihkan|$)", text, re.DOTALL)
     brand_address = ""
     brand_phone = ""
     brand_email = ""
 
-    if brand_block:
-        brand_details = [l.strip() for l in brand_block.group(1).split("\n") if l.strip()]
-        for detail in brand_details[1:]:  # Skip first line (brand name)
-            phone_match = re.search(r"(?:08\d{8,12}|\+62\d{9,12})", detail)
-            if phone_match and not brand_phone:
-                brand_phone = phone_match.group(0)
-            email_match = re.search(r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", detail)
-            if email_match and not brand_email:
-                brand_email = email_match.group(1)
-            if not brand_address and any(x in detail for x in ["Indonesia", "Malaysia", "Singapore", "Kota", "Kabupaten"]):
-                brand_address = detail
+    for detail in brand_contact_lines:
+        phone_match = re.search(r"(?:08\d{8,12}|\+62\d{9,12})", detail)
+        if phone_match and not brand_phone:
+            brand_phone = phone_match.group(0)
+        email_match = re.search(r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", detail)
+        if email_match and not brand_email:
+            brand_email = email_match.group(1)
+        if not brand_address and not phone_match and not email_match:
+            brand_address = detail
 
     # Dates
-    tanggal = _first_value([r"Tanggal[:\s]+(.+?)(?:\s+Jatuh|\s+Dari|\s+Berlaku|$)"], text)
-    due_date = _first_value([r"Jatuh tempo[:\s]+(.+?)(?:\s+Dari|\s+Ditagihkan|$)"], text)
+    tanggal = _clean_date_value(_first_value([r"Tanggal[:\s]+(.+?)(?:\s+[·|]\s*Jatuh|\s+Jatuh|\s+Dari|\s+Berlaku|$)"], text))
+    due_date = _clean_date_value(_first_value([r"Jatuh\s+Tempo[:\s]+(.+?)(?:\s+Dari|\s+Ditagihkan|\s+Kepada|$)"], text))
 
     # Payment and terms
     payment = _first_value([r"Pembayaran\s+(.+?)(?:\s+Ketentuan|$)"], text)
@@ -373,6 +421,7 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import mm
+    from reportlab.lib.utils import ImageReader
     from reportlab.platypus import HRFlowable, Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
     parts = _extract_doc_parts(rendered_html)
@@ -442,8 +491,15 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
     logo_img = None
     if parts.get("logo_url"):
         try:
-            # Logo: 35mm wide, 25mm tall (better proportion)
-            logo_img = Image(parts["logo_url"], width=35 * mm, height=25 * mm)
+            # Preserve the source aspect ratio. Horizontal logos fit best at
+            # about 36 x 14 mm; square brandmarks fit within 22 x 22 mm.
+            reader = ImageReader(parts["logo_url"])
+            src_w, src_h = reader.getSize()
+            max_w, max_h = 36 * mm, 14 * mm
+            if src_h and src_w / src_h < 1.6:
+                max_w, max_h = 22 * mm, 22 * mm
+            scale = min(max_w / src_w, max_h / src_h) if src_w and src_h else 1
+            logo_img = Image(parts["logo_url"], width=src_w * scale, height=src_h * scale)
         except Exception:
             logo_img = None
 
@@ -468,10 +524,10 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
         [Paragraph("Tanggal Invoice", meta_label), Paragraph(tanggal_val, meta_value)],
         [Paragraph("Jatuh Tempo", meta_label), Paragraph(due_date_val, meta_value)],
     ]
-    dates_table = Table(dates_content, colWidths=[50 * mm, 70 * mm])
+    dates_table = Table(dates_content, colWidths=[27 * mm, 43 * mm], hAlign="RIGHT")
     dates_table.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 2),
         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
         ("TOPPADDING", (0, 0), (-1, -1), 0),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
@@ -481,6 +537,7 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
     header_row = Table([[logo_img, dates_table]], colWidths=[45 * mm, 125 * mm])
     header_row.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
         ("TOPPADDING", (0, 0), (-1, -1), 0),
@@ -531,47 +588,69 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
         story.append(Paragraph("Rincian Layanan", section_label))
         story.append(Spacer(1, 3 * mm))
 
-        table_data = []
-        is_total_row = False
+        def is_header_row(row: list[str]) -> bool:
+            lowered = {cell.strip().lower() for cell in row if cell.strip()}
+            return bool(lowered & {"no", "#", "item", "layanan", "deskripsi", "qty", "jumlah", "harga", "subtotal"})
 
-        for row_idx, row in enumerate(parts["items_table"]):
-            if row_idx == 0:  # Header row
-                headers = ["#", "Layanan", "Jumlah", "Harga", "Total"]
-                table_data.append([Paragraph(h, table_header) for h in headers[:5]])
-            else:
-                # Check if this is a total row
-                row_text = " ".join(row).lower()
-                is_total_row = "total" in row_text
+        def map_item_row(row: list[str], header: list[str] | None) -> tuple[str, str, str, str, str]:
+            lowered_header = [cell.strip().lower() for cell in (header or [])]
+            if lowered_header and len(row) >= len(lowered_header):
+                def idx(*names: str) -> int | None:
+                    for name in names:
+                        if name in lowered_header:
+                            return lowered_header.index(name)
+                    return None
 
-                service_name = row[0] if len(row) > 0 else ""
-                # Clean service name - remove leading numbering like "1." or "1)"
-                service_name = re.sub(r"^\d+[\.\)]\s*", "", service_name).strip()
+                service_idx = idx("layanan", "item", "service", "produk") or 0
+                desc_idx = idx("deskripsi", "description", "keterangan")
+                qty_idx = idx("jumlah", "qty", "kuantitas") or 1
+                rate_idx = idx("harga", "rate", "harga satuan") or 2
+                amount_idx = idx("subtotal", "total", "amount") or (len(row) - 1)
+                return (
+                    row[service_idx] if service_idx < len(row) else "",
+                    row[desc_idx] if desc_idx is not None and desc_idx < len(row) else "",
+                    row[qty_idx] if qty_idx < len(row) else "",
+                    row[rate_idx] if rate_idx < len(row) else "",
+                    row[amount_idx] if amount_idx < len(row) else "",
+                )
 
-                description = row[1] if len(row) > 1 else ""
-                qty = row[2] if len(row) > 2 else ""
-                rate = row[3] if len(row) > 3 else ""
-                amount = row[4] if len(row) > 4 else row[-1] if row else ""
+            if len(row) >= 6 and re.fullmatch(r"\d+|#|no\.?", row[0].strip(), flags=re.IGNORECASE):
+                return row[1], row[2], row[3], row[4], row[5]
+            if len(row) >= 5:
+                return row[0], row[1], row[2], row[3], row[4]
+            if len(row) >= 4:
+                return row[0], "", row[1], row[2], row[3]
+            return (row[0] if row else "", "", "", "", "")
 
-                # Service cell with name + description below
-                service_cell = [Paragraph(html_mod.escape(service_name), item_name)]
-                if description:
-                    service_cell.append(Paragraph(html_mod.escape(description[:200]), item_desc))
+        source_rows = parts["items_table"]
+        header_row = source_rows[0] if source_rows and is_header_row(source_rows[0]) else None
+        item_rows = source_rows[1:] if header_row else source_rows
+        table_data = [[Paragraph(h, table_header) for h in ["Layanan", "Jumlah", "Harga", "Total"]]]
 
-                # Item number (only for non-header, non-total rows)
-                if is_total_row:
-                    item_num = ""
-                else:
-                    item_num = str(row_idx)
+        for row in item_rows:
+            row_text = " ".join(row).lower()
+            if "total" in row_text and any(any(ch.isdigit() for ch in cell) for cell in row):
+                continue
 
-                table_data.append([
-                    Paragraph(item_num, table_right),
-                    service_cell,
-                    Paragraph(html_mod.escape(qty), table_right),
-                    Paragraph(html_mod.escape(rate), table_right),
-                    Paragraph(html_mod.escape(amount), table_right),
-                ])
+            service_name, description, qty, rate, amount = map_item_row(row, header_row)
+            if not description and "\n" in service_name:
+                service_lines = [line.strip() for line in service_name.splitlines() if line.strip()]
+                service_name = service_lines[0] if service_lines else service_name
+                description = " ".join(service_lines[1:])
+            service_name = _clean_label_value(service_name)
+            description = description.strip()
+            service_cell = [Paragraph(html_mod.escape(service_name or "-"), item_name)]
+            if description:
+                service_cell.append(Paragraph(html_mod.escape(description[:300]), item_desc))
 
-        col_widths = [10 * mm, 75 * mm, 18 * mm, 28 * mm, 28 * mm]
+            table_data.append([
+                service_cell,
+                Paragraph(html_mod.escape(qty), table_right),
+                Paragraph(html_mod.escape(rate), table_right),
+                Paragraph(html_mod.escape(amount), table_right),
+            ])
+
+        col_widths = [92 * mm, 20 * mm, 34 * mm, 34 * mm]
         items = Table(table_data, colWidths=col_widths, repeatRows=1)
         items.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), BRAND_PRIMARY),
@@ -582,11 +661,7 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
             ("TOPPADDING", (0, 0), (-1, -1), 5),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("ALIGN", (0, 0), (0, -1), "CENTER"),
-            ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
-            ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
-            ("BACKGROUND", (0, -1), (-1, -1), BRAND_LIGHT),
-            ("LINEABOVE", (0, -1), (-1, -1), 1.5, BRAND_PRIMARY),
+            ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
         ]))
         story.append(items)
         story.append(Spacer(1, 6 * mm))

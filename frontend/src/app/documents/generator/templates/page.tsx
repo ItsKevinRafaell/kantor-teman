@@ -5,6 +5,7 @@ import { apiFetch } from "../../../../lib/api";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import Toast from "../../../../components/Toast";
 import ConfirmModal from "../../../../components/ConfirmModal";
+import Breadcrumb from "../../../../components/Breadcrumb";
 import { TemplateModal } from "../../../../components/documents/TemplateModal";
 import { STARTER_TEMPLATES, STARTER_VARIABLES } from "../../../../components/documents/templateData";
 
@@ -29,6 +30,17 @@ export default function DocumentTemplatesPage() {
   const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; message: string; onConfirm: () => void }>({ open: false, title: "", message: "", onConfirm: () => {} });
   const [starterTemplates, setStarterTemplates] = useState<Record<string, string>>(STARTER_TEMPLATES);
   const [starterVariables, setStarterVariables] = useState<Record<string, string>>(STARTER_VARIABLES);
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+
+  const TYPE_FILTERS = [
+    { key: "all", label: "Semua" },
+    { key: "invoice", label: "Invoice" },
+    { key: "proposal_text", label: "Proposal Text" },
+    { key: "leader", label: "Leader" },
+    { key: "outro", label: "Outro" },
+    { key: "follow_up", label: "Follow Up" },
+    { key: "general", label: "General" },
+  ];
 
   const fetchTemplates = useCallback(async () => {
     try {
@@ -111,6 +123,10 @@ export default function DocumentTemplatesPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <Breadcrumb items={[
+        { label: "Document Generator", href: "/documents/generator" },
+        { label: "Templates" },
+      ]} showBack backHref="/documents/generator" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-neutral-800 dark:text-neutral-100">Document Templates</h1>
@@ -122,11 +138,21 @@ export default function DocumentTemplatesPage() {
         </button>
       </div>
 
+      {/* Filter chips */}
+      <div className="flex flex-wrap gap-1.5">
+        {TYPE_FILTERS.map(f => (
+          <button key={f.key} onClick={() => setTypeFilter(f.key)}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${typeFilter === f.key ? "bg-amber-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700"}`}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <p className="text-sm text-gray-400">Memuat...</p>
       ) : (
         <div className="space-y-2">
-          {templates.map(t => (
+          {(typeFilter === "all" ? templates : templates.filter(t => t.type === typeFilter)).map(t => (
             <div key={t.id} className="flex items-center justify-between p-4 bg-white dark:bg-neutral-900 border border-[var(--border-default)] rounded-xl">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
@@ -142,6 +168,9 @@ export default function DocumentTemplatesPage() {
             </div>
           ))}
           {templates.length === 0 && <p className="text-sm text-gray-400 text-center py-8">Belum ada template.</p>}
+          {(typeFilter !== "all" && templates.filter(t => t.type === typeFilter).length === 0) && (
+            <p className="text-sm text-neutral-400 text-center py-8">Tidak ada template untuk filter ini.</p>
+          )}
         </div>
       )}
 

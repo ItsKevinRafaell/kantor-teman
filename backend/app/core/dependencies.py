@@ -574,13 +574,18 @@ def get_default_model(db: Session, capability: str) -> Optional[AIModel]:
 
 def get_9router_config(db: Session, feature: Optional[str] = None) -> dict:
     model = _get_active_combo(db)
+    provider = "openai"  # 9router is OpenAI-compatible by default
     if feature:
         defaults = _get_feature_defaults(db)
         override = (defaults.get(feature) or "").strip()
         if override:
             model = override
+    # Check for provider override in system settings
+    provider_row = db.query(SystemSettings).filter_by(key="ai_default_provider").first()
+    if provider_row and provider_row.value:
+        provider = provider_row.value
     return {
-        "provider": "openai",
+        "provider": provider,
         "openai_key": NINE_ROUTER_API_KEY,
         "base_url": _get_proxy_url(db),
         "model": model,
@@ -592,7 +597,7 @@ def get_ai_config(db: Session, capability: str = "chat") -> dict:
     proxy = get_proxy_for_feature(db, capability)
     if proxy:
         cfg = {
-            "provider": "openai",
+            "provider": proxy.provider or "openai",  # Read from AIProxy
             "openai_key": proxy.api_key,
             "base_url": proxy.base_url.rstrip("/"),
             "model": proxy.model,

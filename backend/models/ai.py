@@ -11,6 +11,8 @@ class AIProxy(Base):
     base_url = Column(String(500), nullable=False)
     api_key = Column(String(500), default="")
     model = Column(String(255), default="")
+    # Provider type: openai (OpenAI-compatible), claude (Anthropic), gemini (Google)
+    provider = Column(String(50), default="openai", nullable=False)
     feature = Column(String(50), nullable=True, index=True)  # chat|agent|content|analysis|followup, NULL=fallback
     is_active = Column(Boolean, default=False)
     created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())

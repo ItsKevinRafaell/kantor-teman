@@ -183,7 +183,7 @@ export default function WorkspaceDetailPage() {
       <Breadcrumb items={[
         { label: "Workspace Klien", href: "/workspace" },
         { label: workspace.project_name || "Project" },
-      ]} />
+      ]} showBack backHref="/workspace" />
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-xl font-bold text-neutral-800 dark:text-neutral-100">{workspace.project_name || "Workspace"}</h1>

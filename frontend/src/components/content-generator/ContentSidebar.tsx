@@ -26,6 +26,7 @@ interface Props {
   onRenameSession: (id: string, name: string) => Promise<void>;
   onManageProviders: () => void;
   activeTool: Tool;
+  onToolChange: (tool: Tool) => void;
 }
 
 function getGenerationPreview(g: ContentGeneration): string {
@@ -41,7 +42,7 @@ export default function ContentSidebar({
   sessions, sessionsLoading, selectedSession, setSelectedSession,
   generations, generationsLoading, sharedContext, toggleContext,
   onDeleteGeneration, onCreateSession, onDeleteSession, onRenameSession,
-  onManageProviders, activeTool,
+  onManageProviders, activeTool, onToolChange,
 }: Props) {
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const [sessionForm, setSessionForm] = useState({ name: "", description: "" });
@@ -67,7 +68,7 @@ export default function ContentSidebar({
       <div>
         <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">Tools</p>
         {(["seo_article", "image", "caption"] as Tool[]).map(t => (
-          <button key={t}
+          <button key={t} onClick={() => onToolChange(t)}
             className={`w-full text-left px-3 py-2 rounded-xl text-sm font-medium mb-1 transition-all
               ${activeTool === t ? "bg-amber-500 text-white shadow-sm" : "text-neutral-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-neutral-800 dark:hover:text-neutral-200"}`}>
             {TOOL_LABELS[t]}

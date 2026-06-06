@@ -20,9 +20,12 @@ def get_client_detail(client_id: int, current_user: User = Depends(get_current_u
     if not contact:
         raise HTTPException(status_code=404, detail="Klien tidak ditemukan")
 
-    # Resolve lead_id via phone number (Contact has no lead_id FK; conversion link only via phone)
-    lead = db.query(Lead).filter(Lead.phone_number == contact.phone_number).first()
-    lead_id = lead.id if lead else None
+    # Resolve lead_id via FK (contact.lead_id)
+    lead_id = contact.lead_id
+    # Fallback: if lead_id not set, try phone lookup for backward compat
+    if not lead_id:
+        lead = db.query(Lead).filter(Lead.phone_number == contact.phone_number).first()
+        lead_id = lead.id if lead else None
 
     # Projects (linked via lead_id, not contact_id)
     client_projects = db.query(Project).filter(Project.lead_id == lead_id).all() if lead_id else []

@@ -11,7 +11,7 @@ class Board(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     project_id = Column(String(36), ForeignKey("projects.id"), nullable=False)
     created_at = Column(String(255), default=lambda: datetime.now(timezone.utc).isoformat())
-    color = Column(String(50), nullable=True, default="yellow")
+    color = Column(String(50), nullable=True, default="gray")
     project = relationship("Project", foreign_keys=[project_id])
 
 
@@ -21,7 +21,7 @@ class BoardColumn(Base):
     board_id = Column(String(36), ForeignKey("boards.id"), nullable=False)
     name = Column(String(255), nullable=False)
     position = Column(Integer, default=0)
-    color = Column(String(50), nullable=True, default="yellow")
+    color = Column(String(50), nullable=True, default="gray")
     board = relationship("Board", foreign_keys=[board_id])
 
 
@@ -39,7 +39,7 @@ class BoardCard(Base):
     created_at = Column(String(255), default=lambda: datetime.now(timezone.utc).isoformat())
     updated_at = Column(String(255), nullable=True)
     lead_id = Column(Integer, ForeignKey("leads.id"), nullable=True)
-    color = Column(String(50), nullable=True, default="yellow")
+    color = Column(String(50), nullable=True, default="gray")
     column = relationship("BoardColumn", foreign_keys=[column_id])
     lead = relationship("Lead", foreign_keys=[lead_id])
 

@@ -1,5 +1,6 @@
 "use client";
 import Toast from "../../../../components/Toast";
+import Breadcrumb from "../../../../components/Breadcrumb";
 import GeneratorSteps from "../../../../components/documents/GeneratorSteps";
 import TemplatePicker from "../../../../components/documents/TemplatePicker";
 import TargetPicker from "../../../../components/documents/TargetPicker";
@@ -16,6 +17,10 @@ export default function DocumentNewPage() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
+      <Breadcrumb items={[
+        { label: "Document Generator", href: "/documents/generator" },
+        { label: "Generate Baru" },
+      ]} showBack backHref="/documents/generator" />
       <div>
         <h1 className="text-2xl font-bold text-neutral-800 dark:text-neutral-100">Generate Dokumen</h1>
         <p className="text-sm text-gray-500 mt-1">Buat PDF dari template dalam beberapa langkah.</p>
