@@ -235,6 +235,12 @@ def _extract_doc_parts(rendered_html: str) -> dict:
     tables = _extract_tables(rendered_html)
     items_table = _normalize_items_table(max(tables, key=lambda table: len(table), default=[]))
 
+    # Extract logo URL from rendered HTML
+    logo_url = ""
+    logo_match = re.search(r'<img[^>]+src="([^"]+)"', rendered_html)
+    if logo_match:
+        logo_url = logo_match.group(1)
+
     title = "DOKUMEN"
     for candidate in (
         r"\b(INVOICE\s+[A-Z0-9/\-]+)",
@@ -251,23 +257,60 @@ def _extract_doc_parts(rendered_html: str) -> dict:
     # Extract invoice number
     invoice_num = _first_value([r"INVOICE\s+(INV[/\-][A-Z0-9/\-]+)", r"(INV[/\-]\d+)"], text) or ""
 
-    brand = _first_value([r"^(.+?)\s+INVOICE", r"^(.+?)\s+PROPOSAL", r"^(.+?)\s+SURAT"], text) or "Teman UMKM Kita"
-    client = _first_value([
-        r"Ditagihkan Kepada\s+(.+?)\s+Rincian",
-        r"Kepada\s+(.+?)\s+Rincian",
-        r"Disiapkan Untuk\s+(.+?)\s+Layanan",
-    ], text)
+    # Brand info (from "Dari" section in template)
+    brand = _first_value([r"(?:^|\n)\s*Dari\s*\n\s*(.+?)(?:\n|$)", r"Dari\s*\n\s*(.+?)(?:\n\s*[A-Z])"], text) or "Teman UMKM Kita"
 
-    # Extract client contact info (address, phone, email, web)
-    client_address = _first_value([r"Alamat:\s*(.+?)(?:\s+Telepon|\s+Email|\s+Website|\s+Rincian|$)"], text)
-    client_phone = _first_value([r"(?:Telepon|Phone|Telp)[:\s]+(.+?)(?:\s+Email|\s+Website|\s+Rincian|$)"], text)
-    client_email = _first_value([r"(?:Email|E-mail)[:\s]+([^\s]+@[^\s]+)"], text)
-    client_web = _first_value([r"(?:Website|Web|URL)[:\s]+(.+?)(?:\s+Rincian|\s+Catatan|$)"], text)
+    # Client info (from "Ditagihkan Kepada" section)
+    # Extract the block between "Ditagihkan Kepada" and next section
+    client_match = re.search(r"Ditagihkan Kepada\s*\n\s*(.+?)(?:\n\s*(?:Rincian|Layanan|Kategori|\Z))", text, re.DOTALL)
+    client = client_match.group(1).split("\n")[0].strip() if client_match else ""
+    client = _first_value([r"^([A-Z][^\n]+)", r"^(.+?)(?:\n|$)"], client) or ""
 
-    # Brand contact info (extract from template text)
-    brand_address = _first_value([r"(?:Alamat|Company).*?(Indonesia|Malaysia|Singapore|\w+\s+\d{5})"], text)
-    brand_phone = _first_value([r"(?:Telepon|Phone|HP).*?(08\d{8,11})"], text)
-    brand_email = _first_value([r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"], text)
+    # Extract client contact info - separate patterns for address/phone/email/web
+    # Look for these in context near "Ditagihkan Kepada"
+    client_section = client_match.group(1) if client_match else ""
+    client_address = ""
+    client_phone = ""
+    client_email = ""
+    client_web = ""
+
+    # Address: looks for "Jl" or " Jalan" or "No." patterns
+    addr_match = re.search(r"(?:Jl\.?|Jalan|No\.?|RT|RW)[^\n,]+", client_section)
+    if addr_match:
+        client_address = addr_match.group(0).strip()
+
+    # Phone: looks for 08xx patterns
+    phone_match = re.search(r"(?:08\d{8,12}|\+62\d{9,12})", client_section)
+    if phone_match:
+        client_phone = phone_match.group(0)
+
+    # Email: looks for email patterns
+    email_match = re.search(r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", client_section)
+    if email_match:
+        client_email = email_match.group(1)
+
+    # Website: looks for www or .com patterns that aren't emails
+    web_match = re.search(r"(?:www\.[^\s]+|https?://[^\s]+)", client_section)
+    if web_match and client_email not in web_match.group(0):
+        client_web = web_match.group(0)
+
+    # Brand contact info from template
+    brand_section = re.search(r"Dari\s*\n\s*(.+?)(?:\n\s*(?:Ditagihkan|Dari\s+Rincian|\Z))", text, re.DOTALL)
+    brand_address = ""
+    brand_phone = ""
+    brand_email = ""
+
+    if brand_section:
+        brand_text = brand_section.group(1)
+        addr_match = re.search(r"(?:Indonesia|Malaysia|Singapore|[A-Z][a-zA-Z]+(?:\s+\d{5})?)", brand_text)
+        if addr_match:
+            brand_address = addr_match.group(0)
+        phone_match = re.search(r"(?:08\d{8,12}|\+62\d{9,12})", brand_text)
+        if phone_match:
+            brand_phone = phone_match.group(0)
+        email_match = re.search(r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", brand_text)
+        if email_match:
+            brand_email = email_match.group(1)
 
     tanggal = _first_value([r"Tanggal:\s+(.+?)(?:\s+Jatuh|\s+Dari|\s+Berlaku|$)"], text)
     due_date = _first_value([r"Jatuh tempo:\s+(.+?)(?:\s+Dari|\s+Ditagihkan|$)", r"Jatuh Tempo:\s+(.+?)(?:\s+Dari|\s+Ditagihkan|$)"], text)
@@ -286,6 +329,7 @@ def _extract_doc_parts(rendered_html: str) -> dict:
 
     return {
         "text": text,
+        "logo_url": logo_url,
         "title": title,
         "invoice_num": invoice_num,
         "brand": brand or "Teman UMKM Kita",
@@ -329,8 +373,8 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
     styles = getSampleStyleSheet()
 
     # Brand colors
-    BRAND_PRIMARY = colors.HexColor("#f5a700")  # Orange-gold
-    BRAND_LIGHT = colors.HexColor("#fff7ed")  # Light orange
+    BRAND_PRIMARY = colors.HexColor("#f5a700")
+    BRAND_LIGHT = colors.HexColor("#fff7ed")
     DARK_TEXT = colors.HexColor("#1a1a2e")
     BODY_TEXT = colors.HexColor("#374151")
     MUTED_TEXT = colors.HexColor("#6b7280")
@@ -338,23 +382,23 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
 
     # Style definitions
     invoice_title = ParagraphStyle("InvoiceTitle", parent=styles["Normal"], fontName="Helvetica-Bold",
-                                    fontSize=32, leading=36, textColor=DARK_TEXT, alignment=TA_CENTER)
+                                    fontSize=28, leading=32, textColor=DARK_TEXT, alignment=TA_CENTER)
     invoice_num = ParagraphStyle("InvoiceNum", parent=styles["Normal"], fontName="Helvetica",
                                   fontSize=11, leading=14, textColor=MUTED_TEXT, alignment=TA_CENTER)
     section_label = ParagraphStyle("SectionLabel", parent=styles["Normal"], fontName="Helvetica-Bold",
                                     fontSize=6.5, leading=8, textColor=MUTED_TEXT, textTransform="uppercase")
-    client_name = ParagraphStyle("ClientName", parent=styles["Normal"], fontName="Helvetica-Bold",
-                                  fontSize=10.5, leading=13, textColor=DARK_TEXT)
-    client_detail = ParagraphStyle("ClientDetail", parent=styles["Normal"], fontName="Helvetica",
+    contact_name = ParagraphStyle("ContactName", parent=styles["Normal"], fontName="Helvetica-Bold",
+                                  fontSize=10, leading=12, textColor=DARK_TEXT)
+    contact_detail = ParagraphStyle("ContactDetail", parent=styles["Normal"], fontName="Helvetica",
                                    fontSize=7.5, leading=10, textColor=BODY_TEXT)
     meta_label = ParagraphStyle("MetaLabel", parent=styles["Normal"], fontName="Helvetica",
                                  fontSize=7, leading=9, textColor=MUTED_TEXT)
     meta_value = ParagraphStyle("MetaValue", parent=styles["Normal"], fontName="Helvetica-Bold",
                                  fontSize=8, leading=10, textColor=DARK_TEXT)
     balance_label = ParagraphStyle("BalanceLabel", parent=styles["Normal"], fontName="Helvetica-Bold",
-                                    fontSize=7.5, leading=9, textColor=BRAND_PRIMARY)
+                                    fontSize=8, leading=10, textColor=BRAND_PRIMARY)
     balance_amount = ParagraphStyle("BalanceAmount", parent=styles["Normal"], fontName="Helvetica-Bold",
-                                    fontSize=16, leading=20, textColor=DARK_TEXT)
+                                    fontSize=14, leading=18, textColor=DARK_TEXT)
     table_header = ParagraphStyle("TableHeader", parent=styles["Normal"], fontName="Helvetica-Bold",
                                    fontSize=7, leading=8.5, textColor=colors.white)
     item_name = ParagraphStyle("ItemName", parent=styles["Normal"], fontName="Helvetica-Bold",
@@ -370,86 +414,92 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
 
     story = []
 
-    # === 1. HEADER with Logo + INVOICE + Meta ===
-    # Logo placeholder (orange rectangle with brand name)
-    logo_placeholder = Table([[
-        Paragraph("T", ParagraphStyle("LogoText", fontName="Helvetica-Bold", fontSize=14,
-                                       textColor=colors.white, alignment=TA_CENTER))
-    ]], colWidths=[28 * mm], rowHeights=[28 * mm])
-    logo_placeholder.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), BRAND_PRIMARY),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-    ]))
-
-    # Header content: left = logo, right = invoice title + meta
-    header_left = [logo_placeholder]
-    header_right = [
-        Paragraph("INVOICE", invoice_title),
-        Paragraph(f"#{parts.get('invoice_num') or parts.get('title', 'DOKUMEN')}", invoice_num),
-    ]
-
-    # Meta dates on right
-    meta_dates = Table([[
-        [Paragraph("Tanggal Invoice", meta_label),
-         Paragraph(html_mod.escape(parts.get("tanggal") or "-"), meta_value)],
-        [Paragraph("Jatuh Tempo", meta_label),
-         Paragraph(html_mod.escape(parts.get("due_date") or "-"), meta_value)],
-    ]], colWidths=[65 * mm, 65 * mm])
-    meta_dates.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-    ]))
-    header_right.append(meta_dates)
-
-    header = Table([[header_left, header_right]], colWidths=[35 * mm, 135 * mm])
-    header.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-    ]))
-    story.append(header)
-    story.append(Spacer(1, 5 * mm))
+    # === 1. CENTERED INVOICE HEADER (full width) ===
+    story.append(Paragraph("INVOICE", invoice_title))
+    story.append(Paragraph(f"#{parts.get('invoice_num') or parts.get('title', 'DOKUMEN')}", invoice_num))
+    story.append(Spacer(1, 3 * mm))
 
     # Brand accent line
     story.append(HRFlowable(width="100%", thickness=3, color=BRAND_PRIMARY))
+    story.append(Spacer(1, 4 * mm))
+
+    # === 2. LOGO + DATES row ===
+    logo_img = None
+    if parts.get("logo_url"):
+        try:
+            logo_img = Image(parts["logo_url"], width=30 * mm, height=20 * mm)
+        except Exception:
+            logo_img = None
+
+    # Logo placeholder if no logo
+    if not logo_img:
+        logo_placeholder = Table([[
+            Paragraph("T", ParagraphStyle("LogoText", fontName="Helvetica-Bold", fontSize=14,
+                                           textColor=colors.white, alignment=TA_CENTER))
+        ]], colWidths=[30 * mm], rowHeights=[20 * mm])
+        logo_placeholder.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), BRAND_PRIMARY),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ]))
+        logo_img = logo_placeholder
+
+    # Dates section (right aligned)
+    dates_content = [
+        [Paragraph("Tanggal Invoice", meta_label), Paragraph(html_mod.escape(parts.get("tanggal") or "-"), meta_value)],
+        [Paragraph("Jatuh Tempo", meta_label), Paragraph(html_mod.escape(parts.get("due_date") or "-"), meta_value)],
+    ]
+    dates_table = Table(dates_content, colWidths=[60 * mm, 60 * mm])
+    dates_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+
+    # Header row: logo left, dates right
+    header_row = Table([[logo_img, dates_table]], colWidths=[40 * mm, 130 * mm])
+    header_row.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    story.append(header_row)
     story.append(Spacer(1, 6 * mm))
 
-    # === 2. FROM/TO SECTION ===
-    # Left: Ditagihkan Kepada
-    bill_to = [Paragraph("Ditagihkan Kepada", section_label), Spacer(1, 2 * mm),
-               Paragraph(html_mod.escape(parts["client"]) or "Klien", client_name)]
-    if parts.get("client_address"):
-        bill_to.append(Paragraph(html_mod.escape(parts["client_address"]), client_detail))
-    if parts.get("client_phone"):
-        bill_to.append(Paragraph(html_mod.escape(parts["client_phone"]), client_detail))
-    if parts.get("client_email"):
-        bill_to.append(Paragraph(html_mod.escape(parts["client_email"]), client_detail))
-    if parts.get("client_web"):
-        bill_to.append(Paragraph(html_mod.escape(parts["client_web"]), client_detail))
-
-    # Right: Dari
-    dari = [Paragraph("Dari", section_label), Spacer(1, 2 * mm),
-            Paragraph(html_mod.escape(parts["brand"]) or "Teman UMKM Kita", client_name)]
+    # === 3. FROM/TO SECTION (Dari left, Ditagihkan Kepada right) ===
+    # Left: Dari (brand info)
+    dari_content = [Paragraph("Dari", section_label), Spacer(1, 2 * mm),
+                    Paragraph(html_mod.escape(parts["brand"]) or "Teman UMKM Kita", contact_name)]
     if parts.get("brand_address"):
-        dari.append(Paragraph(html_mod.escape(parts["brand_address"]), client_detail))
+        dari_content.append(Paragraph(html_mod.escape(parts["brand_address"]), contact_detail))
     if parts.get("brand_phone"):
-        dari.append(Paragraph(html_mod.escape(parts["brand_phone"]), client_detail))
+        dari_content.append(Paragraph(html_mod.escape(parts["brand_phone"]), contact_detail))
     if parts.get("brand_email"):
-        dari.append(Paragraph(html_mod.escape(parts["brand_email"]), client_detail))
+        dari_content.append(Paragraph(html_mod.escape(parts["brand_email"]), contact_detail))
 
-    from_to = Table([[bill_to, dari]], colWidths=[82 * mm, 88 * mm])
+    # Right: Ditagihkan Kepada (client info)
+    kepada_content = [Paragraph("Ditagihkan Kepada", section_label), Spacer(1, 2 * mm),
+                      Paragraph(html_mod.escape(parts["client"]) or "Klien", contact_name)]
+    if parts.get("client_address"):
+        kepada_content.append(Paragraph(html_mod.escape(parts["client_address"]), contact_detail))
+    if parts.get("client_phone"):
+        kepada_content.append(Paragraph(html_mod.escape(parts["client_phone"]), contact_detail))
+    if parts.get("client_email"):
+        kepada_content.append(Paragraph(html_mod.escape(parts["client_email"]), contact_detail))
+    if parts.get("client_web"):
+        kepada_content.append(Paragraph(html_mod.escape(parts["client_web"]), contact_detail))
+
+    from_to = Table([[dari_content, kepada_content]], colWidths=[85 * mm, 85 * mm])
     from_to.setStyle(TableStyle([
         ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#e5e7eb")),
         ("BACKGROUND", (0, 0), (-1, -1), LIGHT_BG),
         ("LINEAFTER", (0, 0), (0, -1), 0.5, colors.HexColor("#e5e7eb")),
-        ("LEFTPADDING", (0, 0), (-1, -1), 12),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
         ("TOPPADDING", (0, 0), (-1, -1), 10),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -457,12 +507,14 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
     story.append(from_to)
     story.append(Spacer(1, 8 * mm))
 
-    # === 3. ITEMS TABLE + BALANCE ===
+    # === 4. ITEMS TABLE ===
     if parts["items_table"]:
-        # Build items table
+        story.append(Paragraph("Rincian Layanan", section_label))
+        story.append(Spacer(1, 3 * mm))
+
         table_data = []
         for row_idx, row in enumerate(parts["items_table"]):
-            if row_idx == 0:  # Header
+            if row_idx == 0:  # Header row
                 headers = ["#", "Layanan", "Jumlah", "Harga", "Total"]
                 table_data.append([Paragraph(h, table_header) for h in headers[:5]])
             else:
@@ -472,18 +524,23 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
                 rate = row[3] if len(row) > 3 else ""
                 amount = row[4] if len(row) > 4 else row[-1] if row else ""
 
+                # Service cell with name + description
                 service_cell = [Paragraph(html_mod.escape(service_name), item_name)]
                 if description:
                     service_cell.append(Paragraph(html_mod.escape(description[:200]), item_desc))
 
+                # Item number
+                item_num = str(row_idx)
+
                 table_data.append([
+                    Paragraph(item_num, table_right),
                     service_cell,
                     Paragraph(html_mod.escape(qty), table_right),
                     Paragraph(html_mod.escape(rate), table_right),
                     Paragraph(html_mod.escape(amount), table_right),
                 ])
 
-        col_widths = [8 * mm, 72 * mm, 18 * mm, 28 * mm, 28 * mm]
+        col_widths = [10 * mm, 75 * mm, 18 * mm, 28 * mm, 28 * mm]
         items = Table(table_data, colWidths=col_widths, repeatRows=1)
         items.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), BRAND_PRIMARY),
@@ -494,18 +551,21 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
             ("TOPPADDING", (0, 0), (-1, -1), 5),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
+            ("ALIGN", (0, 0), (0, -1), "CENTER"),
+            ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
             ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
             ("BACKGROUND", (0, -1), (-1, -1), BRAND_LIGHT),
             ("LINEABOVE", (0, -1), (-1, -1), 1.5, BRAND_PRIMARY),
         ]))
+        story.append(items)
+        story.append(Spacer(1, 6 * mm))
 
-        # Balance box
-        balance_box = Table([[
+        # === 5. SISA TAGIHAN (below items, full width right aligned) ===
+        sisa_tagihan = Table([[
             [Paragraph("Sisa Tagihan", balance_label), Spacer(1, 2 * mm),
              Paragraph(html_mod.escape(parts.get("total_amount") or "IDR 0"), balance_amount)]
         ]], colWidths=[80 * mm])
-        balance_box.setStyle(TableStyle([
+        sisa_tagihan.setStyle(TableStyle([
             ("BOX", (0, 0), (-1, -1), 2, BRAND_PRIMARY),
             ("BACKGROUND", (0, 0), (-1, -1), BRAND_LIGHT),
             ("LEFTPADDING", (0, 0), (-1, -1), 12),
@@ -513,27 +573,28 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
             ("TOPPADDING", (0, 0), (-1, -1), 10),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
         ]))
 
-        # Combine items + balance side by side
-        items_with_balance = Table([[items, balance_box]], colWidths=[90 * mm, 80 * mm])
-        items_with_balance.setStyle(TableStyle([
+        # Wrap in full width table with empty left space
+        balance_row = Table([["", sisa_tagihan]], colWidths=[90 * mm, 80 * mm])
+        balance_row.setStyle(TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ("LEFTPADDING", (0, 0), (-1, -1), 0),
             ("RIGHTPADDING", (0, 0), (-1, -1), 0),
             ("TOPPADDING", (0, 0), (-1, -1), 0),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
         ]))
-        story.append(items_with_balance)
+        story.append(balance_row)
         story.append(Spacer(1, 8 * mm))
 
-    # === 4. PAYMENT + TERMS ===
+    # === 6. PAYMENT + TERMS ===
     if parts.get("payment") or parts.get("terms"):
         payment_box = Table([[
             [Paragraph("Metode Pembayaran", section_label), Spacer(1, 2 * mm),
-             Paragraph(html_mod.escape(parts.get("payment") or "-"), client_detail)],
+             Paragraph(html_mod.escape(parts.get("payment") or "-"), contact_detail)],
             [Paragraph("Syarat & Ketentuan", section_label), Spacer(1, 2 * mm),
-             Paragraph(html_mod.escape(parts.get("terms") or "-"), client_detail)]
+             Paragraph(html_mod.escape(parts.get("terms") or "-"), contact_detail)]
         ]], colWidths=[85 * mm, 85 * mm])
         payment_box.setStyle(TableStyle([
             ("BOX", (0, 0), (-1, -1), 1, BRAND_PRIMARY),
@@ -548,13 +609,13 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
         story.append(payment_box)
         story.append(Spacer(1, 8 * mm))
 
-    # === 5. CATATAN ===
+    # === 7. CATATAN ===
     if parts.get("note"):
         story.append(Paragraph("Catatan", section_label))
-        story.append(Paragraph(html_mod.escape(parts["note"]), client_detail))
+        story.append(Paragraph(html_mod.escape(parts["note"]), contact_detail))
         story.append(Spacer(1, 8 * mm))
 
-    # === 6. FOOTER ===
+    # === 8. FOOTER ===
     story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#e5e7eb")))
     story.append(Spacer(1, 4 * mm))
 
