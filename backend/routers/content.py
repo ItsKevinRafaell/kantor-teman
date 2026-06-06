@@ -342,7 +342,14 @@ def list_ai_proxies(current_user: User = Depends(require_admin), db: Session = D
 
 @router.post("/api/ai-proxies", response_model=AIProxyOut, status_code=201)
 def create_ai_proxy(body: AIProxyIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    proxy = AIProxy(name=body.name, base_url=body.base_url.rstrip("/"), api_key=body.api_key, model=body.model, feature=body.feature)
+    proxy = AIProxy(
+        name=body.name,
+        base_url=body.base_url.rstrip("/"),
+        api_key=body.api_key,
+        model=body.model,
+        provider=body.provider or "openai",
+        feature=body.feature,
+    )
     db.add(proxy)
     db.commit()
     db.refresh(proxy)
@@ -358,6 +365,7 @@ def update_ai_proxy(proxy_id: str, body: AIProxyIn, current_user: User = Depends
     proxy.base_url = body.base_url.rstrip("/")
     proxy.api_key = body.api_key
     proxy.model = body.model
+    proxy.provider = body.provider or "openai"
     proxy.feature = body.feature
     db.commit()
     db.refresh(proxy)

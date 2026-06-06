@@ -138,7 +138,7 @@ export default function ProposalsPage() {
         contact={null}
         open={proposalModalOpen}
         onClose={() => setProposalModalOpen(false)}
-        onSuccess={(url) => { setProposalModalOpen(false); setProposalSuccess({ open: true, url }); }}
+        onSuccess={(url) => { setProposalModalOpen(false); fetchProposals(); fetchAnalytics(); setProposalSuccess({ open: true, url }); }}
         setToast={setToast}
         searchMode
         contacts={contacts}

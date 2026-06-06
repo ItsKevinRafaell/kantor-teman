@@ -65,6 +65,7 @@ export default function DynamicTemplatesPage() {
   const [page, setPage] = useState(1);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   const PAGE_SIZE = 15;
 
   const fetchTemplates = useCallback(async () => {
@@ -171,13 +172,32 @@ export default function DynamicTemplatesPage() {
         </button>
       </div>
 
+      {/* Type filter chips */}
+      <div className="flex flex-wrap gap-1.5">
+        <button key="all" onClick={() => { setTypeFilter("all"); setPage(1); }}
+          className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${typeFilter === "all" ? "bg-amber-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700"}`}>
+          Semua
+        </button>
+        {TEMPLATE_TYPES.map(t => (
+          <button key={t.value} onClick={() => { setTypeFilter(t.value); setPage(1); } }
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${typeFilter === t.value ? "bg-amber-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700"}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {templates.length === 0 ? (
         <div className="text-center py-12 bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] text-gray-400 text-sm">
           Belum ada template. Tambahkan template pertamamu.
         </div>
       ) : (
+        (() => {
+          const filtered = typeFilter === "all" ? templates : templates.filter(t => t.type === typeFilter);
+          return (
         <div className="space-y-3">
-          {templates.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(t => (
+          {filtered.length === 0 ? (
+            <div className="text-center py-12 text-neutral-400 text-sm">Tidak ada template untuk filter ini.</div>
+          ) : filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(t => (
             <div key={t.id} className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] shadow-sm p-4 hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -207,9 +227,10 @@ export default function DynamicTemplatesPage() {
               </div>
             </div>
           ))}
-          <Pagination page={page} pageSize={PAGE_SIZE} total={templates.length} onPageChange={setPage} itemLabel="template" />
+          <Pagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} itemLabel="template" />
         </div>
-      )}
+          );
+        })()}
 
       {/* Modal */}
       {modal && (

@@ -76,6 +76,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
   const [expandedCell, setExpandedCell] = useState<{ rowId: string; colId: string; value: string } | null>(null);
   const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
+  const [boardColumns, setBoardColumns] = useState<string[]>([]);
   const [milestoneModal, setMilestoneModal] = useState<{
     percent: number; amount: number; amount_formatted: string; task_name: string;
     project_name: string; client_name: string; lead_id: number | null;
@@ -89,7 +90,16 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
       .then(setUsers)
       .catch(() => { onToast("Gagal memuat daftar user. PIC diisi manual sementara.", "error"); })
       .finally(() => setUsersLoading(false));
-  }, []);
+    // Fetch board columns dynamically
+    apiFetch(`/api/projects/${projectId}/board`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.columns) {
+          setBoardColumns(data.columns.map((c: { name: string }) => c.name));
+        }
+      })
+      .catch(() => {});
+  }, [projectId]);
   const [addingRow, setAddingRow] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<{ rowId: string; colId: string } | null>(null);
@@ -267,12 +277,22 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
                           onChange={e => patchCell(row.id, col.id, { value_bool: e.target.checked })}
                           className="w-4 h-4 accent-amber-500 cursor-pointer" />
                       ) : col.column_type === "status" ? (
-                        <select value={(val as string) || ""}
-                          onChange={e => patchCell(row.id, col.id, { value_text: e.target.value })}
-                          className={`text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-300 ${STATUS_COLORS[(val as string) || ""] || "bg-gray-100 text-gray-600"}`}>
-                          <option value="">—</option>
-                          {col.column_options.map(o => <option key={o} value={o}>{o}</option>)}
-                        </select>
+                        (() => {
+                          // Use board column names as options; preserve existing value even if column deleted
+                          const dynamicOptions = boardColumns.length > 0 ? boardColumns : col.column_options;
+                          const existingVal = (val as string) || "";
+                          const allOptions = existingVal && !dynamicOptions.includes(existingVal)
+                            ? [...dynamicOptions, existingVal]
+                            : dynamicOptions;
+                          return (
+                            <select value={existingVal}
+                              onChange={e => patchCell(row.id, col.id, { value_text: e.target.value })}
+                              className={`text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-300 ${STATUS_COLORS[existingVal] || "bg-gray-100 text-gray-600"}`}>
+                              <option value="">—</option>
+                              {allOptions.map(o => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                          );
+                        })()
                       ) : col.column_type === "select" ? (
                         <select value={(val as string) || ""}
                           onChange={e => patchCell(row.id, col.id, { value_text: e.target.value })}

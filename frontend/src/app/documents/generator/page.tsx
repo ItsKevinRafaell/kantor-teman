@@ -54,7 +54,7 @@ export default function DocumentGeneratorPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <Breadcrumb items={[{ label: "Dokumen" }, { label: "Document Generator" }]} />
+      <Breadcrumb items={[{ label: "Dokumen" }, { label: "Document Generator" }]} showBack backHref="/documents" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-neutral-800 dark:text-neutral-100">Document Generator</h1>

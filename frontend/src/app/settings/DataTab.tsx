@@ -41,6 +41,7 @@ const ACTION_CONFIG: Record<ActionKey, {
 export default function DataTab() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [openAction, setOpenAction] = useState<ActionKey | null>(null);
+  const [backupConfirmOpen, setBackupConfirmOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [phrase, setPhrase] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -123,12 +124,12 @@ export default function DataTab() {
           Download dump SQL database + folder <code className="font-mono">uploads/</code> sebagai .zip. Simpan rutin sebelum reset atau update besar.
         </p>
         <button
-          onClick={downloadBackup}
+          onClick={() => setBackupConfirmOpen(true)}
           disabled={downloading}
           className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors shadow-sm"
         >
           <Download size={16} />
-          {downloading ? "Sedang menyiapkan..." : "Download Backup (.zip)"}
+          Download Backup (.zip)
         </button>
       </section>
 
@@ -188,6 +189,38 @@ export default function DataTab() {
           Nuclear Reset
         </button>
       </section>
+
+      {/* Backup Confirmation Modal */}
+      {backupConfirmOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={() => setBackupConfirmOpen(false)}>
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
+          <div className="relative bg-white dark:bg-[var(--bg-canvas)] rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2">
+              <Database size={20} className="text-emerald-600" />
+              <h3 className="font-bold text-neutral-900 dark:text-neutral-50">Download Backup</h3>
+            </div>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              Backup akan berisi <strong>dump database SQL</strong> dan folder <code className="font-mono text-xs">uploads/</code> dalam format .zip.
+              File cukup besar (bisa puluhan MB) dan proses preparation di server mungkin butuh beberapa detik.
+            </p>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400">
+              Simpan backup secara rutin, terutama sebelum menjalankan <strong>Soft Reset</strong> atau <strong>Nuclear Reset</strong> yang bersifat irreversible.
+            </p>
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                onClick={() => setBackupConfirmOpen(false)}
+                className="px-4 py-2 text-sm rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                Batal
+              </button>
+              <button
+                onClick={() => { setBackupConfirmOpen(false); downloadBackup(); }}
+                className="px-4 py-2 text-sm rounded-xl font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
+                Download Sekarang
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirmation Modal */}
       {currentConfig && (

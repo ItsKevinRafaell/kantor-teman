@@ -1,24 +1,8 @@
 "use client";
 
 import { Plus, Calendar, User, MessageSquare, CheckSquare } from "lucide-react";
+import { CARD_COLORS, LABEL_COLORS } from "./types";
 import type { BoardCard, Lead } from "./types";
-export { CARD_COLORS, LABEL_COLORS } from "./types";
-
-const CARD_COLORS: Record<string, { bg: string; accent: string; text: string }> = {
-  yellow: { bg: "bg-yellow-50 dark:bg-yellow-900/25", accent: "", text: "text-yellow-700 dark:text-yellow-300" },
-  red: { bg: "bg-red-50 dark:bg-red-900/25", accent: "", text: "text-red-700 dark:text-red-300" },
-  orange: { bg: "bg-orange-50 dark:bg-orange-900/25", accent: "", text: "text-orange-700 dark:text-orange-300" },
-  green: { bg: "bg-green-50 dark:bg-green-900/25", accent: "", text: "text-green-700 dark:text-green-300" },
-  blue: { bg: "bg-blue-50 dark:bg-blue-900/25", accent: "", text: "text-blue-700 dark:text-blue-300" },
-  purple: { bg: "bg-purple-50 dark:bg-purple-900/25", accent: "", text: "text-purple-700 dark:text-purple-300" },
-  pink: { bg: "bg-pink-50 dark:bg-pink-900/25", accent: "", text: "text-pink-700 dark:text-pink-300" },
-  slate: { bg: "bg-slate-50 dark:bg-slate-900/25", accent: "", text: "text-slate-700 dark:text-slate-300" },
-};
-
-const LABEL_COLORS: Record<string, string> = {
-  red: "bg-red-500", orange: "bg-orange-500", yellow: "bg-amber-500",
-  green: "bg-green-500", blue: "bg-blue-500", purple: "bg-purple-500", pink: "bg-pink-500",
-};
 
 interface Props {
   card: BoardCard;

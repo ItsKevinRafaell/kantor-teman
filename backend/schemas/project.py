@@ -4,13 +4,14 @@ from typing import Optional
 
 class ProjectIn(BaseModel):
     lead_id: Optional[int] = None
+    contact_id: Optional[int] = None  # Alternative to lead_id - resolves to lead_id
     name: str = Field(..., max_length=200)
     type: str = Field(..., max_length=20)
     status: str = Field("ACTIVE", max_length=20)
     nominal: float = 0
     start_date: Optional[str] = Field(None, max_length=30)
     end_date: Optional[str] = Field(None, max_length=30)
-    color: Optional[str] = Field("yellow", max_length=30)
+    color: Optional[str] = Field("gray", max_length=30)
     service_type: Optional[str] = Field(None, max_length=50)
     contract_months: Optional[int] = None
 

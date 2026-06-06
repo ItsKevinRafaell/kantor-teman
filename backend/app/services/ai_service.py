@@ -187,14 +187,26 @@ def get_ai_config(db: Session, capability: str = "chat") -> dict:
     """Per-feature AIProxy first, fallback to 9router. Optional model override per capability via ai_models registry."""
     proxy = get_proxy_for_feature(db, capability)
     if proxy:
+        provider = proxy.provider or "openai"
+        # Map api_key to the correct provider key
         cfg = {
-            "provider": proxy.provider or "openai",  # Read from AIProxy
-            "openai_key": proxy.api_key,
+            "provider": provider,
             "base_url": proxy.base_url.rstrip("/"),
             "model": proxy.model,
-            "gemini_key": "",
-            "claude_key": "",
         }
+        # Map api_key based on provider type
+        if provider == "gemini":
+            cfg["gemini_key"] = proxy.api_key
+            cfg["openai_key"] = ""
+            cfg["claude_key"] = ""
+        elif provider == "claude":
+            cfg["claude_key"] = proxy.api_key
+            cfg["openai_key"] = ""
+            cfg["gemini_key"] = ""
+        else:  # openai or openai-compatible
+            cfg["openai_key"] = proxy.api_key
+            cfg["gemini_key"] = ""
+            cfg["claude_key"] = ""
     else:
         cfg = get_9router_config(db)
     default_model = get_default_model(db, capability)

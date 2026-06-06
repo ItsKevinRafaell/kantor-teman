@@ -247,6 +247,7 @@ def generate_unique_slug(db: Session, base_text: str) -> str:
 # ─── Phone helpers ────────────────────────────────────────────────────────────
 
 def normalize_phone(phone: str) -> Optional[str]:
+    """Normalize to 62xx format (for WA API)."""
     if not phone:
         return None
     raw = str(phone).strip()
@@ -257,6 +258,21 @@ def normalize_phone(phone: str) -> Optional[str]:
         digits = "62" + digits[1:]
     elif not digits.startswith("62"):
         digits = "62" + digits
+    return digits
+
+def normalize_phone_storage(phone: str) -> Optional[str]:
+    """Normalize to 08xx format (for storage in DB)."""
+    if not phone:
+        return None
+    raw = str(phone).strip()
+    digits = re.sub(r"\D", "", raw)
+    if not digits:
+        return None
+    # Convert 62xx to 08xx
+    if digits.startswith("62"):
+        digits = "0" + digits[2:]
+    elif not digits.startswith("0"):
+        digits = "0" + digits
     return digits
 
 _normalize_phone = normalize_phone
@@ -596,14 +612,24 @@ def get_9router_config(db: Session, feature: Optional[str] = None) -> dict:
 def get_ai_config(db: Session, capability: str = "chat") -> dict:
     proxy = get_proxy_for_feature(db, capability)
     if proxy:
+        provider = proxy.provider or "openai"
         cfg = {
-            "provider": proxy.provider or "openai",  # Read from AIProxy
-            "openai_key": proxy.api_key,
+            "provider": provider,
             "base_url": proxy.base_url.rstrip("/"),
             "model": proxy.model,
-            "gemini_key": "",
-            "claude_key": "",
         }
+        if provider == "gemini":
+            cfg["gemini_key"] = proxy.api_key
+            cfg["openai_key"] = ""
+            cfg["claude_key"] = ""
+        elif provider == "claude":
+            cfg["claude_key"] = proxy.api_key
+            cfg["openai_key"] = ""
+            cfg["gemini_key"] = ""
+        else:
+            cfg["openai_key"] = proxy.api_key
+            cfg["gemini_key"] = ""
+            cfg["claude_key"] = ""
     else:
         cfg = get_9router_config(db)
     default_model = get_default_model(db, capability)

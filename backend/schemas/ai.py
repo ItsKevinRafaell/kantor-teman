@@ -28,6 +28,7 @@ class AIProxyIn(BaseModel):
     base_url: str
     api_key: str = ""
     model: str = ""
+    provider: str = "openai"  # openai, claude, gemini
     feature: Optional[str] = None
 
 
@@ -37,6 +38,7 @@ class AIProxyOut(BaseModel):
     base_url: str
     api_key: str = ""
     model: str = ""
+    provider: str = "openai"
     feature: Optional[str] = None
     is_active: bool
     created_at: str

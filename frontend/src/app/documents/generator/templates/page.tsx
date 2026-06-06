@@ -30,17 +30,6 @@ export default function DocumentTemplatesPage() {
   const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; message: string; onConfirm: () => void }>({ open: false, title: "", message: "", onConfirm: () => {} });
   const [starterTemplates, setStarterTemplates] = useState<Record<string, string>>(STARTER_TEMPLATES);
   const [starterVariables, setStarterVariables] = useState<Record<string, string>>(STARTER_VARIABLES);
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-
-  const TYPE_FILTERS = [
-    { key: "all", label: "Semua" },
-    { key: "invoice", label: "Invoice" },
-    { key: "proposal_text", label: "Proposal Text" },
-    { key: "leader", label: "Leader" },
-    { key: "outro", label: "Outro" },
-    { key: "follow_up", label: "Follow Up" },
-    { key: "general", label: "General" },
-  ];
 
   const fetchTemplates = useCallback(async () => {
     try {
@@ -138,21 +127,11 @@ export default function DocumentTemplatesPage() {
         </button>
       </div>
 
-      {/* Filter chips */}
-      <div className="flex flex-wrap gap-1.5">
-        {TYPE_FILTERS.map(f => (
-          <button key={f.key} onClick={() => setTypeFilter(f.key)}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${typeFilter === f.key ? "bg-amber-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700"}`}>
-            {f.label}
-          </button>
-        ))}
-      </div>
-
       {loading ? (
         <p className="text-sm text-gray-400">Memuat...</p>
       ) : (
         <div className="space-y-2">
-          {(typeFilter === "all" ? templates : templates.filter(t => t.type === typeFilter)).map(t => (
+          {templates.map(t => (
             <div key={t.id} className="flex items-center justify-between p-4 bg-white dark:bg-neutral-900 border border-[var(--border-default)] rounded-xl">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
@@ -168,9 +147,6 @@ export default function DocumentTemplatesPage() {
             </div>
           ))}
           {templates.length === 0 && <p className="text-sm text-gray-400 text-center py-8">Belum ada template.</p>}
-          {(typeFilter !== "all" && templates.filter(t => t.type === typeFilter).length === 0) && (
-            <p className="text-sm text-neutral-400 text-center py-8">Tidak ada template untuk filter ini.</p>
-          )}
         </div>
       )}
 

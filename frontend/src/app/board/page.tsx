@@ -10,6 +10,7 @@ import { BoardOverviewCard } from "../../components/board/BoardOverview";
 import BoardHeader from "../../components/board/BoardHeader";
 import { ColumnModal, ProjectModal, EditProjectModal } from "../../components/board/BoardModals";
 import { CardModal } from "../../components/board/CardModal";
+import { COLUMN_COLORS, BOARD_TOP_BORDER } from "../../components/board/types";
 import type { Lead, Project, BoardCard, BoardColumn, Board, BoardOverview } from "../../components/board/types";
 
 export default function BoardPage() {
@@ -223,8 +224,8 @@ export default function BoardPage() {
             {board.columns.map(column => (
               <BoardColumnItem
                 key={column.id} column={column}
-                COLUMN_COLORS={{ yellow: { bg: "bg-yellow-400", border: "border-yellow-400" }, red: { bg: "bg-red-400", border: "border-red-400" }, blue: { bg: "bg-blue-400", border: "border-blue-400" }, green: { bg: "bg-green-400", border: "border-green-400" }, purple: { bg: "bg-purple-400", border: "border-purple-400" }, pink: { bg: "bg-pink-400", border: "border-pink-400" }, gray: { bg: "bg-gray-400", border: "border-gray-400" } } as any}
-                BOARD_TOP_BORDER={{ yellow: "border-t-yellow-400", red: "border-t-red-400", blue: "border-t-blue-400", green: "border-t-green-400", purple: "border-t-purple-400", pink: "border-t-pink-400", gray: "border-t-gray-400" } as any}
+                COLUMN_COLORS={COLUMN_COLORS}
+                BOARD_TOP_BORDER={BOARD_TOP_BORDER}
                 leads={leads}
                 draggedCard={draggedCard}
                 dragOverColumn={dragOverColumn}

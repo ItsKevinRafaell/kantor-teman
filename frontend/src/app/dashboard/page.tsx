@@ -7,7 +7,6 @@ import { BarChart3, LayoutDashboard, Flame } from "lucide-react";
 import { useDashboardData } from "../../hooks/useDashboard";
 import { getScoreColor, getScoreLabel } from "../../lib/leadScore";
 import { apiFetch } from "../../lib/api";
-import { useAuth } from "../../contexts/AuthContext";
 
 const STATUS_COLORS: Record<string, string> = {
   Scraped: "bg-gray-400",
@@ -41,7 +40,6 @@ function DashboardContent() {
   const [tab, setTab] = useState<Tab>(initialTab);
 
   const { analytics, patterns, hotLeads, topScoredLeads, alerts, boardOverview, financeOverview, isLoading } = useDashboardData();
-  const { isAdmin } = useAuth();
 
   const maxProduct = analytics ? Math.max(...(analytics.leads_by_product ?? []).map(p => p.count), 1) : 1;
   const maxStatus = analytics ? Math.max(...(analytics.leads_by_status ?? []).map(s => s.count), 1) : 1;
@@ -103,35 +101,33 @@ function DashboardContent() {
             ))}
           </div>
 
-          {/* Kontrol Operasional — admin only */}
-          {isAdmin && (
-            <div className="card p-5">
-              <div className="flex items-center justify-between gap-3 mb-4">
-                <div>
-                  <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Kontrol Operasional</h2>
-                  <p className="text-xs text-neutral-400 mt-0.5">Pantau pekerjaan tim dan kesehatan kas.</p>
-                </div>
-                <div className="flex gap-2 text-xs font-semibold">
-                  <Link href="/board" className="text-amber-600 hover:text-amber-700">Board</Link>
-                  {financeOverview && <Link href="/finance" className="text-amber-600 hover:text-amber-700">Keuangan</Link>}
-                </div>
+          {/* Kontrol Operasional */}
+          <div className="card p-5">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Kontrol Operasional</h2>
+                <p className="text-xs text-neutral-400 mt-0.5">Pantau pekerjaan tim dan kesehatan kas.</p>
               </div>
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                {[
-                  { label: "Proyek Aktif", value: boardOverview.length, alert: false },
-                  { label: "Task Terlambat", value: overdueTasks, alert: overdueTasks > 0 },
-                  { label: "Jatuh Tempo <= 3 Hari", value: dueSoonTasks, alert: dueSoonTasks > 0 },
-                  { label: "Total Saldo", value: financeOverview ? formatIdr(financeOverview.total_balance) : "—", alert: false },
-                  { label: "Runway", value: financeOverview ? `${financeOverview.financial_runway_months} bulan` : "—", alert: financeOverview ? financeOverview.financial_runway_months < 3 : false },
-                ].map(item => (
-                  <div key={item.label} className={`rounded-xl px-3 py-3 border ${item.alert ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900" : "bg-neutral-50 dark:bg-neutral-800/50 border-neutral-100 dark:border-neutral-700"}`}>
-                    <p className={`text-lg font-bold ${item.alert ? "text-red-600 dark:text-red-400" : "text-neutral-800 dark:text-neutral-100"}`}>{item.value}</p>
-                    <p className="text-[10px] uppercase tracking-wide font-semibold text-neutral-400 mt-1">{item.label}</p>
-                  </div>
-                ))}
+              <div className="flex gap-2 text-xs font-semibold">
+                <Link href="/board" className="text-amber-600 hover:text-amber-700">Board</Link>
+                {financeOverview && <Link href="/finance" className="text-amber-600 hover:text-amber-700">Keuangan</Link>}
               </div>
             </div>
-          )}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              {[
+                { label: "Proyek Aktif", value: boardOverview.length, alert: false },
+                { label: "Task Terlambat", value: overdueTasks, alert: overdueTasks > 0 },
+                { label: "Jatuh Tempo <= 3 Hari", value: dueSoonTasks, alert: dueSoonTasks > 0 },
+                { label: "Total Saldo", value: financeOverview ? formatIdr(financeOverview.total_balance) : "—", alert: false },
+                { label: "Runway", value: financeOverview ? `${financeOverview.financial_runway_months} bulan` : "—", alert: financeOverview ? financeOverview.financial_runway_months < 3 : false },
+              ].map(item => (
+                <div key={item.label} className={`rounded-xl px-3 py-3 border ${item.alert ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900" : "bg-neutral-50 dark:bg-neutral-800/50 border-neutral-100 dark:border-neutral-700"}`}>
+                  <p className={`text-lg font-bold ${item.alert ? "text-red-600 dark:text-red-400" : "text-neutral-800 dark:text-neutral-100"}`}>{item.value}</p>
+                  <p className="text-[10px] uppercase tracking-wide font-semibold text-neutral-400 mt-1">{item.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
 
           {/* Hot Leads */}
           {hotLeads.length > 0 && (

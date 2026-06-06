@@ -13,7 +13,7 @@ from models import get_db, log_audit, User, Lead, Contact, Proposal, ProposalAna
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, GOOGLE_API_KEY,
     FRONTEND_URL, _check_simple_rate_limit, search_semaphore,
-    normalize_phone, _normalize_phone, make_wa_url,
+    normalize_phone_storage, _normalize_phone, make_wa_url,
     calculate_lead_score, calculate_lead_score_full,
     generate_batch_name, generate_report_for_lead,
     get_fonnte_token, _send_fonnte_sync, _get_setting, ADMIN_WA,
@@ -42,7 +42,7 @@ def create_external_lead(request: Request, body: ExternalLeadIn, background_task
 
     _check_simple_rate_limit(f"external_lead:{api_key[:16]}", 30, 60)
 
-    phone = _normalize_phone(body.phone_number)
+    phone = _normalize_phone_storage(body.phone_number)
 
     existing = db.query(Lead).filter(Lead.phone_number == phone).first()
 
@@ -496,16 +496,23 @@ def get_contacts(current_user: User = Depends(get_current_user), db: Session = D
 def create_contact(body: ContactUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if not body.business_name or not body.phone_number:
         raise HTTPException(status_code=400, detail="Nama bisnis dan nomor WA wajib diisi")
-    existing = db.query(Contact).filter(Contact.phone_number == body.phone_number).first()
+
+    # Normalize phone number
+    normalized_phone = normalize_phone_storage(body.phone_number)
+    if not normalized_phone:
+        raise HTTPException(status_code=400, detail="Nomor WA tidak valid")
+
+    # Check uniqueness
+    existing = db.query(Contact).filter(Contact.phone_number == normalized_phone).first()
     if existing:
         raise HTTPException(status_code=400, detail="Nomor WA sudah terdaftar")
 
     # Auto-create Lead if not exists (for Project linkage)
-    lead = db.query(Lead).filter(Lead.phone_number == body.phone_number).first()
+    lead = db.query(Lead).filter(Lead.phone_number == normalized_phone).first()
     if not lead:
         lead = Lead(
             business_name=body.business_name,
-            phone_number=body.phone_number,
+            phone_number=normalized_phone,
             status="Closed/Client",
             product_interest=body.purchased_product,
         )
@@ -514,7 +521,7 @@ def create_contact(body: ContactUpdate, current_user: User = Depends(get_current
 
     contact = Contact(
         business_name=body.business_name,
-        phone_number=body.phone_number,
+        phone_number=normalized_phone,
         owner_name=body.owner_name,
         purchased_product=body.purchased_product,
         notes=body.notes,
@@ -534,6 +541,25 @@ def update_contact(contact_id: int, body: ContactUpdate, current_user: User = De
     if not contact:
         raise HTTPException(status_code=404, detail="Kontak tidak ditemukan")
 
+    # Persist business_name on Contact
+    if body.business_name is not None:
+        contact.business_name = body.business_name
+
+    # Handle phone_number with normalization and uniqueness check
+    if body.phone_number is not None:
+        normalized = normalize_phone_storage(body.phone_number)
+        if not normalized:
+            raise HTTPException(status_code=400, detail="Nomor WA tidak valid")
+        # Check uniqueness if phone changes
+        if normalized != contact.phone_number:
+            existing = db.query(Contact).filter(
+                Contact.phone_number == normalized,
+                Contact.id != contact_id,
+            ).first()
+            if existing:
+                raise HTTPException(status_code=400, detail="Nomor WA sudah terdaftar")
+        contact.phone_number = normalized
+
     if body.owner_name is not None:
         contact.owner_name = body.owner_name
     if body.purchased_product is not None:
@@ -548,7 +574,7 @@ def update_contact(contact_id: int, body: ContactUpdate, current_user: User = De
             if body.business_name is not None:
                 lead.business_name = body.business_name
             if body.phone_number is not None:
-                lead.phone_number = body.phone_number
+                lead.phone_number = normalize_phone_storage(body.phone_number)
             if body.purchased_product is not None:
                 lead.product_interest = body.purchased_product
 

@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse,
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import get_db, log_audit, User, Lead, Project, Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, WorkspaceAttachment, DocumentTemplate, GeneratedDocument, Category
+from models import get_db, log_audit, User, Lead, Contact, Project, Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, WorkspaceAttachment, DocumentTemplate, GeneratedDocument, Category
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, FRONTEND_URL, UPLOADS_DIR,
     _get_setting, get_fonnte_token, get_9router_config, build_analysis_prompt,
@@ -48,6 +48,22 @@ def create_project(body: ProjectIn, current_user: User = Depends(require_admin),
     if body.status not in ("ACTIVE", "COMPLETED", "HOLD"):
         raise HTTPException(status_code=400, detail="Status harus 'ACTIVE', 'COMPLETED', atau 'HOLD'")
 
+    # Resolve lead_id: from contact_id if provided, or use lead_id directly
+    resolved_lead_id = body.lead_id
+    if body.contact_id and not resolved_lead_id:
+        contact = db.query(Contact).filter(Contact.id == body.contact_id).first()
+        if not contact:
+            raise HTTPException(status_code=404, detail="Kontak tidak ditemukan")
+        resolved_lead_id = contact.lead_id
+        if not resolved_lead_id:
+            raise HTTPException(status_code=400, detail="Kontak belum memiliki relasi Lead")
+
+    # Validate lead_id exists if provided
+    if resolved_lead_id:
+        lead = db.query(Lead).filter(Lead.id == resolved_lead_id).first()
+        if not lead:
+            raise HTTPException(status_code=400, detail="Lead tidak ditemukan")
+
     # Auto-calculate contract_months and contract_days from dates
     months = body.contract_months
     contract_days = None
@@ -66,7 +82,7 @@ def create_project(body: ProjectIn, current_user: User = Depends(require_admin),
 
     project = Project(
         id=str(uuid.uuid4()),
-        lead_id=body.lead_id,
+        lead_id=resolved_lead_id,
         name=body.name,
         type=body.type,
         status=body.status,
