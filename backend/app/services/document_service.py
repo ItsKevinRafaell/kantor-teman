@@ -97,7 +97,7 @@ def build_brand_context(db: Session) -> dict:
     }
     if not kit:
         return ctx
-    brand_name = kit.brand_name or kit.kit_name or ""
+    brand_name = getattr(kit, "brand_name", None) or kit.kit_name or ""
     ctx["nama_perusahaan"] = brand_name
     ctx["brand_name"] = brand_name
     assets = db.query(BrandAsset).filter(BrandAsset.kit_id == kit.id).all()
