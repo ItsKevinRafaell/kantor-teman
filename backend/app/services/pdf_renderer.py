@@ -145,8 +145,9 @@ class _TableParser(HTMLParser):
         self._current_table: list[list[str]] | None = None
         self._current_row: list[str] | None = None
         self._current_cell: list[str] | None = None
+        self._current_colspan = 1
 
-    def handle_starttag(self, tag, _attrs):
+    def handle_starttag(self, tag, attrs):
         tag = tag.lower()
         if tag == "table":
             self._current_table = []
@@ -154,6 +155,11 @@ class _TableParser(HTMLParser):
             self._current_row = []
         elif tag in {"td", "th"} and self._current_row is not None:
             self._current_cell = []
+            attrs_dict = dict(attrs)
+            try:
+                self._current_colspan = max(1, int(attrs_dict.get("colspan", "1")))
+            except ValueError:
+                self._current_colspan = 1
 
     def handle_data(self, data):
         if self._current_cell is not None:
@@ -162,8 +168,15 @@ class _TableParser(HTMLParser):
     def handle_endtag(self, tag):
         tag = tag.lower()
         if tag in {"td", "th"} and self._current_cell is not None and self._current_row is not None:
-            self._current_row.append(" ".join("".join(self._current_cell).split()))
+            cell_text = " ".join("".join(self._current_cell).split())
+            if self._current_colspan > 1 and cell_text.lower() in {"total", "subtotal", "grand total"}:
+                self._current_row.extend([""] * (self._current_colspan - 1))
+                self._current_row.append(cell_text)
+            else:
+                self._current_row.append(cell_text)
+                self._current_row.extend([""] * (self._current_colspan - 1))
             self._current_cell = None
+            self._current_colspan = 1
         elif tag == "tr" and self._current_row is not None and self._current_table is not None:
             if any(cell for cell in self._current_row):
                 self._current_table.append(self._current_row)
@@ -180,6 +193,35 @@ def _extract_tables(rendered_html: str) -> list[list[list[str]]]:
     return parser.tables
 
 
+def _normalize_items_table(table: list[list[str]]) -> list[list[str]]:
+    if not table:
+        return []
+    normalized: list[list[str]] = []
+    for row in table:
+        cells = [cell.strip() for cell in row]
+        if not any(cells):
+            continue
+        lowered = [cell.lower() for cell in cells]
+        if len(cells) == 1 and "tidak ada item" in lowered[0]:
+            return [["Keterangan"], [cells[0]]]
+        if len(cells) == 2 and lowered[0] in {"total", "subtotal", "grand total"}:
+            cells = ["", "", "", "", cells[0], cells[1]]
+        elif len(cells) == 6 and lowered[0] in {"total", "subtotal", "grand total"}:
+            cells = ["", "", "", "", cells[0], cells[-1]]
+        elif len(cells) > 6:
+            cells = cells[:5] + [" ".join(cells[5:])]
+        normalized.append(cells)
+
+    max_cols = max((len(row) for row in normalized), default=0)
+    if max_cols <= 0:
+        return []
+    if max_cols < 6 and any("subtotal" in cell.lower() or "harga" in cell.lower() for row in normalized for cell in row):
+        max_cols = 6
+    for row in normalized:
+        row.extend([""] * (max_cols - len(row)))
+    return normalized
+
+
 def _first_value(patterns: list[str], text: str) -> str:
     for pattern in patterns:
         match = re.search(pattern, text, flags=re.IGNORECASE)
@@ -191,7 +233,7 @@ def _first_value(patterns: list[str], text: str) -> str:
 def _extract_doc_parts(rendered_html: str) -> dict:
     text = visible_text_from_html(rendered_html)
     tables = _extract_tables(rendered_html)
-    items_table = max(tables, key=lambda table: len(table), default=[])
+    items_table = _normalize_items_table(max(tables, key=lambda table: len(table), default=[]))
 
     title = "DOKUMEN"
     for candidate in (
@@ -255,6 +297,9 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
     styles = getSampleStyleSheet()
     normal = ParagraphStyle("KTNormal", parent=styles["Normal"], fontName="Helvetica", fontSize=9, leading=12, textColor=colors.HexColor("#334155"))
     small = ParagraphStyle("KTSmall", parent=normal, fontSize=8, leading=10, textColor=colors.HexColor("#64748b"))
+    table_text = ParagraphStyle("KTTableText", parent=normal, fontSize=7.6, leading=9.2, textColor=colors.HexColor("#334155"))
+    table_header = ParagraphStyle("KTTableHeader", parent=table_text, fontName="Helvetica-Bold", fontSize=7.2, leading=8.6, textColor=colors.HexColor("#475569"))
+    table_right = ParagraphStyle("KTTableRight", parent=table_text, alignment=TA_RIGHT)
     title = ParagraphStyle("KTTitle", parent=styles["Title"], fontName="Helvetica-Bold", fontSize=22, leading=26, textColor=colors.HexColor("#111827"))
     label = ParagraphStyle("KTLabel", parent=normal, fontName="Helvetica-Bold", fontSize=7, leading=9, textColor=colors.HexColor("#64748b"))
     right_small = ParagraphStyle("KTRightSmall", parent=small, alignment=TA_RIGHT)
@@ -293,12 +338,20 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
 
     if parts["items_table"]:
         story.append(Paragraph("RINCIAN TAGIHAN", label))
-        table_data = [[Paragraph(html_mod.escape(cell), small if row_idx else label) for cell in row] for row_idx, row in enumerate(parts["items_table"])]
+        table_data = []
+        for row_idx, row in enumerate(parts["items_table"]):
+            rendered_row = []
+            for col_idx, cell in enumerate(row):
+                style = table_header if row_idx == 0 else table_text
+                if row_idx > 0 and col_idx >= 3:
+                    style = table_right
+                rendered_row.append(Paragraph(html_mod.escape(cell), style))
+            table_data.append(rendered_row)
         max_cols = max(len(row) for row in table_data)
         for row in table_data:
             while len(row) < max_cols:
-                row.append(Paragraph("", small))
-        col_widths = [12 * mm, 32 * mm, 55 * mm, 14 * mm, 27 * mm, 30 * mm][:max_cols]
+                row.append(Paragraph("", table_text))
+        col_widths = [11 * mm, 30 * mm, 61 * mm, 12 * mm, 25 * mm, 29 * mm][:max_cols]
         if len(col_widths) < max_cols:
             col_widths.extend([25 * mm] * (max_cols - len(col_widths)))
         items = Table(table_data, colWidths=col_widths, repeatRows=1)
@@ -306,11 +359,15 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#475569")),
             ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e5e7eb")),
-            ("PADDING", (0, 0), (-1, -1), 5),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ("ALIGN", (3, 1), (-1, -1), "RIGHT"),
             ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
             ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#fffbeb")),
+            ("LINEABOVE", (0, -1), (-1, -1), 0.8, colors.HexColor("#f59e0b")),
         ]))
         story.extend([items, Spacer(1, 7 * mm)])
 
