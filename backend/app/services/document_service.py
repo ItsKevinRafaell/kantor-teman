@@ -93,11 +93,13 @@ def build_brand_context(db: Session) -> dict:
     kit = db.query(BrandKit).filter(BrandKit.is_active == True).first() or db.query(BrandKit).first()
     ctx = {
         "logo": "", "colors": {}, "fonts": {}, "tagline": "",
-        "brand_name": "", "alamat_perusahaan": "", "phone_perusahaan": "", "email_perusahaan": "",
+        "nama_perusahaan": "", "brand_name": "", "alamat_perusahaan": "", "phone_perusahaan": "", "email_perusahaan": "",
     }
     if not kit:
         return ctx
-    ctx["brand_name"] = kit.kit_name or ""
+    brand_name = kit.brand_name or kit.kit_name or ""
+    ctx["nama_perusahaan"] = brand_name
+    ctx["brand_name"] = brand_name
     assets = db.query(BrandAsset).filter(BrandAsset.kit_id == kit.id).all()
     for a in assets:
         if a.asset_type == "logo_primary" and a.file_url:
@@ -305,10 +307,15 @@ def _document_template_html(template: DocumentTemplate) -> str:
     is_legacy = any(marker in html_template for marker in markers)
     template_name = getattr(template, "name", "")
     has_wrong_builtin_type = template_name in _BUILTIN_DOCUMENT_TEMPLATE_TYPES and getattr(template, "type", None) != template_type
-    if is_legacy or has_wrong_builtin_type:
-        starter = document_template_starter(template_type)
-        if starter:
-            return starter["html_template"]
+    starter = document_template_starter(template_type)
+    uses_deprecated_company_scope = (
+        template_name in _BUILTIN_DOCUMENT_TEMPLATE_TYPES
+        and starter
+        and "{{brand_name}}" not in html_template
+        and "{{nama_perusahaan}}" in html_template
+    )
+    if (is_legacy or has_wrong_builtin_type or uses_deprecated_company_scope) and starter:
+        return starter["html_template"]
     return html_template
 
 
@@ -322,6 +329,45 @@ def _format_date_id(value: datetime) -> str:
     return f"{value.day} {months[value.month - 1]} {value.year}"
 
 
+_DATE_VALUE_KEYS = {
+    "tanggal", "due_date", "valid_until", "validity",
+    "tanggal_mulai", "tanggal_akhir", "expired", "expiry",
+}
+_DATE_VALUE_LABEL_RE = re.compile(
+    r"^\s*(?:tanggal|jatuh\s+tempo|due\s+date|berlaku\s+(?:hingga|s/d)|mulai|selesai)\s*:\s*",
+    re.IGNORECASE,
+)
+_SERVER_OWNED_DOCUMENT_KEYS = {
+    "logo", "brand_name", "nama_perusahaan", "nama_klien", "perusahaan_klien",
+    "alamat_perusahaan", "phone_perusahaan", "email_perusahaan", "tagline",
+}
+
+
+def _is_date_value_key(key: str) -> bool:
+    lowered = key.lower()
+    return lowered in _DATE_VALUE_KEYS or lowered.startswith("tanggal_") or lowered.endswith("_tanggal")
+
+
+def _normalize_document_variable(key: str, value):
+    if not isinstance(value, str):
+        return value
+    normalized = value.strip()
+    if _is_date_value_key(key):
+        previous = None
+        while previous != normalized:
+            previous = normalized
+            normalized = _DATE_VALUE_LABEL_RE.sub("", normalized).strip()
+    return normalized
+
+
+def _apply_target_company_aliases(defaults: dict, company_name: str) -> None:
+    if not company_name:
+        return
+    defaults["nama_perusahaan"] = company_name
+    defaults["nama_klien"] = company_name
+    defaults["perusahaan_klien"] = company_name
+
+
 def _build_default_vars(db: Session, template_type: str, target_type: Optional[str], target_id: Optional[str]) -> dict:
     today = datetime.now(timezone.utc)
     brand = build_brand_context(db)
@@ -329,11 +375,12 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
     defaults: dict = {
         "tanggal": _format_date_id(today),
         "logo": brand.get("logo", ""),
+        "brand_name": brand.get("brand_name", ""),
         "tagline": brand.get("tagline", ""),
     }
 
     company_map = {
-        "nama_perusahaan": ("brand_name", "company_name"),
+        "brand_name": ("brand_name", "company_name"),
         "alamat_perusahaan": ("alamat_perusahaan", "company_address"),
         "phone_perusahaan": ("phone_perusahaan", "company_phone"),
         "email_perusahaan": ("email_perusahaan", "company_email"),
@@ -353,6 +400,7 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
             if lead:
                 defaults["klien"] = lead.business_name or ""
                 defaults["nama"] = lead.business_name or ""
+                _apply_target_company_aliases(defaults, lead.business_name or "")
                 defaults["alamat"] = lead.address or ""
                 defaults["phone"] = lead.phone_number or ""
                 defaults["layanan"] = project.name or lead.product_interest or project.service_type or ""
@@ -362,6 +410,7 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
             if contact:
                 defaults["klien"] = contact.business_name or ""
                 defaults["nama"] = contact.business_name or ""
+                _apply_target_company_aliases(defaults, contact.business_name or "")
                 defaults["alamat"] = ""
                 defaults["phone"] = contact.phone_number or ""
                 defaults["layanan"] = contact.purchased_product or ""
@@ -370,9 +419,12 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
             if lead:
                 defaults["klien"] = lead.business_name or ""
                 defaults["nama"] = lead.business_name or ""
+                _apply_target_company_aliases(defaults, lead.business_name or "")
                 defaults["alamat"] = lead.address or ""
                 defaults["phone"] = lead.phone_number or ""
                 defaults["layanan"] = lead.product_interest or ""
+
+    defaults.setdefault("nama_perusahaan", defaults.get("brand_name", ""))
 
     service_name = ""
     if lead:
@@ -506,8 +558,13 @@ def generate_document_pdf(
     brand_ctx = build_brand_context(db)
     full_vars = {**brand_ctx, **defaults}
     for key, value in variables.items():
+        value = _normalize_document_variable(key, value)
+        if key in _SERVER_OWNED_DOCUMENT_KEYS and full_vars.get(key) not in (None, ""):
+            continue
         if value not in (None, "") or key not in full_vars:
             full_vars[key] = value
+    for key, value in list(full_vars.items()):
+        full_vars[key] = _normalize_document_variable(key, value)
     if "logo" not in variables:
         full_vars["logo"] = brand_ctx["logo"]
 

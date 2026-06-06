@@ -122,7 +122,7 @@ if "mysql" in _db_url:
         from document_template_library import DEFAULT_DOCUMENT_TEMPLATES
         import json as _json_templates
         import uuid as _uuid_templates
-        _template_version = "client_ready_v2"
+        _template_version = "client_ready_v3"
         _should_upgrade = True
         if _table_exists("system_settings"):
             _cur.execute("SELECT value FROM system_settings WHERE `key` = %s", ("document_templates_version",))
@@ -1107,7 +1107,7 @@ from document_template_library import DEFAULT_DOCUMENT_TEMPLATES
 import json as _json_templates
 import uuid as _uuid_templates
 
-_template_version = "client_ready_v2"
+_template_version = "client_ready_v3"
 cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='system_settings'")
 _has_settings = cur.fetchone() is not None
 _should_upgrade = True

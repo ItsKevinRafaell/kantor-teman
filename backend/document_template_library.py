@@ -35,11 +35,11 @@ INVOICE_HTML = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>{BASE
 .payment{{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;margin-top:20px}}
 </style></head><body><div class="page">
 <div class="top">
-  <div><div class="logo">{{{{logo}}}}</div><div class="eyebrow">{{{{nama_perusahaan}}}}</div><h1 class="title">INVOICE <span class="accent">{{{{nomor_invoice}}}}</span></h1></div>
+  <div><div class="logo">{{{{logo}}}}</div><div class="eyebrow">{{{{brand_name}}}}</div><h1 class="title">INVOICE <span class="accent">{{{{nomor_invoice}}}}</span></h1></div>
   <div class="meta">Tanggal: <strong>{{{{tanggal}}}}</strong><br>Jatuh tempo: <strong>{{{{due_date}}}}</strong></div>
 </div>
 <div class="grid-2">
-  <div class="card"><div class="card-title">Dari</div><div class="strong">{{{{nama_perusahaan}}}}</div><div class="muted">{{{{alamat_perusahaan}}}}<br>{{{{phone_perusahaan}}}}<br>{{{{email_perusahaan}}}}</div></div>
+  <div class="card"><div class="card-title">Dari</div><div class="strong">{{{{brand_name}}}}</div><div class="muted">{{{{alamat_perusahaan}}}}<br>{{{{phone_perusahaan}}}}<br>{{{{email_perusahaan}}}}</div></div>
   <div class="card"><div class="card-title">Ditagihkan Kepada</div><div class="strong">{{{{klien}}}}</div><div class="muted">{{{{alamat}}}}<br>{{{{phone}}}}</div></div>
 </div>
 <div class="section"><div class="section-title">Rincian Tagihan</div>{{{{items_rows}}}}</div>
@@ -48,7 +48,7 @@ INVOICE_HTML = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>{BASE
   <div><div class="section-title">Ketentuan</div><div class="text-box">{{{{terms}}}}</div></div>
 </div>
 <div class="section"><div class="section-title">Catatan</div><div class="muted">{{{{catatan}}}}</div></div>
-<div class="footer"><div><strong>{{{{nama_perusahaan}}}}</strong><br>{{{{tagline}}}}</div><div>Dokumen ini dibuat secara digital.</div></div>
+<div class="footer"><div><strong>{{{{brand_name}}}}</strong><br>{{{{tagline}}}}</div><div>Dokumen ini dibuat secara digital.</div></div>
 </div></body></html>"""
 
 
@@ -57,7 +57,7 @@ RECEIPT_HTML = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>{BASE
 .receipt-row{{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid #f1f5f9}}
 .amount{{margin:20px 0;text-align:center;font-size:26px;font-weight:700;color:#d97706}}
 </style></head><body><div class="page">
-<div class="top"><div><div class="logo">{{{{logo}}}}</div><div class="eyebrow">{{{{nama_perusahaan}}}}</div><h1 class="title">BUKTI PEMBAYARAN</h1></div><div class="meta">No. <strong>{{{{nomor}}}}</strong><br>{{{{tanggal}}}}</div></div>
+<div class="top"><div><div class="logo">{{{{logo}}}}</div><div class="eyebrow">{{{{brand_name}}}}</div><h1 class="title">BUKTI PEMBAYARAN</h1></div><div class="meta">No. <strong>{{{{nomor}}}}</strong><br>{{{{tanggal}}}}</div></div>
 <div class="receipt">
   <div class="receipt-row"><span class="muted">Diterima dari</span><strong>{{{{klien}}}}</strong></div>
   <div class="receipt-row"><span class="muted">Untuk pembayaran</span><strong>{{{{layanan}}}}</strong></div>
@@ -65,41 +65,41 @@ RECEIPT_HTML = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>{BASE
   <div class="amount">{{{{amount}}}}</div>
   <div class="muted">{{{{keterangan}}}}</div>
 </div>
-<div class="footer"><div><strong>{{{{nama_perusahaan}}}}</strong><br>{{{{tagline}}}}</div><div>Bukti pembayaran sah tanpa tanda tangan basah.</div></div>
+<div class="footer"><div><strong>{{{{brand_name}}}}</strong><br>{{{{tagline}}}}</div><div>Bukti pembayaran sah tanpa tanda tangan basah.</div></div>
 </div></body></html>"""
 
 
 PROPOSAL_HTML = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>{BASE_STYLE}</style></head><body><div class="page">
-<div class="top"><div><div class="logo">{{{{logo}}}}</div><div class="eyebrow">{{{{nama_perusahaan}}}}</div><h1 class="title">PROPOSAL PENAWARAN</h1></div><div class="meta">Tanggal: <strong>{{{{tanggal}}}}</strong><br>Berlaku hingga: <strong>{{{{valid_until}}}}</strong></div></div>
+<div class="top"><div><div class="logo">{{{{logo}}}}</div><div class="eyebrow">{{{{brand_name}}}}</div><h1 class="title">PROPOSAL PENAWARAN</h1></div><div class="meta">Tanggal: <strong>{{{{tanggal}}}}</strong><br>Berlaku hingga: <strong>{{{{valid_until}}}}</strong></div></div>
 <div class="grid-2">
-  <div class="card"><div class="card-title">Penyedia Jasa</div><div class="strong">{{{{nama_perusahaan}}}}</div><div class="muted">{{{{phone_perusahaan}}}}<br>{{{{email_perusahaan}}}}</div></div>
+  <div class="card"><div class="card-title">Penyedia Jasa</div><div class="strong">{{{{brand_name}}}}</div><div class="muted">{{{{phone_perusahaan}}}}<br>{{{{email_perusahaan}}}}</div></div>
   <div class="card"><div class="card-title">Disiapkan Untuk</div><div class="strong">{{{{klien}}}}</div><div class="muted">{{{{alamat}}}}<br>{{{{phone}}}}</div></div>
 </div>
 <div class="section"><div class="section-title">Layanan Utama</div><div class="text-box"><strong>{{{{layanan}}}}</strong></div></div>
 <div class="section"><div class="section-title">Lingkup Pekerjaan</div><div class="text-box">{{{{scope}}}}</div></div>
 <div class="section"><div class="section-title">Rincian Investasi</div>{{{{items_rows}}}}</div>
 <div class="section"><div class="notice">Penawaran ini berlaku hingga <strong>{{{{valid_until}}}}</strong>. Harga dan jadwal pengerjaan dapat berubah setelah tanggal tersebut.</div></div>
-<div class="footer"><div><strong>{{{{nama_perusahaan}}}}</strong><br>{{{{tagline}}}}</div><div>Proposal penawaran layanan.</div></div>
+<div class="footer"><div><strong>{{{{brand_name}}}}</strong><br>{{{{tagline}}}}</div><div>Proposal penawaran layanan.</div></div>
 </div></body></html>"""
 
 
 QUOTATION_HTML = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>{BASE_STYLE}</style></head><body><div class="page">
-<div class="top"><div><div class="logo">{{{{logo}}}}</div><div class="eyebrow">{{{{nama_perusahaan}}}}</div><h1 class="title">SURAT PENAWARAN</h1></div><div class="meta">No. <strong>{{{{nomor}}}}</strong><br>{{{{tanggal}}}}</div></div>
+<div class="top"><div><div class="logo">{{{{logo}}}}</div><div class="eyebrow">{{{{brand_name}}}}</div><h1 class="title">SURAT PENAWARAN</h1></div><div class="meta">No. <strong>{{{{nomor}}}}</strong><br>{{{{tanggal}}}}</div></div>
 <div class="card"><div class="card-title">Kepada Yth.</div><div class="strong">{{{{klien}}}}</div><div class="muted">{{{{alamat}}}}<br>{{{{phone}}}}</div></div>
 <div class="section"><div class="section-title">Perihal</div><div class="strong">{{{{perihal}}}}</div></div>
 <p>Dengan hormat, bersama surat ini kami mengajukan penawaran layanan sebagai berikut:</p>
 <div class="section">{{{{items_rows}}}}</div>
 <div class="section"><div class="section-title">Syarat dan Ketentuan</div><div class="text-box">{{{{terms}}}}</div></div>
 <p>Demikian penawaran ini kami sampaikan. Atas perhatian dan kepercayaan Anda, kami ucapkan terima kasih.</p>
-<div class="signatures"><div></div><div class="sig"><div>Hormat kami,</div><div class="sig-space"></div><div class="sig-line">{{{{nama_perusahaan}}}}</div><div class="sig-role">Penyedia Jasa</div></div></div>
+<div class="signatures"><div></div><div class="sig"><div>Hormat kami,</div><div class="sig-space"></div><div class="sig-line">{{{{brand_name}}}}</div><div class="sig-role">Penyedia Jasa</div></div></div>
 </div></body></html>"""
 
 
 AGREEMENT_HTML = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>{BASE_STYLE}</style></head><body><div class="page">
-<div class="top"><div><div class="logo">{{{{logo}}}}</div><div class="eyebrow">{{{{nama_perusahaan}}}}</div><h1 class="title">PERJANJIAN KERJA SAMA</h1></div><div class="meta">Mulai: <strong>{{{{tanggal_mulai}}}}</strong><br>Selesai: <strong>{{{{tanggal_akhir}}}}</strong></div></div>
+<div class="top"><div><div class="logo">{{{{logo}}}}</div><div class="eyebrow">{{{{brand_name}}}}</div><h1 class="title">PERJANJIAN KERJA SAMA</h1></div><div class="meta">Mulai: <strong>{{{{tanggal_mulai}}}}</strong><br>Selesai: <strong>{{{{tanggal_akhir}}}}</strong></div></div>
 <p>Perjanjian kerja sama ini dibuat dan disepakati oleh pihak-pihak berikut:</p>
 <div class="grid-2">
-  <div class="card"><div class="card-title">Pihak Pertama - Penyedia Jasa</div><div class="strong">{{{{nama_perusahaan}}}}</div><div class="muted">{{{{alamat_perusahaan}}}}<br>{{{{phone_perusahaan}}}}<br>{{{{email_perusahaan}}}}</div></div>
+  <div class="card"><div class="card-title">Pihak Pertama - Penyedia Jasa</div><div class="strong">{{{{brand_name}}}}</div><div class="muted">{{{{alamat_perusahaan}}}}<br>{{{{phone_perusahaan}}}}<br>{{{{email_perusahaan}}}}</div></div>
   <div class="card"><div class="card-title">Pihak Kedua - Klien</div><div class="strong">{{{{klien}}}}</div><div class="muted">{{{{alamat}}}}<br>{{{{phone}}}}</div></div>
 </div>
 <div class="grid-2">
@@ -109,10 +109,10 @@ AGREEMENT_HTML = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>{BA
 <div class="section"><div class="section-title">Lingkup Pekerjaan</div><div class="text-box">{{{{scope}}}}</div></div>
 <div class="section"><div class="section-title">Syarat dan Ketentuan</div><div class="text-box">{{{{terms}}}}</div></div>
 <div class="signatures">
-  <div class="sig"><div>Pihak Pertama,</div><div class="sig-space"></div><div class="sig-line">{{{{nama_perusahaan}}}}</div><div class="sig-role">Penyedia Jasa</div></div>
+  <div class="sig"><div>Pihak Pertama,</div><div class="sig-space"></div><div class="sig-line">{{{{brand_name}}}}</div><div class="sig-role">Penyedia Jasa</div></div>
   <div class="sig"><div>Pihak Kedua,</div><div class="sig-space"></div><div class="sig-line">{{{{klien}}}}</div><div class="sig-role">Klien</div></div>
 </div>
-<div class="footer"><div><strong>{{{{nama_perusahaan}}}}</strong><br>{{{{tagline}}}}</div><div>Perjanjian kerja sama layanan.</div></div>
+<div class="footer"><div><strong>{{{{brand_name}}}}</strong><br>{{{{tagline}}}}</div><div>Perjanjian kerja sama layanan.</div></div>
 </div></body></html>"""
 
 
@@ -123,7 +123,7 @@ DEFAULT_DOCUMENT_TEMPLATES = [
         "html_template": INVOICE_HTML,
         "variables": [
             "logo", "nomor_invoice", "tanggal", "due_date", "klien", "alamat", "phone",
-            "items_rows", "payment_info", "terms", "catatan", "nama_perusahaan",
+            "items_rows", "payment_info", "terms", "catatan", "brand_name",
             "alamat_perusahaan", "phone_perusahaan", "email_perusahaan", "tagline",
         ],
     },
@@ -131,7 +131,7 @@ DEFAULT_DOCUMENT_TEMPLATES = [
         "name": "Receipt / Bukti Pembayaran",
         "type": "receipt",
         "html_template": RECEIPT_HTML,
-        "variables": ["logo", "nomor", "tanggal", "klien", "layanan", "payment_method", "amount", "keterangan", "nama_perusahaan", "tagline"],
+        "variables": ["logo", "nomor", "tanggal", "klien", "layanan", "payment_method", "amount", "keterangan", "brand_name", "tagline"],
     },
     {
         "name": "Proposal Penawaran PDF",
@@ -139,7 +139,7 @@ DEFAULT_DOCUMENT_TEMPLATES = [
         "html_template": PROPOSAL_HTML,
         "variables": [
             "logo", "tanggal", "valid_until", "klien", "alamat", "phone", "layanan",
-            "scope", "items_rows", "nama_perusahaan", "alamat_perusahaan",
+            "scope", "items_rows", "brand_name", "alamat_perusahaan",
             "phone_perusahaan", "email_perusahaan", "tagline",
         ],
     },
@@ -149,7 +149,7 @@ DEFAULT_DOCUMENT_TEMPLATES = [
         "html_template": QUOTATION_HTML,
         "variables": [
             "logo", "nomor", "tanggal", "klien", "alamat", "phone", "perihal",
-            "items_rows", "terms", "nama_perusahaan", "alamat_perusahaan",
+            "items_rows", "terms", "brand_name", "alamat_perusahaan",
             "phone_perusahaan", "email_perusahaan",
         ],
     },
@@ -159,7 +159,7 @@ DEFAULT_DOCUMENT_TEMPLATES = [
         "html_template": AGREEMENT_HTML,
         "variables": [
             "logo", "tanggal_mulai", "tanggal_akhir", "klien", "alamat", "phone",
-            "layanan", "durasi", "nilai_kontrak", "scope", "terms", "nama_perusahaan",
+            "layanan", "durasi", "nilai_kontrak", "scope", "terms", "brand_name",
             "alamat_perusahaan", "phone_perusahaan", "email_perusahaan", "tagline",
         ],
     },

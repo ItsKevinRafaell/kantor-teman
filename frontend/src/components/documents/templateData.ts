@@ -2,11 +2,11 @@
 // These are data constants, not React components
 
 export const STARTER_VARIABLES: Record<string, string> = {
-  invoice: "logo, nomor_invoice, tanggal, due_date, klien, alamat, phone, items_rows, payment_info, terms, catatan, nama_perusahaan, alamat_perusahaan, phone_perusahaan, email_perusahaan, tagline",
-  receipt: "logo, nomor, tanggal, klien, layanan, payment_method, amount, keterangan, nama_perusahaan, tagline",
-  proposal_pdf: "logo, tanggal, valid_until, klien, alamat, phone, layanan, items_rows, scope, nama_perusahaan, alamat_perusahaan, phone_perusahaan, email_perusahaan, tagline",
-  surat_penawaran: "logo, nomor, tanggal, klien, alamat, phone, pertaining, items_rows, terms, nama_perusahaan, alamat_perusahaan, phone_perusahaan, email_perusahaan",
-  kontrak: "logo, tanggal_mulai, tanggal_akhir, klien, alamat, phone, layanan, durasi, nilai_kontrak, scope, terms, nama_perusahaan, alamat_perusahaan, phone_perusahaan, email_perusahaan, tagline",
+  invoice: "logo, nomor_invoice, tanggal, due_date, klien, alamat, phone, items_rows, payment_info, terms, catatan, brand_name, alamat_perusahaan, phone_perusahaan, email_perusahaan, tagline",
+  receipt: "logo, nomor, tanggal, klien, layanan, payment_method, amount, keterangan, brand_name, tagline",
+  proposal_pdf: "logo, tanggal, valid_until, klien, alamat, phone, layanan, items_rows, scope, brand_name, alamat_perusahaan, phone_perusahaan, email_perusahaan, tagline",
+  surat_penawaran: "logo, nomor, tanggal, klien, alamat, phone, perihal, items_rows, terms, brand_name, alamat_perusahaan, phone_perusahaan, email_perusahaan",
+  kontrak: "logo, tanggal_mulai, tanggal_akhir, klien, alamat, phone, layanan, durasi, nilai_kontrak, scope, terms, brand_name, alamat_perusahaan, phone_perusahaan, email_perusahaan, tagline",
   custom: "",
 };
 
@@ -46,14 +46,14 @@ tfoot td:last-child{text-align:right;font-size:14px}
 .footer .tagline{font-size:9px;color:#94a3b8}
 </style></head><body><div class="page">
 <div class="top-bar">
-  <div class="brand">{{nama_perusahaan}}</div>
+  <div class="brand">{{brand_name}}</div>
   <div class="doc-title">INVOICE <span class="accent">{{nomor_invoice}}</span></div>
   <div class="doc-meta">Tanggal: {{tanggal}} &nbsp;·&nbsp; Jatuh Tempo: {{due_date}}</div>
 </div>
 <div class="parties">
   <div class="party-box">
     <div class="party-label">Dari</div>
-    <div class="party-name">{{nama_perusahaan}}</div>
+    <div class="party-name">{{brand_name}}</div>
     <div class="party-detail">{{alamat_perusahaan}}<br/>{{phone_perusahaan}}<br/>{{email_perusahaan}}</div>
   </div>
   <div class="party-box">
@@ -68,7 +68,7 @@ tfoot td:last-child{text-align:right;font-size:14px}
 </div>
 <div class="terms-box"><strong>Syarat &amp; Ketentuan:</strong><br/>{{terms}}</div>
 <div class="footer">
-  <div><div class="brand-name">{{nama_perusahaan}}</div><div class="tagline">{{tagline}}</div></div>
+  <div><div class="brand-name">{{brand_name}}</div><div class="tagline">{{tagline}}</div></div>
   <div style="text-align:right;font-size:10px;color:#94a3b8">Dokumen ini dibuat secara digital</div>
 </div>
 </div></body></html>`,
@@ -116,7 +116,7 @@ tfoot td:last-child{text-align:right;font-size:14px}
 <div class="parties">
   <div class="party-box">
     <div class="party-label">Dari</div>
-    <div class="party-name">{{nama_perusahaan}}</div>
+    <div class="party-name">{{brand_name}}</div>
     <div class="party-detail">{{alamat_perusahaan}}<br/>{{phone_perusahaan}}<br/>{{email_perusahaan}}</div>
   </div>
   <div class="party-box">
@@ -135,7 +135,7 @@ tfoot td:last-child{text-align:right;font-size:14px}
 </div>
 <div class="validity-note">Proposal ini berlaku hingga <strong>{{valid_until}}</strong>. Setelah tanggal tersebut, harga dan ketersediaan dapat berubah tanpa pemberitahuan.</div>
 <div class="footer">
-  <div><div class="brand-name">{{nama_perusahaan}}</div><div class="tagline">{{tagline}}</div></div>
+  <div><div class="brand-name">{{brand_name}}</div><div class="tagline">{{tagline}}</div></div>
   <div style="text-align:right;font-size:10px;color:#94a3b8">Dokumen ini dibuat secara digital</div>
 </div>
 </div></body></html>`,
@@ -186,7 +186,7 @@ tfoot td:last-child{text-align:right;font-size:14px}
 .sig-block .sig-role{font-size:9px;color:#94a3b8;margin-top:2px}
 </style></head><body><div class="page">
 <div class="kop">
-  <div class="kop-left">{{logo}}<div class="company-name">{{nama_perusahaan}}</div>
+  <div class="kop-left">{{logo}}<div class="company-name">{{brand_name}}</div>
     <div class="company-detail">{{alamat_perusahaan}}<br/>{{phone_perusahaan}} &nbsp;·&nbsp; {{email_perusahaan}}</div>
   </div>
   <div class="kop-right"><div class="nomor-box">No: <strong>{{nomor}}</strong><br/>Tanggal: {{tanggal}}</div></div>
@@ -198,7 +198,7 @@ tfoot td:last-child{text-align:right;font-size:14px}
 {{items_rows}}
 <div class="terms-box"><strong>Syarat &amp; Ketentuan:</strong><br/>{{terms}}</div>
 <div class="body-text">Demikian surat penawaran ini kami sampaikan. Atas perhatian dan kepercayaan Bapak/Ibu, kami ucapkan terima kasih.</div>
-<div class="signature-area"><div class="sig-block"><div class="sig-label">Hormat kami,</div><div class="sig-line">{{nama_perusahaan}}</div><div class="sig-role">Pihak Penyedia Jasa</div></div></div>
+<div class="signature-area"><div class="sig-block"><div class="sig-label">Hormat kami,</div><div class="sig-line">{{brand_name}}</div><div class="sig-role">Pihak Penyedia Jasa</div></div></div>
 </div></body></html>`,
 
   kontrak: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
@@ -239,7 +239,7 @@ body{color:#1e293b;font-size:11px;line-height:1.6;background:#fff}
 <div class="header"><div class="logo-wrap">{{logo}}</div><h1>PERJANJIAN KERJA SAMA</h1><div class="subtitle">Dibuat pada {{tanggal_mulai}}</div></div>
 <div class="intro">Pada hari ini, <strong>{{tanggal_mulai}}</strong>, telah disepakati perjanjian kerja sama antara pihak-pihak berikut:</div>
 <div class="parties">
-  <div class="party-box"><div class="party-label">Pihak Pertama — Penyedia Jasa</div><div class="party-name">{{nama_perusahaan}}</div><div class="party-detail">{{alamat_perusahaan}}<br/>{{phone_perusahaan}}<br/>{{email_perusahaan}}</div></div>
+  <div class="party-box"><div class="party-label">Pihak Pertama — Penyedia Jasa</div><div class="party-name">{{brand_name}}</div><div class="party-detail">{{alamat_perusahaan}}<br/>{{phone_perusahaan}}<br/>{{email_perusahaan}}</div></div>
   <div class="party-box"><div class="party-label">Pihak Kedua — Klien</div><div class="party-name">{{klien}}</div><div class="party-detail">{{alamat}}<br/>{{phone}}</div></div>
 </div>
 <div class="summary-grid">
@@ -254,10 +254,10 @@ body{color:#1e293b;font-size:11px;line-height:1.6;background:#fff}
 <div class="section"><div class="section-title">Lingkup Pekerjaan</div><div class="scope-box">{{scope}}</div></div>
 <div class="section"><div class="section-title">Syarat &amp; Ketentuan</div><div class="terms-box">{{terms}}</div></div>
 <div class="signatures">
-  <div class="sig-block"><div class="sig-label">Pihak Pertama,</div><div class="sig-line">{{nama_perusahaan}}</div><div class="sig-role">Penyedia Jasa</div></div>
+  <div class="sig-block"><div class="sig-label">Pihak Pertama,</div><div class="sig-line">{{brand_name}}</div><div class="sig-role">Penyedia Jasa</div></div>
   <div class="sig-block"><div class="sig-label">Pihak Kedua,</div><div class="sig-line">{{klien}}</div><div class="sig-role">Klien</div></div>
 </div>
-<div class="footer">{{nama_perusahaan}} &nbsp;·&nbsp; {{tagline}}</div>
+<div class="footer">{{brand_name}} &nbsp;·&nbsp; {{tagline}}</div>
 </div></body></html>`,
 
   custom: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>

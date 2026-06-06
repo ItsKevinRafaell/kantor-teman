@@ -235,6 +235,42 @@ class HardeningRegressionTests(unittest.TestCase):
         self.assertEqual(variables["tanggal"], "2 Juni 2026")
         self.assertEqual(variables["klien"], "PT Contoh")
 
+    def test_document_vars_strip_date_label_and_keep_server_company_scope(self):
+        template = SimpleNamespace(name="Invoice", type="invoice")
+        body = main.DocumentGenerateIn(
+            template_id="template-id",
+            variables={
+                "tanggal": "Tanggal: Tanggal: 5 Juni 2026",
+                "nama_perusahaan": "TEMAN TEMAN",
+                "brand_name": "TEMAN TEMAN",
+            },
+        )
+        defaults = {
+            "tanggal": "2 Juni 2026",
+            "nama_perusahaan": "PT Lead Contoh",
+            "brand_name": "Kantor Teman",
+        }
+        brand_ctx = {"logo": "", "nama_perusahaan": "Kantor Teman", "brand_name": "Kantor Teman"}
+        with patch.object(routers.documents, "_build_default_vars", return_value=defaults), \
+             patch.object(routers.documents, "_build_brand_context", return_value=brand_ctx):
+            variables = main._prepare_document_vars(self.db, template, body)
+
+        self.assertEqual(variables["tanggal"], "5 Juni 2026")
+        self.assertEqual(variables["nama_perusahaan"], "PT Lead Contoh")
+        self.assertEqual(variables["brand_name"], "Kantor Teman")
+
+    def test_builtin_template_with_old_company_scope_uses_current_starter(self):
+        template = SimpleNamespace(
+            name="Invoice",
+            type="invoice",
+            html_template="<html><body>{{nama_perusahaan}}</body></html>",
+        )
+
+        html = routers.documents._document_template_html(template)
+
+        self.assertIn("{{brand_name}}", html)
+        self.assertIn("INVOICE", html)
+
 
 if __name__ == "__main__":
     unittest.main()
