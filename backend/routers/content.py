@@ -12,9 +12,8 @@ from models import get_db, log_audit, User, AIModel, SystemSettings, ContentSche
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin,
     _ai_model_to_out, _get_google_calendar_service, _get_setting,
-    get_9router_config, _get_9router_combos, _get_active_combo,
-    _get_proxy_url, _get_feature_defaults, get_proxy_for_feature,
-    get_default_model, COMBO_DISPLAY_NAMES,
+    _get_feature_defaults, get_proxy_for_feature,
+    get_default_model, get_ai_config,
 )
 
 router = APIRouter()
@@ -97,42 +96,49 @@ def get_default_model(db: Session, capability: str) -> Optional[AIModel]:
 
 
 # ---------------------------------------------------------------------------
-# 9router combo endpoints
+# AI Provider Config — multi-provider canonical path
 # ---------------------------------------------------------------------------
+
+# Legacy alias for backward compat — delegates to canonical get_ai_config
+def _get_system_ai_config(db: Session) -> dict:
+    """Return AI config for content generation. Uses canonical multi-provider path."""
+    return get_ai_config(db, "chat")
 
 
 @router.get("/api/ai/combos")
-def list_ai_combos(current_user: User = Depends(get_current_user)):
-    return _get_9router_combos()
-
+def list_ai_combos(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Return list of saved AI providers from AIProxy table. Legacy compat wrapper."""
+    proxies = db.query(AIProxy).order_by(AIProxy.created_at.asc()).all()
+    return [{"name": p.name, "display_name": f"{p.provider.title()} ({p.model})", "provider": p.provider, "model": p.model} for p in proxies]
 
 
 @router.get("/api/ai/active-combo")
 def get_active_combo(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    return {"combo": _get_active_combo(db), "proxy_url": _get_proxy_url(db)}
-
+    """Return the active AI provider config (first active AIProxy, or 9router fallback for legacy compat)."""
+    proxy = get_proxy_for_feature(db, "chat")
+    if proxy:
+        return {"combo": proxy.name, "provider": proxy.provider, "base_url": proxy.base_url, "model": proxy.model}
+    return {"combo": "9router-fallback", "provider": "openai", "base_url": "http://localhost:20128/v1", "model": "combo-kiro"}
 
 
 @router.post("/api/ai/active-combo")
 def set_active_combo(body: dict, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    combo = body.get("combo", "").strip()
-    if not combo:
-        raise HTTPException(status_code=400, detail="Field 'combo' wajib diisi")
-    valid = [c["name"] for c in _get_9router_combos()]
-    if combo not in valid:
-        raise HTTPException(status_code=400, detail=f"Combo '{combo}' tidak ditemukan di 9router")
-    row = db.query(SystemSettings).filter_by(key="ai_active_combo").first()
-    if row:
-        row.value = combo
-    else:
-        db.add(SystemSettings(key="ai_active_combo", value=combo))
+    """Set active AI provider by AIProxy ID. Replaces old combo-based selection."""
+    proxy_id = body.get("proxy_id") or body.get("combo", "").strip()
+    if not proxy_id:
+        raise HTTPException(status_code=400, detail="Field 'proxy_id' wajib diisi")
+    proxy = db.query(AIProxy).filter(AIProxy.id == proxy_id).first()
+    if not proxy:
+        raise HTTPException(status_code=404, detail="AI Provider tidak ditemukan")
+    db.query(AIProxy).filter(AIProxy.feature == proxy.feature).update({"is_active": False})
+    proxy.is_active = True
     db.commit()
-    return {"ok": True, "combo": combo}
-
+    return {"ok": True, "combo": proxy.name, "provider": proxy.provider, "base_url": proxy.base_url, "model": proxy.model}
 
 
 @router.post("/api/ai/proxy-url")
 def set_proxy_url(body: dict, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Set 9router fallback URL (legacy compat — prefer using AIProxy table directly)."""
     url = (body.get("url") or "").strip().rstrip("/")
     if not url:
         raise HTTPException(status_code=400, detail="Field 'url' wajib diisi")
@@ -145,25 +151,24 @@ def set_proxy_url(body: dict, current_user: User = Depends(require_admin), db: S
     return {"ok": True, "proxy_url": url}
 
 
-
 @router.get("/api/ai/feature-defaults")
 def get_feature_defaults(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return _get_feature_defaults(db)
 
 
-
 @router.post("/api/ai/feature-defaults")
 def set_feature_defaults(body: dict, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Set per-feature AI proxy mappings. Values must be AIProxy IDs."""
     valid_features = {"chat", "article", "image", "analysis", "caption"}
-    valid_combos = {c["name"] for c in _get_9router_combos()}
+    valid_proxy_ids = {p.id for p in db.query(AIProxy.id).all()}
     cleaned: dict[str, str] = {}
-    for feature, combo in (body or {}).items():
+    for feature, proxy_id in (body or {}).items():
         if feature not in valid_features:
             continue
-        combo_str = (combo or "").strip()
-        if combo_str and combo_str not in valid_combos:
-            raise HTTPException(status_code=400, detail=f"Combo '{combo_str}' tidak valid untuk fitur '{feature}'")
-        cleaned[feature] = combo_str
+        pid = (proxy_id or "").strip()
+        if pid and pid not in valid_proxy_ids:
+            raise HTTPException(status_code=400, detail=f"Proxy ID '{pid}' tidak valid untuk fitur '{feature}'")
+        cleaned[feature] = pid
     value = json.dumps(cleaned)
     row = db.query(SystemSettings).filter_by(key="ai_feature_defaults").first()
     if row:
@@ -174,18 +179,32 @@ def set_feature_defaults(body: dict, current_user: User = Depends(require_admin)
     return cleaned
 
 
-
 @router.get("/api/ai/health")
 async def ai_health(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Check active AI provider connectivity. Uses canonical multi-provider path."""
+    proxy = get_proxy_for_feature(db, "chat")
+    if proxy:
+        try:
+            base = proxy.base_url.rstrip("/")
+            async with httpx.AsyncClient(timeout=5) as client:
+                r = await client.get(f"{base}/models", headers={"Authorization": f"Bearer {proxy.api_key}"})
+            if r.status_code < 500:
+                return {"status": "connected", "provider": proxy.provider, "base_url": proxy.base_url, "model": proxy.model}
+        except Exception as e:
+            print(f"[AI health] {e}", flush=True)
+        return {"status": "offline", "provider": proxy.provider, "base_url": proxy.base_url, "model": proxy.model}
+    # Legacy fallback: try 9router
+    from app.core.dependencies import NINE_ROUTER_API_KEY, NINE_ROUTER_URL
+    from app.core.dependencies import _get_proxy_url
     proxy_url = _get_proxy_url(db)
     try:
         async with httpx.AsyncClient(timeout=5) as client:
             r = await client.get(f"{proxy_url}/models", headers={"Authorization": f"Bearer {NINE_ROUTER_API_KEY}"})
         if r.status_code < 500:
-            return {"status": "connected", "proxy_url": proxy_url}
+            return {"status": "connected (legacy)", "base_url": proxy_url}
     except Exception as e:
         print(f"[9router health] {e}", flush=True)
-    return {"status": "offline", "proxy_url": proxy_url}
+    return {"status": "offline", "base_url": proxy_url}
 
 
 # ---------------------------------------------------------------------------

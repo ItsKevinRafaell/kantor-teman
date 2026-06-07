@@ -11,7 +11,7 @@ from typing import Optional, List, Any
 from models import get_db, log_audit, User, Lead, Contact, Project, Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, WorkspaceAttachment, DocumentTemplate, GeneratedDocument, Category
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, FRONTEND_URL, UPLOADS_DIR,
-    _get_setting, get_fonnte_token, get_9router_config, build_analysis_prompt,
+    _get_setting, get_fonnte_token, build_analysis_prompt,
     _call_ai_sync, parse_ai_response, log_ai_cost, get_ai_config,
     generate_report_for_lead, send_fonnte_message, log_outreach_cost, call_ai_provider,
     WORKSPACE_TEMPLATES, build_sheets_for_service, build_sheets_for_days, _BASE_COLS,

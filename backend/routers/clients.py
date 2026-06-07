@@ -29,9 +29,11 @@ def get_client_detail(client_id: int, current_user: User = Depends(get_current_u
 
     # Projects (linked via lead_id, not contact_id)
     client_projects = db.query(Project).filter(Project.lead_id == lead_id).all() if lead_id else []
+    client_name = contact.business_name if contact else None
     projects_out = [{
         "id": p.id, "name": p.name, "type": p.type, "status": p.status,
         "nominal": p.nominal, "start_date": p.start_date, "end_date": p.end_date,
+        "service_type": p.service_type, "color": p.color,
     } for p in client_projects]
 
     # LTV: For FIXED = nominal, For RETAINER = nominal × months elapsed since start
@@ -68,12 +70,14 @@ def get_client_detail(client_id: int, current_user: User = Depends(get_current_u
     return {
         "profile": {
             "id": contact.id,
+            "lead_id": lead_id,
             "business_name": contact.business_name,
             "owner_name": contact.owner_name,
             "phone_number": contact.phone_number,
             "purchased_product": contact.purchased_product,
             "notes": contact.notes,
         },
+        "lead_id": lead_id,
         "ltv": ltv,
         "active_billing": active_billing,
         "dana_talangan": dana_talangan,

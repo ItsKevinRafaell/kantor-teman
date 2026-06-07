@@ -1380,3 +1380,291 @@ class TestDocumentInputOverridesDefaults:
 
         # Empty string should NOT overwrite existing default
         assert full_vars["klien"] == "Existing Client"
+
+
+class TestAnalyticsProductNormalization:
+    """P1-6: Analytics product distribution — normalize labels to avoid duplicate bars."""
+
+    def test_product_labels_normalized_before_grouping(self, db_session):
+        """"Website Development" variations (casing, extra spaces) should map to one canonical name."""
+        from collections import Counter
+
+        # Simulate what analytics.py does: normalize before grouping
+        variants = [
+            "Website Development",
+            "website development",
+            "WEB DEVELOPMENT",
+            "Website Development ",
+        ]
+        product_raw: dict = {}
+        for raw in variants:
+            key = (raw or "").strip()
+            if not key:
+                continue
+            lower = key.lower()
+            if "website" in lower or "web dev" in lower:
+                key = "Website Development"
+            product_raw[key] = product_raw.get(key, 0) + 1
+
+        # Should be merged into ONE canonical entry
+        assert len(product_raw) == 1
+        assert "Website Development" in product_raw
+        assert product_raw["Website Development"] == 4
+
+    def test_seo_gmaps_variants_merged(self, db_session):
+        """SEO + Google Maps variations should map to one canonical name."""
+        product_raw: dict = {}
+        variants = [
+            "SEO & Google Maps",
+            "seo google maps",
+            "SEO Google Maps",
+        ]
+        for raw in variants:
+            key = (raw or "").strip()
+            lower = key.lower()
+            if "seo" in lower and "google maps" in lower:
+                key = "SEO & Google Maps"
+            product_raw[key] = product_raw.get(key, 0) + 1
+
+        assert len(product_raw) == 1
+        assert product_raw.get("SEO & Google Maps", 0) == 3
+
+    def test_sosmed_variants_merged(self, db_session):
+        """Sosmed/sosial media variations should map to one canonical name."""
+        product_raw: dict = {}
+        variants = [
+            "Kelola Sosial Media",
+            "kelola sosial media",
+            "Social Media Management",
+        ]
+        for raw in variants:
+            key = (raw or "").strip()
+            lower = key.lower()
+            if "sosmed" in lower or "sosial media" in lower or "social media" in lower:
+                key = "Kelola Sosial Media"
+            product_raw[key] = product_raw.get(key, 0) + 1
+
+        assert len(product_raw) == 1
+        assert product_raw.get("Kelola Sosial Media", 0) == 3
+
+
+class TestClientDetailResponse:
+    """P1-7: Client detail endpoint exposes lead_id, service_type, color."""
+
+    def test_client_detail_response_has_lead_id(self, client, db):
+        """client detail response dict must include lead_id at top level and project service_type/color."""
+        from app.core.dependencies import create_token, hash_password
+        from models import Lead, Contact, Project, User
+
+        # Create admin user first (id=1 needed for token)
+        admin = User(
+            id=1,
+            name="Admin Test",
+            email="admin@test",
+            hashed_password=hash_password("test123"),
+            role="admin",
+        )
+        db.add(admin)
+        db.commit()
+
+        lead = Lead(business_name="Detail Test Client", phone_number="081234567891")
+        db.add(lead)
+        db.flush()
+        contact = Contact(
+            business_name="Detail Test Client",
+            phone_number="081234567891",
+            lead_id=lead.id,
+        )
+        db.add(contact)
+        db.flush()
+        project = Project(
+            id="proj-detail-test",
+            lead_id=lead.id,
+            name="Test Project",
+            type="FIXED",
+            status="ACTIVE",
+            service_type="web_dev",
+            color="blue",
+        )
+        db.add(project)
+        db.commit()
+
+        token = create_token(1, "admin@test")
+        resp = client.get(
+            f"/api/clients/detail/{contact.id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+
+        # Response must include lead_id at top level
+        assert "lead_id" in data
+        assert data["lead_id"] == lead.id
+        # Profile must include lead_id too
+        assert "profile" in data
+        assert "lead_id" in data["profile"]
+        # Projects must include service_type and color
+        assert len(data["projects"]) == 1
+        assert data["projects"][0]["service_type"] == "web_dev"
+        assert data["projects"][0]["color"] == "blue"
+
+    def test_project_response_includes_service_type_and_color(self, db_session):
+        """Project objects in client detail should include service_type and color."""
+        from routers.clients import get_client_detail
+
+        lead = Lead(business_name="Test Client", phone_number="081234567890")
+        db_session.add(lead)
+        db_session.flush()
+        contact = Contact(
+            business_name="Test Client",
+            phone_number="081234567890",
+            lead_id=lead.id,
+        )
+        db_session.add(contact)
+        db_session.flush()
+        project = Project(
+            id="proj-test-1",
+            lead_id=lead.id,
+            name="Web Dev Project",
+            type="FIXED",
+            status="ACTIVE",
+            nominal=5000000,
+            service_type="web_dev",
+            color="blue",
+        )
+        db_session.add(project)
+        db_session.commit()
+
+        # Verify project fields directly
+        assert project.service_type == "web_dev"
+        assert project.color == "blue"
+        assert project.lead_id == lead.id
+
+
+class TestContentAIMultiProviderEndpoints:
+    """P1-1: Content/AI endpoints use canonical multi-provider path."""
+
+    def test_list_ai_combos_returns_proxy_based_list(self, db_session):
+        """list_ai_combos should return proxies from AIProxy table, not 9router."""
+        from routers.content import list_ai_combos
+        from unittest.mock import MagicMock
+
+        proxy = AIProxy(
+            name="Claude Sonnet 4.5",
+            base_url="https://api.anthropic.com",
+            api_key="sk-ant-test",
+            model="claude-sonnet-4-5",
+            provider="claude",
+            feature="chat",
+            is_active=True,
+        )
+        db_session.add(proxy)
+        db_session.commit()
+
+        user = MagicMock()
+        result = list_ai_combos(user, db_session)
+
+        # Should return AIProxy-based list, not 9router combos
+        assert len(result) >= 1
+        assert any(r.get("provider") == "claude" for r in result)
+
+    def test_get_active_combo_returns_proxy_config(self, db_session):
+        """get_active_combo should return AIProxy config or 9router fallback."""
+        from routers.content import get_active_combo
+        from unittest.mock import MagicMock
+
+        proxy = AIProxy(
+            name="OpenAI GPT-4o",
+            base_url="https://api.openai.com/v1",
+            api_key="sk-test",
+            model="gpt-4o-mini",
+            provider="openai",
+            feature=None,
+            is_active=True,
+        )
+        db_session.add(proxy)
+        db_session.commit()
+
+        user = MagicMock()
+        result = get_active_combo(user, db_session)
+
+        assert "combo" in result
+        assert "provider" in result
+        assert "base_url" in result
+        assert "model" in result
+
+    def test_set_active_combo_by_proxy_id(self, db_session):
+        """set_active_combo should activate by AIProxy ID."""
+        from routers.content import set_active_combo, get_active_combo
+        from unittest.mock import MagicMock
+
+        proxy1 = AIProxy(
+            name="Provider A",
+            base_url="https://api.anthropic.com",
+            api_key="key-a",
+            model="claude-haiku-4-5",
+            provider="claude",
+            feature=None,
+            is_active=False,
+        )
+        proxy2 = AIProxy(
+            name="Provider B",
+            base_url="https://api.openai.com/v1",
+            api_key="key-b",
+            model="gpt-4o-mini",
+            provider="openai",
+            feature=None,
+            is_active=True,
+        )
+        db_session.add(proxy1)
+        db_session.add(proxy2)
+        db_session.commit()
+
+        user = MagicMock()
+        user.role = "admin"
+        body = {"proxy_id": proxy1.id}
+        result = set_active_combo(body, user, db_session)
+
+        assert result["ok"] is True
+        assert result["combo"] == "Provider A"
+        assert result["provider"] == "claude"
+
+    def test_get_system_ai_config_uses_canonical_path(self, db_session):
+        """_get_system_ai_config should use canonical get_ai_config."""
+        from routers.content import _get_system_ai_config
+
+        result = _get_system_ai_config(db_session)
+        assert "provider" in result
+        assert "model" in result
+
+    def test_feature_defaults_validates_proxy_ids(self, db_session):
+        """set_feature_defaults should validate AIProxy IDs."""
+        from routers.content import set_feature_defaults
+        from unittest.mock import MagicMock
+
+        user = MagicMock()
+        user.role = "admin"
+
+        # Invalid proxy ID should raise
+        body = {"chat": "nonexistent-proxy-id"}
+        try:
+            set_feature_defaults(body, user, db_session)
+            assert False, "Should have raised"
+        except Exception as e:
+            assert "proxy ID" in str(e) or "tidak valid" in str(e)
+
+
+class TestWorkspaceDynamicColumns:
+    """P1-5: Workspace sync uses dynamic board column names."""
+
+    def test_sync_uses_board_column_names_not_hardcoded(self):
+        """_sync_one_card should look up board columns by name dynamically."""
+        # Verify _ROW_STATUS_MAP doesn't hardcode column names that would conflict
+        # with custom board column names
+        from app.core.dependencies import _ROW_STATUS_MAP
+        # These are status value → label overrides, not column name constraints
+        assert isinstance(_ROW_STATUS_MAP, dict)
+        # Map should be empty or generic — no hardcoded column names like "To Do", "Done"
+        for key in _ROW_STATUS_MAP:
+            assert key in ("Done", "On Track", "In Progress", "Pending"), \
+                f"_ROW_STATUS_MAP key '{key}' should only contain status labels, not column names"

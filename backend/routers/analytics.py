@@ -137,13 +137,35 @@ def get_analytics(current_user: User = Depends(get_current_user), db: Session = 
     total_clients = db.query(func.count(Contact.id)).scalar() or 0
     conversion_rate = round((total_clients / total_leads * 100), 1) if total_leads > 0 else 0.0
 
-    rows = db.execute(
-        select(func.lower(Lead.product_interest).label("product"), func.count(Lead.id).label("count"))
-        .where(Lead.product_interest.isnot(None))
-        .group_by(func.lower(Lead.product_interest))
-        .order_by(func.count(Lead.id).desc())
-    ).all()
-    leads_by_product = [{"product": r[0].title() if r[0] else r[0], "count": r[1]} for r in rows]
+    # Normalize product names before grouping: strip whitespace, map common variations
+    # to canonical names to avoid "Website Development" appearing twice with different casing.
+    product_raw: dict = defaultdict(int)
+    all_products = db.query(Lead.product_interest).filter(Lead.product_interest.isnot(None)).all()
+    for (raw,) in all_products:
+        key = (raw or "").strip()
+        if not key:
+            continue
+        lower = key.lower()
+        if "website" in lower or "web dev" in lower:
+            key = "Website Development"
+        elif "seo" in lower and "google maps" in lower:
+            key = "SEO & Google Maps"
+        elif "seo" in lower:
+            key = "SEO"
+        elif "sosmed" in lower or "sosial media" in lower or "social media" in lower:
+            key = "Kelola Sosial Media"
+        elif "maintenance" in lower or "maintain" in lower:
+            key = "Maintenance Website"
+        elif "logo" in lower or "branding" in lower or "desain logo" in lower:
+            key = "Desain Logo & Branding"
+        elif "landing page" in lower:
+            key = "Landing Page"
+        product_raw[key] += 1
+
+    leads_by_product = [
+        {"product": k, "count": v}
+        for k, v in sorted(product_raw.items(), key=lambda x: x[1], reverse=True)
+    ]
 
     status_rows = db.execute(
         select(Lead.status, func.count(Lead.id).label("count")).group_by(Lead.status)
