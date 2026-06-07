@@ -660,91 +660,19 @@ Berikan output dalam format JSON berikut (Bahasa Indonesia, gaya bicara santai t
 PENTING: Pain points harus spesifik ke bisnis ini, bukan generik. Pesan pendekatan harus terasa personal."""
 
 def _call_ai_sync(prompt: str, config: dict, _httpx) -> str:
-    provider = config["provider"]
-    with _httpx.Client(timeout=120) as client:
-        if provider == "gemini":
-            if not config["gemini_key"]:
-                raise Exception("Gemini API Key belum dikonfigurasi.")
-            resp = client.post(
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
-                headers={"x-goog-api-key": config["gemini_key"]},
-                json={"contents": [{"parts": [{"text": prompt}]}]},
-            )
-            if resp.status_code != 200:
-                raise Exception(f"Gemini API error: {resp.status_code} - {resp.text[:200]}")
-            return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        elif provider == "claude":
-            if not config["claude_key"]:
-                raise Exception("Claude API Key belum dikonfigurasi.")
-            base_url = config.get("base_url") or "https://api.openai.com/v1"
-            model = config.get("model") or "claude-haiku-4-5-20251001"
-            url = f"{base_url.rstrip('/')}/chat/completions"
-            resp = client.post(
-                url,
-                headers={"Authorization": f"Bearer {config['claude_key']}", "Content-Type": "application/json"},
-                json={"model": model, "max_tokens": 1024, "messages": [{"role": "user", "content": prompt}]},
-            )
-            if resp.status_code != 200:
-                raise Exception(f"Claude API error: {resp.status_code} - {resp.text[:200]}")
-            return resp.json()["choices"][0]["message"]["content"]
-        elif provider == "openai":
-            if not config["openai_key"]:
-                raise Exception("OpenAI API Key belum dikonfigurasi.")
-            base_url = config.get("base_url") or "https://api.openai.com/v1"
-            model = config.get("model") or "gpt-4o-mini"
-            resp = client.post(
-                f"{base_url.rstrip('/')}/chat/completions",
-                headers={"Authorization": f"Bearer {config['openai_key']}", "Content-Type": "application/json"},
-                json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 1024},
-            )
-            if resp.status_code != 200:
-                raise Exception(f"OpenAI API error: {resp.status_code} - {resp.text[:200]}")
-            return resp.json()["choices"][0]["message"]["content"]
-        else:
-            raise Exception(f"Provider '{provider}' tidak dikenali.")
+    """Synchronous AI call — delegates to ai_service (single canonical path)."""
+    from app.services.ai_service import call_ai_sync as _call
+    return _call(prompt, config, _httpx)
 
 async def call_ai_provider(prompt: str, config: dict) -> str:
-    provider = config["provider"]
-    async with httpx.AsyncClient(timeout=60) as client:
-        if provider == "gemini":
-            if not config["gemini_key"]:
-                raise HTTPException(status_code=400, detail="Gemini API Key belum dikonfigurasi.")
-            resp = await client.post(
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
-                headers={"x-goog-api-key": config["gemini_key"]},
-                json={"contents": [{"parts": [{"text": prompt}]}]},
-            )
-            if resp.status_code != 200:
-                raise HTTPException(status_code=502, detail=f"Gemini API error: {resp.status_code}")
-            return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        elif provider == "claude":
-            if not config["claude_key"]:
-                raise HTTPException(status_code=400, detail="Claude API Key belum dikonfigurasi.")
-            base_url = config.get("base_url") or "https://api.openai.com/v1"
-            model = config.get("model") or "claude-haiku-4-5-20251001"
-            resp = await client.post(
-                f"{base_url.rstrip('/')}/chat/completions",
-                headers={"Authorization": f"Bearer {config['claude_key']}", "Content-Type": "application/json"},
-                json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 1024},
-            )
-            if resp.status_code != 200:
-                raise HTTPException(status_code=502, detail=f"Claude API error: {resp.status_code}")
-            return resp.json()["choices"][0]["message"]["content"]
-        elif provider == "openai":
-            if not config["openai_key"]:
-                raise HTTPException(status_code=400, detail="OpenAI API Key belum dikonfigurasi.")
-            base_url = config.get("base_url") or "https://api.openai.com/v1"
-            model = config.get("model") or "gpt-4o-mini"
-            resp = await client.post(
-                f"{base_url.rstrip('/')}/chat/completions",
-                headers={"Authorization": f"Bearer {config['openai_key']}", "Content-Type": "application/json"},
-                json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 1024},
-            )
-            if resp.status_code != 200:
-                raise HTTPException(status_code=502, detail=f"OpenAI API error: {resp.status_code}")
-            return resp.json()["choices"][0]["message"]["content"]
-        else:
-            raise HTTPException(status_code=400, detail=f"Provider '{provider}' tidak dikenali.")
+    """Async AI call — delegates to ai_service.call_ai_provider_async (single canonical path)."""
+    from app.services.ai_service import call_ai_provider_async
+    try:
+        return await call_ai_provider_async(prompt, config)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 def parse_ai_response(text: str) -> dict:
     json_match = re.search(r'\{[\s\S]*\}', text)

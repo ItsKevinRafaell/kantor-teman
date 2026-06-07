@@ -8,6 +8,8 @@ import Modal from "../Modal";
 import { useAuth } from "../../contexts/AuthContext";
 import type { Contact, ProjectData } from "../../types";
 
+interface ContactWithLead extends Contact { lead_id?: number; }
+
 // Client components
 import AddClientModal from "./AddClientModal";
 import EditClientModal from "./EditClientModal";
@@ -42,6 +44,7 @@ export default function ClientsTable() {
   const [proposalModal, setProposalModal] = useState<{ open: boolean; contact: Contact | null }>({ open: false, contact: null });
   const [proposalSuccess, setProposalSuccess] = useState<{ open: boolean; url: string }>({ open: false, url: "" });
   const [copied, setCopied] = useState(false);
+  const [contactLeadIds, setContactLeadIds] = useState<Record<number, number>>({});
 
   const fetchContacts = useCallback(async () => {
     try {
@@ -49,8 +52,19 @@ export default function ClientsTable() {
         apiFetch("/api/contacts"),
         apiFetch("/api/projects"),
       ]);
-      if (cRes.ok) setContacts(await cRes.json());
-      if (pRes.ok) setProjects(await pRes.json());
+      if (cRes.ok) {
+        const contactsData = await cRes.json();
+        setContacts(contactsData);
+        // Build contact.id → contact.lead_id map from contacts
+        const leadMap: Record<number, number> = {};
+        for (const c of contactsData) {
+          if (c.lead_id) leadMap[c.id] = c.lead_id;
+        }
+        setContactLeadIds(leadMap);
+      }
+      if (pRes.ok) {
+        setProjects(await pRes.json());
+      }
     } finally { setLoading(false); }
   }, []);
 
@@ -153,7 +167,7 @@ export default function ClientsTable() {
       <AddClientModal open={addClientOpen} onClose={() => setAddClientOpen(false)} onSuccess={fetchContacts} setToast={setToast} />
       <EditClientModal contact={editClientData.contact} open={editClientData.open} onClose={() => setEditClientData({ open: false, contact: null })} onSuccess={fetchContacts} setToast={setToast} />
       <ClientDetailModal contact={detailClientData.contact} open={detailClientData.open} onClose={() => setDetailClientData({ open: false, contact: null })} onCopyLink={handleCopyProposalLink} />
-      <ProjectModal contactId={projectModal.contactId} editingProject={editingProject} open={projectModal.open} onClose={() => { setProjectModal({ open: false, contactId: null }); setEditingProject(null); }} onSuccess={fetchContacts} setToast={setToast} />
+      <ProjectModal contactId={projectModal.contactId} contactLeadId={projectModal.contactId ? contactLeadIds[projectModal.contactId] : undefined} editingProject={editingProject} open={projectModal.open} onClose={() => { setProjectModal({ open: false, contactId: null }); setEditingProject(null); }} onSuccess={fetchContacts} setToast={setToast} />
       <NotesModal contact={notesModal.contact} open={notesModal.open} onClose={() => setNotesModal({ open: false, contact: null })} />
       <ProposalModal contact={proposalModal.contact} open={proposalModal.open} onClose={() => setProposalModal({ open: false, contact: null })} onSuccess={(url) => setProposalSuccess({ open: true, url })} setToast={setToast} />
 
@@ -227,6 +241,7 @@ export default function ClientsTable() {
                   key={c.id}
                   contact={c}
                   projects={projects}
+                  contactLeadId={contactLeadIds[c.id]}
                   index={i}
                   isAdmin={isAdmin}
                   onDetail={(contact) => setDetailClientData({ open: true, contact })}

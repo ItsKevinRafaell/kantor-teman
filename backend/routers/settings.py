@@ -15,6 +15,7 @@ from app.core.dependencies import (get_current_user, require_admin, verify_passw
     _ai_model_to_out, _mask_secret, SENSITIVE_SETTING_KEYS, ADMIN_WA,
     _get_google_calendar_service, _get_setting,
 )
+from app.services.ai_service import _is_native_anthropic
 
 router = APIRouter()
 
@@ -522,21 +523,39 @@ async def test_api_connection(
         model = config.get("model") or "claude-haiku-4-5-20251001"
         try:
             async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.post(
-                    f"{base_url.rstrip('/')}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {config['claude_key']}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "model": model,
-                        "max_tokens": 10,
-                        "messages": [{"role": "user", "content": "Balas dengan satu kata: OK"}],
-                    },
-                )
-                if resp.status_code == 200:
-                    return {"success": True, "message": "Claude API terhubung."}
-                return {"success": False, "message": f"Claude error: {resp.status_code} - {resp.text[:200]}"}
+                if _is_native_anthropic(base_url):
+                    resp = await client.post(
+                        "https://api.anthropic.com/v1/messages",
+                        headers={
+                            "x-api-key": config["claude_key"],
+                            "anthropic-version": "2023-06-01",
+                            "content-type": "application/json",
+                        },
+                        json={
+                            "model": model,
+                            "max_tokens": 10,
+                            "messages": [{"role": "user", "content": "Balas dengan satu kata: OK"}],
+                        },
+                    )
+                    if resp.status_code == 200:
+                        return {"success": True, "message": "Claude API terhubung."}
+                    return {"success": False, "message": f"Claude error: {resp.status_code} - {resp.text[:200]}"}
+                else:
+                    resp = await client.post(
+                        f"{base_url.rstrip('/')}/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {config['claude_key']}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": model,
+                            "max_tokens": 10,
+                            "messages": [{"role": "user", "content": "Balas dengan satu kata: OK"}],
+                        },
+                    )
+                    if resp.status_code == 200:
+                        return {"success": True, "message": "Claude API terhubung."}
+                    return {"success": False, "message": f"Claude error: {resp.status_code} - {resp.text[:200]}"}
         except Exception as e:
             return {"success": False, "message": f"Gagal koneksi ke Claude: {str(e)}"}
 

@@ -168,6 +168,16 @@ def get_client_activity_timeline(client_id: int, current_user: User = Depends(ge
 
 @router.get("/api/clients/notes/{client_id}", response_model=list[ClientNoteOut])
 def get_client_notes_by_path(client_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # client_id may be a contact.id — resolve to lead_id first
+    contact = db.query(Contact).filter(Contact.id == client_id).first()
+    if contact:
+        lead_id = contact.lead_id
+        if not lead_id:
+            lead = db.query(Lead).filter(Lead.phone_number == contact.phone_number).first()
+            lead_id = lead.id if lead else None
+        if lead_id:
+            return db.query(ClientNote).filter(ClientNote.lead_id == lead_id).order_by(ClientNote.id.desc()).all()
+    # Fallback: treat as direct lead_id
     return db.query(ClientNote).filter(ClientNote.lead_id == client_id).order_by(ClientNote.id.desc()).all()
 
 

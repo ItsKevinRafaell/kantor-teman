@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, List
 
 
@@ -30,6 +30,14 @@ class AIProxyIn(BaseModel):
     model: str = ""
     provider: str = "openai"  # openai, claude, gemini
     feature: Optional[str] = None
+
+    @field_validator("provider")
+    @classmethod
+    def validate_provider(cls, v: str) -> str:
+        valid = {"openai", "claude", "gemini"}
+        if v not in valid:
+            raise ValueError(f"Provider must be one of: {', '.join(sorted(valid))}")
+        return v
 
 
 class AIProxyOut(BaseModel):

@@ -122,11 +122,14 @@ def update_ai_proxy(db: Session, proxy_id: str, updates: dict) -> AIProxy:
     proxy = db.query(AIProxy).filter_by(id=proxy_id).first()
     if not proxy:
         raise ValueError("Proxy tidak ditemukan")
-    for key in ("name", "base_url", "api_key", "model", "feature"):
+    valid_providers = {"openai", "claude", "gemini"}
+    for key in ("name", "base_url", "api_key", "model", "feature", "provider"):
         if key in updates:
             val = updates[key]
             if key == "base_url" and val:
                 val = val.rstrip("/")
+            if key == "provider" and val and val not in valid_providers:
+                raise ValueError(f"Provider must be one of: {', '.join(sorted(valid_providers))}")
             setattr(proxy, key, val)
     db.commit()
     db.refresh(proxy)
@@ -237,6 +240,40 @@ def get_9router_config(db: Session, feature: Optional[str] = None) -> dict:
     }
 
 
+# ─── Native Claude Messages API ──────────────────────────────────────────────
+
+def _is_native_anthropic(base_url: str) -> bool:
+    """Return True if base_url points to Anthropic's native API."""
+    normalized = base_url.lower().rstrip("/")
+    return (
+        "anthropic" in normalized
+        or normalized == "https://api.anthropic.com"
+        or normalized == "https://api.anthropic.com/v1"
+    )
+
+
+def _call_claude_native(client, api_key: str, model: str, prompt: str) -> str:
+    """Call Anthropic Messages API directly."""
+    url = "https://api.anthropic.com/v1/messages"
+    resp = client.post(
+        url,
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        json={
+            "model": model,
+            "max_tokens": 1024,
+            "messages": [{"role": "user", "content": prompt}],
+        },
+    )
+    if resp.status_code != 200:
+        raise Exception(f"Claude native API error: {resp.status_code} - {resp.text[:200]}")
+    data = resp.json()
+    return data["content"][0]["text"]
+
+
 # ─── AI Sync call ─────────────────────────────────────────────────────────────
 
 def call_ai_sync(prompt: str, config: dict, httpx_module) -> str:
@@ -259,21 +296,85 @@ def call_ai_sync(prompt: str, config: dict, httpx_module) -> str:
                 raise Exception("Claude API Key belum dikonfigurasi.")
             base_url = config.get("base_url") or "https://api.openai.com/v1"
             model = config.get("model") or "claude-haiku-4-5-20251001"
-            url = f"{base_url.rstrip('/')}/chat/completions"
-            resp = client.post(
-                url,
-                headers={"Authorization": f"Bearer {config['claude_key']}", "Content-Type": "application/json"},
-                json={"model": model, "max_tokens": 1024, "messages": [{"role": "user", "content": prompt}]},
-            )
-            if resp.status_code != 200:
-                raise Exception(f"Claude API error: {resp.status_code} - {resp.text[:200]}")
-            return resp.json()["choices"][0]["message"]["content"]
+            # Detect native Anthropic endpoint vs OpenAI-compatible proxy
+            if _is_native_anthropic(base_url):
+                return _call_claude_native(client, config["claude_key"], model, prompt)
+            else:
+                url = f"{base_url.rstrip('/')}/chat/completions"
+                resp = client.post(
+                    url,
+                    headers={"Authorization": f"Bearer {config['claude_key']}", "Content-Type": "application/json"},
+                    json={"model": model, "max_tokens": 1024, "messages": [{"role": "user", "content": prompt}]},
+                )
+                if resp.status_code != 200:
+                    raise Exception(f"Claude API error: {resp.status_code} - {resp.text[:200]}")
+                return resp.json()["choices"][0]["message"]["content"]
         elif provider == "openai":
             if not config["openai_key"]:
                 raise Exception("OpenAI API Key belum dikonfigurasi.")
             base_url = config.get("base_url") or "https://api.openai.com/v1"
             model = config.get("model") or "gpt-4o-mini"
             resp = client.post(
+                f"{base_url.rstrip('/')}/chat/completions",
+                headers={"Authorization": f"Bearer {config['openai_key']}", "Content-Type": "application/json"},
+                json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 1024},
+            )
+            if resp.status_code != 200:
+                raise Exception(f"OpenAI API error: {resp.status_code} - {resp.text[:200]}")
+            return resp.json()["choices"][0]["message"]["content"]
+        else:
+            raise Exception(f"Provider '{provider}' tidak dikenali.")
+
+
+async def call_ai_provider_async(prompt: str, config: dict) -> str:
+    """Async AI call — single canonical path, matches call_ai_sync logic."""
+    import httpx as _httpx
+    provider = config["provider"]
+    async with _httpx.AsyncClient(timeout=60) as client:
+        if provider == "gemini":
+            if not config["gemini_key"]:
+                raise Exception("Gemini API Key belum dikonfigurasi.")
+            resp = await client.post(
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+                headers={"x-goog-api-key": config["gemini_key"]},
+                json={"contents": [{"parts": [{"text": prompt}]}]},
+            )
+            if resp.status_code != 200:
+                raise Exception(f"Gemini API error: {resp.status_code} - {resp.text[:200]}")
+            return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+        elif provider == "claude":
+            if not config["claude_key"]:
+                raise Exception("Claude API Key belum dikonfigurasi.")
+            base_url = config.get("base_url") or "https://api.openai.com/v1"
+            model = config.get("model") or "claude-haiku-4-5-20251001"
+            if _is_native_anthropic(base_url):
+                resp = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": config["claude_key"],
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    },
+                    json={"model": model, "max_tokens": 1024, "messages": [{"role": "user", "content": prompt}]},
+                )
+                if resp.status_code != 200:
+                    raise Exception(f"Claude native API error: {resp.status_code} - {resp.text[:200]}")
+                return resp.json()["content"][0]["text"]
+            else:
+                resp = await client.post(
+                    f"{base_url.rstrip('/')}/chat/completions",
+                    headers={"Authorization": f"Bearer {config['claude_key']}", "Content-Type": "application/json"},
+                    json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 1024},
+                )
+                if resp.status_code != 200:
+                    raise Exception(f"Claude API error: {resp.status_code} - {resp.text[:200]}")
+                return resp.json()["choices"][0]["message"]["content"]
+        elif provider == "openai":
+            if not config["openai_key"]:
+                raise Exception("OpenAI API Key belum dikonfigurasi.")
+            base_url = config.get("base_url") or "https://api.openai.com/v1"
+            model = config.get("model") or "gpt-4o-mini"
+            resp = await client.post(
                 f"{base_url.rstrip('/')}/chat/completions",
                 headers={"Authorization": f"Bearer {config['openai_key']}", "Content-Type": "application/json"},
                 json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 1024},

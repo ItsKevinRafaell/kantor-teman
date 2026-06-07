@@ -82,7 +82,15 @@ async def fonnte_incoming(request: Request, db: Session = Depends(get_db)):
     if not sender_digits:
         return {"ok": True, "skipped": "no_sender"}
 
-    lead = db.query(Lead).filter(Lead.phone_number == sender_digits).first()
+    # DB stores 08xx, but might have 62xx stored. Try both formats.
+    sender_08xx = sender_digits
+    if sender_digits.startswith("62"):
+        sender_08xx = "0" + sender_digits[2:]
+
+    # Try 08xx first (canonical storage format), fall back to 62xx
+    lead = db.query(Lead).filter(Lead.phone_number == sender_08xx).first()
+    if not lead:
+        lead = db.query(Lead).filter(Lead.phone_number == sender_digits).first()
     if not lead:
         return {"ok": True, "skipped": "no_lead"}
 
@@ -98,12 +106,17 @@ async def fonnte_incoming(request: Request, db: Session = Depends(get_db)):
         log_audit(db, "fonnte-webhook", "UPDATE", "leads", lead.id, {"field": "do_not_contact", "new": True, "via": "wa_opt_out"})
         return {"ok": True, "lead_id": lead.id, "do_not_contact": True}
 
-    # Update BlastMessage.replied_at for latest sent message
+    # Update BlastMessage.replied_at for latest sent message (check both phone formats)
     now = datetime.now(timezone.utc).isoformat()
     latest_msg = db.query(BlastMessage).filter(
-        BlastMessage.phone_number == sender_digits,
+        BlastMessage.phone_number == sender_08xx,
         BlastMessage.sent_at.isnot(None),
     ).order_by(BlastMessage.sent_at.desc()).first()
+    if not latest_msg:
+        latest_msg = db.query(BlastMessage).filter(
+            BlastMessage.phone_number == sender_digits,
+            BlastMessage.sent_at.isnot(None),
+        ).order_by(BlastMessage.sent_at.desc()).first()
     if latest_msg and not latest_msg.replied_at:
         latest_msg.replied_at = now
         latest_msg.status = "replied"
@@ -537,9 +550,21 @@ def fonnte_webhook(body: FonnteWebhookIn, request: Request, db: Session = Depend
     try:
         if not body.target:
             return {"ok": True}
-        phone = _normalize_phone(body.target)
+        # DB stores 08xx, but legacy records may have 62xx — check both formats
+        phone_62 = _normalize_phone(body.target)
+        if phone_62.startswith("62"):
+            phone_08 = "0" + phone_62[2:]
+        else:
+            phone_08 = phone_62
         now = datetime.now(timezone.utc).isoformat()
-        msgs = db.query(BlastMessage).filter(BlastMessage.phone_number == phone).order_by(BlastMessage.sent_at.desc()).limit(5).all()
+        # Try 08xx first (canonical), fall back to 62xx
+        msgs = db.query(BlastMessage).filter(
+            BlastMessage.phone_number == phone_08
+        ).order_by(BlastMessage.sent_at.desc()).limit(5).all()
+        if not msgs:
+            msgs = db.query(BlastMessage).filter(
+                BlastMessage.phone_number == phone_62
+            ).order_by(BlastMessage.sent_at.desc()).limit(5).all()
         for msg in msgs:
             if body.status == "delivered" and not msg.delivered_at:
                 msg.delivered_at = now

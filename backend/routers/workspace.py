@@ -188,7 +188,24 @@ def update_project(project_id: str, body: ProjectIn, current_user: User = Depend
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project tidak ditemukan")
-    project.lead_id = body.lead_id
+
+    # Resolve lead_id: from contact_id if provided, or use lead_id directly
+    resolved_lead_id = body.lead_id
+    if body.contact_id and not resolved_lead_id:
+        contact = db.query(Contact).filter(Contact.id == body.contact_id).first()
+        if not contact:
+            raise HTTPException(status_code=404, detail="Kontak tidak ditemukan")
+        resolved_lead_id = contact.lead_id
+        if not resolved_lead_id:
+            raise HTTPException(status_code=400, detail="Kontak belum memiliki relasi Lead")
+
+    # Validate lead_id exists if provided
+    if resolved_lead_id:
+        lead = db.query(Lead).filter(Lead.id == resolved_lead_id).first()
+        if not lead:
+            raise HTTPException(status_code=400, detail="Lead tidak ditemukan")
+
+    project.lead_id = resolved_lead_id
     project.name = body.name
     project.type = body.type
     project.status = body.status

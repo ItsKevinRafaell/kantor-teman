@@ -8,6 +8,7 @@ import type { Contact, ProjectData } from "../../types";
 interface ClientsTableRowProps {
   contact: Contact;
   projects: ProjectData[];
+  contactLeadId?: number;
   index: number;
   isAdmin: boolean;
   onDetail: (c: Contact) => void;
@@ -21,6 +22,7 @@ interface ClientsTableRowProps {
 export default function ClientsTableRow({
   contact,
   projects,
+  contactLeadId,
   index,
   isAdmin,
   onDetail,
@@ -30,7 +32,7 @@ export default function ClientsTableRow({
   onEdit,
   onDelete,
 }: ClientsTableRowProps) {
-  const clientProjects = projects.filter(p => p.lead_id === contact.id);
+  const clientProjects = projects.filter(p => contactLeadId != null ? p.lead_id === contactLeadId : false);
   const activeProjects = clientProjects.filter(p => p.status === "ACTIVE");
   const totalValue = activeProjects.reduce((sum, p) => sum + p.nominal, 0);
   const nearestEnd = activeProjects.filter(p => p.end_date).sort((a, b) => (a.end_date || "").localeCompare(b.end_date || ""))[0];

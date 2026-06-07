@@ -258,7 +258,9 @@ class HardeningRegressionTests(unittest.TestCase):
             variables = main._prepare_document_vars(self.db, template, body)
 
         self.assertEqual(variables["tanggal"], "5 Juni 2026")
-        self.assertEqual(variables["nama_perusahaan"], "PT Lead Contoh")
+        # P0-4 fix: user input wins for nama_perusahaan (not in _SERVER_OWNED_DOCUMENT_KEYS)
+        self.assertEqual(variables["nama_perusahaan"], "TEMAN TEMAN")
+        # brand_name IS in _SERVER_OWNED_DOCUMENT_KEYS, so brand context wins
         self.assertEqual(variables["brand_name"], "Kantor Teman")
 
     def test_builtin_template_with_old_company_scope_uses_current_starter(self):

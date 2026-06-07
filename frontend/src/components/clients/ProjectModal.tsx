@@ -8,6 +8,7 @@ import type { ProductItem, ProjectData, ServiceTypeOption } from "../../types";
 
 interface ProjectModalProps {
   contactId: number | null;
+  contactLeadId?: number | null;
   editingProject: ProjectData | null;
   open: boolean;
   onClose: () => void;
@@ -15,7 +16,7 @@ interface ProjectModalProps {
   setToast: (toast: { message: string; type: "success" | "error" | "info" } | null) => void;
 }
 
-export default function ProjectModal({ contactId, editingProject, open, onClose, onSuccess, setToast }: ProjectModalProps) {
+export default function ProjectModal({ contactId, contactLeadId, editingProject, open, onClose, onSuccess, setToast }: ProjectModalProps) {
   const [form, setForm] = useState({ name: "", type: "RETAINER", status: "ACTIVE", nominal: 0, start_date: "", end_date: "", service_type: "", contract_months: 1 });
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [serviceTypes, setServiceTypes] = useState<ServiceTypeOption[]>([]);
@@ -52,12 +53,19 @@ export default function ProjectModal({ contactId, editingProject, open, onClose,
   }, []);
 
   useEffect(() => {
-    if (!open || !contactId) return;
+    if (!open) {
+      setExistingProjects([]);
+      return;
+    }
+    if (!contactLeadId) {
+      setExistingProjects([]);
+      return;
+    }
     apiFetch("/api/projects")
       .then(r => r.ok ? r.json() : [])
-      .then((projects: ProjectData[]) => setExistingProjects(projects.filter(p => p.lead_id === contactId)))
+      .then((projects: ProjectData[]) => setExistingProjects(projects.filter(p => p.lead_id === contactLeadId)))
       .catch(() => {});
-  }, [open, contactId]);
+  }, [open, contactLeadId]);
 
   function applyProductToForm(productId: string) {
     if (!productId) return;
@@ -90,7 +98,11 @@ export default function ProjectModal({ contactId, editingProject, open, onClose,
 
   async function handleSave() {
     if (!form.name || !contactId) return;
-    const payload = { ...form, lead_id: contactId };
+    if (!contactLeadId) {
+      setToast({ message: "Kontak belum terhubung ke Lead. Hubungi admin.", type: "error" });
+      return;
+    }
+    const payload = { ...form, contact_id: contactId };
     const method = editingProject ? "PUT" : "POST";
     const url = editingProject ? `/api/projects/${editingProject.id}` : "/api/projects";
     const res = await apiFetch(url, { method, body: JSON.stringify(payload) });
@@ -112,6 +124,30 @@ export default function ProjectModal({ contactId, editingProject, open, onClose,
   }
 
   if (!open) return null;
+
+  // If contact has no lead_id, show error state
+  if (!contactLeadId) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+        <div className="relative bg-[var(--bg-surface)] rounded-2xl shadow-2xl border border-[var(--border-default)] w-full max-w-md p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-50">{editingProject ? "Edit Project" : "Tambah Project"}</h3>
+            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+          </div>
+          <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-500 flex-shrink-0"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+            <div>
+              <p className="text-sm font-semibold text-red-700 dark:text-red-400">Kontak belum terhubung ke Lead</p>
+              <p className="text-xs text-red-600 dark:text-red-500 mt-1">Hubungi admin untuk memperbaiki data kontak ini sebelum bisa menambah project.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

@@ -147,7 +147,7 @@ function ChecklistSection({ card, onAdd, onToggle, formatDateTime }: { card: any
       </h4>
       {(card.checklist?.length || 0) > 0 && (
         <div className="mb-2 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-          <div className="h-full bg-yellow-400 rounded-full transition-all" style={{ width: `${(card.checklist.filter((i: any) => i.is_done).length / card.checklist.length) * 100}%` }} />
+          <div className="h-full bg-neutral-300 dark:bg-neutral-600 rounded-full transition-all" style={{ width: `${(card.checklist.filter((i: any) => i.is_done).length / card.checklist.length) * 100}%` }} />
         </div>
       )}
       <div className="space-y-1.5 mb-2">

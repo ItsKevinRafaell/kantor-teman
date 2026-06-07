@@ -391,7 +391,8 @@ _DATE_VALUE_LABEL_RE = re.compile(
 )
 _SERVER_OWNED_DOCUMENT_KEYS = {
     # Truly server-owned - user input ignored
-    "logo", "brand_name", "nama_perusahaan", "tagline",
+    # These are brand kit / document number fields, NOT client/company fields
+    "logo", "brand_name", "tagline",
 }
 
 
@@ -413,9 +414,9 @@ def _normalize_document_variable(key: str, value):
 
 
 def _apply_target_company_aliases(defaults: dict, company_name: str) -> None:
+    """Set client-name aliases only. nama_perusahaan is brand-owned, not overwritten."""
     if not company_name:
         return
-    defaults["nama_perusahaan"] = company_name
     defaults["nama_klien"] = company_name
     defaults["perusahaan_klien"] = company_name
 

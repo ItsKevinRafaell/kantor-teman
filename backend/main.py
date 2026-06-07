@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
+from contextlib import asynccontextmanager
 
 load_dotenv(os.environ.get("ENV_FILE", ".env.production"))
 
@@ -19,9 +20,29 @@ from app.core.dependencies import (_run_async_job, process_pending_blasts,  # no
     scheduled_followup_processor, _acquire_scheduler_lock, _deduct_due_subscriptions,
     _cors_list)
 
-# ── App ────────────────────────────────────────────────────────────────────────
+# ── Lifespan: run schema migrations on startup ────────────────────────────────
+@asynccontextmanager
+async def lifespan(app):
+    import subprocess, sys
+    try:
+        result = subprocess.run(
+            [sys.executable, "migrate.py"],
+            capture_output=True, text=True, timeout=60,
+        )
+        if result.returncode == 0:
+            for line in result.stdout.splitlines():
+                if line.startswith(("+", "=", "-")):
+                    print(f"[MIGRATE] {line}", flush=True)
+        else:
+            print(f"[MIGRATE] warning: exit {result.returncode}", flush=True)
+            if result.stderr:
+                print(result.stderr[:500], flush=True)
+    except Exception as e:
+        print(f"[MIGRATE] skipped: {e}", flush=True)
+    yield
 
-app = FastAPI(title="Kantor Teman API")
+# ── App ────────────────────────────────────────────────────────────────────────
+app = FastAPI(title="Kantor Teman API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

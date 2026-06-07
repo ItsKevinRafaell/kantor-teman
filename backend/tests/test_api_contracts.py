@@ -101,8 +101,19 @@ ENDPOINTS = [
 
 @pytest.fixture
 def client():
-    with httpx.Client(base_url=API_URL, timeout=30) as c:
-        yield c
+    """Use TestClient (in-process) by default. Only use httpx to external URL if API_URL is explicitly set."""
+    if API_URL and API_URL != "http://localhost:8000":
+        # Explicit external URL — use httpx network client
+        with httpx.Client(base_url=API_URL, timeout=30) as c:
+            yield c
+    else:
+        # Default: use FastAPI TestClient (in-process, no network)
+        from fastapi.testclient import TestClient
+        import sys, os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+        import main as _main_app
+        with TestClient(_main_app.app) as c:
+            yield c
 
 
 # ── Contract Tests ───────────────────────────────────────────────────────────

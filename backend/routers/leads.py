@@ -146,7 +146,7 @@ async def search_businesses(
                     if len(results) >= max_results:
                         break
                     raw_phone = place.get("nationalPhoneNumber") or place.get("internationalPhoneNumber")
-                    phone_digits = normalize_phone(raw_phone) if raw_phone else None
+                    phone_digits = normalize_phone_storage(raw_phone) if raw_phone else None
                     wa_url = make_wa_url(phone_digits) if phone_digits else None
                     address = place.get("formattedAddress", "")
                     name = place.get("displayName", {}).get("text", "")

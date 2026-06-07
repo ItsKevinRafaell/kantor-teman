@@ -118,7 +118,7 @@ export function BoardColumnItem({
     >
       <div className={`p-3 border-b ${colColor.border} flex items-center justify-between`}>
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${COLUMN_COLORS[column.color || "yellow"].border.replace("border-", "bg-").split(" ")[0]}`} />
+          <div className={`w-2 h-2 rounded-full ${colColor.border.replace("border-", "bg-").split(" ")[0]}`} />
           <h3 className={`font-semibold text-sm ${colColor.text}`}>{column.name}</h3>
           <span className="text-xs text-neutral-400 bg-white/60 dark:bg-black/20 px-1.5 py-0.5 rounded-full">{cards.length}</span>
         </div>

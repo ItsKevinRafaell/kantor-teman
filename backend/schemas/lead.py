@@ -44,6 +44,7 @@ class ContactOut(BaseModel):
     phone_number: str
     purchased_product: Optional[str]
     notes: Optional[str]
+    lead_id: Optional[int] = None  # FK to Lead
     model_config = {"from_attributes": True}
 
 

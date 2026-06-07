@@ -62,7 +62,34 @@ if "mysql" in _db_url:
         ("scrape_history", "batch_name", "ALTER TABLE scrape_history ADD COLUMN batch_name VARCHAR(255) NULL"),
         ("users", "role", "ALTER TABLE users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT 'admin'"),
         ("ai_proxies", "feature", "ALTER TABLE ai_proxies ADD COLUMN feature VARCHAR(50) NULL"),
+        ("contacts", "lead_id", "ALTER TABLE contacts ADD COLUMN lead_id INT NULL"),
+        ("ai_proxies", "provider", "ALTER TABLE ai_proxies ADD COLUMN provider VARCHAR(50) NOT NULL DEFAULT 'openai'"),
     ]
+
+    # Backfill contacts.lead_id by phone match
+    if _table_exists("contacts") and _col_exists("contacts", "lead_id"):
+        _cur.execute("SELECT id, phone_number FROM contacts WHERE lead_id IS NULL")
+        for (contact_id, phone) in _cur.fetchall():
+            if not phone:
+                continue
+            # Normalize to 08xx
+            digits = ''.join(c for c in phone if c.isdigit())
+            if digits.startswith('62'):
+                digits = '0' + digits[2:]
+            _cur.execute("SELECT id FROM leads WHERE REPLACE(REPLACE(REPLACE(REPLACE(phone_number, ' ', ''), '-', ''), '+62', '0') = %s OR phone_number = %s", (digits, phone))
+            lead_row = _cur.fetchone()
+            if lead_row:
+                _cur.execute("UPDATE contacts SET lead_id = %s WHERE id = %s", (lead_row[0], contact_id))
+                print(f"  Linked contact {contact_id} -> lead {lead_row[0]}")
+    print("= contacts.lead_id backfill done")
+
+    # Backfill ai_proxies.provider = 'openai' if NULL/empty
+    if _table_exists("ai_proxies"):
+        _cur.execute("UPDATE ai_proxies SET provider = 'openai' WHERE provider IS NULL OR provider = ''")
+        affected = _cur.rowcount
+        if affected > 0:
+            print(f"  Set provider=openai for {affected} ai_proxies")
+        print("= ai_proxies.provider backfill done")
 
     # Create ai_models table if not exists
     if not _table_exists("ai_models"):
@@ -1273,6 +1300,60 @@ else:
     print("= ai_proxies belum ada, akan dibuat oleh SQLAlchemy")
 
 conn.commit()
+
+# ---------------------------------------------------------------------------
+# Migrasi contacts: tambah kolom lead_id + backfill
+# ---------------------------------------------------------------------------
+cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='contacts'")
+if cur.fetchone():
+    cur.execute("PRAGMA table_info(contacts)")
+    contact_cols = {row[1] for row in cur.fetchall()}
+    if "lead_id" not in contact_cols:
+        cur.execute("ALTER TABLE contacts ADD COLUMN lead_id INTEGER REFERENCES leads(id)")
+        print("+ kolom lead_id ditambahkan ke contacts")
+    else:
+        print("= contacts.lead_id sudah ada, skip")
+
+    # Backfill contacts.lead_id by phone match (normalize to 08xx)
+    cur.execute("SELECT id, phone_number FROM contacts WHERE lead_id IS NULL")
+    for (contact_id, phone) in cur.fetchall():
+        if not phone:
+            continue
+        digits = ''.join(c for c in phone if c.isdigit())
+        if digits.startswith('62'):
+            digits = '0' + digits[2:]
+        cur.execute(
+            "SELECT id FROM leads WHERE phone_number = ? OR REPLACE(REPLACE(REPLACE(phone_number, ' ', ''), '-', ''), '+62', '0') = ?",
+            (digits, digits)
+        )
+        lead_row = cur.fetchone()
+        if lead_row:
+            cur.execute("UPDATE contacts SET lead_id = ? WHERE id = ?", (lead_row[0], contact_id))
+            print(f"  Linked contact {contact_id} -> lead {lead_row[0]}")
+    conn.commit()
+    print("= contacts.lead_id backfill done")
+else:
+    print("= contacts belum ada, akan dibuat oleh SQLAlchemy")
+
+# ---------------------------------------------------------------------------
+# Migrasi ai_proxies: tambah kolom provider + backfill
+# ---------------------------------------------------------------------------
+cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='ai_proxies'")
+if cur.fetchone():
+    cur.execute("PRAGMA table_info(ai_proxies)")
+    proxy_cols2 = {row[1] for row in cur.fetchall()}
+    if "provider" not in proxy_cols2:
+        cur.execute("ALTER TABLE ai_proxies ADD COLUMN provider VARCHAR(50) NOT NULL DEFAULT 'openai'")
+        print("+ kolom provider ditambahkan ke ai_proxies")
+    else:
+        print("= ai_proxies.provider sudah ada, skip")
+    # Backfill NULL/empty provider
+    cur.execute("UPDATE ai_proxies SET provider = 'openai' WHERE provider IS NULL OR provider = ''")
+    if cur.rowcount > 0:
+        print(f"  Set provider=openai untuk {cur.rowcount} rows")
+    print("= ai_proxies.provider backfill done")
+else:
+    print("= ai_proxies belum ada, akan dibuat oleh SQLAlchemy")
 
 conn.close()
 print("Migrasi selesai.")

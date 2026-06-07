@@ -6,6 +6,7 @@ export interface Contact {
   phone_number: string;
   purchased_product: string | null;
   notes: string | null;
+  lead_id?: number | null;
 }
 
 export interface ProjectData {

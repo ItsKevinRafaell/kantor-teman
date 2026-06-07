@@ -24,37 +24,63 @@ export default function NotesModal({ contact, open, onClose }: NotesModalProps) 
   const [deleteNoteId, setDeleteNoteId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const effectiveLeadId = contact?.lead_id;
+
   useEffect(() => {
-    if (!open || !contact) return;
+    if (!open || !effectiveLeadId) return;
     setLoading(true);
-    apiFetch(`/api/client-notes?lead_id=${contact.id}`)
+    apiFetch(`/api/client-notes?lead_id=${effectiveLeadId}`)
       .then(r => r.ok ? r.json() : [])
       .then(setNotes)
       .catch(() => setNotes([]))
       .finally(() => setLoading(false));
-  }, [open, contact]);
+  }, [open, effectiveLeadId]);
 
   async function handleSaveNote() {
-    if (!form.content || !contact) return;
+    if (!form.content || !effectiveLeadId) return;
     await apiFetch("/api/client-notes", {
       method: "POST",
-      body: JSON.stringify({ lead_id: contact.id, category: form.category, content: form.content }),
+      body: JSON.stringify({ lead_id: effectiveLeadId, category: form.category, content: form.content }),
     });
     setForm({ category: "BISNIS", content: "" });
     // Refresh notes
-    const r = await apiFetch(`/api/client-notes?lead_id=${contact.id}`);
+    const r = await apiFetch(`/api/client-notes?lead_id=${effectiveLeadId}`);
     if (r.ok) setNotes(await r.json());
   }
 
   async function handleDeleteNote(noteId: string) {
-    if (!contact) return;
+    if (!effectiveLeadId) return;
     await apiFetch(`/api/client-notes/${noteId}`, { method: "DELETE" });
     setDeleteNoteId(null);
-    const r = await apiFetch(`/api/client-notes?lead_id=${contact.id}`);
+    const r = await apiFetch(`/api/client-notes?lead_id=${effectiveLeadId}`);
     if (r.ok) setNotes(await r.json());
   }
 
   if (!open || !contact) return null;
+
+  // If contact has no lead_id, show error state
+  if (!effectiveLeadId) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+        <div className="relative bg-[var(--bg-surface)] rounded-2xl shadow-2xl border border-[var(--border-default)] w-full max-w-md p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-50">Catatan — {contact.business_name}</h3>
+            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+          </div>
+          <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-500 flex-shrink-0"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+            <div>
+              <p className="text-sm font-semibold text-red-700 dark:text-red-400">Kontak belum terhubung ke Lead</p>
+              <p className="text-xs text-red-600 dark:text-red-500 mt-1">Hubungi admin untuk memperbaiki data kontak ini.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
