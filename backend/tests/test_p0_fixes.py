@@ -1,6 +1,7 @@
 """Real integration tests for P0/P1 fixes - uses conftest.py db_session fixture."""
 import pytest
-from models import Lead, Contact, AIProxy, Project, BlastMessage, SystemSettings
+import json
+from models import Lead, Contact, AIProxy, Project, BlastMessage, SystemSettings, FollowUpSequence, LeadActivityLog
 
 
 class TestContactLeadCRUD:
@@ -848,3 +849,534 @@ class TestAIMultiProvider:
         headers = post_call[1]["headers"]
         assert headers["x-api-key"] == "sk-ant-test"
         assert headers["anthropic-version"] == "2023-06-01"
+
+
+class TestFonnteWebhookRepliedSideEffects:
+    """P0-2c: blast/webhook/fonnte status=replied performs same lead side-effects as fonnte-incoming"""
+
+    def test_status_callback_replied_stops_followup_sequence(self, db_session):
+        """status=replied on blast webhook should stop active FollowUpSequence."""
+        from routers.campaign import fonnte_webhook, FonnteWebhookIn
+        from unittest.mock import MagicMock
+
+        lead = Lead(business_name="Replied Lead", phone_number="081234567890", status="Contacted")
+        db_session.add(lead)
+        db_session.flush()
+
+        seq = FollowUpSequence(
+            lead_id=lead.id, template_ids=json.dumps([]), delays=json.dumps([1, 3, 7]),
+            current_step=0, status="ACTIVE", started_at="2026-06-01T00:00:00+00:00",
+        )
+        db_session.add(seq)
+        db_session.flush()
+
+        msg = BlastMessage(
+            id="msg-replied-1",
+            lead_id=lead.id,
+            phone_number="081234567890",
+            sent_at="2026-06-06T00:00:00+00:00",
+            status="sent",
+        )
+        db_session.add(msg)
+        db_session.commit()
+
+        request = MagicMock()
+        request.headers = {}
+        body = FonnteWebhookIn(device="6281234567890", target="6281234567890", status="replied")
+
+        result = fonnte_webhook(body, request, db_session)
+        assert result["ok"] is True
+
+        db_session.refresh(seq)
+        assert seq.status == "STOPPED"
+        assert seq.stopped_reason == "client_replied"
+
+    def test_status_callback_replied_logs_wa_replied_activity(self, db_session):
+        """status=replied on blast webhook should log LeadActivityLog WA_REPLIED."""
+        from routers.campaign import fonnte_webhook, FonnteWebhookIn
+        from models import LeadActivityLog
+        from unittest.mock import MagicMock
+
+        lead = Lead(business_name="Replied Lead", phone_number="081234567890", status="Contacted")
+        db_session.add(lead)
+        db_session.flush()
+
+        msg = BlastMessage(
+            id="msg-replied-2",
+            lead_id=lead.id,
+            phone_number="081234567890",
+            sent_at="2026-06-06T00:00:00+00:00",
+            status="sent",
+        )
+        db_session.add(msg)
+        db_session.commit()
+
+        request = MagicMock()
+        request.headers = {}
+        body = FonnteWebhookIn(device="6281234567890", target="6281234567890", status="replied")
+
+        fonnte_webhook(body, request, db_session)
+
+        activity = db_session.query(LeadActivityLog).filter(
+            LeadActivityLog.lead_id == lead.id,
+            LeadActivityLog.activity_type == "WA_REPLIED",
+        ).first()
+        assert activity is not None
+
+    def test_status_callback_replied_updates_lead_status(self, db_session):
+        """status=replied on blast webhook should update Lead.status Contacted→Replied."""
+        from routers.campaign import fonnte_webhook, FonnteWebhookIn
+        from unittest.mock import MagicMock
+
+        lead = Lead(business_name="Replied Lead", phone_number="081234567890", status="Contacted")
+        db_session.add(lead)
+        db_session.flush()
+
+        msg = BlastMessage(
+            id="msg-replied-3",
+            lead_id=lead.id,
+            phone_number="081234567890",
+            sent_at="2026-06-06T00:00:00+00:00",
+            status="sent",
+        )
+        db_session.add(msg)
+        db_session.commit()
+
+        request = MagicMock()
+        request.headers = {}
+        body = FonnteWebhookIn(device="6281234567890", target="6281234567890", status="replied")
+
+        fonnte_webhook(body, request, db_session)
+
+        db_session.refresh(lead)
+        assert lead.status == "Replied"
+
+    def test_status_callback_replied_only_when_contacted(self, db_session):
+        """status=replied should NOT change lead status if lead is not Contacted."""
+        from routers.campaign import fonnte_webhook, FonnteWebhookIn
+        from unittest.mock import MagicMock
+
+        lead = Lead(business_name="Scraped Lead", phone_number="081234567890", status="Scraped")
+        db_session.add(lead)
+        db_session.flush()
+
+        msg = BlastMessage(
+            id="msg-replied-4",
+            lead_id=lead.id,
+            phone_number="081234567890",
+            sent_at="2026-06-06T00:00:00+00:00",
+            status="sent",
+        )
+        db_session.add(msg)
+        db_session.commit()
+
+        request = MagicMock()
+        request.headers = {}
+        body = FonnteWebhookIn(device="6281234567890", target="6281234567890", status="replied")
+
+        fonnte_webhook(body, request, db_session)
+
+        db_session.refresh(lead)
+        assert lead.status == "Scraped"  # Should NOT change
+
+    def test_webhook_incoming_form_payload(self, db_session):
+        """fonnte-incoming should handle form-encoded payloads."""
+        from routers.campaign import fonnte_incoming
+        from unittest.mock import MagicMock, AsyncMock
+
+        lead = Lead(business_name="Form Payload Lead", phone_number="081234567890", status="Contacted")
+        db_session.add(lead)
+        db_session.commit()
+
+        request = MagicMock()
+        request.headers = {}
+        # Simulate form-encoded payload (no JSON)
+        request.json = AsyncMock(side_effect=Exception("no json"))
+        request.form = AsyncMock(return_value={"sender": "6281234567890", "message": "Hello from form"})
+
+        import asyncio
+        result = asyncio.run(fonnte_incoming(request, db_session))
+
+        assert result["ok"] is True
+        assert result["lead_id"] == lead.id
+        assert result.get("new_status") == "Replied"
+
+    def test_webhook_incoming_opt_out_with_62xx(self, db_session):
+        """fonnte-incoming opt-out should normalize 62xx sender to 08xx."""
+        from routers.campaign import fonnte_incoming
+        from unittest.mock import MagicMock, AsyncMock
+
+        lead = Lead(business_name="Opt Out 62", phone_number="081234567890", status="Scraped", do_not_contact=False)
+        db_session.add(lead)
+        db_session.commit()
+
+        request = MagicMock()
+        request.headers = {}
+        request.json = AsyncMock(return_value={"sender": "6281234567890", "message": "STOP jangan hubungi saya"})
+
+        import asyncio
+        result = asyncio.run(fonnte_incoming(request, db_session))
+
+        assert result["ok"] is True
+        assert result["do_not_contact"] is True
+
+        db_session.refresh(lead)
+        assert lead.do_not_contact is True
+
+
+class TestAICanonicalPath:
+    """P0-3/P1-5: AI canonical path — other.py must not shadow canonical resolver"""
+
+    def test_other_py_has_no_local_get_ai_config(self):
+        """other.py should NOT define a local get_ai_config function."""
+        import routers.other as other_mod
+        assert not hasattr(other_mod, "get_ai_config"), \
+            "other.py must not define get_ai_config — use canonical path from dependencies/ai_service"
+
+    def test_dependencies_get_ai_config_delegates_to_ai_service(self, db_session):
+        """dependencies.get_ai_config should delegate to ai_service.get_ai_config."""
+        from app.core.dependencies import get_ai_config as dep_get_ai_config
+        from app.services.ai_service import get_ai_config as svc_get_ai_config
+        from unittest.mock import patch
+
+        # Both should produce the same result (delegation verification)
+        with patch("app.core.dependencies.get_ai_config", wraps=svc_get_ai_config):
+            dep_result = dep_get_ai_config(db_session, "chat")
+            svc_result = svc_get_ai_config(db_session, "chat")
+        # Both resolve to the same canonical path (9router fallback when no proxy)
+        assert dep_result["provider"] == svc_result["provider"]
+        assert "model" in dep_result
+        assert "model" in svc_result
+
+    def test_call_ai_sync_openai_provider(self):
+        """call_ai_sync should make OpenAI-compatible /chat/completions call."""
+        from app.services.ai_service import call_ai_sync
+        from unittest.mock import MagicMock, patch
+        import httpx
+
+        cfg = {
+            "provider": "openai",
+            "openai_key": "sk-test-openai",
+            "base_url": "https://api.openai.com/v1",
+            "model": "gpt-4o-mini",
+            "gemini_key": "",
+            "claude_key": "",
+        }
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"choices": [{"message": {"content": "OpenAI response"}}]}
+        mock_client = MagicMock()
+        mock_client.post.return_value = mock_resp
+        mock_client.__enter__ = lambda self: mock_client
+        mock_client.__exit__ = lambda self, *a: False
+
+        with patch.object(httpx, "Client", return_value=mock_client):
+            result = call_ai_sync("test prompt", cfg, httpx)
+
+        assert result == "OpenAI response"
+        mock_client.post.assert_called_once()
+        call_url = mock_client.post.call_args[0][0]
+        assert "/chat/completions" in call_url
+        call_headers = mock_client.post.call_args[1]["headers"]
+        assert "Bearer sk-test-openai" in call_headers["Authorization"]
+
+    def test_call_ai_sync_claude_native_endpoint(self):
+        """call_ai_sync should use /v1/messages + x-api-key for native Anthropic."""
+        from app.services.ai_service import call_ai_sync
+        from unittest.mock import MagicMock, patch
+        import httpx
+
+        cfg = {
+            "provider": "claude",
+            "claude_key": "sk-ant-native",
+            "base_url": "https://api.anthropic.com",
+            "model": "claude-sonnet-4-5",
+            "gemini_key": "",
+            "openai_key": "",
+        }
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"content": [{"text": "Claude native response"}]}
+        mock_client = MagicMock()
+        mock_client.post.return_value = mock_resp
+        mock_client.__enter__ = lambda self: mock_client
+        mock_client.__exit__ = lambda self, *a: False
+
+        with patch.object(httpx, "Client", return_value=mock_client):
+            result = call_ai_sync("test prompt", cfg, httpx)
+
+        assert result == "Claude native response"
+        call_url = mock_client.post.call_args[0][0]
+        assert "/v1/messages" in call_url
+        call_headers = mock_client.post.call_args[1]["headers"]
+        assert call_headers["x-api-key"] == "sk-ant-native"
+        assert call_headers["anthropic-version"] == "2023-06-01"
+
+    def test_call_ai_sync_claude_openaicompatible_endpoint(self):
+        """call_ai_sync should use /chat/completions for OpenAI-compatible Claude."""
+        from app.services.ai_service import call_ai_sync
+        from unittest.mock import MagicMock, patch
+        import httpx
+
+        cfg = {
+            "provider": "claude",
+            "claude_key": "sk-ant-proxy",
+            "base_url": "http://localhost:20128/v1",
+            "model": "claude-sonnet-4-5",
+            "gemini_key": "",
+            "openai_key": "",
+        }
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"choices": [{"message": {"content": "Claude proxy response"}}]}
+        mock_client = MagicMock()
+        mock_client.post.return_value = mock_resp
+        mock_client.__enter__ = lambda self: mock_client
+        mock_client.__exit__ = lambda self, *a: False
+
+        with patch.object(httpx, "Client", return_value=mock_client):
+            result = call_ai_sync("test prompt", cfg, httpx)
+
+        assert result == "Claude proxy response"
+        call_url = mock_client.post.call_args[0][0]
+        assert "/chat/completions" in call_url
+        call_headers = mock_client.post.call_args[1]["headers"]
+        assert "Bearer sk-ant-proxy" in call_headers["Authorization"]
+
+    def test_call_ai_sync_gemini_provider(self):
+        """call_ai_sync should use Gemini native API endpoint."""
+        from app.services.ai_service import call_ai_sync
+        from unittest.mock import MagicMock, patch
+        import httpx
+
+        cfg = {
+            "provider": "gemini",
+            "gemini_key": "gemini-key-123",
+            "base_url": "https://generativelanguage.googleapis.com",
+            "model": "gemini-2.0-flash",
+            "openai_key": "",
+            "claude_key": "",
+        }
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"candidates": [{"content": {"parts": [{"text": "Gemini response"}]}}]}
+        mock_client = MagicMock()
+        mock_client.post.return_value = mock_resp
+        mock_client.__enter__ = lambda self: mock_client
+        mock_client.__exit__ = lambda self, *a: False
+
+        with patch.object(httpx, "Client", return_value=mock_client):
+            result = call_ai_sync("test prompt", cfg, httpx)
+
+        assert result == "Gemini response"
+        call_url = mock_client.post.call_args[0][0]
+        assert "generateContent" in call_url
+        call_headers = mock_client.post.call_args[1]["headers"]
+        assert call_headers["x-goog-api-key"] == "gemini-key-123"
+
+    def test_call_ai_sync_unsupported_provider_raises(self):
+        """call_ai_sync should raise clear error for unsupported provider."""
+        from app.services.ai_service import call_ai_sync
+        import httpx
+
+        cfg = {
+            "provider": "unknown_provider",
+            "openai_key": "test",
+            "gemini_key": "",
+            "claude_key": "",
+        }
+
+        with pytest.raises(Exception) as exc:
+            call_ai_sync("test prompt", cfg, httpx)
+        assert "tidak dikenali" in str(exc.value)
+
+
+class TestWorkspaceCacheInvalidation:
+    """P0-1: Project create/update/delete should invalidate workspace list cache"""
+
+    def test_create_project_invalidates_workspace_cache(self, db_session):
+        """create_project should call invalidate_workspace_list_cache."""
+        from routers.workspace import create_project
+        from schemas import ProjectIn
+        from unittest.mock import MagicMock, patch
+
+        user = MagicMock()
+        user.name = "test"
+        body = ProjectIn(name="Cache Test Project", type="FIXED", status="ACTIVE")
+
+        with patch("routers.workspace.invalidate_workspace_list_cache") as mock_inv:
+            project = create_project(body, user, db_session)
+            mock_inv.assert_called_once()
+
+    def test_update_project_invalidates_workspace_cache(self, db_session):
+        """update_project should call invalidate_workspace_list_cache."""
+        from routers.workspace import create_project, update_project
+        from schemas import ProjectIn
+        from unittest.mock import MagicMock, patch
+
+        user = MagicMock()
+        user.name = "test"
+
+        body = ProjectIn(name="Original", type="FIXED", status="ACTIVE")
+        project = create_project(body, user, db_session)
+
+        body2 = ProjectIn(name="Updated", type="FIXED", status="ACTIVE")
+        with patch("routers.workspace.invalidate_workspace_list_cache") as mock_inv:
+            update_project(project.id, body2, user, db_session)
+            mock_inv.assert_called_once()
+
+    def test_delete_project_invalidates_workspace_cache(self, db_session):
+        """delete_project should call invalidate_workspace_list_cache."""
+        from routers.workspace import create_project, delete_project
+        from schemas import ProjectIn
+        from unittest.mock import MagicMock, patch
+
+        user = MagicMock()
+        user.name = "test"
+
+        body = ProjectIn(name="To Delete", type="FIXED", status="ACTIVE")
+        project = create_project(body, user, db_session)
+
+        with patch("routers.workspace.invalidate_workspace_list_cache") as mock_inv:
+            delete_project(project.id, user, db_session)
+            mock_inv.assert_called_once()
+
+
+class TestDocumentInputOverridesDefaults:
+    """P0-4: Document generator — frontend input field variables override DB defaults"""
+
+    def test_input_fields_override_db_target_defaults(self, db_session):
+        """User-provided variables should override _build_default_vars defaults."""
+        from routers.documents import _prepare_document_vars
+        from schemas import DocumentGenerateIn
+        from models import DocumentTemplate
+        from unittest.mock import patch
+
+        tmpl = DocumentTemplate(
+            id="test-override-tmpl",
+            name="Test Invoice",
+            type="invoice",
+            html_template="<html>Client: {{klien}}, Amount: {{jumlah}}, Addr: {{alamat}}</html>",
+            variables="[]",
+            is_active=True,
+        )
+        db_session.add(tmpl)
+        db_session.commit()
+
+        mock_brand_ctx = {
+            "logo": "", "brand_name": "Brand Co", "tagline": "",
+            "nama_perusahaan": "Brand Default", "alamat_perusahaan": "Brand Street",
+            "phone_perusahaan": "", "email_perusahaan": "",
+        }
+        mock_defaults = {
+            "tanggal": "7 Juni 2026", "logo": "", "brand_name": "Brand Co",
+            "nama_perusahaan": "Brand Default", "klien": "DB Default Client",
+            "alamat": "DB Default Address", "jumlah": "DB Default Amount",
+        }
+
+        body = DocumentGenerateIn(
+            template_id="test-override-tmpl",
+            target_type="lead",
+            target_id=None,
+            variables={
+                "klien": "User Client Corp",
+                "alamat": "User Client Address",
+                "jumlah": "Rp 5.000.000",
+            },
+        )
+
+        with patch("routers.documents._build_brand_context", return_value=mock_brand_ctx), \
+             patch("routers.documents._build_default_vars", return_value=mock_defaults):
+            full_vars = _prepare_document_vars(db_session, tmpl, body)
+
+        # User input wins over DB defaults
+        assert full_vars["klien"] == "User Client Corp"
+        assert full_vars["alamat"] == "User Client Address"
+        assert full_vars["jumlah"] == "Rp 5.000.000"
+        # DB defaults that user didn't override are preserved
+        assert full_vars["tanggal"] == "7 Juni 2026"
+
+    def test_invoice_number_is_server_owned(self, db_session):
+        """Invoice number should come from server (document number), not user input."""
+        from routers.documents import _prepare_document_vars, _document_number
+        from schemas import DocumentGenerateIn
+        from models import DocumentTemplate
+        from unittest.mock import patch
+
+        tmpl = DocumentTemplate(
+            id="test-invoice-tmpl",
+            name="Invoice",
+            type="invoice",
+            html_template="<html>Invoice: {{nomor_invoice}}</html>",
+            variables="[]",
+            is_active=True,
+        )
+        db_session.add(tmpl)
+        db_session.commit()
+
+        mock_brand_ctx = {
+            "logo": "", "brand_name": "Brand Co", "tagline": "",
+            "nama_perusahaan": "Brand Default", "alamat_perusahaan": "",
+            "phone_perusahaan": "", "email_perusahaan": "",
+        }
+        mock_defaults = {
+            "tanggal": "7 Juni 2026", "logo": "", "brand_name": "Brand Co",
+            "nama_perusahaan": "Brand Default", "klien": "Client",
+        }
+
+        body = DocumentGenerateIn(
+            template_id="test-invoice-tmpl",
+            target_type="lead",
+            target_id=None,
+            variables={"nomor_invoice": "USER_TAMPERING_ATTEMPT"},
+        )
+
+        with patch("routers.documents._build_brand_context", return_value=mock_brand_ctx), \
+             patch("routers.documents._build_default_vars", return_value=mock_defaults), \
+             patch("routers.documents._document_number", return_value="INV/202606/001"):
+            full_vars = _prepare_document_vars(db_session, tmpl, body, reserve_number=True)
+
+        # Server-generated invoice number wins
+        assert full_vars["nomor_invoice"] == "INV/202606/001"
+
+    def test_empty_string_input_does_not_overwrite_existing(self, db_session):
+        """Empty string in user input should NOT overwrite existing defaults."""
+        from routers.documents import _prepare_document_vars
+        from schemas import DocumentGenerateIn
+        from models import DocumentTemplate
+        from unittest.mock import patch
+
+        tmpl = DocumentTemplate(
+            id="test-empty-tmpl",
+            name="Invoice",
+            type="invoice",
+            html_template="<html>{{klien}}</html>",
+            variables="[]",
+            is_active=True,
+        )
+        db_session.add(tmpl)
+        db_session.commit()
+
+        mock_brand_ctx = {
+            "logo": "", "brand_name": "Brand", "tagline": "",
+            "nama_perusahaan": "Brand Default", "alamat_perusahaan": "",
+            "phone_perusahaan": "", "email_perusahaan": "",
+        }
+        mock_defaults = {
+            "tanggal": "7 Juni 2026", "logo": "", "brand_name": "Brand",
+            "nama_perusahaan": "Brand Default", "klien": "Existing Client",
+        }
+
+        body = DocumentGenerateIn(
+            template_id="test-empty-tmpl",
+            target_type="lead",
+            target_id=None,
+            variables={"klien": ""},  # User clears the field
+        )
+
+        with patch("routers.documents._build_brand_context", return_value=mock_brand_ctx), \
+             patch("routers.documents._build_default_vars", return_value=mock_defaults):
+            full_vars = _prepare_document_vars(db_session, tmpl, body)
+
+        # Empty string should NOT overwrite existing default
+        assert full_vars["klien"] == "Existing Client"

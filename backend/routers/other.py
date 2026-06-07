@@ -13,7 +13,7 @@ from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, UPLOADS_DIR,
     encrypt_password, decrypt_password,
     get_fonnte_token, _send_fonnte_sync, log_outreach_cost,
-    get_ai_config, build_analysis_prompt, call_ai_provider, parse_ai_response,
+    build_analysis_prompt, call_ai_provider, parse_ai_response,
     _detect_project_type, _detect_service_type, _detect_contract_months,
     _check_simple_rate_limit, _call_ai_sync,
 )
@@ -144,64 +144,6 @@ def get_timeline_templates(current_user: User = Depends(get_current_user), db: S
             "timeline_data": sorted_items,
         })
     return result
-
-
-# ---------------------------------------------------------------------------
-# AI Lead Analysis (Multi-Provider: Gemini, Claude, OpenAI)
-# ---------------------------------------------------------------------------
-
-def get_ai_config(db: Session, capability: str = "analysis") -> dict:
-    """Per-feature AIProxy first, fallback to 9router. Optional model override per capability via ai_models registry."""
-    proxy = get_proxy_for_feature(db, capability)
-    if proxy:
-        cfg = {
-            "provider": "openai",
-            "openai_key": proxy.api_key,
-            "base_url": proxy.base_url.rstrip("/"),
-            "model": proxy.model,
-            "gemini_key": "",
-            "claude_key": "",
-        }
-    else:
-        cfg = get_9router_config(db)
-    default_model = get_default_model(db, capability)
-    if default_model and default_model.model_id:
-        cfg["model"] = default_model.model_id
-    return cfg
-
-
-def build_analysis_prompt(lead, product_list: str) -> str:
-    return f"""Kamu adalah konsultan digital marketing untuk UMKM Indonesia. Analisa bisnis berikut dan berikan insight yang persuasif dan mudah dipahami pemilik usaha.
-
-DATA BISNIS:
-- Nama: {lead.business_name}
-- Alamat: {lead.address or 'Tidak diketahui'}
-- Rating Google: {lead.rating}/5
-- Kategori: {lead.product_interest or 'Umum'}
-
-PRODUK/LAYANAN YANG KAMI TAWARKAN:
-{product_list}
-
-INSTRUKSI:
-Berikan output dalam format JSON berikut (Bahasa Indonesia, gaya bicara santai tapi profesional):
-{{
-  "pain_points": ["masalah 1 yang spesifik dan relatable untuk pemilik usaha", "masalah 2", "masalah 3"],
-  "suggested_product": "nama produk kami yang paling cocok",
-  "approach_message": "satu paragraf pendek pesan WA yang bisa langsung dikirim ke pemilik bisnis ini, persuasif tapi tidak memaksa, sebutkan masalah mereka dan solusi kita"
-}}
-
-PENTING: Pain points harus spesifik ke bisnis ini, bukan generik. Pesan pendekatan harus terasa personal."""
-
-
-def parse_ai_response(text: str) -> dict:
-    import re as _re
-    json_match = _re.search(r'\{[\s\S]*\}', text)
-    if json_match:
-        try:
-            return json.loads(json_match.group())
-        except Exception:
-            pass
-    return {"pain_points": [text], "suggested_product": "", "approach_message": ""}
 
 
 

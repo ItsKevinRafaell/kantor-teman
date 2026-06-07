@@ -115,6 +115,7 @@ def create_project(body: ProjectIn, current_user: User = Depends(require_admin),
     db.commit()
     db.refresh(project)
     log_audit(db, current_user.name, "CREATE", "projects", project.id, {"name": body.name, "lead_id": body.lead_id})
+    invalidate_workspace_list_cache()
 
     # Auto-init workspace always — use service_type template or fallback to general
     _svc = body.service_type if (body.service_type and body.service_type in WORKSPACE_TEMPLATES) else "general"

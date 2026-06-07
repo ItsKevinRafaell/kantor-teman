@@ -565,6 +565,8 @@ def fonnte_webhook(body: FonnteWebhookIn, request: Request, db: Session = Depend
             msgs = db.query(BlastMessage).filter(
                 BlastMessage.phone_number == phone_62
             ).order_by(BlastMessage.sent_at.desc()).limit(5).all()
+        # Track if any message was marked replied for lead side-effects
+        replied_msg = None
         for msg in msgs:
             if body.status == "delivered" and not msg.delivered_at:
                 msg.delivered_at = now
@@ -575,6 +577,21 @@ def fonnte_webhook(body: FonnteWebhookIn, request: Request, db: Session = Depend
             elif body.status == "replied" and not msg.replied_at:
                 msg.replied_at = now
                 msg.status = "replied"
+                replied_msg = msg
+        # If status=replied, perform the same lead side-effects as fonnte-incoming
+        if replied_msg and replied_msg.lead_id:
+            lead = db.query(Lead).filter(Lead.id == replied_msg.lead_id).first()
+            if lead and lead.status == "Contacted":
+                lead.status = "Replied"
+                db.add(LeadActivityLog(
+                    lead_id=lead.id,
+                    activity_type="WA_REPLIED",
+                    created_at=now,
+                ))
+                db.query(FollowUpSequence).filter(
+                    FollowUpSequence.lead_id == lead.id,
+                    FollowUpSequence.status == "ACTIVE",
+                ).update({"status": "STOPPED", "stopped_reason": "client_replied"}, synchronize_session=False)
         db.commit()
     except Exception as e:
         print(f"[FONNTE_WEBHOOK] {e}", flush=True)
