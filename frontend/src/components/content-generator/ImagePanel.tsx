@@ -61,8 +61,8 @@ export default function ImagePanel({ sessionId, sharedContext, providers, showTo
       <h2 className="text-base font-semibold text-neutral-800 dark:text-neutral-200">Image Generator</h2>
 
       {providers.length === 0 ? (
-        <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 text-center">
-          <p className="text-sm text-amber-700 dark:text-amber-400">Belum ada image provider.</p>
+        <div className="bg-neutral-50 dark:bg-neutral-900/20 rounded-xl p-4 text-center">
+          <p className="text-sm text-neutral-700 dark:text-neutral-400">Belum ada image provider.</p>
           <p className="text-xs text-neutral-400 mt-1">Klik "Kelola Image Provider" di sidebar untuk menambahkan.</p>
         </div>
       ) : (
@@ -70,7 +70,7 @@ export default function ImagePanel({ sessionId, sharedContext, providers, showTo
           <div>
             <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Provider</label>
             <select value={providerId} onChange={e => setProviderId(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none">
+              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none">
               {providers.map(p => <option key={p.id} value={p.id}>{p.name} ({p.model})</option>)}
             </select>
           </div>
@@ -78,19 +78,19 @@ export default function ImagePanel({ sessionId, sharedContext, providers, showTo
             <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Prompt *</label>
             <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={3}
               placeholder="Describe the image you want to generate..."
-              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm resize-none focus:ring-2 focus:ring-yellow-400 outline-none" />
+              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm resize-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Negative Prompt</label>
               <input type="text" value={negativePrompt} onChange={e => setNegativePrompt(e.target.value)}
                 placeholder="blurry, low quality..."
-                className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
+                className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Ukuran</label>
               <select value={size} onChange={e => setSize(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none">
+                className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none">
                 {["512x512", "768x768", "1024x1024", "1024x576", "576x1024"].map(s => (
                   <option key={s} value={s}>{s}</option>
                 ))}
@@ -98,7 +98,7 @@ export default function ImagePanel({ sessionId, sharedContext, providers, showTo
             </div>
           </div>
           <button onClick={generate} disabled={loading || !prompt.trim() || !providerId}
-            className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+            className="w-full py-2.5 bg-neutral-500 hover:bg-neutral-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2">
             {loading
               ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Generating...</>
               : "Generate Image"}

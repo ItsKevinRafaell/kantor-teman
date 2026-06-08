@@ -189,9 +189,9 @@ export default function BoardPage() {
       />
 
       {currentProjectLead && (
-        <div className="mb-4 px-3 py-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl w-fit flex items-center gap-2">
-          <User className="w-4 h-4 text-amber-600 dark:text-yellow-400" />
-          <span className="text-sm font-medium text-yellow-700 dark:text-yellow-300">{currentProjectLead.business_name}</span>
+        <div className="mb-4 px-3 py-2 bg-neutral-50 dark:bg-neutral-900/20 rounded-xl w-fit flex items-center gap-2">
+          <User className="w-4 h-4 text-neutral-500 dark:text-neutral-400" />
+          <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">{currentProjectLead.business_name}</span>
         </div>
       )}
 

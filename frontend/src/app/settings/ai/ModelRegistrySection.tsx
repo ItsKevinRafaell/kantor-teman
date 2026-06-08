@@ -55,7 +55,7 @@ export default function ModelRegistrySection({
         {loading ? (
           <div className="p-8 text-center text-sm text-neutral-400">Memuat...</div>
         ) : models.length === 0 ? (
-          <div className="p-8 text-center text-sm text-neutral-400">Belum ada override. Default pakai combo aktif.</div>
+          <div className="p-8 text-center text-sm text-neutral-400">Belum ada model override. Default pakai provider aktif.</div>
         ) : (
           <div className="divide-y divide-[var(--border-subtle)]">
             {models.map(m => (

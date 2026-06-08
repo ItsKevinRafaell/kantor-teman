@@ -40,7 +40,7 @@ export default function ContentHistory({
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Cari keyword, judul, prompt..."
-            className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-800 border-0 rounded-lg focus:ring-2 focus:ring-yellow-400 outline-none"
+            className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-800 border-0 rounded-lg focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none"
           />
           <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           {searchQuery && (
@@ -66,7 +66,7 @@ export default function ContentHistory({
               const isCtx = sharedContext.includes(g.id);
               return (
                 <div key={g.id} className={`flex items-start gap-3 p-3 rounded-xl transition-colors
-                  ${isCtx ? "bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800" : "bg-gray-50 dark:bg-gray-800/50"}`}>
+                  ${isCtx ? "bg-neutral-50 dark:bg-neutral-900/20 border border-neutral-200 dark:border-neutral-800" : "bg-gray-50 dark:bg-gray-800/50"}`}>
                   <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${TOOL_COLORS[g.tool_type as Tool] || "bg-gray-100 text-gray-600"}`}>
                     {g.tool_type === "seo_article" ? "Article" : g.tool_type === "image" ? "Image" : "Caption"}
                   </span>
@@ -89,13 +89,13 @@ export default function ContentHistory({
                         window.scrollTo({ top: 0, behavior: "smooth" });
                       }
                     }}
-                      className="shrink-0 text-xs px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-neutral-500 hover:bg-blue-100 hover:text-blue-700 transition-all">
+                      className="shrink-0 text-xs px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 transition-all">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/></svg>
                     </button>
                   )}
                   <button onClick={() => toggleContext(g.id)}
                     className={`shrink-0 text-xs px-2 py-1 rounded font-medium transition-all
-                      ${isCtx ? "bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200" : "bg-gray-200 dark:bg-gray-700 text-neutral-500 hover:bg-amber-100 hover:text-amber-700"}`}>
+                      ${isCtx ? "bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200" : "bg-gray-200 dark:bg-gray-700 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700"}`}>
                     {isCtx ? "−" : "+"}
                   </button>
                   <button onClick={() => setDeleteTarget(g)}

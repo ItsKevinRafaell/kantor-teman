@@ -49,14 +49,14 @@ interface Props {
 
 const STATUS_COLORS: Record<string, string> = {
   "To Do": "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300",
-  "In Progress": "bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400",
-  "Done": "bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400",
+  "In Progress": "bg-neutral-200/70 dark:bg-neutral-700/50 text-neutral-700 dark:text-neutral-300",
+  "Done": "bg-neutral-200/70 dark:bg-neutral-700/50 text-neutral-700 dark:text-neutral-300",
   "Draft": "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300",
-  "Approved": "bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400",
-  "Posted": "bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400",
-  "Published": "bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400",
-  "Revision": "bg-orange-50/70 dark:bg-orange-950/40 text-orange-700 dark:text-orange-400",
-  "Review": "bg-violet-50/70 dark:bg-violet-950/40 text-violet-700 dark:text-violet-400",
+  "Approved": "bg-neutral-200/70 dark:bg-neutral-700/50 text-neutral-700 dark:text-neutral-300",
+  "Posted": "bg-neutral-200/70 dark:bg-neutral-700/50 text-neutral-700 dark:text-neutral-300",
+  "Published": "bg-neutral-200/70 dark:bg-neutral-700/50 text-neutral-700 dark:text-neutral-300",
+  "Revision": "bg-neutral-200/70 dark:bg-neutral-700/50 text-neutral-700 dark:text-neutral-300",
+  "Review": "bg-neutral-200/70 dark:bg-neutral-700/50 text-neutral-700 dark:text-neutral-300",
 };
 
 const COL_WIDTHS: Record<string, string> = {
@@ -77,6 +77,8 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
   const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [boardColumns, setBoardColumns] = useState<string[]>([]);
+  const [sortCol, setSortCol] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [milestoneModal, setMilestoneModal] = useState<{
     percent: number; amount: number; amount_formatted: string; task_name: string;
     project_name: string; client_name: string; lead_id: number | null;
@@ -238,15 +240,46 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
   }).length;
   const pct = totalTasks > 0 ? Math.round(doneTasks / totalTasks * 100) : 0;
 
+  // Sorting
+  const sortedRows = [...rows].sort((a, b) => {
+    if (!sortCol) return a.row_order - b.row_order;
+    const col = sheet.columns.find(c => c.id === sortCol);
+    if (!col) return 0;
+    const cellA = a.cells[sortCol];
+    const cellB = b.cells[sortCol];
+    let valA: string = "", valB: string = "";
+    if (col.column_type === "text" || col.column_type === "textarea" || col.column_type === "status" || col.column_type === "select") {
+      valA = cellA?.value_text || "";
+      valB = cellB?.value_text || "";
+    } else if (col.column_type === "date") {
+      valA = cellA?.value_date || "";
+      valB = cellB?.value_date || "";
+    } else if (col.column_type === "number") {
+      const nA = cellA?.value_number ?? 0;
+      const nB = cellB?.value_number ?? 0;
+      return sortDir === "asc" ? nA - nB : nB - nA;
+    }
+    return sortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+  });
+
+  function handleSort(colId: string) {
+    if (sortCol === colId) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortCol(colId); setSortDir("asc"); }
+  }
+
   return (
     <div className="space-y-3">
       {/* Progress summary */}
       <div className="flex items-center gap-3 text-sm">
         <span className="text-gray-500">{doneTasks}/{totalTasks} selesai</span>
         <div className="flex-1 max-w-xs h-2 bg-gray-200 dark:bg-neutral-700 rounded-full overflow-hidden">
-          <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+          <div className="h-full bg-neutral-400 dark:bg-neutral-600 rounded-full transition-all" style={{ width: `${pct}%` }} />
         </div>
-        <span className="font-bold text-amber-600">{pct}%</span>
+        <span className="font-bold text-neutral-600 dark:text-neutral-400">{pct}%</span>
+        <button onClick={() => { setSortCol(null); }}
+          className="ml-auto text-xs text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 px-2 py-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+          Reset Sort
+        </button>
       </div>
 
       {/* Table */}
@@ -256,15 +289,24 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
             <tr className="bg-gray-50 dark:bg-neutral-800 border-b border-[var(--border-default)]">
               <th className="w-8 px-2 py-2.5" />
               {sheet.columns.map(col => (
-                <th key={col.id} className={`text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap ${COL_WIDTHS[col.column_type] || "min-w-[120px]"}`}>
-                  {col.column_label}
+                <th key={col.id}
+                  onClick={() => handleSort(col.id)}
+                  className={`text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide whitespace-nowrap cursor-pointer hover:bg-gray-100 dark:hover:bg-neutral-700 select-none ${COL_WIDTHS[col.column_type] || "min-w-[120px]"} ${sortCol === col.id ? "text-neutral-600 dark:text-neutral-400" : "text-gray-500"}`}>
+                  <span className="flex items-center gap-1">
+                    {col.column_label}
+                    {sortCol === col.id && (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={sortDir === "desc" ? "rotate-180" : ""}>
+                        <polyline points="18 15 12 9 6 15" />
+                      </svg>
+                    )}
+                  </span>
                 </th>
               ))}
               <th className="w-8 px-2 py-2.5" />
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border-subtle)]">
-            {rows.map(row => (
+            {sortedRows.map(row => (
               <tr key={row.id} className="group hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors">
                 <td className="px-2 py-2 text-gray-300 text-xs text-center">{row.row_order + 1}</td>
                 {sheet.columns.map(col => {
@@ -275,7 +317,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
                       {col.column_type === "checkbox" ? (
                         <input type="checkbox" checked={!!val}
                           onChange={e => patchCell(row.id, col.id, { value_bool: e.target.checked })}
-                          className="w-4 h-4 accent-amber-500 cursor-pointer" />
+                          className="w-4 h-4 accent-neutral-500 cursor-pointer" />
                       ) : col.column_type === "status" ? (
                         (() => {
                           // Use board column names as options; preserve existing value even if column deleted
@@ -287,7 +329,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
                           return (
                             <select value={existingVal}
                               onChange={e => patchCell(row.id, col.id, { value_text: e.target.value })}
-                              className={`text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-300 ${STATUS_COLORS[existingVal] || "bg-gray-100 text-gray-600"}`}>
+                              className={`text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 ${STATUS_COLORS[existingVal] || "bg-gray-100 text-gray-600"}`}>
                               <option value="">—</option>
                               {allOptions.map(o => <option key={o} value={o}>{o}</option>)}
                             </select>
@@ -296,31 +338,31 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
                       ) : col.column_type === "select" ? (
                         <select value={(val as string) || ""}
                           onChange={e => patchCell(row.id, col.id, { value_text: e.target.value })}
-                          className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-amber-300">
+                          className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600">
                           <option value="">—</option>
                           {col.column_options.map(o => <option key={o} value={o}>{o}</option>)}
                         </select>
                       ) : col.column_type === "date" ? (
                         <input type="date" value={(val as string) || ""}
                           onChange={e => patchCell(row.id, col.id, { value_date: e.target.value })}
-                          className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-amber-300" />
+                          className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600" />
                       ) : col.column_type === "number" ? (
                         <input type="number" defaultValue={(val as number) ?? ""}
                           onBlur={e => patchCell(row.id, col.id, { value_number: e.target.value ? Number(e.target.value) : null })}
-                          className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 w-20 focus:outline-none focus:ring-2 focus:ring-amber-300" />
+                          className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 w-20 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600" />
                       ) : col.column_type === "url" ? (
                         <div className="flex items-center gap-1">
                           <input type="text" defaultValue={(val as string) || ""}
                             onBlur={e => patchCell(row.id, col.id, { value_text: e.target.value || null })}
                             placeholder="https://..."
-                            className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 w-32 focus:outline-none focus:ring-2 focus:ring-amber-300" />
-                          {val && <a href={val as string} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700"><ExternalLink size={12} /></a>}
+                            className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 w-32 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600" />
+                          {val && <a href={val as string} target="_blank" rel="noopener noreferrer" className="text-neutral-500 hover:text-neutral-700"><ExternalLink size={12} /></a>}
                           <button onClick={() => { setUploadTarget({ rowId: row.id, colId: col.id }); fileInputRef.current?.click(); }}
-                            className="text-gray-400 hover:text-amber-500 transition-colors"><Upload size={12} /></button>
+                            className="text-gray-400 hover:text-neutral-500 transition-colors"><Upload size={12} /></button>
                         </div>
                       ) : col.column_type === "textarea" ? (
                         <button onClick={() => setExpandedCell({ rowId: row.id, colId: col.id, value: (val as string) || "" })}
-                          className="text-xs text-left text-gray-600 dark:text-gray-400 max-w-[180px] truncate hover:text-amber-600 transition-colors">
+                          className="text-xs text-left text-gray-600 dark:text-gray-400 max-w-[180px] truncate hover:text-neutral-600 transition-colors">
                           {(val as string) || <span className="text-gray-300 italic">Klik untuk edit...</span>}
                         </button>
                       ) : col.column_key === "pic" ? (
@@ -329,7 +371,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
                         ) : (
                           <select value={(val as string) || ""}
                             onChange={e => patchCell(row.id, col.id, { value_text: e.target.value || null })}
-                            className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-amber-300 min-w-[120px]">
+                            className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 min-w-[120px]">
                             <option value="">— PIC —</option>
                             {users.length === 0
                               ? <option disabled>Belum ada user terdaftar</option>
@@ -340,7 +382,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
                       ) : (
                         <input type="text" defaultValue={(val as string) || ""}
                           onBlur={e => { if (e.target.value !== (val || "")) patchCell(row.id, col.id, { value_text: e.target.value || null }); }}
-                          className={`text-xs px-2 py-1 rounded-lg border border-transparent hover:border-gray-200 dark:hover:border-neutral-700 bg-transparent focus:bg-white dark:focus:bg-neutral-800 focus:border-amber-400 focus:outline-none w-full transition-colors ${isSaving ? "opacity-50" : ""}`} />
+                          className={`text-xs px-2 py-1 rounded-lg border border-transparent hover:border-gray-200 dark:hover:border-neutral-700 bg-transparent focus:bg-white dark:focus:bg-neutral-800 focus:border-neutral-400 focus:outline-none w-full transition-colors ${isSaving ? "opacity-50" : ""}`} />
                       )}
                     </td>
                   );
@@ -358,7 +400,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
         </table>
 
         <button onClick={addRow} disabled={addingRow}
-          className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-colors border-t border-[var(--border-subtle)]">
+          className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-gray-400 hover:text-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-[var(--border-subtle)]">
           <Plus size={13} /> {addingRow ? "Menambah..." : "Add Row"}
         </button>
       </div>
@@ -374,7 +416,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
               defaultValue={expandedCell.value}
               rows={6}
               autoFocus
-              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-800 resize-y focus:outline-none focus:ring-2 focus:ring-amber-300"
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-800 resize-y focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600"
               onBlur={e => {
                 if (e.target.value !== expandedCell.value) {
                   patchCell(expandedCell.rowId, expandedCell.colId, { value_text: e.target.value || null });
@@ -383,7 +425,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
             />
             <div className="flex justify-end mt-3">
               <button onClick={() => setExpandedCell(null)}
-                className="px-4 py-2 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-xl">
+                className="px-4 py-2 text-sm font-semibold bg-neutral-500 hover:bg-neutral-600 text-white rounded-xl">
                 Tutup
               </button>
             </div>
@@ -405,7 +447,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
               <div className="flex justify-between text-sm"><span className="text-gray-500">Klien</span><span className="font-semibold text-neutral-800 dark:text-neutral-200">{milestoneModal.client_name || "—"}</span></div>
               <div className="flex justify-between text-sm"><span className="text-gray-500">Proyek</span><span className="font-semibold text-neutral-800 dark:text-neutral-200">{milestoneModal.project_name}</span></div>
               <div className="flex justify-between text-sm"><span className="text-gray-500">Persentase</span><span className="font-semibold text-neutral-800 dark:text-neutral-200">{milestoneModal.percent}%</span></div>
-              <div className="flex justify-between text-sm"><span className="text-gray-500">Nominal</span><span className="font-bold text-amber-600">{milestoneModal.amount_formatted}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Nominal</span><span className="font-bold text-neutral-600 dark:text-neutral-400">{milestoneModal.amount_formatted}</span></div>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setMilestoneModal(null)}
@@ -413,7 +455,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
                 Nanti
               </button>
               <button onClick={generateMilestoneInvoice} disabled={generatingInvoice}
-                className="flex-1 px-4 py-2.5 text-sm font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl disabled:opacity-50">
+                className="flex-1 px-4 py-2.5 text-sm font-bold bg-neutral-500 hover:bg-neutral-600 text-white rounded-xl disabled:opacity-50">
                 {generatingInvoice ? "Generating..." : "Generate Invoice"}
               </button>
             </div>

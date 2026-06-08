@@ -59,13 +59,13 @@ export default function CaptionPanel({ sessionId, sharedContext, showToast, onRe
         <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Topik / Deskripsi *</label>
         <textarea value={topic} onChange={e => setTopic(e.target.value)} rows={3}
           placeholder="Contoh: Promo diskon 50% untuk jasa pembuatan website UMKM..."
-          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm resize-none focus:ring-2 focus:ring-yellow-400 outline-none" />
+          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm resize-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none" />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Platform</label>
           <select value={platform} onChange={e => setPlatform(e.target.value)}
-            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none">
+            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none">
             <option value="instagram">Instagram</option>
             <option value="tiktok">TikTok</option>
             <option value="facebook">Facebook</option>
@@ -75,7 +75,7 @@ export default function CaptionPanel({ sessionId, sharedContext, showToast, onRe
         <div>
           <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Tone</label>
           <select value={tone} onChange={e => setTone(e.target.value)}
-            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none">
+            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none">
             {["casual", "profesional", "fun", "edukatif", "persuasif"].map(t => (
               <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
             ))}
@@ -86,10 +86,10 @@ export default function CaptionPanel({ sessionId, sharedContext, showToast, onRe
         <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Keywords (pisahkan koma)</label>
         <input type="text" value={keywords} onChange={e => setKeywords(e.target.value)}
           placeholder="website, UMKM, diskon"
-          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
+          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none" />
       </div>
       <button onClick={generate} disabled={loading || !topic.trim()}
-        className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+        className="w-full py-2.5 bg-neutral-500 hover:bg-neutral-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2">
         {loading
           ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Generating...</>
           : "Generate Caption"}
@@ -102,7 +102,7 @@ export default function CaptionPanel({ sessionId, sharedContext, showToast, onRe
           {result.hashtags.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {result.hashtags.map((tag, i) => (
-                <span key={i} className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded-full">{tag}</span>
+                <span key={i} className="px-2 py-0.5 bg-neutral-100 dark:bg-neutral-800/30 text-neutral-700 dark:text-neutral-300 text-xs rounded-full">{tag}</span>
               ))}
             </div>
           )}
@@ -111,7 +111,7 @@ export default function CaptionPanel({ sessionId, sharedContext, showToast, onRe
             <button onClick={() => copyToClipboard(`${result.caption}\n\n${result.hashtags.join(" ")}`)}
               className="flex-1 py-2 text-xs rounded-lg bg-gray-100 dark:bg-gray-800 text-neutral-600 hover:bg-gray-200 dark:hover:bg-gray-700">Copy Caption + Hashtags</button>
             <button onClick={() => copyToClipboard(result.caption)}
-              className="flex-1 py-2 text-xs rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 hover:bg-blue-100">Copy Caption Only</button>
+              className="flex-1 py-2 text-xs rounded-lg bg-neutral-50 dark:bg-neutral-800/20 text-neutral-700 hover:bg-neutral-100">Copy Caption Only</button>
           </div>
         </div>
       )}

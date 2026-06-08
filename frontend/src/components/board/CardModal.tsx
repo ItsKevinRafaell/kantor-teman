@@ -4,7 +4,7 @@ import { Modal } from "./SharedModal";
 import { LABEL_COLORS, CARD_COLORS } from "./types";
 
 const COLORS = {
-  primary: "bg-amber-500 hover:bg-amber-600 text-white",
+  primary: "bg-neutral-500 hover:bg-neutral-600 text-white",
 };
 
 interface CardModalProps {
@@ -50,26 +50,26 @@ export function CardModal({
           </label>
           <input type="text" value={cardForm.title} onChange={e => setCardForm((p: any) => ({ ...p, title: e.target.value }))}
             readOnly={card?.is_workspace_linked}
-            className={`w-full px-3 py-2 border-0 rounded-xl text-sm outline-none ${card?.is_workspace_linked ? "bg-gray-50 dark:bg-gray-900 text-gray-500 cursor-not-allowed" : "bg-gray-100 dark:bg-gray-800 focus:ring-2 focus:ring-yellow-400"}`}
+            className={`w-full px-3 py-2 border-0 rounded-xl text-sm outline-none ${card?.is_workspace_linked ? "bg-gray-50 dark:bg-gray-900 text-gray-500 cursor-not-allowed" : "bg-gray-100 dark:bg-gray-800 focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600"}`}
             placeholder="Judul card..." />
         </div>
         <div>
           <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Deskripsi</label>
           <textarea value={cardForm.description} onChange={e => setCardForm((p: any) => ({ ...p, description: e.target.value }))}
-            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none resize-none" rows={3}
+            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none resize-none" rows={3}
             placeholder="Deskripsi..." />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Assignee</label>
             <input type="text" value={cardForm.assignee} onChange={e => setCardForm((p: any) => ({ ...p, assignee: e.target.value }))}
-              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none"
+              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none"
               placeholder="Nama assignee..." />
           </div>
           <div>
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Due Date</label>
             <input type="date" value={cardForm.due_date} onChange={e => setCardForm((p: any) => ({ ...p, due_date: e.target.value }))}
-              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
+              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none" />
           </div>
         </div>
         <div>
@@ -94,9 +94,9 @@ export function CardModal({
           <div>
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Client</label>
             {currentProject.lead_id ? (
-              <div className="px-3 py-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl text-sm flex items-center gap-2">
-                <User className="w-4 h-4 text-amber-600" />
-                <span className="font-medium text-yellow-700 dark:text-yellow-300">{currentProjectLead?.business_name || `Lead #${currentProject.lead_id}`}</span>
+              <div className="px-3 py-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl text-sm flex items-center gap-2">
+                <User className="w-4 h-4 text-neutral-500" />
+                <span className="font-medium text-neutral-700 dark:text-neutral-300">{currentProjectLead?.business_name || "Client tidak ditemukan"}</span>
                 <span className="text-neutral-400 text-xs">(dari proyek)</span>
               </div>
             ) : (
@@ -116,7 +116,7 @@ export function CardModal({
           {card && (
             <>
               <button onClick={onArchiveCard}
-                className={`px-3 py-2 text-sm rounded-xl ${card.is_archived ? "bg-green-100 text-green-600 hover:bg-green-200" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                className={`px-3 py-2 text-sm rounded-xl ${card.is_archived ? "bg-neutral-200 text-neutral-600 hover:bg-neutral-300" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
                 title={card.is_archived ? "Pulihkan" : "Arsipkan"}>
                 {card.is_archived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
               </button>
@@ -142,7 +142,7 @@ function ChecklistSection({ card, onAdd, onToggle, formatDateTime }: { card: any
   return (
     <div>
       <h4 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-2 flex items-center gap-2">
-        <CheckSquare className="w-4 h-4 text-amber-500" /> Checklist
+        <CheckSquare className="w-4 h-4 text-neutral-500" /> Checklist
         {(card.checklist?.length || 0) > 0 && <span className="text-xs text-neutral-400">{card.checklist.filter((i: any) => i.is_done).length}/{card.checklist.length}</span>}
       </h4>
       {(card.checklist?.length || 0) > 0 && (
@@ -153,13 +153,13 @@ function ChecklistSection({ card, onAdd, onToggle, formatDateTime }: { card: any
       <div className="space-y-1.5 mb-2">
         {card.checklist?.map((item: any) => (
           <label key={item.id} className="flex items-center gap-2 text-sm cursor-pointer group">
-            <input type="checkbox" checked={item.is_done} onChange={e => onToggle(item.id, e.target.checked)} className="rounded accent-amber-500" />
+            <input type="checkbox" checked={item.is_done} onChange={e => onToggle(item.id, e.target.checked)} className="rounded accent-neutral-500" />
             <span className={`transition-all ${item.is_done ? "line-through text-neutral-400" : "text-neutral-700 dark:text-neutral-300"}`}>{item.text}</span>
           </label>
         ))}
       </div>
       <input type="text" placeholder="+ Tambah item checklist, Enter untuk simpan"
-        className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none"
+        className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none"
         onKeyDown={e => { if (e.key === "Enter") { onAdd((e.target as HTMLInputElement).value); (e.target as HTMLInputElement).value = ""; } }} />
     </div>
   );
@@ -169,7 +169,7 @@ function CommentsSection({ card, onAdd, formatDateTime }: { card: any; onAdd: (c
   return (
     <div>
       <h4 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-2 flex items-center gap-2">
-        <MessageSquare className="w-4 h-4 text-blue-500" /> Komentar
+        <MessageSquare className="w-4 h-4 text-neutral-500" /> Komentar
         {(card.comments?.length || 0) > 0 && <span className="text-xs text-neutral-400">{card.comments.length}</span>}
       </h4>
       <div className="space-y-2 mb-2 max-h-36 overflow-y-auto">
@@ -181,7 +181,7 @@ function CommentsSection({ card, onAdd, formatDateTime }: { card: any; onAdd: (c
         ))}
       </div>
       <input type="text" placeholder="Tulis komentar, Enter untuk kirim"
-        className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none"
+        className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none"
         onKeyDown={e => { if (e.key === "Enter") { onAdd((e.target as HTMLInputElement).value); (e.target as HTMLInputElement).value = ""; } }} />
     </div>
   );

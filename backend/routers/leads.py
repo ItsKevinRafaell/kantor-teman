@@ -669,6 +669,8 @@ async def analyze_lead(lead_id: int, current_user: User = Depends(get_current_us
     if not lead:
         raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
     config = get_ai_config(db)
+    if config.get("provider") == "none":
+        raise HTTPException(status_code=400, detail="AI provider belum dikonfigurasi. Silakan setup AI provider di Settings.")
 
     products = db.query(Product).filter(Product.is_active == True).all()
     product_list = "\n".join([f"- {p.name}: {p.description or ''}" for p in products]) if products else "- SEO\n- Web Development\n- Social Media Management"
@@ -741,6 +743,10 @@ async def analyze_batch(
     if not to_analyze:
         return {"message": "Semua lead di batch ini sudah dianalisa.", "analyzed": 0, "total": 0, "status": "done"}
 
+    config = get_ai_config(db)
+    if config.get("provider") == "none":
+        raise HTTPException(status_code=400, detail="AI provider belum dikonfigurasi. Silakan setup AI provider di Settings.")
+
     # Store job status in memory
     job_id = batch_name
     _analysis_jobs[job_id] = {"status": "running", "total": len(to_analyze), "analyzed": 0, "batch_name": batch_name}
@@ -757,6 +763,11 @@ async def analyze_batch(
         try:
             _db = _Session()
             _config = get_ai_config(_db)
+            if _config.get("provider") == "none":
+                _db.close()
+                _analysis_jobs[job_id]["status"] = "error"
+                _analysis_jobs[job_id]["error"] = "AI provider belum dikonfigurasi"
+                return
             _products = _db.query(Product).filter(Product.is_active == True).all()
             _product_list = "\n".join([f"- {p.name}: {p.description or ''}" for p in _products]) if _products else "- SEO\n- Web Development"
             _db.close()

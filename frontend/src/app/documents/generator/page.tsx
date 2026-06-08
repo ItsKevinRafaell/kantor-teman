@@ -14,6 +14,7 @@ interface GeneratedDoc {
   template_name: string | null;
   target_type: string | null;
   target_id: string | null;
+  target_display_name: string | null;
   file_url: string | null;
   display_filename: string | null;
   generated_at: string;
@@ -94,7 +95,8 @@ export default function DocumentGeneratorPage() {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100 truncate">{doc.display_filename || doc.template_name || "Untitled"}</p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {doc.target_type && <span className="mr-2">{doc.target_type}: {doc.target_id?.slice(0, 8)}...</span>}
+                  {doc.target_type && <span className="mr-2 text-neutral-400">{doc.target_type}</span>}
+                  {doc.target_display_name && <span className="font-medium text-neutral-600 dark:text-neutral-300 mr-2">{doc.target_display_name}</span>}
                   {doc.generated_at && new Date(doc.generated_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                   {doc.generated_by && <span className="ml-2 text-gray-400">oleh {doc.generated_by}</span>}
                 </p>

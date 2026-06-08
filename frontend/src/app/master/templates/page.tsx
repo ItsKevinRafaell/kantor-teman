@@ -4,6 +4,7 @@ import { inputCls } from "../../../lib/inputCls";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../../lib/api";
 import { Plus, Edit2, Trash2, X, FileText } from "lucide-react";
+import Breadcrumb from "../../../components/Breadcrumb";
 import Pagination from "../../../components/Pagination";
 import Modal from "../../../components/Modal";
 import Toast from "../../../components/Toast";
@@ -156,6 +157,7 @@ export default function DynamicTemplatesPage() {
 
   return (
     <div className="max-w-6xl space-y-6">
+      <Breadcrumb items={[{ label: "Master" }, { label: "Template" }]} showBack backHref="/master" />
       <Toast message={toast?.message ?? null} type={toast?.type} onClose={() => setToast(null)} />
       <Modal
         open={!!deleteId}

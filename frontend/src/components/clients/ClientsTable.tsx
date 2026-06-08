@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../lib/api";
 import { downloadBlob } from "../../utils/download";
+import Breadcrumb from "../Breadcrumb";
 import Toast from "../Toast";
 import Modal from "../Modal";
 import { useAuth } from "../../contexts/AuthContext";
@@ -172,6 +173,7 @@ export default function ClientsTable() {
       <ProposalModal contact={proposalModal.contact} open={proposalModal.open} onClose={() => setProposalModal({ open: false, contact: null })} onSuccess={(url) => setProposalSuccess({ open: true, url })} setToast={setToast} />
 
       {/* Header */}
+      <Breadcrumb items={[{ label: "Buku Klien" }]} showBack backHref="/" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">Buku Klien</h1>

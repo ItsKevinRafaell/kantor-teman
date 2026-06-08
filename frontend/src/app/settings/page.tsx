@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getUserInfo, clearToken, apiFetch } from "../../lib/api";
+import Breadcrumb from "../../components/Breadcrumb";
 import Toast from "../../components/Toast";
 import AIEngineTab from "./AIEngineTab";
 import AuditLogsTab from "./AuditLogsTab";
@@ -155,6 +156,7 @@ function SettingsContent() {
 
   return (
     <div className="max-w-4xl space-y-6">
+      <Breadcrumb items={[{ label: "Pengaturan" }]} showBack backHref="/" />
       <Toast message={toast?.message ?? null} type={toast?.type} onClose={() => setToast(null)} />
 
       <div className="flex items-center justify-between">

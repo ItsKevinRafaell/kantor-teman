@@ -365,8 +365,8 @@ class TestAIProviderConfig:
         """AIProxyIn should accept provider field."""
         from schemas import AIProxyIn, AIProxyOut
 
-        inp = AIProxyIn(name="Test", base_url="http://test.com", provider="claude")
-        assert inp.provider == "claude"
+        inp = AIProxyIn(name="Test", base_url="http://test.com", provider="anthropic")
+        assert inp.provider == "anthropic"
 
     def test_get_ai_config_claude_maps_key(self, db_session):
         """get_ai_config maps api_key to claude_key for claude provider."""
@@ -390,7 +390,7 @@ class TestAIProviderConfig:
         with patch.object(ai_service, "get_proxy_for_feature", return_value=proxy):
             cfg = get_ai_config(db_session, "chat")
 
-        assert cfg["provider"] == "claude"
+        assert cfg["provider"] == "anthropic"  # canonical form of "claude"
         assert cfg["claude_key"] == "sk-ant-key123"
         assert cfg["openai_key"] == ""
         assert cfg["gemini_key"] == ""
@@ -756,7 +756,7 @@ class TestAIMultiProvider:
         from pydantic import ValidationError
 
         # Valid providers should pass
-        for provider in ("openai", "claude", "gemini"):
+        for provider in ("openai", "anthropic", "gemini", "openrouter", "custom"):
             inp = AIProxyIn(name="Test", base_url="http://test.com", provider=provider)
             assert inp.provider == provider
 

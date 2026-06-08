@@ -28,15 +28,19 @@ class AIProxyIn(BaseModel):
     base_url: str
     api_key: str = ""
     model: str = ""
-    provider: str = "openai"  # openai, claude, gemini
+    provider: str = "openai"  # openai, anthropic, gemini, openrouter, custom
     feature: Optional[str] = None
 
     @field_validator("provider")
     @classmethod
     def validate_provider(cls, v: str) -> str:
-        valid = {"openai", "claude", "gemini"}
+        # Map legacy names to canonical
+        aliases = {"claude": "anthropic"}
+        if v in aliases:
+            v = aliases[v]
+        valid = {"openai", "anthropic", "gemini", "openrouter", "custom"}
         if v not in valid:
-            raise ValueError(f"Provider must be one of: {', '.join(sorted(valid))}")
+            raise ValueError("Provider must be one of: " + ", ".join(sorted(valid)))
         return v
 
 

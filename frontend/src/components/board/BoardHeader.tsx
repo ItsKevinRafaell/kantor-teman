@@ -2,7 +2,7 @@
 import { Plus, Archive, ArchiveRestore } from "lucide-react";
 
 const COLORS = {
-  primary: "bg-amber-500 hover:bg-amber-600 text-white",
+  primary: "bg-neutral-500 hover:bg-neutral-600 text-white",
   secondary: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700",
 };
 
@@ -29,7 +29,7 @@ export default function BoardHeader({
       <div>
         {viewMode === "board" && currentProject ? (
           <div>
-            <button onClick={onBackToOverview} className="flex items-center gap-1 text-sm text-neutral-500 hover:text-amber-600 dark:hover:text-yellow-400 mb-1 transition-colors">
+            <button onClick={onBackToOverview} className="flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 mb-1 transition-colors">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
               Semua Proyek
             </button>
@@ -45,7 +45,7 @@ export default function BoardHeader({
       <div className="flex items-center gap-2 flex-wrap justify-end">
         {viewMode === "overview" && (
           <label className="flex items-center gap-2 px-3 py-2 text-sm rounded-xl cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
-            <input type="checkbox" checked={showArchivedProjects} onChange={e => setShowArchivedProjects(e.target.checked)} className="accent-amber-500 w-4 h-4" />
+            <input type="checkbox" checked={showArchivedProjects} onChange={e => setShowArchivedProjects(e.target.checked)} className="accent-neutral-500 w-4 h-4" />
             Tampilkan arsip
           </label>
         )}

@@ -45,11 +45,6 @@ _DEFAULT_CORS = "https://kantorteman.my.id,https://www.kantorteman.my.id,https:/
 CORS_ORIGIN = os.getenv("CORS_ORIGIN", _DEFAULT_CORS)
 _cors_list = [o.strip() for o in CORS_ORIGIN.split(",") if o.strip()]
 
-# 9router
-NINE_ROUTER_DB = os.getenv("NINE_ROUTER_DB", "/root/.9router/db/data.sqlite")
-NINE_ROUTER_URL = os.getenv("NINE_ROUTER_URL", "http://localhost:20128/v1")
-NINE_ROUTER_API_KEY = os.getenv("NINE_ROUTER_API_KEY", "dummy")
-
 # Hermes Gateway
 HERMES_GATEWAY_URL = os.getenv("HERMES_GATEWAY_URL", "")
 HERMES_GATEWAY_TOKEN = os.getenv("HERMES_GATEWAY_TOKEN", "")
@@ -65,14 +60,6 @@ SENSITIVE_SETTING_KEYS = {
     "fonnte_token", "gemini_api_key", "claude_api_key", "openai_api_key",
     "ai_api_key", "google_api_key", "google_service_account_json",
     "cms_api_token", "external_lead_api_key", "smtp_password",
-}
-
-COMBO_DISPLAY_NAMES: dict[str, str] = {
-    "combo-kiro": "Kiro (Claude Sonnet 4.6/4.7)",
-    "combo-mimo": "MiMo v2.5 Pro (Xiaomi)",
-    "combo-deepseek": "DeepSeek v4 Pro",
-    "combo-freemodel": "Free Model (GPT-5)",
-    "combo-test-mimo": "MiMo Test",
 }
 
 # ─── Database ─────────────────────────────────────────────────────────────────
@@ -483,7 +470,7 @@ def log_outreach_cost(db: Session, campaign_id: str, messages_count: int):
     db.commit()
 
 def log_ai_cost(db: Session, campaign_id: str | None, model_name: str, input_tokens: int, output_tokens: int):
-    provider_map = {"gemini": "GEMINI", "claude": "CLAUDE", "openai": "OPENAI"}
+    provider_map = {"gemini": "GEMINI", "claude": "CLAUDE", "anthropic": "CLAUDE", "openai": "OPENAI"}
     provider_id = provider_map.get(model_name, model_name.upper())
     provider = db.query(ProviderConfig).filter_by(id=provider_id).first()
     if not provider:
@@ -534,39 +521,6 @@ def _send_fonnte_sync(phone: str, message: str, token: str, _httpx) -> bool:
 
 # ─── AI Config ────────────────────────────────────────────────────────────────
 
-def _get_9router_combos() -> list[dict]:
-    try:
-        import sqlite3 as _sqlite3
-        con = _sqlite3.connect(NINE_ROUTER_DB, timeout=2)
-        rows = con.execute("SELECT name FROM combos WHERE active=1 OR active IS NULL ORDER BY name").fetchall()
-        con.close()
-        if rows:
-            return [{"name": r[0], "display_name": COMBO_DISPLAY_NAMES.get(r[0], r[0])} for r in rows]
-    except Exception as e:
-        print(f"[9router] sqlite query failed: {e}", flush=True)
-    try:
-        url = f"{NINE_ROUTER_URL.rstrip('/')}/models"
-        with httpx.Client(timeout=3) as client:
-            r = client.get(url, headers={"Authorization": f"Bearer {NINE_ROUTER_API_KEY}"})
-        if r.status_code == 200:
-            data = r.json()
-            models = data.get("data") if isinstance(data, dict) else data
-            if isinstance(models, list):
-                names = [m["id"] if isinstance(m, dict) else str(m) for m in models]
-                names = [n for n in names if n.startswith("combo-")] or names
-                return [{"name": n, "display_name": COMBO_DISPLAY_NAMES.get(n, n)} for n in names]
-    except Exception as e:
-        print(f"[9router] /v1/models fallback failed: {e}", flush=True)
-    return [{"name": k, "display_name": v} for k, v in COMBO_DISPLAY_NAMES.items()]
-
-def _get_active_combo(db: Session) -> str:
-    row = db.query(SystemSettings).filter_by(key="ai_active_combo").first()
-    return (row.value if row and row.value else "combo-kiro")
-
-def _get_proxy_url(db: Session) -> str:
-    row = db.query(SystemSettings).filter_by(key="ai_proxy_url").first()
-    return (row.value if row and row.value else NINE_ROUTER_URL).rstrip("/")
-
 def _get_feature_defaults(db: Session) -> dict:
     row = db.query(SystemSettings).filter_by(key="ai_feature_defaults").first()
     if row and row.value:
@@ -588,31 +542,19 @@ def get_default_model(db: Session, capability: str) -> Optional[AIModel]:
     field = f"is_default_{capability}"
     return db.query(AIModel).filter(getattr(AIModel, field) == 1, AIModel.is_active == 1).first()
 
-def get_9router_config(db: Session, feature: Optional[str] = None) -> dict:
-    model = _get_active_combo(db)
-    provider = "openai"  # 9router is OpenAI-compatible by default
-    if feature:
-        defaults = _get_feature_defaults(db)
-        override = (defaults.get(feature) or "").strip()
-        if override:
-            model = override
-    # Check for provider override in system settings
-    provider_row = db.query(SystemSettings).filter_by(key="ai_default_provider").first()
-    if provider_row and provider_row.value:
-        provider = provider_row.value
-    return {
-        "provider": provider,
-        "openai_key": NINE_ROUTER_API_KEY,
-        "base_url": _get_proxy_url(db),
-        "model": model,
-        "gemini_key": "",
-        "claude_key": "",
-    }
-
 def get_ai_config(db: Session, capability: str = "chat") -> dict:
+    """Per-feature AIProxy first. Returns 'none' provider if no AIProxy configured.
+
+    Canonical provider IDs: openai, anthropic, gemini, openrouter, custom
+    - anthropic routes to native Anthropic Messages API
+    - openai/openrouter/custom route to OpenAI-compatible /chat/completions
+    - gemini routes to Gemini native API
+    - Legacy alias 'claude' maps to 'anthropic'
+    """
+    from app.services.ai_service import _canonical_provider
     proxy = get_proxy_for_feature(db, capability)
     if proxy:
-        provider = proxy.provider or "openai"
+        provider = _canonical_provider(proxy.provider)
         cfg = {
             "provider": provider,
             "base_url": proxy.base_url.rstrip("/"),
@@ -622,16 +564,23 @@ def get_ai_config(db: Session, capability: str = "chat") -> dict:
             cfg["gemini_key"] = proxy.api_key
             cfg["openai_key"] = ""
             cfg["claude_key"] = ""
-        elif provider == "claude":
+        elif provider == "anthropic":
             cfg["claude_key"] = proxy.api_key
             cfg["openai_key"] = ""
             cfg["gemini_key"] = ""
-        else:
+        else:  # openai, openrouter, custom
             cfg["openai_key"] = proxy.api_key
             cfg["gemini_key"] = ""
             cfg["claude_key"] = ""
     else:
-        cfg = get_9router_config(db)
+        cfg = {
+            "provider": "none",
+            "base_url": "",
+            "model": "",
+            "openai_key": "",
+            "gemini_key": "",
+            "claude_key": "",
+        }
     default_model = get_default_model(db, capability)
     if default_model and default_model.model_id:
         cfg["model"] = default_model.model_id

@@ -29,7 +29,6 @@ from app.services.workspace_service import (
 )
 
 from app.services.ai_service import (
-    get_9router_combos,
     get_default_model,
     get_ai_config,
     get_proxy_for_feature,
@@ -50,10 +49,6 @@ from app.services.ai_service import (
     update_ai_proxy,
     activate_ai_proxy,
     delete_ai_proxy,
-    _get_active_combo,
-    _get_proxy_url,
-    set_active_combo,
-    set_proxy_url,
     _get_feature_defaults,
     set_feature_defaults,
 )

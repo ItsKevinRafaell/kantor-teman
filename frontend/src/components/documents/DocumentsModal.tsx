@@ -64,31 +64,31 @@ export function DocForm({ form, onChange, folders, onSave, onCancel, saving }: D
       <div>
         <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Judul *</label>
         <input autoFocus value={form.title} onChange={e => onChange({ ...form, title: e.target.value })}
-          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none"
+          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none"
           placeholder="Judul dokumen..." />
       </div>
       <div>
         <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Link Eksternal</label>
         <input value={form.url} onChange={e => onChange({ ...form, url: e.target.value })}
-          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none"
+          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none"
           placeholder="https://..." />
       </div>
       <div>
         <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Catatan / Body</label>
         <textarea value={form.body} onChange={e => onChange({ ...form, body: e.target.value })}
-          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none resize-none" rows={4}
+          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none resize-none" rows={4}
           placeholder="Tulis catatan di sini..." />
       </div>
       <div>
         <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Tags</label>
         <input value={form.tags} onChange={e => onChange({ ...form, tags: e.target.value })}
-          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none"
+          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none"
           placeholder="seo, panduan, internal (pisah dengan koma)" />
       </div>
       <div>
         <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Folder</label>
         <select value={form.folder_id} onChange={e => onChange({ ...form, folder_id: e.target.value })}
-          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none">
+          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none">
           <option value="">— Tanpa Folder —</option>
           {folders.map(f => <option key={f.id} value={f.id}>{f.parent_id ? `-- ${f.name}` : f.name}</option>)}
         </select>
@@ -96,7 +96,7 @@ export function DocForm({ form, onChange, folders, onSave, onCancel, saving }: D
       <div className="flex justify-end gap-2 pt-1">
         <button onClick={onCancel} className="px-4 py-2 text-sm rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">Batal</button>
         <button onClick={onSave} disabled={saving || !form.title.trim()}
-          className="px-4 py-2 text-sm rounded-xl font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50">
+          className="px-4 py-2 text-sm rounded-xl font-semibold bg-neutral-500 hover:bg-neutral-600 text-white transition-colors disabled:opacity-50">
           {saving ? "Menyimpan..." : "Simpan"}
         </button>
       </div>
@@ -128,13 +128,13 @@ export function FolderForm({ form, onChange, folders, onSave, onCancel, saving, 
       <div>
         <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Nama Folder</label>
         <input autoFocus value={form.name} onChange={e => onChange({ ...form, name: e.target.value })}
-          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none"
+          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none"
           placeholder="Nama folder..." onKeyDown={e => e.key === "Enter" && onSave()} />
       </div>
       <div>
         <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Parent Folder</label>
         <select value={form.parent_id} onChange={e => onChange({ ...form, parent_id: e.target.value })}
-          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-yellow-400 outline-none">
+          className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none">
           <option value="">— Folder Utama —</option>
           {folders.filter(f => f.id !== editingId).map(f => <option key={f.id} value={f.id}>{f.parent_id ? `-- ${f.name}` : f.name}</option>)}
         </select>
@@ -152,7 +152,7 @@ export function FolderForm({ form, onChange, folders, onSave, onCancel, saving, 
       <div className="flex justify-end gap-2 pt-1">
         <button onClick={onCancel} className="px-4 py-2 text-sm rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">Batal</button>
         <button onClick={onSave} disabled={saving || !form.name.trim()}
-          className="px-4 py-2 text-sm rounded-xl font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50">
+          className="px-4 py-2 text-sm rounded-xl font-semibold bg-neutral-500 hover:bg-neutral-600 text-white transition-colors disabled:opacity-50">
           {saving ? "Menyimpan..." : "Simpan"}
         </button>
       </div>

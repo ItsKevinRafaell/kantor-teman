@@ -7,6 +7,7 @@ import { Search, Copy, Trash2, ArrowUpDown, Plus } from "lucide-react";
 import Toast from "../../components/Toast";
 import Modal from "../../components/Modal";
 import Pagination from "../../components/Pagination";
+import Breadcrumb from "../../components/Breadcrumb";
 import ProposalModal from "../../components/clients/ProposalModal";
 import type { Contact } from "../../types";
 
@@ -105,6 +106,7 @@ export default function ProposalsPage() {
 
   return (
     <div className="max-w-6xl space-y-6">
+      <Breadcrumb items={[{ label: "Proposals" }]} showBack backHref="/clients" />
       <Toast message={toast?.message ?? null} type={toast?.type} onClose={() => setToast(null)} />
       <Modal
         open={!!deleteId}

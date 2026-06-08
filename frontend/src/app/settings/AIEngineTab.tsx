@@ -17,28 +17,30 @@ interface AIModel {
 interface AIProxy {
   id: string; name: string; base_url: string; api_key: string;
   model: string; feature: string | null; is_active: boolean; created_at: string;
+  provider?: string;
 }
 
-interface Combo { name: string; display_name: string; }
 interface HealthState { status: "connected" | "offline" | "loading"; proxy_url: string; }
 
-const COMBO_LABELS: Record<string, string> = {
-  "combo-kiro": "Kiro (Claude)", "combo-mimo": "MiMo v2.5 Pro",
-  "combo-deepseek": "DeepSeek", "combo-freemodel": "Free Model", "combo-test-mimo": "MiMo Test",
-};
+const PROVIDER_OPTIONS = [
+  { value: "openai", label: "OpenAI" },
+  { value: "anthropic", label: "Anthropic" },
+  { value: "gemini", label: "Google Gemini" },
+  { value: "openrouter", label: "OpenRouter" },
+  { value: "custom", label: "Custom (OpenAI-compatible)" },
+];
 
 const FEATURES = [
-  { key: "chat", label: "Chat & Agent" }, { key: "article", label: "Generate Artikel SEO" },
-  { key: "image", label: "Generate Gambar" }, { key: "analysis", label: "Analisa Lead" },
+  { key: "chat", label: "Chat & Agent" },
+  { key: "article", label: "Generate Artikel SEO" },
+  { key: "image", label: "Generate Gambar" },
+  { key: "analysis", label: "Analisa Lead" },
   { key: "caption", label: "Generate Caption Sosmed" },
 ] as const;
 
 export default function AIEngineTab() {
   const [models, setModels] = useState<AIModel[]>([]);
   const [loading, setLoading] = useState(true);
-  const [combos, setCombos] = useState<Combo[]>([]);
-  const [activeCombo, setActiveCombo] = useState<string>("");
-  const [switching, setSwitching] = useState<string | null>(null);
   const [health, setHealth] = useState<HealthState>({ status: "loading", proxy_url: "" });
   const [proxyUrlInput, setProxyUrlInput] = useState<string>("");
   const [savingUrl, setSavingUrl] = useState(false);
@@ -55,11 +57,6 @@ export default function AIEngineTab() {
     try { const r = await apiFetch("/api/ai-models"); if (r.ok) setModels(await r.json()); }
     finally { setLoading(false); }
   }, []);
-  const fetchCombos = useCallback(async () => {
-    const [combosRes, activeRes] = await Promise.all([apiFetch("/api/ai/combos"), apiFetch("/api/ai/active-combo")]);
-    if (combosRes.ok) setCombos(await combosRes.json());
-    if (activeRes.ok) { const d = await activeRes.json(); setActiveCombo(d.combo); if (d.proxy_url) setProxyUrlInput(d.proxy_url); }
-  }, []);
   const checkHealth = useCallback(async () => {
     setHealth(h => ({ ...h, status: "loading" }));
     try {
@@ -74,8 +71,8 @@ export default function AIEngineTab() {
     try { const r = await apiFetch("/api/ai-proxies"); if (r.ok) setProxies(await r.json()); } catch {}
   }, []);
 
-  useEffect(() => { fetchModels(); fetchCombos(); checkHealth(); fetchFeatureDefaults(); fetchProxies(); },
-    [fetchModels, fetchCombos, checkHealth, fetchFeatureDefaults, fetchProxies]);
+  useEffect(() => { fetchModels(); checkHealth(); fetchFeatureDefaults(); fetchProxies(); },
+    [fetchModels, checkHealth, fetchFeatureDefaults, fetchProxies]);
 
   async function saveProxyUrl() {
     const url = proxyUrlInput.trim();
@@ -86,18 +83,6 @@ export default function AIEngineTab() {
       if (res.ok) { const d = await res.json(); setProxyUrlInput(d.proxy_url); showToast("Proxy URL disimpan"); checkHealth(); }
       else { const e = await res.json().catch(() => ({})); showToast(e.detail || "Gagal menyimpan URL"); }
     } finally { setSavingUrl(false); }
-  }
-
-  async function selectCombo(name: string) {
-    if (name === activeCombo || switching) return;
-    openConfirm("Ganti Combo", `Ganti combo aktif ke "${COMBO_LABELS[name] || name}"?`, async () => {
-      setSwitching(name);
-      try {
-        const res = await apiFetch("/api/ai/active-combo", { method: "POST", body: JSON.stringify({ combo: name }) });
-        if (res.ok) { setActiveCombo(name); showToast(`Combo diubah ke ${COMBO_LABELS[name] || name}`); }
-        else { const e = await res.json().catch(() => ({})); showToast(e.detail || "Gagal mengubah combo"); }
-      } finally { setSwitching(null); }
-    });
   }
 
   async function saveFeatureDefaultsHandler() {
@@ -119,6 +104,10 @@ export default function AIEngineTab() {
     if (res.ok) { fetchModels(); showToast(`Default ${capability} diset`); }
   }
 
+  // Get active proxy as default provider
+  const activeProxy = proxies.find(p => p.is_active);
+  const activeProxyName = activeProxy?.name || "Belum ada";
+
   return (
     <div className="max-w-4xl space-y-6">
       {toast && (
@@ -132,7 +121,7 @@ export default function AIEngineTab() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">AI Model Endpoint</h2>
-            <p className="text-xs text-neutral-500 mt-0.5">Endpoint OpenAI-compatible — bisa router multi-model atau direct API provider</p>
+            <p className="text-xs text-neutral-500 mt-0.5">Endpoint OpenAI-compatible untuk direct API atau router multi-model</p>
           </div>
           <div className="flex items-center gap-3">
             {health.status === "connected" && (
@@ -159,51 +148,51 @@ export default function AIEngineTab() {
         </div>
       </div>
 
-      {/* Active Combo */}
+      {/* Active Provider Config */}
       <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 space-y-4">
         <div>
-          <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Combo Aktif (Default)</h2>
-          <p className="text-xs text-neutral-500 mt-1">Klik combo untuk mengaktifkannya. Semua AI call CRM pakai combo ini kecuali ada override per fitur.</p>
+          <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Provider Default</h2>
+          <p className="text-xs text-neutral-500 mt-1">Provider aktif yang digunakan CRM untuk semua AI call (bisa di-override per fitur di bawah).</p>
         </div>
-        {combos.length === 0 ? (
-          <div className="p-6 text-center text-sm text-neutral-400">Memuat combo...</div>
+        {proxies.length === 0 ? (
+          <div className="p-6 text-center">
+            <p className="text-sm text-neutral-500 mb-3">Belum ada provider config. Tambahkan di section "AI Proxies" di bawah.</p>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {combos.map(c => {
-              const isActive = c.name === activeCombo;
-              const isSwitching = switching === c.name;
-              return (
-                <button key={c.name} onClick={() => selectCombo(c.name)} disabled={isSwitching || isActive}
-                  className={`text-left p-4 rounded-xl border-2 transition-all ${isActive ? "border-[#f5a700] bg-amber-50/50 dark:bg-amber-900/10" : "border-[var(--border-subtle)] hover:border-amber-300 hover:bg-amber-50/30 dark:hover:bg-amber-900/5"} ${isSwitching ? "opacity-60" : ""}`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">{COMBO_LABELS[c.name] || c.name}</p>
-                      <p className="text-[11px] text-neutral-400 font-mono mt-0.5">{c.name}</p>
-                    </div>
-                    {isActive && <span className="shrink-0 px-2 py-0.5 bg-brand-yellow text-white text-[10px] font-bold uppercase rounded">Aktif</span>}
-                    {isSwitching && <span className="shrink-0 text-[10px] text-amber-600">Switching...</span>}
+          <div className="space-y-2">
+            {proxies.filter(p => p.is_active).map(p => (
+              <div key={p.id} className="flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-900/10">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">{p.name}</span>
+                    <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold rounded">AKTIF</span>
+                    {p.provider && <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500">{PROVIDER_OPTIONS.find(o => o.value === p.provider)?.label || p.provider}</span>}
                   </div>
-                </button>
-              );
-            })}
+                  <p className="text-xs text-neutral-400 truncate mt-0.5">{p.base_url} • {p.model || "default"}</p>
+                </div>
+              </div>
+            ))}
+            {proxies.filter(p => !p.is_active).length > 0 && (
+              <p className="text-xs text-neutral-400 mt-2">{proxies.filter(p => !p.is_active).length} provider lain tidak aktif. Aktifkan di section "AI Proxies".</p>
+            )}
           </div>
         )}
       </div>
 
-      {/* Default per Fitur */}
+      {/* Model Override per Fitur */}
       <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 space-y-4">
         <div>
-          <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Default Model per Fitur</h2>
-          <p className="text-xs text-neutral-500 mt-1">Override combo per fitur. Kosong = pakai combo aktif di atas.</p>
+          <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Model Override per Fitur</h2>
+          <p className="text-xs text-neutral-500 mt-1">Override provider default untuk fitur tertentu. Kosong = pakai provider aktif di atas.</p>
         </div>
         <div className="space-y-3">
           {FEATURES.map(f => (
             <div key={f.key} className="flex items-center gap-4">
-              <label className="text-sm text-neutral-700 dark:text-neutral-300 w-48 shrink-0">{f.label}</label>
+              <label className="text-sm text-neutral-700 dark:text-neutral-300 w-40 shrink-0">{f.label}</label>
               <select value={featureDefaults[f.key] || ""} onChange={e => setFeatureDefaults(prev => ({ ...prev, [f.key]: e.target.value }))}
                 className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-neutral-50 dark:bg-neutral-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-yellow/50 transition">
-                <option value="">Default (combo aktif)</option>
-                {combos.map(c => <option key={c.name} value={c.name}>{COMBO_LABELS[c.name] || c.name}</option>)}
+                <option value="">Default (provider aktif)</option>
+                {proxies.map(p => <option key={p.id} value={p.id}>{p.name} {p.model ? `(${p.model})` : ""}</option>)}
               </select>
             </div>
           ))}

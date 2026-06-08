@@ -8,68 +8,6 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from models import AIModel, SystemSettings, AIProxy, ContentProvider, ContentGeneration, ContentSession
-from app.core.dependencies import (
-    NINE_ROUTER_DB, NINE_ROUTER_URL, NINE_ROUTER_API_KEY,
-    COMBO_DISPLAY_NAMES, get_fonnte_token, _send_fonnte_sync,
-)
-
-
-# ─── 9router Combo helpers ────────────────────────────────────────────────────
-
-def get_9router_combos() -> list[dict]:
-    """Return list of active combo dicts from 9router SQLite or HTTP fallback."""
-    try:
-        import sqlite3 as _sqlite3
-        con = _sqlite3.connect(NINE_ROUTER_DB, timeout=2)
-        rows = con.execute("SELECT name FROM combos WHERE active=1 OR active IS NULL ORDER BY name").fetchall()
-        con.close()
-        if rows:
-            return [{"name": r[0], "display_name": COMBO_DISPLAY_NAMES.get(r[0], r[0])} for r in rows]
-    except Exception as e:
-        print(f"[9router] sqlite query failed: {e}", flush=True)
-    try:
-        import httpx as _httpx
-        url = f"{NINE_ROUTER_URL.rstrip('/')}/models"
-        with _httpx.Client(timeout=3) as client:
-            r = client.get(url, headers={"Authorization": f"Bearer {NINE_ROUTER_API_KEY}"})
-        if r.status_code == 200:
-            data = r.json()
-            models = data.get("data") if isinstance(data, dict) else data
-            if isinstance(models, list):
-                names = [m["id"] if isinstance(m, dict) else str(m) for m in models]
-                names = [n for n in names if n.startswith("combo-")] or names
-                return [{"name": n, "display_name": COMBO_DISPLAY_NAMES.get(n, n)} for n in names]
-    except Exception as e:
-        print(f"[9router] /v1/models fallback failed: {e}", flush=True)
-    return [{"name": k, "display_name": v} for k, v in COMBO_DISPLAY_NAMES.items()]
-
-
-def _get_active_combo(db: Session) -> str:
-    row = db.query(SystemSettings).filter_by(key="ai_active_combo").first()
-    return (row.value if row and row.value else "combo-kiro")
-
-
-def _get_proxy_url(db: Session) -> str:
-    row = db.query(SystemSettings).filter_by(key="ai_proxy_url").first()
-    return (row.value if row and row.value else NINE_ROUTER_URL).rstrip("/")
-
-
-def set_active_combo(db: Session, combo: str) -> None:
-    row = db.query(SystemSettings).filter_by(key="ai_active_combo").first()
-    if row:
-        row.value = combo
-    else:
-        db.add(SystemSettings(key="ai_active_combo", value=combo))
-
-
-def set_proxy_url(db: Session, url: str) -> None:
-    row = db.query(SystemSettings).filter_by(key="ai_proxy_url").first()
-    if row:
-        row.value = url
-    else:
-        db.add(SystemSettings(key="ai_proxy_url", value=url))
-
-
 # ─── Feature Defaults ─────────────────────────────────────────────────────────
 
 def _get_feature_defaults(db: Session) -> dict:
@@ -85,16 +23,17 @@ def _get_feature_defaults(db: Session) -> dict:
 
 
 def set_feature_defaults(db: Session, defaults: dict) -> dict:
+    """Validate feature defaults against AIProxy IDs. Valid values are AIProxy.id strings."""
     valid_features = {"chat", "article", "image", "analysis", "caption"}
-    valid_combos = {c["name"] for c in get_9router_combos()}
+    valid_proxy_ids = {p.id for p in db.query(AIProxy.id).all()}
     cleaned: dict[str, str] = {}
-    for feature, combo in defaults.items():
+    for feature, proxy_id in defaults.items():
         if feature not in valid_features:
             continue
-        combo_str = (combo or "").strip()
-        if combo_str and combo_str not in valid_combos:
-            raise ValueError(f"Combo '{combo_str}' tidak valid untuk fitur '{feature}'")
-        cleaned[feature] = combo_str
+        pid = (proxy_id or "").strip()
+        if pid and pid not in valid_proxy_ids:
+            raise ValueError(f"Proxy ID '{pid}' tidak valid untuk fitur '{feature}'")
+        cleaned[feature] = pid
     value = json.dumps(cleaned)
     row = db.query(SystemSettings).filter_by(key="ai_feature_defaults").first()
     if row:
@@ -122,14 +61,18 @@ def update_ai_proxy(db: Session, proxy_id: str, updates: dict) -> AIProxy:
     proxy = db.query(AIProxy).filter_by(id=proxy_id).first()
     if not proxy:
         raise ValueError("Proxy tidak ditemukan")
-    valid_providers = {"openai", "claude", "gemini"}
+    valid_providers = {"openai", "anthropic", "gemini", "openrouter", "custom", "claude"}
+    aliases = {"claude": "anthropic"}
     for key in ("name", "base_url", "api_key", "model", "feature", "provider"):
         if key in updates:
             val = updates[key]
             if key == "base_url" and val:
                 val = val.rstrip("/")
-            if key == "provider" and val and val not in valid_providers:
-                raise ValueError(f"Provider must be one of: {', '.join(sorted(valid_providers))}")
+            if key == "provider" and val:
+                if val not in valid_providers:
+                    raise ValueError("Provider must be one of: " + ", ".join(sorted(valid_providers - {"claude"})))
+                if val in aliases:
+                    val = aliases[val]
             setattr(proxy, key, val)
     db.commit()
     db.refresh(proxy)
@@ -186,58 +129,56 @@ def get_proxy_for_feature(db: Session, feature: str) -> Optional[AIProxy]:
     return proxy
 
 
+def _canonical_provider(provider: Optional[str]) -> str:
+    """Map legacy aliases to canonical provider IDs."""
+    aliases = {"claude": "anthropic"}
+    if not provider:
+        return "openai"
+    return aliases.get(provider, provider)
+
+
 def get_ai_config(db: Session, capability: str = "chat") -> dict:
-    """Per-feature AIProxy first, fallback to 9router. Optional model override per capability via ai_models registry."""
+    """Per-feature AIProxy first. Returns 'none' provider if no AIProxy configured.
+
+    Canonical provider IDs: openai, anthropic, gemini, openrouter, custom
+    - anthropic routes to native Anthropic Messages API (x-api-key, /v1/messages)
+    - openai/openrouter/custom route to OpenAI-compatible /chat/completions
+    - gemini routes to Gemini native API
+    - Legacy alias 'claude' maps to 'anthropic'
+    """
     proxy = get_proxy_for_feature(db, capability)
     if proxy:
-        provider = proxy.provider or "openai"
-        # Map api_key to the correct provider key
+        provider = _canonical_provider(proxy.provider)
         cfg = {
             "provider": provider,
             "base_url": proxy.base_url.rstrip("/"),
             "model": proxy.model,
         }
-        # Map api_key based on provider type
         if provider == "gemini":
             cfg["gemini_key"] = proxy.api_key
             cfg["openai_key"] = ""
             cfg["claude_key"] = ""
-        elif provider == "claude":
+        elif provider == "anthropic":
             cfg["claude_key"] = proxy.api_key
             cfg["openai_key"] = ""
             cfg["gemini_key"] = ""
-        else:  # openai or openai-compatible
+        else:  # openai, openrouter, custom — all OpenAI-compatible /chat/completions
             cfg["openai_key"] = proxy.api_key
             cfg["gemini_key"] = ""
             cfg["claude_key"] = ""
     else:
-        cfg = get_9router_config(db)
+        cfg = {
+            "provider": "none",
+            "base_url": "",
+            "model": "",
+            "openai_key": "",
+            "gemini_key": "",
+            "claude_key": "",
+        }
     default_model = get_default_model(db, capability)
     if default_model and default_model.model_id:
         cfg["model"] = default_model.model_id
     return cfg
-
-
-def get_9router_config(db: Session, feature: Optional[str] = None) -> dict:
-    model = _get_active_combo(db)
-    provider = "openai"  # 9router is OpenAI-compatible by default
-    if feature:
-        defaults = _get_feature_defaults(db)
-        override = (defaults.get(feature) or "").strip()
-        if override:
-            model = override
-    # Check for provider override in system settings
-    provider_row = db.query(SystemSettings).filter_by(key="ai_default_provider").first()
-    if provider_row and provider_row.value:
-        provider = provider_row.value
-    return {
-        "provider": provider,
-        "openai_key": NINE_ROUTER_API_KEY,
-        "base_url": _get_proxy_url(db),
-        "model": model,
-        "gemini_key": "",
-        "claude_key": "",
-    }
 
 
 # ─── Native Claude Messages API ──────────────────────────────────────────────
@@ -277,8 +218,16 @@ def _call_claude_native(client, api_key: str, model: str, prompt: str) -> str:
 # ─── AI Sync call ─────────────────────────────────────────────────────────────
 
 def call_ai_sync(prompt: str, config: dict, httpx_module) -> str:
-    """Synchronous HTTP call to gemini/claude/openai."""
-    provider = config["provider"]
+    """Synchronous HTTP call — supports openai, anthropic, gemini, openrouter, custom.
+
+    Canonical routing:
+    - anthropic: native Anthropic Messages API (/v1/messages, x-api-key header)
+    - gemini: Gemini native API (generateContent endpoint)
+    - openai/openrouter/custom: OpenAI-compatible /chat/completions
+    """
+    provider = _canonical_provider(config["provider"])
+    if provider == "none":
+        raise Exception("AI provider belum dikonfigurasi.")
     with httpx_module.Client(timeout=120) as client:
         if provider == "gemini":
             if not config["gemini_key"]:
@@ -291,25 +240,24 @@ def call_ai_sync(prompt: str, config: dict, httpx_module) -> str:
             if resp.status_code != 200:
                 raise Exception(f"Gemini API error: {resp.status_code} - {resp.text[:200]}")
             return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        elif provider == "claude":
+        elif provider == "anthropic":
             if not config["claude_key"]:
                 raise Exception("Claude API Key belum dikonfigurasi.")
-            base_url = config.get("base_url") or "https://api.openai.com/v1"
+            base_url = config.get("base_url") or "https://api.anthropic.com"
             model = config.get("model") or "claude-haiku-4-5-20251001"
-            # Detect native Anthropic endpoint vs OpenAI-compatible proxy
             if _is_native_anthropic(base_url):
                 return _call_claude_native(client, config["claude_key"], model, prompt)
-            else:
-                url = f"{base_url.rstrip('/')}/chat/completions"
-                resp = client.post(
-                    url,
-                    headers={"Authorization": f"Bearer {config['claude_key']}", "Content-Type": "application/json"},
-                    json={"model": model, "max_tokens": 1024, "messages": [{"role": "user", "content": prompt}]},
-                )
-                if resp.status_code != 200:
-                    raise Exception(f"Claude API error: {resp.status_code} - {resp.text[:200]}")
-                return resp.json()["choices"][0]["message"]["content"]
-        elif provider == "openai":
+            # OpenAI-compatible endpoint (e.g. proxy like 9router)
+            url = f"{base_url.rstrip('/')}/chat/completions"
+            resp = client.post(
+                url,
+                headers={"Authorization": f"Bearer {config['claude_key']}", "Content-Type": "application/json"},
+                json={"model": model, "max_tokens": 1024, "messages": [{"role": "user", "content": prompt}]},
+            )
+            if resp.status_code != 200:
+                raise Exception(f"Claude API error: {resp.status_code} - {resp.text[:200]}")
+            return resp.json()["choices"][0]["message"]["content"]
+        elif provider in ("openai", "openrouter", "custom"):
             if not config["openai_key"]:
                 raise Exception("OpenAI API Key belum dikonfigurasi.")
             base_url = config.get("base_url") or "https://api.openai.com/v1"
@@ -320,16 +268,17 @@ def call_ai_sync(prompt: str, config: dict, httpx_module) -> str:
                 json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 1024},
             )
             if resp.status_code != 200:
-                raise Exception(f"OpenAI API error: {resp.status_code} - {resp.text[:200]}")
+                raise Exception(f"OpenAI-compatible API error: {resp.status_code} - {resp.text[:200]}")
             return resp.json()["choices"][0]["message"]["content"]
         else:
             raise Exception(f"Provider '{provider}' tidak dikenali.")
 
-
 async def call_ai_provider_async(prompt: str, config: dict) -> str:
-    """Async AI call — single canonical path, matches call_ai_sync logic."""
+    """Async AI call — single canonical path matching call_ai_sync routing."""
     import httpx as _httpx
-    provider = config["provider"]
+    provider = _canonical_provider(config["provider"])
+    if provider == "none":
+        raise Exception("AI provider belum dikonfigurasi.")
     async with _httpx.AsyncClient(timeout=60) as client:
         if provider == "gemini":
             if not config["gemini_key"]:
@@ -342,10 +291,10 @@ async def call_ai_provider_async(prompt: str, config: dict) -> str:
             if resp.status_code != 200:
                 raise Exception(f"Gemini API error: {resp.status_code} - {resp.text[:200]}")
             return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        elif provider == "claude":
+        elif provider == "anthropic":
             if not config["claude_key"]:
                 raise Exception("Claude API Key belum dikonfigurasi.")
-            base_url = config.get("base_url") or "https://api.openai.com/v1"
+            base_url = config.get("base_url") or "https://api.anthropic.com"
             model = config.get("model") or "claude-haiku-4-5-20251001"
             if _is_native_anthropic(base_url):
                 resp = await client.post(
@@ -369,7 +318,7 @@ async def call_ai_provider_async(prompt: str, config: dict) -> str:
                 if resp.status_code != 200:
                     raise Exception(f"Claude API error: {resp.status_code} - {resp.text[:200]}")
                 return resp.json()["choices"][0]["message"]["content"]
-        elif provider == "openai":
+        elif provider in ("openai", "openrouter", "custom"):
             if not config["openai_key"]:
                 raise Exception("OpenAI API Key belum dikonfigurasi.")
             base_url = config.get("base_url") or "https://api.openai.com/v1"

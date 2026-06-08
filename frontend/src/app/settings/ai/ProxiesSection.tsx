@@ -6,7 +6,16 @@ import { inputCls } from "../../../lib/inputCls";
 interface AIProxy {
   id: string; name: string; base_url: string; api_key: string;
   model: string; feature: string | null; is_active: boolean; created_at: string;
+  provider?: string;
 }
+
+const PROVIDER_OPTIONS = [
+  { value: "openai", label: "OpenAI" },
+  { value: "anthropic", label: "Anthropic" },
+  { value: "gemini", label: "Google Gemini" },
+  { value: "openrouter", label: "OpenRouter" },
+  { value: "custom", label: "Custom (OpenAI-compatible)" },
+];
 
 const PROXY_FEATURES = [
   { key: "", label: "Fallback (semua fitur)" },
@@ -26,19 +35,19 @@ interface ProxiesSectionProps {
 export default function ProxiesSection({ proxies, onFetchProxies, showToast }: ProxiesSectionProps) {
   const [proxyModal, setProxyModal] = useState(false);
   const [editingProxy, setEditingProxy] = useState<AIProxy | null>(null);
-  const [proxyForm, setProxyForm] = useState({ name: "", base_url: "", api_key: "", model: "", feature: "" });
+  const [proxyForm, setProxyForm] = useState({ name: "", base_url: "", api_key: "", model: "", feature: "", provider: "custom" });
   const [activatingProxy, setActivatingProxy] = useState<string | null>(null);
 
   function openProxyModal(p: AIProxy | null) {
     setEditingProxy(p);
-    setProxyForm(p ? { name: p.name, base_url: p.base_url, api_key: "", model: p.model, feature: p.feature || "" } : { name: "", base_url: "", api_key: "", model: "", feature: "" });
+    setProxyForm(p ? { name: p.name, base_url: p.base_url, api_key: "", model: p.model, feature: p.feature || "", provider: p.provider || "custom" } : { name: "", base_url: "", api_key: "", model: "", feature: "", provider: "custom" });
     setProxyModal(true);
   }
 
   async function saveProxy() {
     const { apiFetch } = await import("../../../lib/api");
     if (!proxyForm.name || !proxyForm.base_url) { showToast("Nama dan Base URL wajib diisi"); return; }
-    const payload = { ...proxyForm, feature: proxyForm.feature || null };
+    const payload = { name: proxyForm.name, base_url: proxyForm.base_url, api_key: proxyForm.api_key, model: proxyForm.model, feature: proxyForm.feature || null, provider: proxyForm.provider };
     const res = editingProxy
       ? await apiFetch(`/api/ai-proxies/${editingProxy.id}`, { method: "PUT", body: JSON.stringify(payload) })
       : await apiFetch("/api/ai-proxies", { method: "POST", body: JSON.stringify(payload) });
@@ -119,6 +128,9 @@ export default function ProxiesSection({ proxies, onFetchProxies, showToast }: P
             </div>
             <div className="space-y-3">
               <input value={proxyForm.name} onChange={e => setProxyForm({...proxyForm, name: e.target.value})} placeholder="Nama (misal: Claude Direct)" className={inputCls} />
+              <select value={proxyForm.provider} onChange={e => setProxyForm({...proxyForm, provider: e.target.value})} className={inputCls}>
+                {PROVIDER_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
               <input value={proxyForm.base_url} onChange={e => setProxyForm({...proxyForm, base_url: e.target.value})} placeholder="Base URL (misal: https://api.anthropic.com/v1)" className={inputCls} />
               <input value={proxyForm.api_key} onChange={e => setProxyForm({...proxyForm, api_key: e.target.value})} placeholder={editingProxy ? "API Key (kosongkan jika tidak berubah)" : "API Key"} type="password" className={inputCls} />
               <input value={proxyForm.model} onChange={e => setProxyForm({...proxyForm, model: e.target.value})} placeholder="Model ID (misal: claude-sonnet-4-6-20250514)" className={inputCls} />

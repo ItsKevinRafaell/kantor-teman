@@ -15,7 +15,7 @@ interface Props {
 }
 
 export function BoardCardItem({ card, leads, draggedCardId, showArchived, onDragStart, onDragEnd, onOpenEdit }: Props) {
-  const cc = CARD_COLORS[card.color || "yellow"] || CARD_COLORS.yellow;
+  const cc = CARD_COLORS[card.color || "gray"] || CARD_COLORS.gray;
   const isDragging = draggedCardId === card.id;
   const leadName = card.lead?.business_name || leads.find(l => l.id === card.lead_id)?.business_name;
 
@@ -52,7 +52,7 @@ export function BoardCardItem({ card, leads, draggedCardId, showArchived, onDrag
         )}
       </div>
       {leadName && (
-        <p className="text-xs text-amber-600 dark:text-yellow-400 mt-1">{leadName}</p>
+        <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">{leadName}</p>
       )}
       <div className="flex items-center gap-2 mt-2 flex-wrap">
         {card.due_date && (
@@ -99,9 +99,9 @@ export function BoardColumnItem({
   showArchived, filterAssignee, filterDue, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop,
   onOpenEditCard, onOpenNewCard, onEditColumn, onDeleteColumn,
 }: ColumnProps) {
-  const colColor = COLUMN_COLORS[column.color || "yellow"] || COLUMN_COLORS.yellow;
+  const colColor = COLUMN_COLORS[column.color || "gray"] || COLUMN_COLORS.gray;
   const isDropTarget = dragOverColumn === column.id && draggedCard !== null;
-  const colTopBorder = BOARD_TOP_BORDER[column.color || "yellow"] || BOARD_TOP_BORDER.yellow;
+  const colTopBorder = BOARD_TOP_BORDER[column.color || "gray"] || BOARD_TOP_BORDER.gray;
 
   let cards = Array.isArray(column.cards) ? column.cards : [];
   cards = cards.filter(c => showArchived ? c.is_archived : !c.is_archived);
@@ -111,7 +111,7 @@ export function BoardColumnItem({
 
   return (
     <div
-      className={`w-72 shrink-0 rounded-xl flex flex-col transition-all ${colColor.bg} ${colTopBorder} ${isDropTarget ? "ring-2 ring-yellow-400 ring-inset shadow-lg" : ""}`}
+      className={`w-72 shrink-0 rounded-xl flex flex-col transition-all ${colColor.bg} ${colTopBorder} ${isDropTarget ? "ring-2 ring-neutral-300 dark:ring-neutral-600 ring-inset shadow-lg" : ""}`}
       onDragOver={e => { e.preventDefault(); onDragOver(column.id); }}
       onDragLeave={onDragLeave}
       onDrop={() => onDrop(column.id)}
@@ -123,7 +123,7 @@ export function BoardColumnItem({
           <span className="text-xs text-neutral-400 bg-white/60 dark:bg-black/20 px-1.5 py-0.5 rounded-full">{cards.length}</span>
         </div>
         <div className="flex items-center gap-0.5">
-          <button onClick={() => onEditColumn(column)} className="p-1 text-neutral-400 hover:text-amber-500 rounded text-xs">Edit</button>
+          <button onClick={() => onEditColumn(column)} className="p-1 text-neutral-400 hover:text-neutral-500 rounded text-xs">Edit</button>
           <button onClick={() => onDeleteColumn(column.id, column.name)} className="p-1 text-neutral-400 hover:text-red-500 rounded">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -132,7 +132,7 @@ export function BoardColumnItem({
         </div>
       </div>
 
-      <div className={`flex-1 overflow-y-auto p-2 space-y-2 min-h-[80px] transition-colors ${isDropTarget ? "bg-yellow-50/50 dark:bg-yellow-900/10" : ""}`}>
+      <div className={`flex-1 overflow-y-auto p-2 space-y-2 min-h-[80px] transition-colors ${isDropTarget ? "bg-neutral-50/50 dark:bg-neutral-900/20" : ""}`}>
         {cards.map(card => (
           <BoardCardItem
             key={card.id}
@@ -147,8 +147,8 @@ export function BoardColumnItem({
         ))}
 
         {isDropTarget && (
-          <div className="h-12 rounded-xl border-2 border-dashed border-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/10 flex items-center justify-center">
-            <span className="text-xs text-amber-500">Lepas di sini</span>
+          <div className="h-12 rounded-xl border-2 border-dashed border-neutral-300 dark:border-neutral-600 bg-neutral-50/50 dark:bg-neutral-900/20 flex items-center justify-center">
+            <span className="text-xs text-neutral-500 dark:text-neutral-400">Lepas di sini</span>
           </div>
         )}
 

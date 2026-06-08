@@ -37,7 +37,16 @@ def get_projects(
         query = query.filter(Project.lead_id == lead_id)
     if status:
         query = query.filter(Project.status == status)
-    return query.all()
+    projects = query.all()
+    # Pre-load lead names
+    lead_ids = {p.lead_id for p in projects if p.lead_id}
+    lead_names = {l.id: l.business_name for l in db.query(Lead).filter(Lead.id.in_(lead_ids)).all()} if lead_ids else {}
+    result = []
+    for p in projects:
+        out = ProjectOut.model_validate(p)
+        out.lead_name = lead_names.get(p.lead_id)
+        result.append(out)
+    return result
 
 
 
@@ -180,7 +189,11 @@ def get_project(project_id: str, current_user: User = Depends(get_current_user),
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project tidak ditemukan")
-    return project
+    out = ProjectOut.model_validate(project)
+    if project.lead_id:
+        lead = db.query(Lead).filter(Lead.id == project.lead_id).first()
+        out.lead_name = lead.business_name if lead else None
+    return out
 
 
 

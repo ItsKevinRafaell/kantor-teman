@@ -19,6 +19,7 @@ class ProjectIn(BaseModel):
 class ProjectOut(BaseModel):
     id: str
     lead_id: Optional[int] = None
+    lead_name: Optional[str] = None
     name: str
     type: str
     status: str

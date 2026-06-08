@@ -3,6 +3,7 @@
 import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
+import Breadcrumb from "../../components/Breadcrumb";
 import ScrapePanel from "../../components/leads/ScrapePanel";
 
 const LeadsTable = dynamic(() => import("../../components/LeadsTable"), { ssr: false });
@@ -43,6 +44,7 @@ function LeadsContent() {
 
   return (
     <div className="max-w-6xl space-y-4">
+      <Breadcrumb items={[{ label: "Leads" }]} showBack backHref="/" />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-neutral-50">Leads</h1>

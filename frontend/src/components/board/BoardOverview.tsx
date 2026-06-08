@@ -17,7 +17,7 @@ interface Props {
 
 export function BoardOverviewCard({ item, projects, onSelectProject, onArchiveProject, onDeleteProject, onShowConfirm, onEditProject }: Props) {
   const { isAdmin } = useAuth();
-  const itemColor = COLUMN_COLORS[item.color || "yellow"] || COLUMN_COLORS.yellow;
+  const itemColor = COLUMN_COLORS[item.color || "gray"] || COLUMN_COLORS.gray;
 
   return (
     <div className={`rounded-xl border p-4 transition-all hover:shadow-md ${itemColor.bg} ${itemColor.border} ${item.is_archived ? "opacity-60" : ""}`}>
@@ -37,7 +37,7 @@ export function BoardOverviewCard({ item, projects, onSelectProject, onArchivePr
                   const p = projects.find(x => x.id === item.project_id);
                   if (p) onEditProject(p);
                 }}
-                className="p-1.5 text-neutral-400 hover:text-amber-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-xl transition-colors"
+                className="p-1.5 text-neutral-400 hover:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl transition-colors"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -48,7 +48,7 @@ export function BoardOverviewCard({ item, projects, onSelectProject, onArchivePr
             <button
               title={item.is_archived ? "Pulihkan proyek" : "Arsipkan proyek"}
               onClick={() => onArchiveProject(item.project_id, !item.is_archived)}
-              className="p-1.5 text-neutral-400 hover:text-amber-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-xl transition-colors"
+              className="p-1.5 text-neutral-400 hover:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl transition-colors"
             >
               {item.is_archived ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
             </button>
@@ -64,7 +64,7 @@ export function BoardOverviewCard({ item, projects, onSelectProject, onArchivePr
       </div>
 
       {item.client_name && (
-        <p className="text-xs font-medium text-amber-600 dark:text-yellow-400 mb-2 flex items-center gap-1">
+        <p className="text-xs font-medium text-neutral-600 dark:text-neutral-300 mb-2 flex items-center gap-1">
           <User className="w-3 h-3" /> {item.client_name}
         </p>
       )}
@@ -80,7 +80,7 @@ export function BoardOverviewCard({ item, projects, onSelectProject, onArchivePr
             <span className="text-xs bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full">{item.overdue_cards?.length} overdue</span>
           )}
           {(item.due_soon_cards?.length || 0) > 0 && (
-            <span className="text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full">{item.due_soon_cards?.length} due soon</span>
+            <span className="text-xs bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 px-2 py-0.5 rounded-full">{item.due_soon_cards?.length} due soon</span>
           )}
         </div>
       )}

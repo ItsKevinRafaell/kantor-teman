@@ -6,7 +6,7 @@ import type { ContentSession, ContentGeneration, Tool } from "./types";
 import { TOOL_COLORS, formatDate } from "./types";
 
 const TOOL_LABELS: Record<Tool, string> = {
-  seo_article: "SEO Article",
+  seo_article: "SEO Article Generator",
   image: "Image Generator",
   caption: "Caption Sosmed",
 };
@@ -70,7 +70,7 @@ export default function ContentSidebar({
         {(["seo_article", "image", "caption"] as Tool[]).map(t => (
           <button key={t} onClick={() => onToolChange(t)}
             className={`w-full text-left px-3 py-2 rounded-xl text-sm font-medium mb-1 transition-all
-              ${activeTool === t ? "bg-amber-500 text-white shadow-sm" : "text-neutral-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-neutral-800 dark:hover:text-neutral-200"}`}>
+              ${activeTool === t ? "bg-neutral-500 text-white shadow-sm" : "text-neutral-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-neutral-800 dark:hover:text-neutral-200"}`}>
             {TOOL_LABELS[t]}
           </button>
         ))}
@@ -80,16 +80,16 @@ export default function ContentSidebar({
       <div>
         <div className="flex items-center justify-between mb-2">
           <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Sesi</p>
-          <button onClick={() => setShowNewSessionModal(true)} className="text-xs text-amber-600 hover:text-yellow-700 font-medium">+ Baru</button>
+          <button onClick={() => setShowNewSessionModal(true)} className="text-xs text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 font-medium">+ Baru</button>
         </div>
         <button onClick={() => setSelectedSession(null)}
           className={`w-full text-left px-3 py-2 rounded-xl text-sm mb-1 transition-all
-            ${!selectedSession ? "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 font-medium" : "text-neutral-500 hover:bg-gray-100 dark:hover:bg-gray-800"}`}>
+            ${!selectedSession ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-medium" : "text-neutral-500 hover:bg-gray-100 dark:hover:bg-gray-800"}`}>
           Semua
         </button>
         {sessions.map(s => (
           <div key={s.id} className={`group flex items-center gap-1 px-3 py-2 rounded-xl text-sm mb-1 transition-all
-            ${selectedSession?.id === s.id ? "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 font-medium" : "text-neutral-500 hover:bg-gray-100 dark:hover:bg-gray-800"}`}>
+            ${selectedSession?.id === s.id ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-medium" : "text-neutral-500 hover:bg-gray-100 dark:hover:bg-gray-800"}`}>
             {renamingSession === s.id ? (
               <input
                 value={renameValue}
@@ -97,7 +97,7 @@ export default function ContentSidebar({
                 onBlur={() => commitRename(s)}
                 onKeyDown={e => { if (e.key === "Enter") commitRename(s); if (e.key === "Escape") setRenamingSession(null); }}
                 autoFocus
-                className="flex-1 bg-transparent outline-none border-b border-yellow-400 text-sm min-w-0"
+                className="flex-1 bg-transparent outline-none border-b border-neutral-400 text-sm min-w-0"
                 onClick={e => e.stopPropagation()}
               />
             ) : (
@@ -106,7 +106,7 @@ export default function ContentSidebar({
             {renamingSession !== s.id && (
               <>
                 <button onClick={e => { e.stopPropagation(); setRenameValue(s.name); setRenamingSession(s.id); }}
-                  className="opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-amber-600 text-xs shrink-0" title="Rename">
+                  className="opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-600 text-xs shrink-0" title="Rename">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </button>
                 <button onClick={e => { e.stopPropagation(); onDeleteSession(s.id); }}
@@ -121,16 +121,16 @@ export default function ContentSidebar({
 
       {/* Context indicator */}
       {sharedContext.length > 0 && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3">
-          <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-1">{sharedContext.length} konteks aktif</p>
-          <button onClick={() => { /* handled in parent */ }} className="text-xs text-amber-500 hover:text-amber-700">Hapus semua</button>
+        <div className="bg-neutral-50 dark:bg-neutral-900/20 border border-neutral-200 dark:border-neutral-800 rounded-xl p-3">
+          <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-400 mb-1">{sharedContext.length} konteks aktif</p>
+          <button onClick={() => { /* handled in parent */ }} className="text-xs text-neutral-500 hover:text-neutral-700">Hapus semua</button>
         </div>
       )}
 
       {/* Image provider link */}
       {activeTool === "image" && (
         <button onClick={onManageProviders}
-          className="text-xs text-neutral-500 hover:text-amber-600 px-3 py-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left">
+          className="text-xs text-neutral-500 hover:text-neutral-600 px-3 py-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left">
           Kelola Image Provider
         </button>
       )}
@@ -143,13 +143,13 @@ export default function ContentSidebar({
             <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Sederet Baru</h3>
             <input type="text" value={sessionForm.name} onChange={e => setSessionForm(p => ({ ...p, name: e.target.value }))}
               placeholder="Nama sesi"
-              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
+              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none" />
             <input type="text" value={sessionForm.description} onChange={e => setSessionForm(p => ({ ...p, description: e.target.value }))}
               placeholder="Deskripsi (opsional)"
-              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
+              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none" />
             <div className="flex gap-2">
               <button onClick={() => setShowNewSessionModal(false)} className="flex-1 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-800 text-neutral-600">Batal</button>
-              <button onClick={commitCreate} disabled={!sessionForm.name.trim()} className="flex-1 py-2 text-sm rounded-lg bg-amber-500 text-white disabled:opacity-50">Buat</button>
+              <button onClick={commitCreate} disabled={!sessionForm.name.trim()} className="flex-1 py-2 text-sm rounded-lg bg-neutral-500 text-white disabled:opacity-50">Buat</button>
             </div>
           </div>
         </div>

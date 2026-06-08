@@ -516,7 +516,7 @@ async def test_api_connection(
         except Exception as e:
             return {"success": False, "message": f"Gagal koneksi ke Gemini: {str(e)}"}
 
-    elif provider == "claude":
+    elif provider in ("claude", "anthropic"):
         if not config["claude_key"]:
             return {"success": False, "message": "Claude API Key belum diisi."}
         base_url = config.get("base_url") or "https://api.openai.com/v1"

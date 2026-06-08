@@ -7,6 +7,7 @@ import { BarChart3, LayoutDashboard, Flame } from "lucide-react";
 import { useDashboardData } from "../../hooks/useDashboard";
 import { getScoreColor, getScoreLabel } from "../../lib/leadScore";
 import { apiFetch } from "../../lib/api";
+import { useAuth } from "../../contexts/AuthContext";
 
 const STATUS_COLORS: Record<string, string> = {
   Scraped: "bg-gray-400",
@@ -35,6 +36,7 @@ const TABS = [
 type Tab = "overview" | "analitik";
 
 function DashboardContent() {
+  const { isAdmin } = useAuth();
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get("tab") as Tab) || "overview";
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -101,7 +103,8 @@ function DashboardContent() {
             ))}
           </div>
 
-          {/* Kontrol Operasional */}
+          {/* Kontrol Operasional - Admin/Owner only */}
+          {isAdmin && (
           <div className="card p-5">
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
@@ -128,6 +131,7 @@ function DashboardContent() {
               ))}
             </div>
           </div>
+          )}
 
           {/* Hot Leads */}
           {hotLeads.length > 0 && (

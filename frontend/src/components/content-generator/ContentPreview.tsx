@@ -51,9 +51,9 @@ export default function ContentPreview({ result, showToast, onClose }: Props) {
       </div>
       {result.focus_keyword && (
         <div className="flex flex-wrap gap-1.5 mb-3">
-          <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-xs rounded-full">{result.focus_keyword}</span>
+          <span className="px-2 py-0.5 bg-neutral-100 dark:bg-neutral-800/30 text-neutral-700 dark:text-neutral-300 text-xs rounded-full">{result.focus_keyword}</span>
           {result.secondary_keywords?.map((k, i) => (
-            <span key={i} className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs rounded-full">{k}</span>
+            <span key={i} className="px-2 py-0.5 bg-neutral-100 dark:bg-neutral-800/30 text-neutral-700 dark:text-neutral-300 text-xs rounded-full">{k}</span>
           ))}
         </div>
       )}
@@ -64,10 +64,10 @@ export default function ContentPreview({ result, showToast, onClose }: Props) {
         <button onClick={() => copyToClipboard(`# ${result.title}\n\n${result.body}`)}
           className="flex-1 py-2 text-xs rounded-lg bg-gray-100 dark:bg-gray-800 text-neutral-600 hover:bg-gray-200 dark:hover:bg-gray-700">Copy Markdown</button>
         <button onClick={() => copyToClipboard(result.meta_description)}
-          className="flex-1 py-2 text-xs rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 hover:bg-green-100">Copy Meta</button>
+          className="flex-1 py-2 text-xs rounded-lg bg-neutral-50 dark:bg-neutral-800/20 text-neutral-700 hover:bg-neutral-100">Copy Meta</button>
         <button onClick={handleExport} disabled={exporting}
-          className="flex-1 py-2 text-xs rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100 disabled:opacity-50 flex items-center justify-center gap-1">
-          {exporting ? <><div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />Exporting...</> : "Export DOCX"}
+          className="flex-1 py-2 text-xs rounded-lg bg-neutral-50 dark:bg-neutral-800/20 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 disabled:opacity-50 flex items-center justify-center gap-1">
+          {exporting ? <><div className="w-3 h-3 border-2 border-neutral-500 border-t-transparent rounded-full animate-spin" />Exporting...</> : "Export DOCX"}
         </button>
         <button onClick={handlePublish} disabled={publishing}
           className="flex-1 py-2 text-xs rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 disabled:opacity-50 flex items-center justify-center gap-1">

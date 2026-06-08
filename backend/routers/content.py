@@ -105,25 +105,39 @@ def _get_system_ai_config(db: Session) -> dict:
     return get_ai_config(db, "chat")
 
 
+def _call_text_gen(messages: list, api_key: str, base_url: str, model: str, max_tokens: int) -> str:
+    """Call OpenAI-compatible /chat/completions endpoint for text generation."""
+    url = f"{base_url.rstrip('/')}/chat/completions"
+    with httpx.Client(timeout=120) as client:
+        resp = client.post(
+            url,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={"model": model, "max_tokens": max_tokens, "messages": messages},
+        )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=502, detail=f"AI call failed: {resp.status_code} - {resp.text[:300]}")
+        return resp.json()["choices"][0]["message"]["content"]
+
+
 @router.get("/api/ai/combos")
 def list_ai_combos(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Return list of saved AI providers from AIProxy table. Legacy compat wrapper."""
+    """Return list of saved AI providers from AIProxy table."""
     proxies = db.query(AIProxy).order_by(AIProxy.created_at.asc()).all()
     return [{"name": p.name, "display_name": f"{p.provider.title()} ({p.model})", "provider": p.provider, "model": p.model} for p in proxies]
 
 
 @router.get("/api/ai/active-combo")
 def get_active_combo(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Return the active AI provider config (first active AIProxy, or 9router fallback for legacy compat)."""
+    """Return the active AI provider config from AIProxy table. Returns 'none' status if no provider configured."""
     proxy = get_proxy_for_feature(db, "chat")
     if proxy:
         return {"combo": proxy.name, "provider": proxy.provider, "base_url": proxy.base_url, "model": proxy.model}
-    return {"combo": "9router-fallback", "provider": "openai", "base_url": "http://localhost:20128/v1", "model": "combo-kiro"}
+    return {"combo": "none", "provider": "none", "base_url": "", "model": "", "status": "AI provider belum dikonfigurasi"}
 
 
 @router.post("/api/ai/active-combo")
 def set_active_combo(body: dict, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    """Set active AI provider by AIProxy ID. Replaces old combo-based selection."""
+    """Set active AI provider by AIProxy ID."""
     proxy_id = body.get("proxy_id") or body.get("combo", "").strip()
     if not proxy_id:
         raise HTTPException(status_code=400, detail="Field 'proxy_id' wajib diisi")
@@ -138,7 +152,7 @@ def set_active_combo(body: dict, current_user: User = Depends(require_admin), db
 
 @router.post("/api/ai/proxy-url")
 def set_proxy_url(body: dict, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    """Set 9router fallback URL (legacy compat — prefer using AIProxy table directly)."""
+    """Set custom AI proxy URL (fallback when no AIProxy is configured). Prefer using AIProxy table directly."""
     url = (body.get("url") or "").strip().rstrip("/")
     if not url:
         raise HTTPException(status_code=400, detail="Field 'url' wajib diisi")
@@ -193,18 +207,7 @@ async def ai_health(current_user: User = Depends(get_current_user), db: Session 
         except Exception as e:
             print(f"[AI health] {e}", flush=True)
         return {"status": "offline", "provider": proxy.provider, "base_url": proxy.base_url, "model": proxy.model}
-    # Legacy fallback: try 9router
-    from app.core.dependencies import NINE_ROUTER_API_KEY, NINE_ROUTER_URL
-    from app.core.dependencies import _get_proxy_url
-    proxy_url = _get_proxy_url(db)
-    try:
-        async with httpx.AsyncClient(timeout=5) as client:
-            r = await client.get(f"{proxy_url}/models", headers={"Authorization": f"Bearer {NINE_ROUTER_API_KEY}"})
-        if r.status_code < 500:
-            return {"status": "connected (legacy)", "base_url": proxy_url}
-    except Exception as e:
-        print(f"[9router health] {e}", flush=True)
-    return {"status": "offline", "base_url": proxy_url}
+    return {"status": "not_configured", "provider": "none", "base_url": "", "model": ""}
 
 
 # ---------------------------------------------------------------------------

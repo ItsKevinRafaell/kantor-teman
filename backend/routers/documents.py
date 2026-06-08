@@ -272,20 +272,36 @@ def delete_document_template(tid: str, current_user: User = Depends(require_admi
 @router.get("/api/generated-documents")
 def list_generated_documents(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     docs = db.query(GeneratedDocument).order_by(GeneratedDocument.generated_at.desc()).all()
-    return [
-        {
+    # Pre-load targets for display name resolution
+    lead_ids = {d.target_id for d in docs if d.target_type == "lead" and d.target_id}
+    contact_ids = {d.target_id for d in docs if d.target_type == "contact" and d.target_id}
+    project_ids = {d.target_id for d in docs if d.target_type == "project" and d.target_id}
+    leads = {l.id: l.business_name for l in db.query(Lead).filter(Lead.id.in_(lead_ids)).all()} if lead_ids else {}
+    contacts = {c.id: c.business_name for c in db.query(Contact).filter(Contact.id.in_(contact_ids)).all()} if contact_ids else {}
+    projects = {p.id: p.name for p in db.query(Project).filter(Project.id.in_(project_ids)).all()} if project_ids else {}
+
+    result = []
+    for d in docs:
+        display_name = None
+        if d.target_type == "lead" and d.target_id:
+            display_name = leads.get(d.target_id) or "Lead tidak ditemukan"
+        elif d.target_type == "contact" and d.target_id:
+            display_name = contacts.get(d.target_id) or "Contact tidak ditemukan"
+        elif d.target_type == "project" and d.target_id:
+            display_name = projects.get(d.target_id) or "Project tidak ditemukan"
+        result.append({
             "id": d.id,
             "template_id": d.template_id,
             "template_name": d.template_name,
             "target_type": d.target_type,
             "target_id": d.target_id,
+            "target_display_name": display_name,
             "file_url": d.file_url,
             "display_filename": d.display_filename,
             "generated_at": d.generated_at,
             "generated_by": d.generated_by,
-        }
-        for d in docs
-    ]
+        })
+    return result
 
 
 

@@ -2,6 +2,7 @@
 
 import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import Breadcrumb from "../../components/Breadcrumb";
 import FinancePanel from "../../components/finance/FinancePanel";
 import SubscriptionsPanel from "../../components/finance/SubscriptionsPanel";
 import PaymentMethodsPanel from "../../components/finance/PaymentMethodsPanel";
@@ -21,6 +22,7 @@ function FinanceContent() {
 
   return (
     <div className="max-w-6xl space-y-4">
+      <Breadcrumb items={[{ label: "Keuangan & Langganan" }]} showBack backHref="/" />
       <div>
         <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">Keuangan & Langganan</h1>
         <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">Kelola dompet, transaksi, dan langganan rutin bisnis dalam satu tempat.</p>

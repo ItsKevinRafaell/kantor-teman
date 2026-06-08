@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useApi } from "../../lib/swr";
 import { apiFetch } from "../../lib/api";
+import Breadcrumb from "../../components/Breadcrumb";
 import Toast from "../../components/Toast";
 
 import ContentSidebar from "../../components/content-generator/ContentSidebar";
@@ -175,12 +176,13 @@ export default function ContentGeneratorPage() {
       <div className="flex-1 flex flex-col gap-4 min-w-0 overflow-y-auto">
 
         {/* Active tool indicator + session badge */}
+        <Breadcrumb items={[{ label: "Content Generator" }, { label: activeTool === "seo_article" ? "SEO Article Generator" : activeTool === "image" ? "Image Generator" : "Caption Sosmed" }]} showBack backHref="/" />
         <div className="flex items-center gap-3">
           <h2 className="text-base font-bold text-neutral-800 dark:text-neutral-100">
             {activeTool === "seo_article" ? "SEO Article Generator" : activeTool === "image" ? "Image Generator" : "Caption Sosmed"}
           </h2>
           {selectedSession && (
-            <span className="px-2.5 py-1 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 text-xs font-semibold rounded-full">
+            <span className="px-2.5 py-1 bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 text-xs font-semibold rounded-full">
               {selectedSession.name}
             </span>
           )}
@@ -202,16 +204,16 @@ export default function ContentGeneratorPage() {
                 <label className="block text-xs font-semibold text-neutral-500 uppercase mb-1">CMS URL</label>
                 <input type="text" value={cmsUrl} onChange={e => setCmsUrl(e.target.value)}
                   placeholder="https://temanumkmkita.com"
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-neutral-800 dark:text-gray-200 focus:ring-2 focus:ring-yellow-300 outline-none transition" />
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-neutral-800 dark:text-gray-200 focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none transition" />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-neutral-500 uppercase mb-1">CMS API Token</label>
                 <input type="password" value={cmsApiToken} onChange={e => setCmsApiToken(e.target.value)}
                   placeholder="Bearer token untuk CMS API"
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-neutral-800 dark:text-gray-200 focus:ring-2 focus:ring-yellow-300 outline-none transition" />
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-neutral-800 dark:text-gray-200 focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none transition" />
               </div>
               <button onClick={saveCmsConfig} disabled={savingCms}
-                className="px-4 py-2 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-lg disabled:opacity-50 transition-colors">
+                className="px-4 py-2 text-xs font-semibold bg-neutral-500 hover:bg-neutral-600 text-white rounded-lg disabled:opacity-50 transition-colors">
                 {savingCms ? "Menyimpan..." : "Simpan CMS Config"}
               </button>
             </div>
@@ -272,7 +274,7 @@ export default function ContentGeneratorPage() {
                         setEditingProvider(p);
                         setProviderForm({ name: p.name, base_url: p.base_url, api_key: p.api_key || "", model: p.model, is_active: p.is_active });
                       }}
-                        className="text-xs text-amber-600 hover:text-yellow-700 px-2 py-1 rounded hover:bg-yellow-50">Edit</button>
+                        className="text-xs text-neutral-500 hover:text-neutral-700 px-2 py-1 rounded hover:bg-neutral-100">Edit</button>
                       <button onClick={() => deleteProvider(p.id)} className="text-xs text-red-500 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50">Hapus</button>
                     </div>
                   ))}
@@ -291,12 +293,12 @@ export default function ContentGeneratorPage() {
                   <input type={type} value={providerForm[key]}
                     onChange={e => setProviderForm(prev => ({ ...prev, [key]: e.target.value }))}
                     placeholder={placeholder}
-                    className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 outline-none" />
+                    className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none" />
                 </div>
               ))}
               <div className="flex gap-2">
                 <button onClick={saveProvider} disabled={!providerForm.name || !providerForm.base_url || !providerForm.model}
-                  className="flex-1 px-4 py-2 text-sm rounded-lg font-medium bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50">
+                  className="flex-1 px-4 py-2 text-sm rounded-lg font-medium bg-neutral-500 hover:bg-neutral-600 text-white disabled:opacity-50">
                   {editingProvider ? "Simpan Perubahan" : "Tambah Provider"}
                 </button>
                 {editingProvider && (
