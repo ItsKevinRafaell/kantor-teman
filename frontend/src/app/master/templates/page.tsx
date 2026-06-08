@@ -37,8 +37,8 @@ interface CategoryOption {
 const TEMPLATE_TYPES = [
   { value: "WA_BLAST", label: "WA Blast", hint: "Dipakai saat blast WA ke leads" },
   { value: "PROPOSAL_TEXT", label: "Proposal Text", hint: "Isi teks proposal yang dikirim" },
-  { value: "PROPOSAL_INTRO", label: "Proposal Intro", hint: "Pembuka di halaman proposal" },
-  { value: "PROPOSAL_OUTRO", label: "Proposal Outro", hint: "Penutup di halaman proposal" },
+  { value: "PROPOSAL_INTRO", label: "Leader / Intro", hint: "Pembuka di halaman proposal" },
+  { value: "PROPOSAL_OUTRO", label: "Outro", hint: "Penutup di halaman proposal" },
   { value: "FOLLOW_UP", label: "Follow Up", hint: "Pesan follow-up otomatis" },
   { value: "GENERAL", label: "General", hint: "Template umum" },
 ];

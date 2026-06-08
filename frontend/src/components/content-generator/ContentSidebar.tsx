@@ -20,6 +20,7 @@ interface Props {
   generationsLoading: boolean;
   sharedContext: string[];
   toggleContext: (id: string) => void;
+  onClearContext: () => void;
   onDeleteGeneration: (id: string) => Promise<void>;
   onCreateSession: (data: { name: string; description?: string }) => Promise<void>;
   onDeleteSession: (id: string) => Promise<void>;
@@ -41,6 +42,7 @@ function getGenerationPreview(g: ContentGeneration): string {
 export default function ContentSidebar({
   sessions, sessionsLoading, selectedSession, setSelectedSession,
   generations, generationsLoading, sharedContext, toggleContext,
+  onClearContext,
   onDeleteGeneration, onCreateSession, onDeleteSession, onRenameSession,
   onManageProviders, activeTool, onToolChange,
 }: Props) {
@@ -123,7 +125,7 @@ export default function ContentSidebar({
       {sharedContext.length > 0 && (
         <div className="bg-neutral-50 dark:bg-neutral-900/20 border border-neutral-200 dark:border-neutral-800 rounded-xl p-3">
           <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-400 mb-1">{sharedContext.length} konteks aktif</p>
-          <button onClick={() => { /* handled in parent */ }} className="text-xs text-neutral-500 hover:text-neutral-700">Hapus semua</button>
+          <button onClick={onClearContext} className="text-xs text-neutral-500 hover:text-neutral-700">Hapus semua</button>
         </div>
       )}
 

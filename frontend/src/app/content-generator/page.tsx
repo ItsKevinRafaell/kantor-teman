@@ -62,6 +62,10 @@ export default function ContentGeneratorPage() {
     setSharedContext(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   }
 
+  function clearAllContext() {
+    setSharedContext([]);
+  }
+
   function onResult(gen: ContentGeneration) {
     setGenerations(prev => prev.some(g => g.id === gen.id) ? prev : [gen, ...prev]);
   }
@@ -160,6 +164,7 @@ export default function ContentGeneratorPage() {
         generationsLoading={generationsData === undefined}
         sharedContext={sharedContext}
         toggleContext={toggleContext}
+        onClearContext={clearAllContext}
         onDeleteGeneration={deleteGeneration}
         onCreateSession={createSession}
         onDeleteSession={deleteSession}
