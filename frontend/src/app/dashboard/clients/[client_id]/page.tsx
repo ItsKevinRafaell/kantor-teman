@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiFetch } from "../../../../lib/api";
 import { formatRupiah } from "../../../../utils/formatter";
-import { ArrowLeft, Plus, AlertTriangle, TrendingUp, CreditCard, Wallet } from "lucide-react";
+import { Plus, AlertTriangle, TrendingUp, CreditCard, Wallet } from "lucide-react";
 import Toast from "../../../../components/Toast";
 import Modal from "../../../../components/Modal";
+import Breadcrumb from "../../../../components/Breadcrumb";
 import ClientTabs from "./components/ClientTabs";
 import ProjectModal, { DEFAULT_PROJECT_FORM } from "./components/ProjectModal";
 import WASnippetDrawer, { WA_SNIPPETS } from "./components/WASnippetDrawer";
@@ -192,12 +193,10 @@ export default function ClientDetailPage() {
 
       {/* Header */}
       <div className="flex items-center gap-4">
-        <button onClick={() => router.push("/clients")} className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl transition-all">
-          <ArrowLeft size={20} />
-        </button>
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">{profile.business_name}</h1>
+          <Breadcrumb items={[{ label: "Buku Klien", href: "/clients" }, { label: profile.business_name }]} showBack backHref="/clients" />
+          <div className="flex items-center gap-3 mt-1">
+            <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-50">{profile.business_name}</h1>
             {isVIP && <span className="px-2.5 py-0.5 bg-brand-yellow/10 text-brand-yellow text-[10px] font-bold uppercase rounded-full">VIP Client</span>}
           </div>
           <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">

@@ -20,7 +20,7 @@ interface AIProxy {
   provider?: string;
 }
 
-interface HealthState { status: "connected" | "offline" | "loading"; proxy_url: string; }
+interface HealthState { status: "connected" | "offline" | "not_configured" | "loading"; provider: string; base_url: string; model: string; }
 
 const PROVIDER_OPTIONS = [
   { value: "openai", label: "OpenAI" },
@@ -41,9 +41,7 @@ const FEATURES = [
 export default function AIEngineTab() {
   const [models, setModels] = useState<AIModel[]>([]);
   const [loading, setLoading] = useState(true);
-  const [health, setHealth] = useState<HealthState>({ status: "loading", proxy_url: "" });
-  const [proxyUrlInput, setProxyUrlInput] = useState<string>("");
-  const [savingUrl, setSavingUrl] = useState(false);
+  const [health, setHealth] = useState<HealthState>({ status: "loading", provider: "", base_url: "", model: "" });
   const [featureDefaults, setFeatureDefaults] = useState<Record<string, string>>({});
   const [savingDefaults, setSavingDefaults] = useState(false);
   const [proxies, setProxies] = useState<AIProxy[]>([]);
@@ -61,8 +59,8 @@ export default function AIEngineTab() {
     setHealth(h => ({ ...h, status: "loading" }));
     try {
       const res = await apiFetch("/api/ai/health");
-      if (res.ok) { const d = await res.json(); setHealth(d); if (d.proxy_url) setProxyUrlInput(d.proxy_url); }
-    } catch { setHealth({ status: "offline", proxy_url: "" }); }
+      if (res.ok) { const d = await res.json(); setHealth(d); }
+    } catch { setHealth({ status: "offline", provider: "", base_url: "", model: "" }); }
   }, []);
   const fetchFeatureDefaults = useCallback(async () => {
     try { const r = await apiFetch("/api/ai/feature-defaults"); if (r.ok) setFeatureDefaults(await r.json()); } catch {}
@@ -73,17 +71,6 @@ export default function AIEngineTab() {
 
   useEffect(() => { fetchModels(); checkHealth(); fetchFeatureDefaults(); fetchProxies(); },
     [fetchModels, checkHealth, fetchFeatureDefaults, fetchProxies]);
-
-  async function saveProxyUrl() {
-    const url = proxyUrlInput.trim();
-    if (!url || !/^https?:\/\//.test(url)) { showToast("URL harus diawali http:// atau https://"); return; }
-    setSavingUrl(true);
-    try {
-      const res = await apiFetch("/api/ai/proxy-url", { method: "POST", body: JSON.stringify({ url }) });
-      if (res.ok) { const d = await res.json(); setProxyUrlInput(d.proxy_url); showToast("Proxy URL disimpan"); checkHealth(); }
-      else { const e = await res.json().catch(() => ({})); showToast(e.detail || "Gagal menyimpan URL"); }
-    } finally { setSavingUrl(false); }
-  }
 
   async function saveFeatureDefaultsHandler() {
     setSavingDefaults(true);
@@ -97,6 +84,19 @@ export default function AIEngineTab() {
   async function deleteModel(id: string) {
     const res = await apiFetch(`/api/ai-models/${id}`, { method: "DELETE" });
     if (res.ok) { fetchModels(); showToast("Model dihapus"); }
+  }
+
+  function confirmDeleteModel(id: string, name: string) {
+    openConfirm(`Hapus Model "${name}"?`, "Model override akan dihapus permanen. Provider default tetap aktif.", () => deleteModel(id));
+  }
+
+  async function deleteProxy(id: string) {
+    const res = await apiFetch(`/api/ai-proxies/${id}`, { method: "DELETE" });
+    if (res.ok) { fetchProxies(); showToast("Provider dihapus"); }
+  }
+
+  function confirmDeleteProxy(id: string, name: string) {
+    openConfirm(`Hapus Provider "${name}"?`, "Provider ini akan dihapus permanen.", () => deleteProxy(id));
   }
 
   async function setDefault(id: string, capability: string) {
@@ -116,12 +116,12 @@ export default function AIEngineTab() {
         </div>
       )}
 
-      {/* AI Model Endpoint */}
+      {/* AI Provider Health */}
       <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">AI Model Endpoint</h2>
-            <p className="text-xs text-neutral-500 mt-0.5">Endpoint OpenAI-compatible untuk direct API atau router multi-model</p>
+            <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">AI Provider Status</h2>
+            <p className="text-xs text-neutral-500 mt-0.5">Status koneksi ke provider AI aktif</p>
           </div>
           <div className="flex items-center gap-3">
             {health.status === "connected" && (
@@ -134,18 +134,22 @@ export default function AIEngineTab() {
                 <XCircle size={14} /> Offline
               </span>
             )}
+            {health.status === "not_configured" && (
+              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-500 rounded-xl text-xs font-semibold">Belum dikonfigurasi</span>
+            )}
             {health.status === "loading" && (
               <span className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-500 rounded-xl text-xs font-semibold">Mengecek...</span>
             )}
             <button onClick={checkHealth} className="p-2 text-gray-400 hover:text-brand-yellow rounded-lg transition-colors" title="Refresh"><RefreshCw size={14} /></button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <input value={proxyUrlInput} onChange={e => setProxyUrlInput(e.target.value)} placeholder="http://localhost:20128/v1" className={inputCls} />
-          <button onClick={saveProxyUrl} disabled={savingUrl} className="shrink-0 px-4 py-2.5 text-sm font-semibold bg-brand-yellow hover:bg-amber-600 text-white rounded-xl transition-colors disabled:opacity-50">
-            {savingUrl ? "..." : "Simpan"}
-          </button>
-        </div>
+        {health.status === "connected" && (
+          <div className="flex items-center gap-4 text-xs text-neutral-500">
+            <span><span className="font-semibold">Provider:</span> {PROVIDER_OPTIONS.find(o => o.value === health.provider)?.label || health.provider || "—"}</span>
+            <span><span className="font-semibold">Model:</span> {health.model || "—"}</span>
+            <span className="truncate"><span className="font-semibold">URL:</span> {health.base_url || "—"}</span>
+          </div>
+        )}
       </div>
 
       {/* Active Provider Config */}
@@ -206,10 +210,11 @@ export default function AIEngineTab() {
       {/* Extracted sections */}
       <ModelRegistrySection
         models={models} loading={loading}
-        onFetchModels={fetchModels} onDeleteModel={deleteModel} onSetDefault={setDefault}
+        onFetchModels={fetchModels} onDeleteModel={(id) => { const m = models.find(x => x.id === id); confirmDeleteModel(id, m?.name || "ini"); }}
+        onSetDefault={setDefault}
         showToast={showToast}
       />
-      <ProxiesSection proxies={proxies} onFetchProxies={fetchProxies} showToast={showToast} />
+      <ProxiesSection proxies={proxies} onFetchProxies={fetchProxies} showToast={showToast} onConfirmDelete={confirmDeleteProxy} />
 
       <ConfirmModal
         open={confirmState.open} onClose={() => setConfirmState(s => ({ ...s, open: false }))}

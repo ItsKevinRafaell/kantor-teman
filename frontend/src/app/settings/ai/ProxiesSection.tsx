@@ -19,20 +19,21 @@ const PROVIDER_OPTIONS = [
 
 const PROXY_FEATURES = [
   { key: "", label: "Fallback (semua fitur)" },
-  { key: "chat", label: "Chat (Business Partner)" },
-  { key: "agent", label: "Agent (Task Executor)" },
-  { key: "content", label: "Content Generator" },
-  { key: "analysis", label: "Lead Analysis" },
-  { key: "followup", label: "Followup Otomatis" },
+  { key: "chat", label: "Chat" },
+  { key: "article", label: "Generate Artikel SEO" },
+  { key: "image", label: "Generate Gambar" },
+  { key: "analysis", label: "Analisa Lead" },
+  { key: "caption", label: "Generate Caption Sosmed" },
 ];
 
 interface ProxiesSectionProps {
   proxies: AIProxy[];
   onFetchProxies: () => void;
   showToast: (msg: string) => void;
+  onConfirmDelete?: (id: string, name: string) => void;
 }
 
-export default function ProxiesSection({ proxies, onFetchProxies, showToast }: ProxiesSectionProps) {
+export default function ProxiesSection({ proxies, onFetchProxies, showToast, onConfirmDelete }: ProxiesSectionProps) {
   const [proxyModal, setProxyModal] = useState(false);
   const [editingProxy, setEditingProxy] = useState<AIProxy | null>(null);
   const [proxyForm, setProxyForm] = useState({ name: "", base_url: "", api_key: "", model: "", feature: "", provider: "custom" });
@@ -47,7 +48,8 @@ export default function ProxiesSection({ proxies, onFetchProxies, showToast }: P
   async function saveProxy() {
     const { apiFetch } = await import("../../../lib/api");
     if (!proxyForm.name || !proxyForm.base_url) { showToast("Nama dan Base URL wajib diisi"); return; }
-    const payload = { name: proxyForm.name, base_url: proxyForm.base_url, api_key: proxyForm.api_key, model: proxyForm.model, feature: proxyForm.feature || null, provider: proxyForm.provider };
+    const payload: Record<string, unknown> = { name: proxyForm.name, base_url: proxyForm.base_url, model: proxyForm.model, feature: proxyForm.feature || null, provider: proxyForm.provider };
+    if (proxyForm.api_key) payload.api_key = proxyForm.api_key;
     const res = editingProxy
       ? await apiFetch(`/api/ai-proxies/${editingProxy.id}`, { method: "PUT", body: JSON.stringify(payload) })
       : await apiFetch("/api/ai-proxies", { method: "POST", body: JSON.stringify(payload) });
@@ -55,10 +57,15 @@ export default function ProxiesSection({ proxies, onFetchProxies, showToast }: P
     else showToast("Gagal simpan proxy");
   }
 
-  async function deleteProxy(id: string) {
-    const { apiFetch } = await import("../../../lib/api");
-    const res = await apiFetch(`/api/ai-proxies/${id}`, { method: "DELETE" });
-    if (res.ok) { onFetchProxies(); showToast("Proxy dihapus"); }
+  async function handleDeleteProxy(id: string) {
+    const p = proxies.find(x => x.id === id);
+    if (onConfirmDelete) { onConfirmDelete(id, p?.name || "ini"); return; }
+    // Fallback if no confirmation handler provided
+    if (confirm(`Hapus proxy "${p?.name || id}"?`)) {
+      const { apiFetch } = await import("../../../lib/api");
+      const res = await apiFetch(`/api/ai-proxies/${id}`, { method: "DELETE" });
+      if (res.ok) { onFetchProxies(); showToast("Proxy dihapus"); }
+    }
   }
 
   async function activateProxy(id: string) {
@@ -109,7 +116,7 @@ export default function ProxiesSection({ proxies, onFetchProxies, showToast }: P
                     </button>
                   )}
                   <button onClick={() => openProxyModal(p)} className="p-1.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"><Edit2 size={14} /></button>
-                  <button onClick={() => deleteProxy(p.id)} className="p-1.5 text-neutral-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+                  <button onClick={() => handleDeleteProxy(p.id)} className="p-1.5 text-neutral-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
                 </div>
               </div>
             ))}

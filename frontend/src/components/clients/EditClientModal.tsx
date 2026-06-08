@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { apiFetch } from "../../lib/api";
 import { inputCls, inputClsLarge } from "../../lib/inputCls";
 import type { Contact } from "../../types";
@@ -16,16 +16,18 @@ interface EditClientModalProps {
 export default function EditClientModal({ contact, open, onClose, onSuccess, setToast }: EditClientModalProps) {
   const [form, setForm] = useState({ business_name: "", phone_number: "", owner_name: "", purchased_product: "", notes: "" });
 
-  // Update form when contact changes
-  if (contact && form.business_name === "" && form.phone_number === "") {
-    setForm({
-      business_name: contact.business_name,
-      phone_number: contact.phone_number,
-      owner_name: contact.owner_name || "",
-      purchased_product: contact.purchased_product || "",
-      notes: contact.notes || "",
-    });
-  }
+  // Populate form when modal opens with a contact
+  useEffect(() => {
+    if (open && contact) {
+      setForm({
+        business_name: contact.business_name,
+        phone_number: contact.phone_number,
+        owner_name: contact.owner_name || "",
+        purchased_product: contact.purchased_product || "",
+        notes: contact.notes || "",
+      });
+    }
+  }, [open, contact?.id]);
 
   if (!open || !contact) return null;
 
