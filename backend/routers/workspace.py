@@ -63,9 +63,21 @@ def create_project(body: ProjectIn, current_user: User = Depends(require_admin),
         contact = db.query(Contact).filter(Contact.id == body.contact_id).first()
         if not contact:
             raise HTTPException(status_code=404, detail="Kontak tidak ditemukan")
+        # If contact has no lead_id, find or create one by phone
+        if not contact.lead_id:
+            lead = db.query(Lead).filter(Lead.phone_number == contact.phone_number).first()
+            if not lead:
+                lead = Lead(
+                    business_name=contact.business_name,
+                    phone_number=contact.phone_number,
+                    status="Closed/Client",
+                    product_interest=contact.purchased_product,
+                )
+                db.add(lead)
+                db.flush()
+            contact.lead_id = lead.id
+            db.flush()
         resolved_lead_id = contact.lead_id
-        if not resolved_lead_id:
-            raise HTTPException(status_code=400, detail="Kontak belum memiliki relasi Lead")
 
     # Validate lead_id exists if provided
     if resolved_lead_id:
@@ -171,6 +183,8 @@ def create_project(body: ProjectIn, current_user: User = Depends(require_admin),
                             cell.value_bool = bool(val)
                         elif col.column_type == "number":
                             cell.value_number = float(val) if val else None
+                        elif col.column_type == "date":
+                            cell.value_date = str(val) if val else None
                         else:
                             cell.value_text = str(val) if val else None
                         db.add(cell)
@@ -209,9 +223,21 @@ def update_project(project_id: str, body: ProjectIn, current_user: User = Depend
         contact = db.query(Contact).filter(Contact.id == body.contact_id).first()
         if not contact:
             raise HTTPException(status_code=404, detail="Kontak tidak ditemukan")
+        # If contact has no lead_id, find or create one by phone
+        if not contact.lead_id:
+            lead = db.query(Lead).filter(Lead.phone_number == contact.phone_number).first()
+            if not lead:
+                lead = Lead(
+                    business_name=contact.business_name,
+                    phone_number=contact.phone_number,
+                    status="Closed/Client",
+                    product_interest=contact.purchased_product,
+                )
+                db.add(lead)
+                db.flush()
+            contact.lead_id = lead.id
+            db.flush()
         resolved_lead_id = contact.lead_id
-        if not resolved_lead_id:
-            raise HTTPException(status_code=400, detail="Kontak belum memiliki relasi Lead")
 
     # Validate lead_id exists if provided
     if resolved_lead_id:
@@ -799,6 +825,8 @@ def add_workspace_row(sheet_id: str, body: WorkspaceRowIn, current_user: User = 
                 cell.value_number = float(val)
             except (ValueError, TypeError):
                 cell.value_text = str(val)
+        elif col.column_type == "date":
+            cell.value_date = str(val) if val else None
         else:
             cell.value_text = str(val) if val else None
         db.add(cell)
@@ -1325,4 +1353,3 @@ def generate_monthly_report(
     db.commit()
 
     return {"document_id": doc.id, "file_url": file_url, "display_filename": display_name, "summary": data["summary"]}
-

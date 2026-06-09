@@ -13,12 +13,9 @@ interface NoteData {
   timestamp: string;
 }
 
-interface ClientTabsProps {
-  clientId: number;
-  initialNotes: NoteData[];
-}
+interface ClientTabsProps { leadId: number | null; initialNotes: NoteData[]; }
 
-export default function ClientTabs({ clientId, initialNotes }: ClientTabsProps) {
+export default function ClientTabs({ leadId, initialNotes }: ClientTabsProps) {
   const [activeTab, setActiveTab] = useState<"notes" | "credentials" | "documents">("notes");
 
   const tabs = [
@@ -38,9 +35,9 @@ export default function ClientTabs({ clientId, initialNotes }: ClientTabsProps) 
           </button>
         ))}
       </div>
-      {activeTab === "notes" && <NotesTimelineTab clientId={clientId} initialNotes={initialNotes} />}
-      {activeTab === "credentials" && <CredentialsTab clientId={clientId} />}
-      {activeTab === "documents" && <DocumentsTab clientId={clientId} />}
+      {activeTab === "notes" && <NotesTimelineTab leadId={leadId} initialNotes={initialNotes} />}
+      {activeTab === "credentials" && <CredentialsTab leadId={leadId} />}
+      {activeTab === "documents" && <DocumentsTab leadId={leadId} />}
     </div>
   );
 }

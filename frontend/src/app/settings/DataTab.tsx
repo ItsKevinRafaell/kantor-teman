@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { apiFetch } from "../../lib/api";
 import { downloadBlob } from "../../utils/download";
 import Toast from "../../components/Toast";
-import { Download, RotateCcw, AlertTriangle, Database } from "lucide-react";
+import { Download, RotateCcw, AlertTriangle, Database, Lock } from "lucide-react";
 
 type ActionKey = "seed" | "soft" | "nuclear";
 
@@ -46,6 +46,14 @@ export default function DataTab() {
   const [phrase, setPhrase] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [isProduction, setIsProduction] = useState(false);
+
+  useEffect(() => {
+    apiFetch("/api/settings/production-mode")
+      .then(r => r.json())
+      .then(d => setIsProduction(d.is_production ?? false))
+      .catch(() => {});
+  }, []);
 
   function showToast(message: string, type: "success" | "error" = "success") {
     setToast({ message, type });
@@ -114,6 +122,17 @@ export default function DataTab() {
     <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-[var(--border-default)] shadow-sm p-6 space-y-6 max-w-2xl">
       <Toast message={toast?.message ?? null} type={toast?.type} onClose={() => setToast(null)} />
 
+      {isProduction && (
+        <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+          <Lock size={16} className="text-amber-600 mt-0.5 shrink-0" />
+          <div className="text-sm text-amber-800 dark:text-amber-300">
+            <strong>Mode Production Aktif.</strong> Aksi Re-seed, Soft Reset, dan Nuclear Reset{' '}
+            <strong>dinonaktifkan</strong> untuk melindungi data production. Hubungi admin server
+            jika Anda butuh akses ke environment dev/staging.
+          </div>
+        </div>
+      )}
+
       {/* Backup */}
       <section>
         <div className="flex items-center gap-2 mb-2">
@@ -144,7 +163,8 @@ export default function DataTab() {
         </p>
         <button
           onClick={() => setOpenAction("seed")}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
+          disabled={isProduction}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <RotateCcw size={16} />
           Re-seed Demo
@@ -162,7 +182,8 @@ export default function DataTab() {
         </p>
         <button
           onClick={() => setOpenAction("soft")}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
+          disabled={isProduction}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <AlertTriangle size={16} />
           Soft Reset
@@ -183,7 +204,8 @@ export default function DataTab() {
         </p>
         <button
           onClick={() => setOpenAction("nuclear")}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
+          disabled={isProduction}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <AlertTriangle size={16} />
           Nuclear Reset

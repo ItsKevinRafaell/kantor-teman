@@ -18,7 +18,7 @@ const CATEGORY_BADGE: Record<string, string> = {
   PENTING: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
 };
 
-export default function NotesTimelineTab({ clientId, initialNotes }: { clientId: number; initialNotes: NoteData[] }) {
+export default function NotesTimelineTab({ leadId, initialNotes }: { leadId: number | null; initialNotes: NoteData[] }) {
   const [notes, setNotes] = useState<NoteData[]>(initialNotes);
   const [filter, setFilter] = useState<"ALL" | "BISNIS" | "TEKNIS" | "PENTING">("ALL");
   const [form, setForm] = useState({ category: "BISNIS", content: "" });
@@ -29,12 +29,12 @@ export default function NotesTimelineTab({ clientId, initialNotes }: { clientId:
   useEffect(() => { setNotes(initialNotes); }, [initialNotes]);
 
   async function submitNote() {
-    if (!form.content.trim()) return;
+    if (!leadId || !form.content.trim()) return;
     setSubmitting(true);
     try {
       const res = await apiFetch("/api/clients/notes", {
         method: "POST",
-        body: JSON.stringify({ lead_id: clientId, category: form.category, content: form.content }),
+        body: JSON.stringify({ lead_id: leadId, category: form.category, content: form.content }),
       });
       if (res.ok) {
         const newNote = await res.json();
@@ -74,7 +74,6 @@ export default function NotesTimelineTab({ clientId, initialNotes }: { clientId:
         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Riwayat catatan kronologis untuk klien ini.</p>
       </div>
 
-      {/* Input Form */}
       <div className="px-5 py-4 border-b border-[var(--border-subtle)] bg-neutral-50/50 dark:bg-neutral-800/30">
         <div className="flex gap-3">
           <div className="flex-1">
@@ -94,14 +93,19 @@ export default function NotesTimelineTab({ clientId, initialNotes }: { clientId:
               <option value="TEKNIS">Teknis</option>
               <option value="PENTING">Penting</option>
             </select>
-            <button onClick={submitNote} disabled={submitting || !form.content.trim()} className="btn-primary text-xs px-3 py-2 disabled:opacity-50">
-              {submitting ? "..." : "Kirim"}
+            <button onClick={submitNote} disabled={submitting || !leadId || !form.content.trim()} className="btn-primary text-xs px-3 py-2 disabled:opacity-50">
+              {!leadId ? "Lead belum terkait" : submitting ? "..." : "Kirim"}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Filter Tabs */}
+      {!leadId && (
+        <div className="px-5 py-3 border-b border-[var(--border-subtle)] text-xs text-amber-600 dark:text-amber-400">
+          Kontak ini belum memiliki relasi lead, jadi catatan belum bisa ditambahkan.
+        </div>
+      )}
+
       <div className="px-5 py-3 border-b border-[var(--border-subtle)] flex items-center gap-2">
         {(["ALL", "BISNIS", "TEKNIS", "PENTING"] as const).map(cat => (
           <button key={cat} onClick={() => setFilter(cat)}
@@ -112,7 +116,6 @@ export default function NotesTimelineTab({ clientId, initialNotes }: { clientId:
         <span className="ml-auto text-[11px] text-neutral-400">{filtered.length} catatan</span>
       </div>
 
-      {/* Notes Feed */}
       <div className="divide-y divide-[var(--border-subtle)] max-h-[400px] overflow-y-auto">
         {filtered.length === 0 ? (
           <div className="text-center py-10 text-neutral-400 text-sm">Belum ada catatan.</div>

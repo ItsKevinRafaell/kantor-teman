@@ -9,6 +9,7 @@ os.environ["SECRET_ENCRYPTION_KEY"] = Fernet.generate_key().decode()
 os.environ["JWT_SECRET"] = "test-jwt-secret-for-unit-tests-minimum-32-bytes"
 os.environ["ENV_FILE"] = ".env.test"
 os.environ["FONNTE_TOKEN"] = "test-fonnte-token"
+os.environ["ENABLE_BACKGROUND_SCHEDULER"] = "false"
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(base_dir)
@@ -40,6 +41,8 @@ def new_test_session() -> Session:
 import models as _models_mod  # the __init__ package
 from models import base as _base_mod
 import main as _main_app
+import app.core.dependencies as _deps_mod
+from contextlib import asynccontextmanager
 
 _orig_engine = _base_mod.engine
 _orig_session_local = _base_mod.SessionLocal
@@ -51,6 +54,19 @@ _models_mod.engine = TEST_ENGINE
 _models_mod.SessionLocal = _TestSessionLocal
 _main_app.engine = TEST_ENGINE
 _main_app.SessionLocal = _TestSessionLocal
+# dependencies.py uses: from models import SessionLocal → patches models.SessionLocal
+# but it captured the binding at import time. Patch its local reference too.
+_deps_mod.engine = TEST_ENGINE
+_deps_mod.SessionLocal = _TestSessionLocal
+
+
+@asynccontextmanager
+async def _test_lifespan(app):
+    """Skip production startup migration during in-memory tests."""
+    yield
+
+
+_main_app.app.router.lifespan_context = _test_lifespan
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -84,14 +100,32 @@ def client(db_session):
     from fastapi.testclient import TestClient
     import models as _models
     import main as _main_app
+    import app.core.dependencies as _deps
+    from models import SystemSettings
+
+    # Seed minimal system_settings needed by _get_setting calls in endpoint code
+    needed_keys = {
+        "admin_wa": "081234567890",
+        "admin_name": "Test Admin",
+        "fonnte_token": "test-fonnte-token",
+        "frontend_url": "https://test.example.com",
+        "app_base_url": "https://api.test.example.com",
+    }
+    for key, value in needed_keys.items():
+        row = db_session.query(SystemSettings).filter_by(key=key).first()
+        if not row:
+            db_session.add(SystemSettings(key=key, value=value))
+    db_session.commit()
 
     def _override_get_db():
+        session = new_test_session()
         try:
-            yield db_session
+            yield session
         finally:
-            pass
+            session.close()
 
     _main_app.app.dependency_overrides[_models.get_db] = _override_get_db
+    _main_app.app.dependency_overrides[_deps.get_db] = _override_get_db
     tc = TestClient(_main_app.app)
     yield tc
     _main_app.app.dependency_overrides.clear()

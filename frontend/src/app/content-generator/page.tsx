@@ -181,10 +181,10 @@ export default function ContentGeneratorPage() {
       <div className="flex-1 flex flex-col gap-4 min-w-0 overflow-y-auto">
 
         {/* Active tool indicator + session badge */}
-        <Breadcrumb items={[{ label: "Content Generator" }, { label: activeTool === "seo_article" ? "SEO Article Generator" : activeTool === "image" ? "Image Generator" : "Caption Sosmed" }]} showBack backHref="/" />
+        <Breadcrumb items={[{ label: "Generator Konten" }, { label: activeTool === "seo_article" ? "Buat Artikel SEO" : activeTool === "image" ? "Buat Gambar" : "Caption Sosmed" }]} showBack backHref="/" />
         <div className="flex items-center gap-3">
           <h2 className="text-base font-bold text-neutral-800 dark:text-neutral-100">
-            {activeTool === "seo_article" ? "SEO Article Generator" : activeTool === "image" ? "Image Generator" : "Caption Sosmed"}
+            {activeTool === "seo_article" ? "Buat Artikel SEO" : activeTool === "image" ? "Buat Gambar" : "Caption Sosmed"}
           </h2>
           {selectedSession && (
             <span className="px-2.5 py-1 bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 text-xs font-semibold rounded-full">
@@ -197,7 +197,7 @@ export default function ContentGeneratorPage() {
         <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
           <button onClick={() => setCmsConfigOpen(o => !o)}
             className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-            <span className="text-xs font-bold text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">Konfigurasi CMS Target</span>
+            <span className="text-xs font-bold text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">Pengaturan Penerbit</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
               className={`text-neutral-400 transition-transform ${cmsConfigOpen ? "rotate-180" : ""}`}>
               <polyline points="6 9 12 15 18 9" />

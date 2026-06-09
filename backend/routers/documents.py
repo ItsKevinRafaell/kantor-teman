@@ -311,7 +311,8 @@ def delete_generated_document(did: str, current_user: User = Depends(require_adm
     if not d:
         raise HTTPException(status_code=404, detail="Document tidak ditemukan")
     if d.file_url:
-        fpath = os.path.join(os.path.dirname(__file__), d.file_url.lstrip("/"))
+        filename = os.path.basename(d.file_url)
+        fpath = os.path.join(DOCUMENTS_DIR, filename)
         if os.path.exists(fpath) and os.path.realpath(fpath).startswith(os.path.realpath(DOCUMENTS_DIR)):
             try:
                 os.remove(fpath)
@@ -644,24 +645,50 @@ def _apply_final_document_number(db: Session, template_type: str, full_vars: dic
         full_vars["nomor"] = number
 
 
-def _prepare_document_vars(db: Session, template: DocumentTemplate, body: DocumentGenerateIn, reserve_number: bool = False) -> dict:
+def _prepare_document_vars(
+    db: Session,
+    template: DocumentTemplate,
+    body: DocumentGenerateIn,
+    reserve_number: bool = False,
+    allow_db_defaults: bool = False,
+) -> dict:
+    """Prepare variables for preview/generate. User input (body.variables) is source of truth.
+
+    Server-owned keys (logo, brand_name, tagline, tanggal) come from brand context or direct computation.
+    Client/company/service fields come exclusively from body.variables — NO re-query of target DB.
+
+    allow_db_defaults=True is ONLY for /defaults prefill endpoint. Preview/generate must NOT
+    query target DB for client/company/service fields.
+    """
     template_type = _document_template_type(template)
-    defaults = _build_default_vars(db, template_type, body.target_type, body.target_id)
     brand_ctx = _build_brand_context(db)
-    # brand_ctx first, then defaults so lead data (klien, alamat, phone, layanan)
-    # takes priority over brand kit values, while brand fields (logo, tagline,
-    # company info) that defaults doesn't set still come through.
-    full_vars = {**brand_ctx, **defaults}
+    today = datetime.now(timezone.utc)
+    # Start with brand context + generic server-computed fields
+    full_vars = dict(brand_ctx)
+    full_vars["tanggal"] = _format_date_id(today)
+    # Only call _build_default_vars when allow_db_defaults=True (prefill endpoint).
+    # Preview/generate MUST NOT re-query target DB for client/company/service fields.
+    if allow_db_defaults and body.target_id and body.target_type:
+        defaults = _build_default_vars(db, template_type, body.target_type, body.target_id)
+        for k, v in defaults.items():
+            if k not in full_vars:
+                full_vars[k] = v
+    # User variables override defaults for client/company/service fields
+    # Empty string in user input is valid explicit input — set the key as-is
     for key, value in body.variables.items():
         value = _normalize_document_variable(key, value)
-        if key in _SERVER_OWNED_DOCUMENT_KEYS and full_vars.get(key) not in (None, ""):
+        # Server-owned: only override if currently empty/none
+        if key in _SERVER_OWNED_DOCUMENT_KEYS:
+            if full_vars.get(key) in (None, ""):
+                full_vars[key] = value
             continue
-        if value not in (None, "") or key not in full_vars:
-            full_vars[key] = value
+        # All other fields: always set when user provides them (even empty string)
+        # Normalize None → "" so templates render empty instead of "None"
+        full_vars[key] = value if value is not None else ""
     for key, value in list(full_vars.items()):
         full_vars[key] = _normalize_document_variable(key, value)
-    if "logo" not in body.variables:
-        full_vars["logo"] = brand_ctx["logo"]
+    if "logo" not in body.variables or body.variables.get("logo", "").strip() == "":
+        full_vars["logo"] = brand_ctx.get("logo", "")
     if reserve_number:
         _apply_final_document_number(db, template_type, full_vars)
     return full_vars
@@ -864,7 +891,8 @@ def email_document(did: str, body: DocumentEmailIn, current_user: User = Depends
     doc = db.query(GeneratedDocument).filter(GeneratedDocument.id == did).first()
     if not doc or not doc.file_url:
         raise HTTPException(status_code=404, detail="Document tidak ditemukan")
-    fpath = os.path.join(os.path.dirname(__file__), doc.file_url.lstrip("/"))
+    filename = os.path.basename(doc.file_url)
+    fpath = os.path.join(DOCUMENTS_DIR, filename)
     if not os.path.exists(fpath):
         raise HTTPException(status_code=404, detail="File tidak ada di disk")
 

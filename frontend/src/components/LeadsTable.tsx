@@ -65,7 +65,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
 
   async function handleRecalculateAll() {
     setRecalculating(true);
-    try { await recalculate(); showToast("Scores di-recalculate."); }
+    try { await recalculate(); showToast("Score dihitung ulang."); }
     catch { showToast("Gagal recalculate", "error"); }
     finally { setRecalculating(false); }
   }
@@ -84,7 +84,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
     if (!waPreview.lead) return;
     try {
       const res = await apiFetch("/api/wa/send", { method: "POST", body: JSON.stringify({ lead_id: waPreview.lead.id, message: waPreview.message }) });
-      if (res.ok) showToast("Pesan terkirim via Fonnte!", "success");
+      if (res.ok) showToast("Pesan terkirim!", "success");
       else { const d = await res.json().catch(() => ({})); showToast(d.detail || "Gagal mengirim pesan.", "error"); }
     } catch { showToast("Gagal mengirim pesan.", "error"); }
     setWaPreview({ open: false, lead: null, message: "", reportLink: "" });
@@ -105,7 +105,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
     if (!followUpPreview.lead) return;
     try {
       const res = await apiFetch("/api/wa/send", { method: "POST", body: JSON.stringify({ lead_id: followUpPreview.lead.id, message: followUpPreview.message }) });
-      if (res.ok) showToast("Follow up terkirim via Fonnte!", "success");
+      if (res.ok) showToast("Follow up terkirim!", "success");
       else { const d = await res.json().catch(() => ({})); showToast(d.detail || "Gagal mengirim follow up.", "error"); }
     } catch { showToast("Gagal mengirim follow up.", "error"); }
     setFollowUpPreview({ open: false, lead: null, message: "", templates: [] });
@@ -157,13 +157,13 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
   async function handleDelete(id: number) {
     setDeleteModal({ open: false, id: null, name: "" });
     setUpdating(id);
-    try { await deleteLead(id); showToast("Lead berhasil di-archive."); }
+    try { await deleteLead(id); showToast("Lead berhasil diarsipkan."); }
     catch (err: unknown) { showToast(err instanceof Error ? err.message : "Gagal archive lead.", "error"); }
     finally { setUpdating(null); }
   }
 
   async function handleRestore(id: number) {
-    try { await restoreLead(id); showToast("Lead berhasil di-restore."); }
+    try { await restoreLead(id); showToast("Lead berhasil dikembalikan."); }
     catch (err: unknown) { showToast(err instanceof Error ? err.message : "Gagal restore.", "error"); }
   }
 
@@ -461,7 +461,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
       {/* Empty state */}
       {!leadsLoading && leads.length === 0 && (
         <div className="text-center py-12 text-gray-400 text-sm bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-100 dark:border-gray-700">
-          Belum ada leads. Gunakan <span className="font-semibold text-gray-600">Maps Scraper</span> untuk mencari bisnis.
+          Belum ada prospek. Gunakan <span className="font-semibold text-gray-600">Penyisir Maps</span> untuk mencari bisnis baru.
         </div>
       )}
 

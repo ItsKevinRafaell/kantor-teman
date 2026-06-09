@@ -195,18 +195,43 @@ def set_feature_defaults(body: dict, current_user: User = Depends(require_admin)
 
 @router.get("/api/ai/health")
 async def ai_health(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Check active AI provider connectivity. Uses canonical multi-provider path."""
+    """Check active AI provider connectivity. Provider-aware: skips /models for Anthropic/Gemini native."""
+    from app.services.ai_service import _is_native_anthropic
     proxy = get_proxy_for_feature(db, "chat")
     if proxy:
+        provider = _canonical_provider(proxy.provider)
+        base = proxy.base_url.rstrip("/")
         try:
-            base = proxy.base_url.rstrip("/")
-            async with httpx.AsyncClient(timeout=5) as client:
-                r = await client.get(f"{base}/models", headers={"Authorization": f"Bearer {proxy.api_key}"})
-            if r.status_code < 500:
-                return {"status": "connected", "provider": proxy.provider, "base_url": proxy.base_url, "model": proxy.model}
+            # Gemini native uses generateContent, not /models
+            if provider == "gemini":
+                async with httpx.AsyncClient(timeout=5) as client:
+                    model = proxy.model or "gemini-2.0-flash"
+                    r = await client.post(
+                        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                        headers={"x-goog-api-key": proxy.api_key},
+                        json={"contents": [{"parts": [{"text": "ping"}]}]},
+                    )
+                if r.status_code < 500:
+                    return {"status": "connected", "provider": provider, "base_url": base, "model": proxy.model}
+            # Anthropic native uses /v1/messages, not /models
+            elif provider == "anthropic" and _is_native_anthropic(base):
+                async with httpx.AsyncClient(timeout=5) as client:
+                    r = await client.post(
+                        "https://api.anthropic.com/v1/messages",
+                        headers={"x-api-key": proxy.api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                        json={"model": proxy.model or "claude-haiku-4-5-20251001", "max_tokens": 1, "messages": [{"role": "user", "content": "ping"}]},
+                    )
+                if r.status_code < 500:
+                    return {"status": "connected", "provider": provider, "base_url": base, "model": proxy.model}
+            # OpenAI-compatible (openai, openrouter, custom) and proxies — use /models
+            else:
+                async with httpx.AsyncClient(timeout=5) as client:
+                    r = await client.get(f"{base}/models", headers={"Authorization": f"Bearer {proxy.api_key}"})
+                if r.status_code < 500:
+                    return {"status": "connected", "provider": provider, "base_url": base, "model": proxy.model}
         except Exception as e:
             print(f"[AI health] {e}", flush=True)
-        return {"status": "offline", "provider": proxy.provider, "base_url": proxy.base_url, "model": proxy.model}
+        return {"status": "offline", "provider": provider, "base_url": base, "model": proxy.model}
     return {"status": "not_configured", "provider": "none", "base_url": "", "model": ""}
 
 
@@ -364,12 +389,13 @@ def list_ai_proxies(current_user: User = Depends(require_admin), db: Session = D
 
 @router.post("/api/ai-proxies", response_model=AIProxyOut, status_code=201)
 def create_ai_proxy(body: AIProxyIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    from app.services.ai_service import _canonical_provider
     proxy = AIProxy(
         name=body.name,
         base_url=body.base_url.rstrip("/"),
         api_key=body.api_key,
         model=body.model,
-        provider=body.provider or "openai",
+        provider=_canonical_provider(body.provider) or "openai",
         feature=body.feature,
     )
     db.add(proxy)
@@ -380,14 +406,17 @@ def create_ai_proxy(body: AIProxyIn, current_user: User = Depends(require_admin)
 
 @router.put("/api/ai-proxies/{proxy_id}", response_model=AIProxyOut)
 def update_ai_proxy(proxy_id: str, body: AIProxyIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    from app.services.ai_service import _canonical_provider
     proxy = db.query(AIProxy).filter_by(id=proxy_id).first()
     if not proxy:
         raise HTTPException(status_code=404, detail="Proxy tidak ditemukan")
     proxy.name = body.name
     proxy.base_url = body.base_url.rstrip("/")
-    proxy.api_key = body.api_key
+    # Preserve existing api_key if incoming is blank or masked
+    if body.api_key and body.api_key != "***" and body.api_key.strip():
+        proxy.api_key = body.api_key
     proxy.model = body.model
-    proxy.provider = body.provider or "openai"
+    proxy.provider = _canonical_provider(body.provider) or "openai"
     proxy.feature = body.feature
     db.commit()
     db.refresh(proxy)
@@ -681,56 +710,25 @@ def generate_caption(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    ai = _get_system_ai_config(db)
-    if not ai["api_key"]:
-        raise HTTPException(status_code=400, detail="API Key AI belum dikonfigurasi di Settings")
-
-    platform_guide = {
-        "instagram": "Instagram: max 2200 karakter, 3-5 hashtag relevan, emoji secukupnya, CTA di akhir.",
-        "tiktok": "TikTok: singkat dan catchy, hook kuat di kalimat pertama, 5-10 hashtag trending.",
-    }.get(body.platform, "")
-
-    system_msg = (
-        f"Kamu adalah content writer media sosial profesional Bahasa Indonesia. "
-        f"Buat caption {body.platform.upper()} yang engaging, tone: '{body.tone}'. {platform_guide} "
-        f"WAJIB return valid JSON: {{\"caption\": \"...\", \"hashtags\": [\"#tag\"], \"notes\": \"tip singkat\"}}"
-    )
-    user_msg = f"Topik: {body.topic}"
-    if body.keywords:
-        user_msg += f"\nKeyword wajib disebut: {', '.join(body.keywords)}"
-    ctx = _get_session_ctx(body.session_id, db)
-    if ctx:
-        user_msg += f"\n\n{ctx}"
-    mctx = _get_manual_ctx(body.context_from or [], db)
-    if mctx:
-        user_msg += f"\n\n{mctx}"
-
-    gen = ContentGeneration(
-        id=str(uuid.uuid4()), user_id=current_user.id, session_id=body.session_id,
-        tool_type="caption", input_data=json.dumps(body.model_dump()),
-        model_used=ai["model"], provider_name="System AI", status="pending",
-    )
-    db.add(gen); db.commit()
-
+    """Generate caption using canonical multi-provider AI routing."""
+    from app.services.ai_service import generate_caption as svc_generate_caption
     try:
-        text = _call_text_gen(
-            messages=[{"role": "system", "content": system_msg}, {"role": "user", "content": user_msg}],
-            api_key=ai["api_key"], base_url=ai["base_url"], model=ai["model"], max_tokens=800,
+        result = svc_generate_caption(
+            db=db,
+            user_id=current_user.id,
+            topic=body.topic,
+            platform=body.platform,
+            tone=body.tone,
+            keywords=body.keywords or [],
+            session_id=body.session_id,
+            context_from=body.context_from,
         )
-        import re as _re
-        m = _re.search(r'\{[\s\S]*\}', text)
-        try:
-            result = json.loads(m.group()) if m else {"caption": text, "hashtags": [], "notes": ""}
-        except Exception:
-            result = {"caption": text, "hashtags": [], "notes": ""}
-
-        gen.output_data = json.dumps(result); gen.status = "done"; db.commit()
-        return {"id": gen.id, "status": "done", "created_at": gen.created_at, **result}
-
+        return {"id": result["id"], "status": "done", "created_at": result["created_at"], **result}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
-        gen.status = "error"; gen.error_msg = str(e); db.commit()
         raise HTTPException(status_code=502, detail=f"Gagal generate caption: {str(e)}")
 
 
@@ -743,123 +741,36 @@ def generate_seo_article(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    ai = _get_system_ai_config(db)
-    if not ai["api_key"]:
-        raise HTTPException(status_code=400, detail="API Key AI belum dikonfigurasi di Settings")
-
-    target_title = body.title or f"Panduan Lengkap: {body.keyword}"
-
-    intent_guide = {
-        "informational": "Search intent INFORMATIONAL: edukasi pembaca, jawab 'apa', 'bagaimana', 'mengapa'. Buat artikel komprehensif dengan definisi jelas, contoh praktis, dan takeaway.",
-        "commercial": "Search intent COMMERCIAL INVESTIGATION: pembaca sedang membandingkan pilihan. Sertakan perbandingan, pro-kontra, kriteria pemilihan, dan rekomendasi konkret.",
-        "transactional": "Search intent TRANSACTIONAL: pembaca siap bertindak. CTA kuat, benefit produk/jasa menonjol, hilangkan keraguan, sertakan social proof.",
-        "navigational": "Search intent NAVIGATIONAL: bantu user menemukan brand/resource spesifik. Fokus pada brand credibility dan unique value proposition.",
-    }.get(body.search_intent or "informational", "")
-
-    kd_guide = ""
-    if body.keyword_difficulty is not None:
-        if body.keyword_difficulty >= 70:
-            kd_guide = f"Keyword difficulty {body.keyword_difficulty}/100 (HARD): artikel harus sangat komprehensif, lebih mendalam dari kompetitor, sertakan data/statistik, expert insight."
-        elif body.keyword_difficulty >= 40:
-            kd_guide = f"Keyword difficulty {body.keyword_difficulty}/100 (MEDIUM): artikel solid dan lengkap, pastikan semua subtopik penting tercakup."
-        else:
-            kd_guide = f"Keyword difficulty {body.keyword_difficulty}/100 (EASY): fokus pada kualitas dan kegunaan, pastikan E-E-A-T terpenuhi."
-
-    serp_guide = ""
-    if body.serp_features:
-        hints = []
-        if "featured_snippet" in body.serp_features:
-            hints.append("tambah definition box atau tabel ringkasan di awal untuk optimasi Featured Snippet")
-        if "paa" in body.serp_features:
-            hints.append("sertakan FAQ section (H2 'Pertanyaan Umum') untuk optimasi People Also Ask")
-        if "local_pack" in body.serp_features:
-            hints.append("sertakan informasi lokal yang relevan untuk optimasi Local Pack")
-        if "image_pack" in body.serp_features:
-            hints.append("tambah deskripsi/caption gambar yang informatif untuk optimasi Image Pack")
-        if hints:
-            serp_guide = "SERP features target: " + "; ".join(hints) + "."
-
-    system_msg = (
-        f"Kamu adalah SEO content writer profesional Bahasa Indonesia, expert dalam E-E-A-T dan on-page SEO. "
-        f"Buat artikel blog SEO berkualitas tinggi, tone: '{body.tone}', target sekitar {body.word_count} kata. "
-        f"{intent_guide} {kd_guide} {serp_guide} "
-        f"Gunakan heading H2/H3 dengan format markdown (## dan ###). "
-        f"Optimalkan keyword secara natural (density 1-2%, jangan keyword stuffing). "
-        f"Struktur artikel: hook intro, isi dengan heading logis, kesimpulan + CTA. "
-        f"WAJIB output dengan format TEPAT berikut (jangan tambah teks lain di luar format):\n"
-        f"TITLE: <judul artikel>\n"
-        f"META: <meta description max 160 karakter, include keyword>\n"
-        f"FOCUS_KEYWORD: <keyword utama>\n"
-        f"SECONDARY_KEYWORDS: <keyword1>, <keyword2>, <keyword3>\n"
-        f"---ARTICLE---\n"
-        f"<artikel lengkap dalam markdown>\n"
-        f"---END---"
-    )
-
-    user_parts = [f"Keyword utama: {body.keyword}", f"Judul: {target_title}"]
-    if body.search_intent:
-        user_parts.append(f"Search intent: {body.search_intent}")
-    if body.search_volume:
-        user_parts.append(f"Search volume: {body.search_volume:,}/bulan")
-    if body.keyword_difficulty is not None:
-        user_parts.append(f"Keyword difficulty: {body.keyword_difficulty}/100")
-    if body.lsi_keywords:
-        user_parts.append(f"LSI/related keywords (sisipkan secara natural): {', '.join(body.lsi_keywords)}")
-    if body.target_audience:
-        user_parts.append(f"Target pembaca: {body.target_audience}")
-    if body.target_location:
-        user_parts.append(f"Target lokasi: {body.target_location}")
-    if body.brand_name:
-        user_parts.append(f"Brand/bisnis: {body.brand_name}")
-    if body.unique_angle:
-        user_parts.append(f"Angle unik artikel ini: {body.unique_angle}")
-    if body.faq_topics:
-        user_parts.append(f"FAQ topics yang wajib dijawab: {'; '.join(body.faq_topics)}")
-    if body.internal_link_targets:
-        user_parts.append(f"Halaman internal untuk disarankan sebagai internal link: {body.internal_link_targets}")
-    user_msg = "\n".join(user_parts)
-    ctx = _get_session_ctx(body.session_id, db)
-    if ctx:
-        user_msg += f"\n\n{ctx}"
-    mctx = _get_manual_ctx(body.context_from or [], db)
-    if mctx:
-        user_msg += f"\n\n{mctx}"
-
-    gen = ContentGeneration(
-        id=str(uuid.uuid4()), user_id=current_user.id, session_id=body.session_id,
-        tool_type="seo_article", input_data=json.dumps(body.model_dump()),
-        model_used=ai["model"], provider_name="System AI", status="pending",
-    )
-    db.add(gen); db.commit()
-
+    """Generate SEO article using canonical multi-provider AI routing."""
+    from app.services.ai_service import generate_seo_article as svc_generate_seo_article
     try:
-        text = _call_text_gen(
-            messages=[{"role": "system", "content": system_msg}, {"role": "user", "content": user_msg}],
-            api_key=ai["api_key"], base_url=ai["base_url"], model=ai["model"], max_tokens=4000,
+        result = svc_generate_seo_article(
+            db=db,
+            user_id=current_user.id,
+            keyword=body.keyword,
+            title=body.title,
+            word_count=body.word_count,
+            tone=body.tone,
+            search_intent=body.search_intent,
+            keyword_difficulty=body.keyword_difficulty,
+            search_volume=body.search_volume,
+            lsi_keywords=body.lsi_keywords,
+            faq_topics=body.faq_topics,
+            serp_features=body.serp_features,
+            target_audience=body.target_audience,
+            target_location=body.target_location,
+            brand_name=body.brand_name,
+            unique_angle=body.unique_angle,
+            internal_link_targets=body.internal_link_targets,
+            session_id=body.session_id,
+            context_from=body.context_from,
         )
-        import re as _re
-        def _parse_delimited(t: str) -> dict:
-            title = (_re.search(r'^TITLE:\s*(.+)', t, _re.MULTILINE) or _re.search(r'', t))
-            meta = _re.search(r'^META:\s*(.+)', t, _re.MULTILINE)
-            fk = _re.search(r'^FOCUS_KEYWORD:\s*(.+)', t, _re.MULTILINE)
-            sk = _re.search(r'^SECONDARY_KEYWORDS:\s*(.+)', t, _re.MULTILINE)
-            body_m = _re.search(r'---ARTICLE---([\s\S]*?)---END---', t)
-            return {
-                "title": title.group(1).strip() if title and title.lastindex else target_title,
-                "meta_description": meta.group(1).strip() if meta else "",
-                "focus_keyword": fk.group(1).strip() if fk else body.keyword,
-                "secondary_keywords": [k.strip() for k in sk.group(1).split(",") if k.strip()] if sk else [],
-                "body": body_m.group(1).strip() if body_m else t,
-            }
-        result = _parse_delimited(text)
-
-        gen.output_data = json.dumps(result); gen.status = "done"; db.commit()
-        return {"id": gen.id, "status": "done", "created_at": gen.created_at, **result}
-
+        return {"id": result["id"], "status": "done", "created_at": result["created_at"], **result}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
-        gen.status = "error"; gen.error_msg = str(e); db.commit()
         raise HTTPException(status_code=502, detail=f"Gagal generate artikel: {str(e)}")
 
 

@@ -116,8 +116,8 @@ async def _global_exception_handler(request: Request, exc: Exception):
 
 # ── Static files ───────────────────────────────────────────────────────────────
 
-UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "uploads")
-os.makedirs(UPLOADS_DIR, exist_ok=True)
+# Canonical uploads dir lives at backend/app/uploads via app.core.dependencies.
+# Writers and the static mount must point to the same physical directory.
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 

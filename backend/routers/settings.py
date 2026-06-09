@@ -8,16 +8,32 @@ from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse,
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import get_db, log_audit, AIModel, User, Lead, Product, Category, DynamicTemplate, MessageTemplate, BoardCardComment, BoardCardChecklist, BoardCardActivity, BoardCard, BoardColumn, Board, Project, ContentGeneration, ContentSession, ContentSchedule, Document, DocumentFolder, ReengagementAlert, FollowUpSequence, ClientNote, ClientCredential, ClientDocument, LeadActivityLog, LeadAnalysis, Proposal, BlastMessage, BlastCampaign, AdsCampaign, ScrapeHistory, Contact, Subscription, Transaction, Wallet, ServiceItem, SystemSettings
+from models import get_db, log_audit, AIModel, User, Lead, Product, Category, DynamicTemplate, MessageTemplate, BoardCardComment, BoardCardChecklist, BoardCardActivity, BoardCard, BoardColumn, Board, Project, ContentGeneration, ContentSession, ContentSchedule, Document, DocumentFolder, DocumentTemplate, GeneratedDocument, BrandKit, ReengagementAlert, FollowUpSequence, ClientNote, ClientCredential, ClientDocument, LeadActivityLog, LeadAnalysis, Proposal, ProposalAnalytics, BlastMessage, BlastCampaign, AdsCampaign, ScrapeHistory, Contact, Subscription, Transaction, Wallet, ServiceItem, SystemSettings, AuditLog
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, verify_password,
     seed_data, get_fonnte_token, _send_fonnte_sync, _normalize_phone,
     _ai_model_to_out, _mask_secret, SENSITIVE_SETTING_KEYS, ADMIN_WA,
-    _get_google_calendar_service, _get_setting,
+    _get_google_calendar_service, _get_setting, UPLOADS_DIR,
 )
+from app.core.config import IS_PRODUCTION
 from app.services.ai_service import _is_native_anthropic
 
 router = APIRouter()
+
+
+def _require_dev():
+    """Block destructive admin endpoints in production."""
+    if IS_PRODUCTION:
+        raise HTTPException(
+            status_code=403,
+            detail="Aksi ini dinonaktifkan di production. Hubungi admin server untuk akses dev/staging.",
+        )
+
+@router.get("/api/settings/production-mode")
+def get_production_mode(current_user: User = Depends(require_admin)):
+    """Return whether this instance is running in production mode."""
+    return {"is_production": IS_PRODUCTION}
+
 
 @router.get("/api/settings")
 def get_settings(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
@@ -149,6 +165,7 @@ def _send_wa_auto_reply_sync(lead_id: int, phone: str, name: str, product_intere
 
 @router.post("/api/admin/seed")
 def run_seed_endpoint(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    _require_dev()
     """Run seeder via HTTP — use once after first deploy."""
     from seed import categories, products_data, templates_data
     from document_template_library import get_document_template_starters
@@ -234,6 +251,7 @@ def admin_data_reset_soft(
     db: Session = Depends(get_db),
 ):
     """Soft reset: hapus data dev/test, pertahankan clients (Closed/Client), users, settings, products."""
+    _require_dev()
     _verify_admin_password(current_user, body.password)
     try:
         db.query(BoardCardComment).delete()
@@ -261,7 +279,7 @@ def admin_data_reset_soft(
         db.query(AdsCampaign).delete()
         db.query(ScrapeHistory).delete()
         db.query(Lead).filter(Lead.status != "Closed/Client").delete(synchronize_session=False)
-        db.query(Contact).delete()
+        # Contact records are preserved — only dev/test leads are removed
         db.query(AuditLog).delete()
         db.query(MessageTemplate).delete()
         db.query(ServiceItem).delete()
@@ -280,6 +298,7 @@ def admin_data_reset_nuclear(
     db: Session = Depends(get_db),
 ):
     """Nuclear reset: hapus SEMUA data kecuali users, system_settings, provider_configs, ai_models. Auto-seed basic."""
+    _require_dev()
     _verify_admin_password(current_user, body.password)
     try:
         db.query(BoardCardComment).delete()
@@ -341,9 +360,10 @@ def admin_data_seed_demo(
     db: Session = Depends(get_db),
 ):
     """Re-seed demo data: categories, products, templates, wallets, sample clients."""
+    _require_dev()
     _verify_admin_password(current_user, body.password)
     try:
-        from seed import categories, products_data, templates_data
+        from seed import categories, products_data, templates_data, wallets_data, clients_data
         from document_template_library import get_document_template_starters
         import uuid as _uuid
 
@@ -437,7 +457,7 @@ def admin_data_backup(
                 if os.path.exists(sqlite_path):
                     zf.write(sqlite_path, arcname=os.path.basename(sqlite_path))
 
-            uploads_dir = os.path.join(os.path.dirname(__file__), "uploads")
+            uploads_dir = UPLOADS_DIR
             if os.path.isdir(uploads_dir):
                 for root, _, files in os.walk(uploads_dir):
                     for f in files:
@@ -964,5 +984,4 @@ def delete_dynamic_template(tmpl_id: str, current_user: User = Depends(require_a
 # ---------------------------------------------------------------------------
 # Timeline Templates API
 # ---------------------------------------------------------------------------
-
 

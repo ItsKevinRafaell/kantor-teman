@@ -29,7 +29,7 @@ const QUICK_ACTIONS = [
 ];
 
 const TABS = [
-  { key: "overview" as const, label: "Overview", Icon: LayoutDashboard },
+  { key: "overview" as const, label: "Ringkasan", Icon: LayoutDashboard },
   { key: "analitik" as const, label: "Analitik", Icon: BarChart3 },
 ];
 
@@ -51,9 +51,9 @@ function DashboardContent() {
   const formatIdr = (v: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(v);
 
   const STAT_CARDS = [
-    { label: "Total Leads", value: isLoading ? "—" : analytics?.total_leads ?? 0, sub: "Semua prospek tersimpan", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
+    { label: "Total Prospek", value: isLoading ? "—" : analytics?.total_leads ?? 0, sub: "Semua prospek tersimpan", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
     { label: "Total Klien", value: isLoading ? "—" : analytics?.total_clients ?? 0, sub: "Sudah dikonversi", color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/20" },
-    { label: "Conversion Rate", value: isLoading ? "—" : `${analytics?.conversion_rate ?? 0}%`, sub: "Klien / Total Leads", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
+    { label: "Tingkat Konversi", value: isLoading ? "—" : `${analytics?.conversion_rate ?? 0}%`, sub: "Klien / Total Prospek", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
     { label: "Kategori Aktif", value: isLoading ? "—" : analytics?.leads_by_product?.length ?? 0, sub: "Jenis layanan diminati", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/20" },
   ];
 
@@ -313,7 +313,7 @@ function DashboardContent() {
 
           {/* Conversion patterns */}
           <div className="card p-6">
-            <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-4">Conversion Pattern Analysis</h2>
+            <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-4">Pola Konversi</h2>
             {!patterns ? (
               <p className="text-xs text-gray-400 italic">Memuat data...</p>
             ) : (
@@ -325,7 +325,7 @@ function DashboardContent() {
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-wide font-bold mb-2">Per Kategori</p>
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-wide font-bold mb-2">Per Layanan</p>
                     <div className="space-y-1.5">
                       {patterns.by_category.slice(0, 5).map(p => (
                         <div key={p.segment} className="flex justify-between items-center text-xs">

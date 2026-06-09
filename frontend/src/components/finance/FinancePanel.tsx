@@ -40,11 +40,12 @@ interface ReportData {
 
 interface ClientData {
   id: number;
+  lead_id: number;
   business_name: string;
 }
 
 
-const COLORS = ["#f59e0b", "#3b82f6", "#10b981", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
+const COLORS = ["#737373", "#a3a3a3", "#525252", "#d4d4d4", "#78716c", "#94a3b8", "#71717a", "#9ca3af"];
 
 export default function FinancePanel() {
   const [wallets, setWallets] = useState<WalletData[]>([]);
@@ -81,7 +82,11 @@ export default function FinancePanel() {
       if (rRes.ok) setReport(await rRes.json());
       if (cRes.ok) {
         const contacts = await cRes.json();
-        setClients(contacts.map((c: { id: number; business_name: string }) => ({ id: c.id, business_name: c.business_name })));
+        setClients(
+          contacts
+            .filter((c: { lead_id?: number | null }) => c.lead_id)
+            .map((c: { id: number; lead_id: number; business_name: string }) => ({ id: c.id, lead_id: c.lead_id, business_name: c.business_name }))
+        );
       }
     } finally {
       setLoading(false);
@@ -128,6 +133,10 @@ export default function FinancePanel() {
     }
     if (!txnForm.category?.trim()) {
       setToast({ message: "Kategori wajib diisi.", type: "error" });
+      return;
+    }
+    if (linkClient && !txnForm.lead_id) {
+      setToast({ message: "Pilih klien yang sudah terhubung ke lead.", type: "error" });
       return;
     }
     const payload = { ...txnForm, lead_id: linkClient ? txnForm.lead_id : null };
@@ -229,31 +238,31 @@ export default function FinancePanel() {
 
       {/* Top Cards: Runway & BEP */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-emerald-600 rounded-2xl p-5 text-white shadow-lg">
+        <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-2">
-            <TrendingUp size={20} />
-            <span className="text-sm font-medium opacity-90">Financial Runway</span>
+            <TrendingUp size={20} className="text-neutral-500 dark:text-neutral-400" />
+            <span className="text-sm font-medium text-neutral-500 dark:text-neutral-400">Financial Runway</span>
           </div>
-          <p className="text-3xl font-bold">{report?.financial_runway_months ?? 0} Bulan</p>
-          <p className="text-xs opacity-75 mt-1">Aman sebelum kehabisan dana</p>
+          <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-50">{report?.financial_runway_months ?? 0} Bulan</p>
+          <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">Aman sebelum kehabisan dana</p>
         </div>
 
-        <div className="bg-brand-yellow rounded-2xl p-5 text-white shadow-lg">
+        <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-2">
-            <Target size={20} />
-            <span className="text-sm font-medium opacity-90">BEP Bulan Ini</span>
+            <Target size={20} className="text-neutral-500 dark:text-neutral-400" />
+            <span className="text-sm font-medium text-neutral-500 dark:text-neutral-400">BEP Bulan Ini</span>
           </div>
-          <p className="text-3xl font-bold">{formatRupiah(report?.break_even_point ?? 0)}</p>
-          <p className="text-xs opacity-75 mt-1">Target omzet minimum</p>
+          <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-50">{formatRupiah(report?.break_even_point ?? 0)}</p>
+          <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">Target omzet minimum</p>
         </div>
 
-        <div className="bg-neutral-800 rounded-2xl p-5 text-white shadow-lg">
+        <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-2">
-            <Wallet size={20} />
-            <span className="text-sm font-medium opacity-90">Total Saldo</span>
+            <Wallet size={20} className="text-neutral-500 dark:text-neutral-400" />
+            <span className="text-sm font-medium text-neutral-500 dark:text-neutral-400">Total Saldo</span>
           </div>
-          <p className="text-3xl font-bold">{formatRupiah(report?.total_balance ?? 0)}</p>
-          <p className="text-xs opacity-75 mt-1">Semua dompet digabung</p>
+          <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-50">{formatRupiah(report?.total_balance ?? 0)}</p>
+          <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">Semua dompet digabung</p>
         </div>
       </div>
 
@@ -452,7 +461,7 @@ export default function FinancePanel() {
                     <div className="mt-2">
                       <select value={txnForm.lead_id || ""} onChange={e => setTxnForm(f => ({ ...f, lead_id: Number(e.target.value) || null }))} className={inputCls}>
                         <option value="">— Pilih Klien —</option>
-                        {clients.map(c => <option key={c.id} value={c.id}>{c.business_name}</option>)}
+                        {clients.map(c => <option key={c.id} value={c.lead_id}>{c.business_name}</option>)}
                       </select>
                     </div>
                   )}

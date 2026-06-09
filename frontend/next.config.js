@@ -16,6 +16,15 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 });
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.kantorteman.my.id";
+const backendOrigin = (() => {
+  try {
+    return new URL(BACKEND_URL).origin;
+  } catch {
+    return "https://api.kantorteman.my.id";
+  }
+})();
+const connectSrc = ["'self'", backendOrigin, "wss:"];
+const imgSrc = ["'self'", "data:", backendOrigin, "blob:"];
 
 const nextConfig = {
   trailingSlash: true,
@@ -40,10 +49,10 @@ const nextConfig = {
               // 'unsafe-eval' removed — not needed by App Router
               "style-src 'self' 'unsafe-inline'",
               // Note: 'unsafe-inline' required; Next.js generates inline styles dynamically
-              "img-src 'self' data: https://api.kantorteman.my.id blob:",
+              `img-src ${imgSrc.join(" ")}`,
               "frame-src 'self' data: blob:",
               "font-src 'self'",
-              "connect-src 'self' https://api.kantorteman.my.id wss:",
+              `connect-src ${connectSrc.join(" ")}`,
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",

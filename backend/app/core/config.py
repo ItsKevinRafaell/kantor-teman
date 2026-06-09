@@ -29,3 +29,6 @@ USD_TO_IDR = 17000
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./leads.db")
 if "mysql" in DATABASE_URL and "pymysql" not in DATABASE_URL:
     DATABASE_URL = DATABASE_URL.replace("mysql://", "mysql+pymysql://")
+
+# Production detection: explicit flag or MySQL = production
+IS_PRODUCTION = os.getenv("ENVIRONMENT", "").lower() == "production" or "mysql" in DATABASE_URL

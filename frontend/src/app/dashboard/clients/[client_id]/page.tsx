@@ -14,6 +14,7 @@ import WASnippetDrawer, { WA_SNIPPETS } from "./components/WASnippetDrawer";
 
 interface Profile {
   id: number;
+  lead_id?: number | null;
   business_name: string;
   owner_name: string | null;
   phone_number: string;
@@ -23,6 +24,7 @@ interface Profile {
 
 interface ProjectData {
   id: string;
+  lead_id?: number | null;
   name: string;
   type: string;
   status: string;
@@ -34,6 +36,7 @@ interface ProjectData {
 }
 
 interface ClientDetail {
+  lead_id?: number | null;
   profile: Profile;
   ltv: number;
   active_billing: number;
@@ -114,7 +117,7 @@ export default function ClientDetailPage() {
       const url = editingProject ? `/api/projects/${editingProject.id}` : "/api/projects";
       const res = await apiFetch(url, {
         method,
-        body: JSON.stringify({ ...projectForm, lead_id: Number(clientId) }),
+        body: JSON.stringify({ ...projectForm, contact_id: Number(clientId) }),
       });
       if (res.ok) {
         setProjectModal(false);
@@ -176,6 +179,7 @@ export default function ClientDetailPage() {
   }
 
   const { profile, ltv, active_billing, dana_talangan, projects } = data;
+  const clientLeadId = data.lead_id ?? profile.lead_id ?? null;
   const isVIP = ltv >= 10000000;
 
   return (
@@ -317,7 +321,7 @@ export default function ClientDetailPage() {
       </div>
 
       {/* Blok C: Tabs */}
-      <ClientTabs clientId={Number(clientId)} initialNotes={data.notes} />
+      <ClientTabs leadId={clientLeadId} initialNotes={data.notes} />
 
       {/* Project Modal */}
       <ProjectModal

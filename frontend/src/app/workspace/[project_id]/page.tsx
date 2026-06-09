@@ -167,8 +167,8 @@ export default function WorkspaceDetailPage() {
     return (
       <div className="p-6 max-w-lg mx-auto space-y-4">
         <h1 className="text-2xl font-bold text-neutral-800 dark:text-neutral-100">Workspace</h1>
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-xl p-4">
-          <p className="text-sm text-amber-800 dark:text-amber-200">{errorMsg || "Workspace belum tersedia."}</p>
+        <div className="bg-neutral-50 dark:bg-neutral-900/40 border border-neutral-200 dark:border-neutral-700 rounded-xl p-4">
+          <p className="text-sm text-neutral-700 dark:text-neutral-200">{errorMsg || "Workspace belum tersedia."}</p>
         </div>
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       </div>
@@ -203,7 +203,7 @@ export default function WorkspaceDetailPage() {
           <button
             onClick={handleGenerateReport}
             disabled={generatingReport}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-lg disabled:opacity-50 transition-colors">
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-neutral-800 hover:bg-neutral-700 dark:bg-neutral-200 dark:hover:bg-white text-white dark:text-neutral-900 rounded-lg disabled:opacity-50 transition-colors">
             {generatingReport ? "Membuat..." : "Generate Laporan"}
           </button>
         </div>
@@ -214,7 +214,7 @@ export default function WorkspaceDetailPage() {
         {sheets.map((s, i) => (
           <div key={s.id} className="relative group flex items-center">
             <button onClick={() => setActiveSheet(i)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors ${i === activeSheet ? "bg-amber-500 text-white" : "bg-gray-100 dark:bg-neutral-800 text-gray-600 dark:text-neutral-300 hover:bg-gray-200"}`}>
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors ${i === activeSheet ? "bg-neutral-800 text-white dark:bg-neutral-200 dark:text-neutral-900" : "bg-gray-100 dark:bg-neutral-800 text-gray-600 dark:text-neutral-300 hover:bg-gray-200"}`}>
               {s.sheet_label}
             </button>
             {s.month_number === null && (
@@ -225,7 +225,7 @@ export default function WorkspaceDetailPage() {
             )}
           </div>
         ))}
-        <button onClick={() => setAddSheetModal(true)} className="px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap border border-dashed border-gray-300 dark:border-neutral-700 text-gray-500 hover:border-amber-400 hover:text-amber-600">
+        <button onClick={() => setAddSheetModal(true)} className="px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap border border-dashed border-gray-300 dark:border-neutral-700 text-gray-500 hover:border-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200">
           + Sheet
         </button>
       </div>
@@ -249,7 +249,7 @@ export default function WorkspaceDetailPage() {
               className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800" autoFocus />
             <div className="flex justify-end gap-2">
               <button onClick={() => setAddSheetModal(false)} className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100 dark:bg-neutral-800 rounded-lg">Batal</button>
-              <button onClick={handleAddSheet} disabled={addingSheet || !newSheetLabel.trim()} className="px-3 py-1.5 text-xs font-semibold bg-amber-500 text-white rounded-lg disabled:opacity-50">
+              <button onClick={handleAddSheet} disabled={addingSheet || !newSheetLabel.trim()} className="px-3 py-1.5 text-xs font-semibold bg-neutral-800 hover:bg-neutral-700 dark:bg-neutral-200 dark:hover:bg-white text-white dark:text-neutral-900 rounded-lg disabled:opacity-50">
                 {addingSheet ? "..." : "Tambah"}
               </button>
             </div>

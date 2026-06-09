@@ -57,11 +57,14 @@ export default function ProposalModal({ contact: initialContact, open, onClose, 
 
   useEffect(() => {
     if (!open) return;
-    if (contact) {
-      apiFetch(`/api/finance/client/${contact.id}/unbilled`)
+    const leadId = contact?.lead_id;
+    if (leadId) {
+      apiFetch(`/api/finance/client/${leadId}/unbilled`)
         .then(r => r.ok ? r.json() : { unbilled_total: 0, count: 0 })
         .then(d => setUnbilledTotal(d.unbilled_total))
         .catch(() => setUnbilledTotal(0));
+    } else {
+      setUnbilledTotal(0);
     }
   }, [open, contact]);
 

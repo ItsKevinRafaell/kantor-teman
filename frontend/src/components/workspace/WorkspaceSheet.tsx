@@ -217,7 +217,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/workspace/row/${uploadTarget.rowId}/attachment`, {
         method: "POST",
         body: fd,
-        headers: { Authorization: `Bearer ${document.cookie.split("kt_token=")[1]?.split(";")[0] || ""}` },
+        credentials: "include",
       });
       if (!res.ok) throw new Error();
       const data = await res.json();

@@ -11,7 +11,7 @@ interface CredentialData {
   fields: CredentialField[]; created_at: string;
 }
 
-export default function CredentialsTab({ clientId }: { clientId: number }) {
+export default function CredentialsTab({ leadId }: { leadId: number | null }) {
   const [credentials, setCredentials] = useState<CredentialData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -50,11 +50,16 @@ export default function CredentialsTab({ clientId }: { clientId: number }) {
   }
 
   const fetchCredentials = useCallback(async () => {
+    if (!leadId) {
+      setCredentials([]);
+      setLoading(false);
+      return;
+    }
     try {
-      const res = await apiFetch(`/api/credentials?lead_id=${clientId}`);
+      const res = await apiFetch(`/api/credentials?lead_id=${leadId}`);
       if (res.ok) setCredentials(await res.json());
     } finally { setLoading(false); }
-  }, [clientId]);
+  }, [leadId]);
 
   useEffect(() => { fetchCredentials(); fetchCategories(); }, [fetchCredentials, fetchCategories]);
 
@@ -85,14 +90,14 @@ export default function CredentialsTab({ clientId }: { clientId: number }) {
   function updateField(idx: number, patch: Partial<CredentialField>) { setFormFields(prev => prev.map((f, i) => i === idx ? { ...f, ...patch } : f)); }
 
   async function saveCredential() {
-    if (!formTitle || !formCategory || formFields.length === 0) return;
+    if (!leadId || !formTitle || !formCategory || formFields.length === 0) return;
     const validFields = formFields.filter(f => f.key.trim() && f.value.trim());
     if (validFields.length === 0) return;
     setSaving(true);
     try {
       const method = editingId ? "PUT" : "POST";
       const url = editingId ? `/api/credentials/${editingId}` : "/api/credentials";
-      const res = await apiFetch(url, { method, body: JSON.stringify({ category: formCategory, title: formTitle, fields: validFields, lead_id: clientId }) });
+      const res = await apiFetch(url, { method, body: JSON.stringify({ category: formCategory, title: formTitle, fields: validFields, lead_id: leadId }) });
       if (res.ok) { setShowModal(false); fetchCredentials(); }
     } finally { setSaving(false); }
   }
@@ -117,10 +122,12 @@ export default function CredentialsTab({ clientId }: { clientId: number }) {
           <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-50">Kredensial & Akses</h2>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Akun login milik klien ini (terenkripsi).</p>
         </div>
-        <button onClick={openNew} className="btn-primary flex items-center gap-1.5 text-xs"><Plus size={14} /> Tambah</button>
+        <button onClick={openNew} disabled={!leadId} className="btn-primary flex items-center gap-1.5 text-xs disabled:opacity-50"><Plus size={14} /> Tambah</button>
       </div>
 
-      {credentials.length === 0 ? (
+      {!leadId ? (
+        <div className="text-center py-12 text-amber-600 dark:text-amber-400 text-sm">Kontak ini belum memiliki relasi lead.</div>
+      ) : credentials.length === 0 ? (
         <div className="text-center py-12 text-neutral-400 text-sm">Belum ada kredensial tersimpan.</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5">

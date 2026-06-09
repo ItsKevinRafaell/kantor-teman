@@ -51,7 +51,7 @@ export default function WorkspaceListPage() {
               <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wide">Workspace Aktif</h2>
               {withWorkspace.map(p => (
                 <Link key={p.id} href={`/workspace/${p.id}`}
-                  className="flex items-center justify-between p-4 bg-white dark:bg-neutral-900 border border-[var(--border-default)] rounded-xl hover:border-amber-400 transition-colors">
+                  className="flex items-center justify-between p-4 bg-white dark:bg-neutral-900 border border-[var(--border-default)] rounded-xl hover:border-neutral-300 dark:hover:border-neutral-600 transition-colors">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100 truncate">{p.name}</p>
                     <p className="text-xs text-gray-500 mt-0.5">
@@ -61,9 +61,9 @@ export default function WorkspaceListPage() {
                   <div className="flex items-center gap-3 ml-3">
                     {p.progress !== null && (
                       <div className="text-right">
-                        <span className="text-xs font-bold text-amber-600">{p.progress}%</span>
+                        <span className="text-xs font-bold text-neutral-600 dark:text-neutral-300">{p.progress}%</span>
                         <div className="w-20 h-1.5 bg-gray-200 dark:bg-neutral-700 rounded-full mt-0.5">
-                          <div className="h-full bg-amber-500 rounded-full" style={{ width: `${p.progress}%` }} />
+                          <div className="h-full bg-neutral-500 dark:bg-neutral-400 rounded-full" style={{ width: `${p.progress}%` }} />
                         </div>
                       </div>
                     )}
@@ -79,12 +79,12 @@ export default function WorkspaceListPage() {
               <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wide">Belum Ada Workspace</h2>
               {withoutWorkspace.map(p => (
                 <Link key={p.id} href={`/workspace/${p.id}`}
-                  className="flex items-center justify-between p-4 bg-white dark:bg-neutral-900 border border-[var(--border-default)] rounded-xl hover:border-amber-400 transition-colors opacity-70">
+                  className="flex items-center justify-between p-4 bg-white dark:bg-neutral-900 border border-[var(--border-default)] rounded-xl hover:border-neutral-300 dark:hover:border-neutral-600 transition-colors opacity-70">
                   <div>
                     <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{p.name}</p>
                     <p className="text-xs text-gray-500 mt-0.5">{p.lead_name || "—"}</p>
                   </div>
-                  <span className="text-xs text-amber-600 font-bold">+ Inisialisasi</span>
+                  <span className="text-xs text-neutral-500 dark:text-neutral-300 font-bold">+ Inisialisasi</span>
                 </Link>
               ))}
             </div>

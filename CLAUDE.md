@@ -1,5 +1,8 @@
 # Kantor Teman — CRM untuk Agensi Digital
 
+## Current Production Audit Memory
+Read `PRODUCTION_AUDIT_MEMORY.md` first for the latest production-readiness state from 2026-06-08. The previous "production ready" claim below is stale until the blockers in that memory file are fixed and re-tested.
+
 ## What This Is
 CRM internal untuk agensi digital kecil-menengah. Lead scraping → pipeline → proposal → project board → WhatsApp blast → AI chat — all in one.
 

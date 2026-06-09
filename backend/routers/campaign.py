@@ -71,13 +71,16 @@ async def fonnte_incoming(request: Request, db: Session = Depends(get_db)):
         except Exception:
             payload = {}
 
-    if FONNTE_WEBHOOK_SECRET and not hmac.compare_digest(
-        request.headers.get("x-fonnte-webhook-secret", ""),
-        FONNTE_WEBHOOK_SECRET,
-    ):
+    # Secret check: header (x-fonnte-webhook-secret), query (?secret=), or body.secret
+    secret = (
+        request.headers.get("x-fonnte-webhook-secret") or
+        request.query_params.get("secret") or
+        payload.get("secret") or ""
+    )
+    if FONNTE_WEBHOOK_SECRET and not hmac.compare_digest(secret, FONNTE_WEBHOOK_SECRET):
         raise HTTPException(status_code=401, detail="Webhook secret tidak valid")
 
-    sender = payload.get("sender") or payload.get("device") or payload.get("from") or ""
+    sender = payload.get("sender") or payload.get("device") or payload.get("from") or payload.get("target") or ""
     sender_digits = normalize_phone(str(sender))
     if not sender_digits:
         return {"ok": True, "skipped": "no_sender"}
@@ -540,18 +543,35 @@ class FonnteWebhookIn(BaseModel):
 
 
 @router.post("/api/blast/webhook/fonnte")
-def fonnte_webhook(body: FonnteWebhookIn, request: Request, db: Session = Depends(get_db)):
-    """Fonnte callback for delivery/read/replied status updates."""
-    if FONNTE_WEBHOOK_SECRET and not hmac.compare_digest(
-        request.headers.get("x-fonnte-webhook-secret", ""),
-        FONNTE_WEBHOOK_SECRET,
-    ):
-        raise HTTPException(status_code=401, detail="Webhook secret tidak valid")
+async def fonnte_webhook(request: Request, db: Session = Depends(get_db)):
+    """Fonnte callback for delivery/read/replied status updates. Accepts JSON or form-encoded."""
+    # Try to parse body; support both JSON and form-encoded
     try:
-        if not body.target:
+        body = await request.json()
+    except Exception:
+        try:
+            form = await request.form()
+            body = dict(form)
+        except Exception:
+            body = {}
+
+    # Secret check: header (x-fonnte-webhook-secret), query (?secret=), or body.secret
+    secret = (
+        request.headers.get("x-fonnte-webhook-secret") or
+        request.query_params.get("secret") or
+        body.get("secret") or ""
+    )
+    if FONNTE_WEBHOOK_SECRET and not hmac.compare_digest(secret, FONNTE_WEBHOOK_SECRET):
+        raise HTTPException(status_code=401, detail="Webhook secret tidak valid")
+
+    try:
+        # Normalize status to lowercase
+        raw_status = (body.get("status") or "").strip().lower()
+        target = body.get("target") or body.get("device") or ""
+        if not target:
             return {"ok": True}
         # DB stores 08xx, but legacy records may have 62xx — check both formats
-        phone_62 = _normalize_phone(body.target)
+        phone_62 = _normalize_phone(target)
         if phone_62.startswith("62"):
             phone_08 = "0" + phone_62[2:]
         else:
@@ -568,13 +588,13 @@ def fonnte_webhook(body: FonnteWebhookIn, request: Request, db: Session = Depend
         # Track if any message was marked replied for lead side-effects
         replied_msg = None
         for msg in msgs:
-            if body.status == "delivered" and not msg.delivered_at:
+            if raw_status == "delivered" and not msg.delivered_at:
                 msg.delivered_at = now
                 msg.status = "delivered"
-            elif body.status == "read" and not msg.read_at:
+            elif raw_status == "read" and not msg.read_at:
                 msg.read_at = now
                 msg.status = "read"
-            elif body.status == "replied" and not msg.replied_at:
+            elif raw_status == "replied" and not msg.replied_at:
                 msg.replied_at = now
                 msg.status = "replied"
                 replied_msg = msg

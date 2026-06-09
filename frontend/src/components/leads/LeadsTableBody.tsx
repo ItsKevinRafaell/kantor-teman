@@ -9,6 +9,14 @@ const STATUS_COLORS: Record<string, string> = {
   "Closed/Lost": "bg-red-100 text-red-700",
   "Closed/Client": "bg-green-100 text-green-700",
 };
+// Label untuk UMKM - mudah dimengerti
+const STATUS_LABELS: Record<string, string> = {
+  Scraped: "Baru",
+  Contacted: "Dihubungi",
+  Replied: "Ditanggapi",
+  "Closed/Lost": "Gagal",
+  "Closed/Client": "Jadi Klien",
+};
 const STATUSES = ["Scraped", "Contacted", "Replied", "Closed/Lost", "Closed/Client"] as const;
 
 interface Lead {
@@ -112,7 +120,7 @@ export default function LeadsTableBody({
             <div className="flex items-center gap-1.5">
               <span>{lead.business_name}{lead.is_archived ? " (Archived)" : ""}</span>
               {lead.is_ghost_viewer && (
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 whitespace-nowrap">GHOST VIEWER</span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 whitespace-nowrap" title="Lead potensial - belum ada aktivitas">POTENSIAL</span>
               )}
             </div>
             {lead.batch_name && <div className="text-[10px] text-gray-400 mt-0.5 truncate max-w-[160px]">{lead.batch_name}</div>}
@@ -166,7 +174,7 @@ export default function LeadsTableBody({
                   )}
                   {breakdown.length > 0 && (
                     <div className="absolute left-0 top-full mt-1 z-20 hidden group-hover:block bg-gray-900 text-white text-[10px] rounded-lg px-3 py-2 shadow-xl whitespace-nowrap min-w-[180px]">
-                      <div className="font-bold mb-1">Breakdown:</div>
+                      <div className="font-bold mb-1">Rincian Score:</div>
                       {breakdown.map((b, i) => <div key={i}>• {b}</div>)}
                       <div className="mt-1 pt-1 border-t border-gray-700">Base: 50</div>
                     </div>
@@ -182,10 +190,10 @@ export default function LeadsTableBody({
               </div>
             ) : <span className="text-gray-300">Belum diatur</span>}
             {lead.sales_owner && <div className="text-[10px] text-gray-400 mt-0.5">PIC: {lead.sales_owner}</div>}
-            {lead.do_not_contact && <div className="text-[10px] text-red-500 font-bold mt-0.5">OPT-OUT</div>}
+            {lead.do_not_contact && <div className="text-[10px] text-red-500 font-bold mt-0.5">DIBLOKIR</div>}
           </td>
           <td className="px-4 py-3">
-            <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[lead.status] || ""}`}>{lead.status}</span>
+            <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[lead.status] || ""}`}>{STATUS_LABELS[lead.status] || lead.status}</span>
           </td>
           <td className="px-4 py-3">
             <div className="flex items-center gap-1 flex-wrap max-w-[220px]">
@@ -219,7 +227,7 @@ export default function LeadsTableBody({
                   <select value={lead.status} disabled={updating === lead.id}
                     onChange={e => onUpdateStatus(lead.id, e.target.value)}
                     className="text-[11px] border border-neutral-200 dark:border-neutral-700 rounded-lg px-1.5 py-1.5 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 cursor-pointer focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50 transition-colors w-[90px]">
-                    {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                    {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s] || s}</option>)}
                   </select>
                   {lead.status !== "Closed/Client" && (
                     <button onClick={() => onConvert(lead)} disabled={updating === lead.id} title="Jadikan Klien"

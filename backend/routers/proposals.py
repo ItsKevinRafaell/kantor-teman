@@ -364,7 +364,7 @@ def accept_proposal(slug: str, body: ProposalAcceptIn, db: Session = Depends(get
         status="ACTIVE",
         nominal=active_price,
         start_date=now[:10],
-        color="yellow",
+        color="gray",
         service_type=detected_service_type,
         contract_months=detected_months,
     )
@@ -376,7 +376,7 @@ def accept_proposal(slug: str, body: ProposalAcceptIn, db: Session = Depends(get
     db.flush()
 
     todo_col_id = None
-    for i, (col_name, col_color) in enumerate([("To Do", "yellow"), ("In Progress", "blue"), ("Review", "purple"), ("Done", "green")]):
+    for i, (col_name, col_color) in enumerate([("To Do", "gray"), ("In Progress", "slate"), ("Review", "neutral"), ("Done", "stone")]):
         col = BoardColumn(id=str(uuid.uuid4()), board_id=board.id, name=col_name, position=i, color=col_color)
         db.add(col)
         if col_name == "To Do":

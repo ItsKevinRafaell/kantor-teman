@@ -232,8 +232,9 @@ def call_ai_sync(prompt: str, config: dict, httpx_module) -> str:
         if provider == "gemini":
             if not config["gemini_key"]:
                 raise Exception("Gemini API Key belum dikonfigurasi.")
+            model = config.get("model") or "gemini-2.0-flash"
             resp = client.post(
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
                 headers={"x-goog-api-key": config["gemini_key"]},
                 json={"contents": [{"parts": [{"text": prompt}]}]},
             )
@@ -247,7 +248,7 @@ def call_ai_sync(prompt: str, config: dict, httpx_module) -> str:
             model = config.get("model") or "claude-haiku-4-5-20251001"
             if _is_native_anthropic(base_url):
                 return _call_claude_native(client, config["claude_key"], model, prompt)
-            # OpenAI-compatible endpoint (e.g. proxy like 9router)
+            # OpenAI-compatible endpoint (e.g. proxy or OpenRouter)
             url = f"{base_url.rstrip('/')}/chat/completions"
             resp = client.post(
                 url,
@@ -283,8 +284,9 @@ async def call_ai_provider_async(prompt: str, config: dict) -> str:
         if provider == "gemini":
             if not config["gemini_key"]:
                 raise Exception("Gemini API Key belum dikonfigurasi.")
+            model = config.get("model") or "gemini-2.0-flash"
             resp = await client.post(
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
                 headers={"x-goog-api-key": config["gemini_key"]},
                 json={"contents": [{"parts": [{"text": prompt}]}]},
             )
@@ -463,21 +465,27 @@ def generate_caption(
     session_id: Optional[str],
     context_from: Optional[list[str]],
 ) -> dict:
-    """Full caption generation pipeline."""
+    """Full caption generation pipeline — provider-agnostic via call_ai_sync."""
     ai = get_ai_config(db, "caption")
-    if not ai.get("openai_key"):
+    # Provider-agnostic check: any configured provider key is acceptable
+    has_key = ai.get("openai_key") or ai.get("claude_key") or ai.get("gemini_key")
+    if not has_key:
         raise ValueError("API Key AI belum dikonfigurasi di Settings")
 
     system_msg = build_caption_system_message(platform, tone)
-    user_msg = f"Topik: {topic}"
+    user_parts = [f"Topik: {topic}"]
     if keywords:
-        user_msg += f"\nKeyword wajib disebut: {', '.join(keywords)}"
+        user_parts.append(f"Keyword wajib disebut: {', '.join(keywords)}")
     ctx = _get_session_ctx(session_id, db)
     if ctx:
-        user_msg += f"\n\n{ctx}"
+        user_parts.append(ctx)
     mctx = _get_manual_ctx(context_from or [], db)
     if mctx:
-        user_msg += f"\n\n{mctx}"
+        user_parts.append(mctx)
+    user_msg = "\n\n".join(user_parts)
+
+    # Combine into single prompt for call_ai_sync (handles all providers)
+    full_prompt = f"{system_msg}\n\n---\n\n{user_msg}"
 
     import httpx as _httpx
     gen = ContentGeneration(
@@ -496,13 +504,7 @@ def generate_caption(
     db.commit()
 
     try:
-        text = _call_caption(
-            messages=[{"role": "system", "content": system_msg}, {"role": "user", "content": user_msg}],
-            api_key=ai["openai_key"],
-            base_url=ai.get("base_url", ""),
-            model=ai.get("model", "gpt-4o-mini"),
-            max_tokens=800,
-        )
+        text = call_ai_sync(full_prompt, ai, _httpx)
         result = parse_caption_response(text)
         gen.output_data = json.dumps(result)
         gen.status = "done"
@@ -513,21 +515,6 @@ def generate_caption(
         gen.error_msg = str(e)
         db.commit()
         raise ValueError(f"Gagal generate caption: {e}")
-
-
-def _call_caption(messages: list, api_key: str, base_url: str, model: str, max_tokens: int) -> str:
-    """Call OpenAI-compatible endpoint for caption generation."""
-    import httpx as _httpx
-    url = f"{base_url.rstrip('/')}/chat/completions"
-    with _httpx.Client(timeout=120) as client:
-        resp = client.post(
-            url,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"model": model, "max_tokens": max_tokens, "messages": messages},
-        )
-        if resp.status_code != 200:
-            raise Exception(f"AI call failed: {resp.status_code} - {resp.text[:200]}")
-        return resp.json()["choices"][0]["message"]["content"]
 
 
 # ─── SEO Article generation ───────────────────────────────────────────────────
@@ -553,9 +540,11 @@ def generate_seo_article(
     session_id: Optional[str],
     context_from: Optional[list[str]],
 ) -> dict:
-    """Full SEO article generation pipeline."""
+    """Full SEO article generation pipeline — provider-agnostic via call_ai_sync."""
     ai = get_ai_config(db, "article")
-    if not ai.get("openai_key"):
+    # Provider-agnostic check: any configured provider key is acceptable
+    has_key = ai.get("openai_key") or ai.get("claude_key") or ai.get("gemini_key")
+    if not has_key:
         raise ValueError("API Key AI belum dikonfigurasi di Settings")
 
     target_title = title or f"Panduan Lengkap: {keyword}"
@@ -636,6 +625,9 @@ def generate_seo_article(
     if mctx:
         user_msg += f"\n\n{mctx}"
 
+    # Combine system + user into single prompt for call_ai_sync (handles all providers)
+    full_prompt = f"{system_msg}\n\n---\n\n{user_msg}"
+
     import httpx as _httpx
     gen = ContentGeneration(
         id=str(uuid.uuid4()),
@@ -655,13 +647,7 @@ def generate_seo_article(
     db.commit()
 
     try:
-        text = _call_caption(
-            messages=[{"role": "system", "content": system_msg}, {"role": "user", "content": user_msg}],
-            api_key=ai["openai_key"],
-            base_url=ai.get("base_url", ""),
-            model=ai.get("model", "gpt-4o-mini"),
-            max_tokens=4000,
-        )
+        text = call_ai_sync(full_prompt, ai, _httpx)
         result = parse_seo_article_response(text, keyword)
         gen.output_data = json.dumps(result)
         gen.status = "done"

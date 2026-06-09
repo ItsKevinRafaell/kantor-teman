@@ -13,7 +13,7 @@ interface DocumentData {
   created_at: string;
 }
 
-export default function DocumentsTab({ clientId }: { clientId: number }) {
+export default function DocumentsTab({ leadId }: { leadId: number | null }) {
   const [documents, setDocuments] = useState<DocumentData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -23,23 +23,28 @@ export default function DocumentsTab({ clientId }: { clientId: number }) {
   const [docToast, setDocToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
   const fetchDocuments = useCallback(async () => {
+    if (!leadId) {
+      setDocuments([]);
+      setLoading(false);
+      return;
+    }
     try {
-      const res = await apiFetch(`/api/documents?lead_id=${clientId}`);
+      const res = await apiFetch(`/api/documents?lead_id=${leadId}`);
       if (res.ok) setDocuments(await res.json());
     } finally {
       setLoading(false);
     }
-  }, [clientId]);
+  }, [leadId]);
 
   useEffect(() => { fetchDocuments(); }, [fetchDocuments]);
 
   async function saveDocument() {
-    if (!form.title || !form.cloud_url) return;
+    if (!leadId || !form.title || !form.cloud_url) return;
     setSaving(true);
     try {
       const res = await apiFetch("/api/documents", {
         method: "POST",
-        body: JSON.stringify({ ...form, lead_id: clientId }),
+        body: JSON.stringify({ ...form, lead_id: leadId }),
       });
       if (res.ok) {
         setShowModal(false);
@@ -83,12 +88,14 @@ export default function DocumentsTab({ clientId }: { clientId: number }) {
           <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-50">Dokumen & Media</h2>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Link dokumen cloud milik klien ini.</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="btn-primary flex items-center gap-1.5 text-xs">
+        <button onClick={() => setShowModal(true)} disabled={!leadId} className="btn-primary flex items-center gap-1.5 text-xs disabled:opacity-50">
           <Plus size={14} /> Tambah
         </button>
       </div>
 
-      {documents.length === 0 ? (
+      {!leadId ? (
+        <div className="text-center py-12 text-amber-600 dark:text-amber-400 text-sm">Kontak ini belum memiliki relasi lead.</div>
+      ) : documents.length === 0 ? (
         <div className="text-center py-12 text-neutral-400 text-sm">Belum ada dokumen tersimpan.</div>
       ) : (
         <div className="divide-y divide-[var(--border-subtle)]">
