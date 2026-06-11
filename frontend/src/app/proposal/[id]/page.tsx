@@ -21,6 +21,25 @@ const LONG_TERM_BENEFITS = [
   "Efek Compounding Jangka Panjang: Bisnis yang sudah teroptimasi secara digital akan semakin mudah ditemukan, semakin dipercaya, dan semakin sulit disaingi oleh kompetitor yang baru mulai. Keunggulan ini terakumulasi setiap bulan.",
 ];
 
+const UMKM_URGENCY_POINTS = [
+  {
+    title: "Calon pelanggan membandingkan sebelum chat",
+    body: "Jika Google, website, atau materi penawaran belum meyakinkan, prospek bisa pindah ke kompetitor sebelum Anda sempat follow-up.",
+  },
+  {
+    title: "Setiap minggu tanpa sistem berarti peluang bocor",
+    body: "Bukan hanya soal tampilan digital. Yang mahal adalah inquiry yang tidak tercatat, chat yang telat dibalas, dan penawaran yang tidak ditindaklanjuti.",
+  },
+  {
+    title: "Aset digital perlu waktu untuk mulai bekerja",
+    body: "SEO, Google Business, konten, dan website tidak instan. Lebih cepat dimulai, lebih cepat datanya bisa dibaca dan diperbaiki.",
+  },
+  {
+    title: "Eksekusi dibuat bertahap agar aman untuk UMKM",
+    body: "Prioritas dikerjakan dari yang paling berdampak dulu: trust, konversi chat, lalu optimasi pertumbuhan. Tidak harus langsung besar di awal.",
+  },
+];
+
 interface Proposal {
   id: string; lead_id: number; business_name: string | null; slug: string | null;
   services_detail: { name: string; price: number; features: string[] }[];
@@ -124,6 +143,33 @@ export default function ProposalPage() {
 
       <div className="max-w-3xl mx-auto px-5 py-12 md:py-16">
         <ProposalHero proposal={proposal} />
+
+        <section className="mb-12 break-inside-avoid">
+          <div className="rounded-2xl border-2 border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 print:border-zinc-300 print:shadow-none">
+            <div className="mb-5">
+              <p className="text-xs font-bold uppercase tracking-widest text-amber-600">Kenapa perlu diputuskan sekarang</p>
+              <h2 className="mt-2 text-xl font-black text-zinc-900 dark:text-white print:text-black">Yang tertunda biasanya bukan project, tapi peluang masuk.</h2>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400 print:text-zinc-700">
+                Proposal ini dibuat untuk membantu {proposal.business_name || "bisnis Anda"} menutup celah yang sering membuat UMKM kehilangan calon pembeli: sulit ditemukan, kurang dipercaya, dan follow-up tidak rapi.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {UMKM_URGENCY_POINTS.map((point, i) => (
+                <div key={point.title} className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/50">
+                  <div className="mb-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-xs font-black text-white">{i + 1}</div>
+                  <h3 className="text-sm font-black text-zinc-900 dark:text-white">{point.title}</h3>
+                  <p className="mt-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">{point.body}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/60 dark:bg-amber-950/20">
+              <p className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                Nilai investasi proposal ini: {formatRupiah(finalTotal)}. Keputusan terbaik bukan yang paling cepat, tapi yang tidak membuat peluang terus bocor tanpa ukuran.
+              </p>
+            </div>
+          </div>
+        </section>
+
         <ServiceCardList services={proposal.services_detail} />
         <ProposalTimeline timeline={timeline} />
 
@@ -170,10 +216,10 @@ export default function ProposalPage() {
               )}
               <button onClick={() => setAcceptModal(true)} disabled={timeLeft === 0}
                 className="block w-full text-center py-5 px-6 rounded-2xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-black text-lg shadow-md border-b-4 border-amber-700 transition-all hover:scale-[1.02]">
-                Setuju & Mulai Project
+                Setuju & Amankan Jadwal Eksekusi
               </button>
               <button onClick={() => setRejectModal(true)} className="block w-full text-center py-3 px-6 rounded-2xl bg-white border-2 border-zinc-200 hover:border-zinc-400 text-zinc-600 font-semibold text-sm">Tolak Penawaran</button>
-              <p className="text-center text-xs text-zinc-500">Atau hubungi kami via <a href={waLink} target="_blank" rel="noopener noreferrer" className="text-amber-600 font-semibold underline">WhatsApp</a></p>
+              <p className="text-center text-xs text-zinc-500">Masih perlu validasi sebelum deal? Hubungi kami via <a href={waLink} target="_blank" rel="noopener noreferrer" className="text-amber-600 font-semibold underline">WhatsApp</a></p>
             </>
           )}
         </section>

@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { apiFetch } from "../../lib/api";
 import { Star, X } from "lucide-react";
+import { getLeadStatusLabel } from "../../types/lead";
 
 interface LeadMap {
   id: number;
@@ -31,18 +32,13 @@ const statusColors: Record<string, string> = {
   Lost: "#6b7280",
 };
 
-function getStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    Scraped: "Belum Dihubungi",
-    Contacted: "Sudah Dihubungi",
-    Replied: "Dibalas",
-    Negotiating: "Negosiasi",
-    Client: "Jadi Klien",
-    Closed: "Jadi Klien",
-    "Closed/Client": "Jadi Klien",
-    Lost: "Hilang",
-  };
-  return labels[status] || status;
+const INDONESIA_CENTER: [number, number] = [-2.5, 118];
+const INDONESIA_BOUNDS: [[number, number], [number, number]] = [[-11.2, 94.5], [6.3, 141.1]];
+
+function hasValidIndonesiaCoordinate(lead: LeadMap) {
+  const lat = Number(lead.latitude);
+  const lng = Number(lead.longitude);
+  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -11.5 && lat <= 6.5 && lng >= 94 && lng <= 142;
 }
 
 function StarRating({ rating }: { rating: number | null }) {
@@ -86,8 +82,9 @@ export default function LeadsMap({ height = "calc(100vh - 220px)", onShowDetail 
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
-          setLeads(data);
-          if (data.length === 0) {
+          const validLeads = data.filter(hasValidIndonesiaCoordinate);
+          setLeads(validLeads);
+          if (validLeads.length === 0) {
             setError("Tidak ada leads dengan koordinat. Jalankan scraper untuk mendapatkan leads dengan latitude & longitude.");
           }
         } else {
@@ -100,6 +97,9 @@ export default function LeadsMap({ height = "calc(100vh - 220px)", onShowDetail 
 
   useEffect(() => {
     if (typeof window === "undefined" || loading || leads.length === 0 || !mapContainerRef.current) return;
+    const container = mapContainerRef.current;
+    let resizeObserver: ResizeObserver | null = null;
+    let visibilityHandler: (() => void) | null = null;
 
     const initMap = async () => {
       const L = await import("leaflet");
@@ -109,10 +109,10 @@ export default function LeadsMap({ height = "calc(100vh - 220px)", onShowDetail 
         mapRef.current = null;
       }
 
-      const avgLat = leads.reduce((sum, l) => sum + (l.latitude || 0), 0) / leads.length;
-      const avgLng = leads.reduce((sum, l) => sum + (l.longitude || 0), 0) / leads.length;
-
-      const map = L.map(mapContainerRef.current!).setView([avgLat || -6.2, avgLng || 106.8], 5);
+      const map = L.map(container, {
+        maxBounds: INDONESIA_BOUNDS,
+        maxBoundsViscosity: 0.2,
+      }).setView(INDONESIA_CENTER, 5);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -126,21 +126,40 @@ export default function LeadsMap({ height = "calc(100vh - 220px)", onShowDetail 
           iconAnchor: [12, 12],
         });
 
+      const markerBounds: Array<[number, number]> = [];
       leads.forEach((lead) => {
-        if (lead.latitude && lead.longitude) {
-          const marker = L.marker([lead.latitude, lead.longitude], {
-            icon: createMarkerIcon(statusColors[lead.status] || "#6b7280")
-          }).addTo(map);
-          marker.on("click", () => setSelectedLead(lead));
-        }
+        const latLng: [number, number] = [Number(lead.latitude), Number(lead.longitude)];
+        markerBounds.push(latLng);
+        const marker = L.marker(latLng, {
+          icon: createMarkerIcon(statusColors[lead.status] || "#6b7280")
+        }).addTo(map);
+        marker.on("click", () => setSelectedLead(lead));
       });
 
+      if (markerBounds.length > 1) {
+        map.fitBounds(markerBounds, { padding: [28, 28], maxZoom: 13 });
+      } else if (markerBounds.length === 1) {
+        map.setView(markerBounds[0], 13);
+      } else {
+        map.fitBounds(INDONESIA_BOUNDS, { padding: [20, 20] });
+      }
+
       mapRef.current = map;
+      resizeObserver = new ResizeObserver(() => map.invalidateSize());
+      resizeObserver.observe(container);
+      visibilityHandler = () => {
+        if (document.visibilityState === "visible") setTimeout(() => map.invalidateSize(), 80);
+      };
+      document.addEventListener("visibilitychange", visibilityHandler);
+      setTimeout(() => map.invalidateSize(), 150);
+      setTimeout(() => map.invalidateSize(), 600);
     };
 
     initMap();
 
     return () => {
+      if (resizeObserver) resizeObserver.disconnect();
+      if (visibilityHandler) document.removeEventListener("visibilitychange", visibilityHandler);
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
@@ -210,7 +229,7 @@ export default function LeadsMap({ height = "calc(100vh - 220px)", onShowDetail 
               <option key={p} value={p}>{p}</option>
             ))}
           </select>
-          <span className="text-sm text-gray-500">{leads.length} leads</span>
+          <span className="text-sm text-gray-500">{leads.length} prospek berkoordinat</span>
         </div>
       </div>
 
@@ -256,7 +275,7 @@ export default function LeadsMap({ height = "calc(100vh - 220px)", onShowDetail 
                 <p>
                   <span className="text-gray-500">Status:</span>{" "}
                   <span className="px-2 py-0.5 rounded text-white text-xs" style={{ backgroundColor: statusColors[selectedLead.status] || "#6b7280" }}>
-                    {getStatusLabel(selectedLead.status)}
+                    {getLeadStatusLabel(selectedLead.status)}
                   </span>
                 </p>
               </div>
@@ -299,7 +318,7 @@ export default function LeadsMap({ height = "calc(100vh - 220px)", onShowDetail 
               {Object.entries(statusColors).map(([status, color]) => (
                 <div key={status} className="flex items-center gap-1">
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }}></div>
-                  <span>{getStatusLabel(status)}</span>
+                  <span>{getLeadStatusLabel(status)}</span>
                 </div>
               ))}
             </div>

@@ -4,6 +4,21 @@ Rebuild tabel proposals untuk multi-service. Tambah tabel service_items.
 Jalankan sekali: python migrate.py
 """
 import sqlite3, os
+from urllib.parse import unquote
+from dotenv import load_dotenv
+
+_env_file = os.environ.get("ENV_FILE", ".env.production")
+load_dotenv(_env_file)
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=False)
+
+
+def _resolve_sqlite_db_path(db_url: str) -> str:
+    if db_url.startswith("sqlite:///"):
+        raw_path = unquote(db_url.replace("sqlite:///", "", 1))
+        if raw_path.startswith("/"):
+            return raw_path
+        return os.path.abspath(os.path.join(os.path.dirname(__file__), raw_path))
+    return os.path.join(os.path.dirname(__file__), "leads.db")
 
 # ---------------------------------------------------------------------------
 # MySQL Migration (jalan dulu jika production MySQL)
@@ -42,21 +57,48 @@ if "mysql" in _db_url:
         ("leads", "next_action_at", "ALTER TABLE leads ADD COLUMN next_action_at VARCHAR(255) NULL"),
         ("leads", "loss_reason", "ALTER TABLE leads ADD COLUMN loss_reason VARCHAR(500) NULL"),
         ("leads", "do_not_contact", "ALTER TABLE leads ADD COLUMN do_not_contact TINYINT(1) NOT NULL DEFAULT 0"),
+        ("leads", "score_adjustment", "ALTER TABLE leads ADD COLUMN score_adjustment INT NOT NULL DEFAULT 0"),
+        ("leads", "score_adjustment_reason", "ALTER TABLE leads ADD COLUMN score_adjustment_reason VARCHAR(500) NULL"),
+        ("leads", "score_updated_at", "ALTER TABLE leads ADD COLUMN score_updated_at VARCHAR(255) NULL"),
+        # proposals/report tracking
+        ("proposals", "report_open_count", "ALTER TABLE proposals ADD COLUMN report_open_count INT NOT NULL DEFAULT 0"),
+        ("proposals", "last_report_viewed_at", "ALTER TABLE proposals ADD COLUMN last_report_viewed_at VARCHAR(255) NULL"),
+        ("proposals", "max_report_duration_seconds", "ALTER TABLE proposals ADD COLUMN max_report_duration_seconds INT NOT NULL DEFAULT 0"),
+        ("proposal_analytics", "visitor_hash", "ALTER TABLE proposal_analytics ADD COLUMN visitor_hash VARCHAR(64) NULL"),
+        ("proposal_analytics", "source", "ALTER TABLE proposal_analytics ADD COLUMN source VARCHAR(50) NULL"),
+        ("proposal_analytics", "metadata_json", "ALTER TABLE proposal_analytics ADD COLUMN metadata_json TEXT NULL"),
         # projects
-        ("projects", "color", "ALTER TABLE projects ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'yellow'"),
+        ("projects", "color", "ALTER TABLE projects ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'gray'"),
         ("projects", "is_archived", "ALTER TABLE projects ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0"),
-        ("boards", "color", "ALTER TABLE boards ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'yellow'"),
-        ("board_columns", "color", "ALTER TABLE board_columns ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'yellow'"),
-        ("board_cards", "color", "ALTER TABLE board_cards ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'yellow'"),
+        ("projects", "dp_percent", "ALTER TABLE projects ADD COLUMN dp_percent FLOAT NULL"),
+        ("projects", "monthly_invoice_enabled", "ALTER TABLE projects ADD COLUMN monthly_invoice_enabled TINYINT(1) NOT NULL DEFAULT 0"),
+        ("projects", "next_invoice_date", "ALTER TABLE projects ADD COLUMN next_invoice_date VARCHAR(255) NULL"),
+        ("projects", "completed_at", "ALTER TABLE projects ADD COLUMN completed_at VARCHAR(255) NULL"),
+        ("boards", "color", "ALTER TABLE boards ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'gray'"),
+        ("board_columns", "color", "ALTER TABLE board_columns ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'gray'"),
+        ("board_cards", "color", "ALTER TABLE board_cards ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'gray'"),
         ("board_cards", "is_archived", "ALTER TABLE board_cards ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0"),
         ("board_card_comments", "author", "ALTER TABLE board_card_comments ADD COLUMN author TEXT NOT NULL DEFAULT ''"),
         ("document_folders", "parent_id", "ALTER TABLE document_folders ADD COLUMN parent_id VARCHAR(36) NULL"),
         ("document_folders", "color", "ALTER TABLE document_folders ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT '#6B7280'"),
         ("documents", "folder_id", "ALTER TABLE documents ADD COLUMN folder_id VARCHAR(36) NULL"),
+        ("documents", "name", "ALTER TABLE documents ADD COLUMN name VARCHAR(255) NOT NULL DEFAULT ''"),
+        ("documents", "type", "ALTER TABLE documents ADD COLUMN type VARCHAR(50) NOT NULL DEFAULT 'document'"),
+        ("documents", "content", "ALTER TABLE documents ADD COLUMN content LONGTEXT NULL"),
+        ("documents", "file_size", "ALTER TABLE documents ADD COLUMN file_size INT NULL"),
         ("documents", "title", "ALTER TABLE documents ADD COLUMN title VARCHAR(500) NOT NULL DEFAULT ''"),
         ("documents", "body", "ALTER TABLE documents ADD COLUMN body LONGTEXT NULL"),
         ("documents", "url", "ALTER TABLE documents ADD COLUMN url VARCHAR(2000) NULL"),
         ("documents", "tags", "ALTER TABLE documents ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'"),
+        ("documents", "status", "ALTER TABLE documents ADD COLUMN status VARCHAR(50) NOT NULL DEFAULT 'Draft'"),
+        ("documents", "review_notes", "ALTER TABLE documents ADD COLUMN review_notes TEXT NULL"),
+        ("documents", "approved_at", "ALTER TABLE documents ADD COLUMN approved_at VARCHAR(255) NULL"),
+        ("documents", "rejected_at", "ALTER TABLE documents ADD COLUMN rejected_at VARCHAR(255) NULL"),
+        ("documents", "sent_at", "ALTER TABLE documents ADD COLUMN sent_at VARCHAR(255) NULL"),
+        ("documents", "signed_at", "ALTER TABLE documents ADD COLUMN signed_at VARCHAR(255) NULL"),
+        ("documents", "archived_at", "ALTER TABLE documents ADD COLUMN archived_at VARCHAR(255) NULL"),
+        ("documents", "source_type", "ALTER TABLE documents ADD COLUMN source_type VARCHAR(50) NULL"),
+        ("documents", "source_id", "ALTER TABLE documents ADD COLUMN source_id VARCHAR(255) NULL"),
         ("documents", "updated_at", "ALTER TABLE documents ADD COLUMN updated_at VARCHAR(255) NULL"),
         ("provider_configs", "monthly_quota", "ALTER TABLE provider_configs ADD COLUMN monthly_quota FLOAT NOT NULL DEFAULT 0"),
         ("scrape_history", "batch_name", "ALTER TABLE scrape_history ADD COLUMN batch_name VARCHAR(255) NULL"),
@@ -64,6 +106,20 @@ if "mysql" in _db_url:
         ("ai_proxies", "feature", "ALTER TABLE ai_proxies ADD COLUMN feature VARCHAR(50) NULL"),
         ("contacts", "lead_id", "ALTER TABLE contacts ADD COLUMN lead_id INT NULL"),
         ("ai_proxies", "provider", "ALTER TABLE ai_proxies ADD COLUMN provider VARCHAR(50) NOT NULL DEFAULT 'openai'"),
+        ("brand_kits", "brand_name", "ALTER TABLE brand_kits ADD COLUMN brand_name VARCHAR(255) NOT NULL DEFAULT ''"),
+        ("brand_kits", "tagline", "ALTER TABLE brand_kits ADD COLUMN tagline VARCHAR(255) NOT NULL DEFAULT ''"),
+        ("brand_kits", "phone", "ALTER TABLE brand_kits ADD COLUMN phone VARCHAR(50) NOT NULL DEFAULT ''"),
+        ("brand_kits", "email", "ALTER TABLE brand_kits ADD COLUMN email VARCHAR(255) NOT NULL DEFAULT ''"),
+        ("brand_kits", "address", "ALTER TABLE brand_kits ADD COLUMN address TEXT NULL"),
+        ("brand_kits", "logo", "ALTER TABLE brand_kits ADD COLUMN logo TEXT NULL"),
+        ("generated_documents", "status", "ALTER TABLE generated_documents ADD COLUMN status VARCHAR(50) NOT NULL DEFAULT 'Draft'"),
+        ("generated_documents", "payment_status", "ALTER TABLE generated_documents ADD COLUMN payment_status VARCHAR(50) NULL"),
+        ("generated_documents", "review_notes", "ALTER TABLE generated_documents ADD COLUMN review_notes TEXT NULL"),
+        ("generated_documents", "approved_at", "ALTER TABLE generated_documents ADD COLUMN approved_at VARCHAR(255) NULL"),
+        ("generated_documents", "rejected_at", "ALTER TABLE generated_documents ADD COLUMN rejected_at VARCHAR(255) NULL"),
+        ("generated_documents", "sent_at", "ALTER TABLE generated_documents ADD COLUMN sent_at VARCHAR(255) NULL"),
+        ("generated_documents", "signed_at", "ALTER TABLE generated_documents ADD COLUMN signed_at VARCHAR(255) NULL"),
+        ("generated_documents", "archived_at", "ALTER TABLE generated_documents ADD COLUMN archived_at VARCHAR(255) NULL"),
     ]
 
     # Backfill contacts.lead_id by phone match
@@ -112,6 +168,81 @@ if "mysql" in _db_url:
     else:
         print("= MySQL: ai_models sudah ada, skip")
 
+    if not _table_exists("notifications"):
+        _cur.execute("""
+            CREATE TABLE notifications (
+                id VARCHAR(36) PRIMARY KEY,
+                user_id INT NULL,
+                title VARCHAR(255) NOT NULL,
+                message TEXT NOT NULL,
+                type VARCHAR(50) NOT NULL DEFAULT 'info',
+                target_type VARCHAR(50) NULL,
+                target_id VARCHAR(255) NULL,
+                action_url VARCHAR(1000) NULL,
+                is_read TINYINT(1) NOT NULL DEFAULT 0,
+                created_at VARCHAR(255) NOT NULL,
+                read_at VARCHAR(255) NULL
+            )
+        """)
+        print("+ MySQL: tabel notifications dibuat")
+    else:
+        print("= MySQL: notifications sudah ada, skip")
+
+    if not _table_exists("report_snapshots"):
+        _cur.execute("""
+            CREATE TABLE report_snapshots (
+                id VARCHAR(36) PRIMARY KEY,
+                report_type VARCHAR(50) NOT NULL DEFAULT 'monthly',
+                target_type VARCHAR(50) NOT NULL DEFAULT 'project',
+                target_id VARCHAR(255) NULL,
+                project_id VARCHAR(36) NULL,
+                lead_id INT NULL,
+                service_type VARCHAR(50) NULL,
+                title VARCHAR(500) NOT NULL,
+                period_start VARCHAR(50) NULL,
+                period_end VARCHAR(50) NULL,
+                month_number INT NULL,
+                metrics_json LONGTEXT NOT NULL,
+                evidence_json LONGTEXT NOT NULL,
+                narrative_json LONGTEXT NOT NULL,
+                public_slug VARCHAR(255) NULL,
+                public_enabled TINYINT(1) NOT NULL DEFAULT 1,
+                open_count INT NOT NULL DEFAULT 0,
+                first_viewed_at VARCHAR(255) NULL,
+                last_viewed_at VARCHAR(255) NULL,
+                max_duration_seconds INT NOT NULL DEFAULT 0,
+                generated_document_id VARCHAR(36) NULL,
+                status VARCHAR(50) NOT NULL DEFAULT 'Draft',
+                generated_by VARCHAR(255) NULL,
+                created_at VARCHAR(255) NOT NULL,
+                updated_at VARCHAR(255) NULL,
+                UNIQUE KEY uniq_report_public_slug (public_slug),
+                INDEX idx_report_project_id (project_id),
+                INDEX idx_report_lead_id (lead_id),
+                INDEX idx_report_generated_document_id (generated_document_id)
+            )
+        """)
+        print("+ MySQL: tabel report_snapshots dibuat")
+    else:
+        print("= MySQL: report_snapshots sudah ada, skip")
+
+    if not _table_exists("board_card_attachments"):
+        _cur.execute("""
+            CREATE TABLE board_card_attachments (
+                id VARCHAR(36) PRIMARY KEY,
+                card_id VARCHAR(36) NOT NULL,
+                file_path VARCHAR(500) NOT NULL,
+                file_name VARCHAR(255) NOT NULL,
+                file_type VARCHAR(100) NULL,
+                uploaded_by VARCHAR(255) NULL,
+                uploaded_at VARCHAR(255) NOT NULL,
+                INDEX idx_board_card_attachments_card_id (card_id)
+            )
+        """)
+        print("+ MySQL: tabel board_card_attachments dibuat")
+    else:
+        print("= MySQL: board_card_attachments sudah ada, skip")
+
     for table, col, sql in _migrations:
         if not _table_exists(table):
             print(f"= {table} belum ada, skip (akan dibuat SQLAlchemy)")
@@ -149,7 +280,7 @@ if "mysql" in _db_url:
         from document_template_library import DEFAULT_DOCUMENT_TEMPLATES
         import json as _json_templates
         import uuid as _uuid_templates
-        _template_version = "client_ready_v4"
+        _template_version = "client_ready_v5"
         _should_upgrade = True
         if _table_exists("system_settings"):
             _cur.execute("SELECT value FROM system_settings WHERE `key` = %s", ("document_templates_version",))
@@ -175,9 +306,9 @@ if "mysql" in _db_url:
                     "INSERT INTO system_settings (`key`, value) VALUES (%s, %s) ON DUPLICATE KEY UPDATE value = VALUES(value)",
                     ("document_templates_version", _template_version),
                 )
-            print("+ MySQL: built-in document templates upgraded ke client_ready_v4")
+            print("+ MySQL: built-in document templates upgraded ke client_ready_v5")
         else:
-            print("= MySQL: built-in document templates sudah client_ready_v4, skip")
+            print("= MySQL: built-in document templates sudah client_ready_v5, skip")
 
     # Make projects.lead_id nullable (was NOT NULL, breaks create-project-without-lead)
     if _table_exists("projects") and _col_exists("projects", "lead_id"):
@@ -235,7 +366,7 @@ if "mysql" in _db_url:
 # ---------------------------------------------------------------------------
 # SQLite Migration (local dev)
 # ---------------------------------------------------------------------------
-DB_PATH = os.path.join(os.path.dirname(__file__), "leads.db")
+DB_PATH = _resolve_sqlite_db_path(os.getenv("DATABASE_URL", ""))
 conn = sqlite3.connect(DB_PATH)
 cur = conn.cursor()
 
@@ -276,6 +407,9 @@ for col, ddl in [
     ("next_action_at", "ALTER TABLE leads ADD COLUMN next_action_at VARCHAR(255)"),
     ("loss_reason", "ALTER TABLE leads ADD COLUMN loss_reason VARCHAR(500)"),
     ("do_not_contact", "ALTER TABLE leads ADD COLUMN do_not_contact BOOLEAN NOT NULL DEFAULT 0"),
+    ("score_adjustment", "ALTER TABLE leads ADD COLUMN score_adjustment INTEGER NOT NULL DEFAULT 0"),
+    ("score_adjustment_reason", "ALTER TABLE leads ADD COLUMN score_adjustment_reason VARCHAR(500)"),
+    ("score_updated_at", "ALTER TABLE leads ADD COLUMN score_updated_at VARCHAR(255)"),
 ]:
     if col not in existing:
         cur.execute(ddl)
@@ -349,10 +483,49 @@ CREATE TABLE IF NOT EXISTS proposal_analytics (
     opened_at TEXT NOT NULL,
     last_ping TEXT,
     total_time_seconds INTEGER DEFAULT 0,
-    sections_viewed TEXT DEFAULT '[]'
+    sections_viewed TEXT DEFAULT '[]',
+    event VARCHAR(50),
+    duration_seconds INTEGER,
+    visitor_hash VARCHAR(64),
+    source VARCHAR(50),
+    metadata_json TEXT
 )
 """)
 print("+ tabel proposal_analytics ready")
+
+cur.execute("""
+CREATE TABLE IF NOT EXISTS report_snapshots (
+    id TEXT PRIMARY KEY,
+    report_type TEXT NOT NULL DEFAULT 'monthly',
+    target_type TEXT NOT NULL DEFAULT 'project',
+    target_id TEXT,
+    project_id TEXT,
+    lead_id INTEGER,
+    service_type TEXT,
+    title TEXT NOT NULL,
+    period_start TEXT,
+    period_end TEXT,
+    month_number INTEGER,
+    metrics_json TEXT NOT NULL DEFAULT '{}',
+    evidence_json TEXT NOT NULL DEFAULT '{}',
+    narrative_json TEXT NOT NULL DEFAULT '{}',
+    public_slug TEXT UNIQUE,
+    public_enabled BOOLEAN NOT NULL DEFAULT 1,
+    open_count INTEGER NOT NULL DEFAULT 0,
+    first_viewed_at TEXT,
+    last_viewed_at TEXT,
+    max_duration_seconds INTEGER NOT NULL DEFAULT 0,
+    generated_document_id TEXT,
+    status TEXT NOT NULL DEFAULT 'Draft',
+    generated_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT
+)
+""")
+cur.execute("CREATE INDEX IF NOT EXISTS idx_report_snapshots_project_id ON report_snapshots(project_id)")
+cur.execute("CREATE INDEX IF NOT EXISTS idx_report_snapshots_lead_id ON report_snapshots(lead_id)")
+cur.execute("CREATE INDEX IF NOT EXISTS idx_report_snapshots_slug ON report_snapshots(public_slug)")
+print("+ tabel report_snapshots ready")
 
 # Add event column if missing
 cur.execute("PRAGMA table_info(proposal_analytics)")
@@ -532,6 +705,17 @@ if "rejected_at" not in proposal_cols_2:
 else:
     print("= rejected_at sudah ada di proposals, skip")
 
+for col, ddl in [
+    ("report_open_count", "ALTER TABLE proposals ADD COLUMN report_open_count INTEGER NOT NULL DEFAULT 0"),
+    ("last_report_viewed_at", "ALTER TABLE proposals ADD COLUMN last_report_viewed_at VARCHAR(255)"),
+    ("max_report_duration_seconds", "ALTER TABLE proposals ADD COLUMN max_report_duration_seconds INTEGER NOT NULL DEFAULT 0"),
+]:
+    if col not in proposal_cols_2:
+        cur.execute(ddl)
+        print(f"+ kolom {col} ditambahkan ke proposals")
+    else:
+        print(f"= proposals.{col} sudah ada, skip")
+
 # ---------------------------------------------------------------------------
 # Migrasi leads: tambah kolom lead_score
 # ---------------------------------------------------------------------------
@@ -563,6 +747,17 @@ if "duration_seconds" not in pa_cols2:
 else:
     print("= proposal_analytics.duration_seconds sudah ada, skip")
 
+for col, ddl in [
+    ("visitor_hash", "ALTER TABLE proposal_analytics ADD COLUMN visitor_hash VARCHAR(64)"),
+    ("source", "ALTER TABLE proposal_analytics ADD COLUMN source VARCHAR(50)"),
+    ("metadata_json", "ALTER TABLE proposal_analytics ADD COLUMN metadata_json TEXT"),
+]:
+    if col not in pa_cols2:
+        cur.execute(ddl)
+        print(f"+ kolom {col} ditambahkan ke proposal_analytics")
+    else:
+        print(f"= proposal_analytics.{col} sudah ada, skip")
+
 conn.commit()
 
 # ---------------------------------------------------------------------------
@@ -588,7 +783,11 @@ if need_rebuild or not has_proj_color:
             nominal REAL NOT NULL DEFAULT 0,
             start_date TEXT,
             end_date TEXT,
-            color TEXT DEFAULT 'yellow'
+            color TEXT DEFAULT 'gray',
+            dp_percent REAL,
+            monthly_invoice_enabled INTEGER NOT NULL DEFAULT 0,
+            next_invoice_date TEXT,
+            completed_at TEXT
         )
     """)
     cur.execute("""
@@ -613,6 +812,21 @@ if proj_cols_now and "is_archived" not in proj_cols_now:
 elif proj_cols_now:
     print("= projects.is_archived sudah ada, skip")
 
+cur.execute("PRAGMA table_info(projects)")
+proj_cols_billing = {row[1] for row in cur.fetchall()}
+for col, ddl in [
+    ("dp_percent", "ALTER TABLE projects ADD COLUMN dp_percent REAL"),
+    ("monthly_invoice_enabled", "ALTER TABLE projects ADD COLUMN monthly_invoice_enabled INTEGER NOT NULL DEFAULT 0"),
+    ("next_invoice_date", "ALTER TABLE projects ADD COLUMN next_invoice_date TEXT"),
+    ("completed_at", "ALTER TABLE projects ADD COLUMN completed_at TEXT"),
+]:
+    if col not in proj_cols_billing:
+        cur.execute(ddl)
+        print(f"+ projects.{col} ditambahkan")
+    else:
+        print(f"= projects.{col} sudah ada, skip")
+conn.commit()
+
 # ---------------------------------------------------------------------------
 # Migrasi board_columns: tambah kolom color
 # ---------------------------------------------------------------------------
@@ -621,7 +835,7 @@ bcol_cols = {row[1] for row in cur.fetchall()}
 
 if bcol_cols:
     if "color" not in bcol_cols:
-        cur.execute("ALTER TABLE board_columns ADD COLUMN color TEXT DEFAULT 'yellow'")
+        cur.execute("ALTER TABLE board_columns ADD COLUMN color TEXT DEFAULT 'gray'")
         print("+ kolom color ditambahkan ke board_columns")
     else:
         print("= board_columns.color sudah ada, skip")
@@ -642,7 +856,7 @@ if card_cols:
         print("= board_cards.lead_id sudah ada, skip")
 
     if "color" not in card_cols:
-        cur.execute("ALTER TABLE board_cards ADD COLUMN color TEXT DEFAULT 'yellow'")
+        cur.execute("ALTER TABLE board_cards ADD COLUMN color TEXT DEFAULT 'gray'")
         print("+ kolom color ditambahkan ke board_cards")
     else:
         print("= board_cards.color sudah ada, skip")
@@ -657,7 +871,7 @@ board_cols = {row[1] for row in cur.fetchall()}
 
 if board_cols:
     if "color" not in board_cols:
-        cur.execute("ALTER TABLE boards ADD COLUMN color TEXT DEFAULT 'yellow'")
+        cur.execute("ALTER TABLE boards ADD COLUMN color TEXT DEFAULT 'gray'")
         print("+ kolom color ditambahkan ke boards")
     else:
         print("= boards.color sudah ada, skip")
@@ -745,6 +959,19 @@ if comment_cols:
 else:
     print("= board_card_comments belum ada, akan dibuat oleh SQLAlchemy")
 
+cur.execute("""
+CREATE TABLE IF NOT EXISTS board_card_attachments (
+    id TEXT PRIMARY KEY,
+    card_id TEXT NOT NULL REFERENCES board_cards(id) ON DELETE CASCADE,
+    file_path TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    file_type TEXT,
+    uploaded_by TEXT,
+    uploaded_at TEXT NOT NULL
+)
+""")
+print("+ tabel board_card_attachments ready")
+
 conn.commit()
 
 # ---------------------------------------------------------------------------
@@ -797,13 +1024,24 @@ print("+ tabel content_generations ready")
 existing = {row[1] for row in cur.execute("PRAGMA table_info(content_generations)").fetchall()}
 for col, defn in [
     ("session_id", "TEXT REFERENCES content_sessions(id)"),
+    ("tool_type", "TEXT NOT NULL DEFAULT 'seo_article'"),
+    ("input_data", "TEXT NOT NULL DEFAULT '{}'"),
+    ("output_data", "TEXT"),
     ("model_used", "TEXT"),
     ("provider_name", "TEXT"),
+    ("status", "TEXT NOT NULL DEFAULT 'done'"),
     ("error_msg", "TEXT"),
 ]:
     if col not in existing:
         cur.execute(f"ALTER TABLE content_generations ADD COLUMN {col} {defn}")
         print(f"+ content_generations.{col} ditambahkan")
+existing = {row[1] for row in cur.execute("PRAGMA table_info(content_generations)").fetchall()}
+if {"type", "tool_type"}.issubset(existing):
+    cur.execute("UPDATE content_generations SET tool_type = COALESCE(NULLIF(tool_type, ''), type, 'seo_article')")
+if {"prompt", "input_data"}.issubset(existing):
+    cur.execute("UPDATE content_generations SET input_data = COALESCE(NULLIF(input_data, ''), json_object('prompt', prompt))")
+if {"result", "output_data"}.issubset(existing):
+    cur.execute("UPDATE content_generations SET output_data = COALESCE(NULLIF(output_data, ''), result)")
 
 conn.commit()
 
@@ -827,10 +1065,23 @@ CREATE TABLE IF NOT EXISTS documents (
     id TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id),
     folder_id TEXT REFERENCES document_folders(id),
+    name TEXT NOT NULL DEFAULT '',
+    type TEXT NOT NULL DEFAULT 'document',
+    content TEXT,
+    file_size INTEGER,
     title TEXT NOT NULL,
     body TEXT,
     url TEXT,
     tags TEXT NOT NULL DEFAULT '[]',
+    status TEXT NOT NULL DEFAULT 'Draft',
+    review_notes TEXT,
+    approved_at TEXT,
+    rejected_at TEXT,
+    sent_at TEXT,
+    signed_at TEXT,
+    archived_at TEXT,
+    source_type TEXT,
+    source_id TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT
 )
@@ -855,15 +1106,31 @@ doc_cols = {row[1] for row in cur.fetchall()}
 if doc_cols:
     for col, defn in [
         ("folder_id", "TEXT REFERENCES document_folders(id)"),
+        ("name", "TEXT NOT NULL DEFAULT ''"),
+        ("type", "TEXT NOT NULL DEFAULT 'document'"),
+        ("content", "TEXT"),
+        ("file_size", "INTEGER"),
         ("title", "TEXT NOT NULL DEFAULT ''"),
         ("body", "TEXT"),
         ("url", "TEXT"),
         ("tags", "TEXT NOT NULL DEFAULT '[]'"),
+        ("status", "TEXT NOT NULL DEFAULT 'Draft'"),
+        ("review_notes", "TEXT"),
+        ("approved_at", "TEXT"),
+        ("rejected_at", "TEXT"),
+        ("sent_at", "TEXT"),
+        ("signed_at", "TEXT"),
+        ("archived_at", "TEXT"),
+        ("source_type", "TEXT"),
+        ("source_id", "TEXT"),
         ("updated_at", "TEXT"),
     ]:
         if col not in doc_cols:
             cur.execute(f"ALTER TABLE documents ADD COLUMN {col} {defn}")
             print(f"+ documents.{col} ditambahkan")
+    cur.execute("UPDATE documents SET name = COALESCE(NULLIF(name, ''), title, '') WHERE name = '' OR name IS NULL")
+    cur.execute("UPDATE documents SET type = COALESCE(NULLIF(type, ''), CASE WHEN url IS NOT NULL AND url != '' THEN 'link' ELSE 'document' END) WHERE type = '' OR type IS NULL")
+    cur.execute("UPDATE documents SET content = COALESCE(content, body) WHERE content IS NULL AND body IS NOT NULL")
 
 # ---------------------------------------------------------------------------
 # Migrasi scrape_history: tambah batch_name
@@ -899,12 +1166,36 @@ if not cur.fetchone():
             id VARCHAR(36) PRIMARY KEY,
             kit_name VARCHAR(255) NOT NULL,
             is_active BOOLEAN DEFAULT 1,
-            created_at VARCHAR(255) NOT NULL
+            created_at VARCHAR(255) NOT NULL,
+            brand_name VARCHAR(255) NOT NULL DEFAULT '',
+            tagline VARCHAR(255) NOT NULL DEFAULT '',
+            phone VARCHAR(50) NOT NULL DEFAULT '',
+            email VARCHAR(255) NOT NULL DEFAULT '',
+            address TEXT,
+            logo TEXT
         )
     """)
     print("+ tabel brand_kits dibuat")
 else:
     print("= tabel brand_kits sudah ada, skip")
+
+cur.execute("PRAGMA table_info(brand_kits)")
+brand_kit_cols = {row[1] for row in cur.fetchall()}
+brand_kit_migrations = [
+    ("brand_name", "ALTER TABLE brand_kits ADD COLUMN brand_name VARCHAR(255) NOT NULL DEFAULT ''"),
+    ("tagline", "ALTER TABLE brand_kits ADD COLUMN tagline VARCHAR(255) NOT NULL DEFAULT ''"),
+    ("phone", "ALTER TABLE brand_kits ADD COLUMN phone VARCHAR(50) NOT NULL DEFAULT ''"),
+    ("email", "ALTER TABLE brand_kits ADD COLUMN email VARCHAR(255) NOT NULL DEFAULT ''"),
+    ("address", "ALTER TABLE brand_kits ADD COLUMN address TEXT"),
+    ("logo", "ALTER TABLE brand_kits ADD COLUMN logo TEXT"),
+]
+for col_name, sql in brand_kit_migrations:
+    if col_name not in brand_kit_cols:
+        cur.execute(sql)
+        print(f"+ kolom brand_kits.{col_name} ditambahkan")
+    else:
+        print(f"= brand_kits.{col_name} sudah ada, skip")
+cur.execute("UPDATE brand_kits SET brand_name = kit_name WHERE (brand_name IS NULL OR brand_name = '') AND kit_name IS NOT NULL")
 
 cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='brand_assets'")
 if not cur.fetchone():
@@ -931,8 +1222,10 @@ cur.execute("SELECT id FROM brand_kits LIMIT 1")
 if not cur.fetchone():
     import uuid as _uuid
     kit_id = str(_uuid.uuid4())
-    cur.execute("INSERT INTO brand_kits (id, kit_name, is_active, created_at) VALUES (?, ?, 1, ?)",
-                (kit_id, "Teman UMKM Kita", "2026-05-26T00:00:00+00:00"))
+    cur.execute(
+        "INSERT INTO brand_kits (id, kit_name, is_active, created_at, brand_name, tagline, phone, email, address, logo) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?)",
+        (kit_id, "Kantor Teman", "2026-05-26T00:00:00+00:00", "Kantor Teman", "Partner digital bisnis Anda", "", "", "", ""),
+    )
     default_assets = [
         (str(_uuid.uuid4()), kit_id, "color", "Optimism Yellow", "#f5a700", None, 0, None),
         (str(_uuid.uuid4()), kit_id, "color", "Dark Charcoal", "#242423", None, 1, None),
@@ -979,6 +1272,14 @@ if not cur.fetchone():
             variables_used TEXT,
             file_url VARCHAR(500),
             display_filename VARCHAR(500),
+            status VARCHAR(50) NOT NULL DEFAULT 'Draft',
+            payment_status VARCHAR(50),
+            review_notes TEXT,
+            approved_at VARCHAR(255),
+            rejected_at VARCHAR(255),
+            sent_at VARCHAR(255),
+            signed_at VARCHAR(255),
+            archived_at VARCHAR(255),
             generated_at VARCHAR(255) NOT NULL,
             generated_by VARCHAR(255)
         )
@@ -995,6 +1296,22 @@ if gd_cols and "display_filename" not in gd_cols:
     print("+ generated_documents.display_filename ditambahkan")
 elif gd_cols:
     print("= generated_documents.display_filename sudah ada, skip")
+
+for col, ddl in [
+    ("status", "ALTER TABLE generated_documents ADD COLUMN status VARCHAR(50) NOT NULL DEFAULT 'Draft'"),
+    ("payment_status", "ALTER TABLE generated_documents ADD COLUMN payment_status VARCHAR(50)"),
+    ("review_notes", "ALTER TABLE generated_documents ADD COLUMN review_notes TEXT"),
+    ("approved_at", "ALTER TABLE generated_documents ADD COLUMN approved_at VARCHAR(255)"),
+    ("rejected_at", "ALTER TABLE generated_documents ADD COLUMN rejected_at VARCHAR(255)"),
+    ("sent_at", "ALTER TABLE generated_documents ADD COLUMN sent_at VARCHAR(255)"),
+    ("signed_at", "ALTER TABLE generated_documents ADD COLUMN signed_at VARCHAR(255)"),
+    ("archived_at", "ALTER TABLE generated_documents ADD COLUMN archived_at VARCHAR(255)"),
+]:
+    if gd_cols and col not in gd_cols:
+        cur.execute(ddl)
+        print(f"+ generated_documents.{col} ditambahkan")
+    elif gd_cols:
+        print(f"= generated_documents.{col} sudah ada, skip")
 
 # document_sequences: per-target per-type counter for filename auto-naming
 cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='document_sequences'")
@@ -1134,7 +1451,7 @@ from document_template_library import DEFAULT_DOCUMENT_TEMPLATES
 import json as _json_templates
 import uuid as _uuid_templates
 
-_template_version = "client_ready_v4"
+_template_version = "client_ready_v5"
 cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='system_settings'")
 _has_settings = cur.fetchone() is not None
 _should_upgrade = True
@@ -1164,9 +1481,9 @@ if _should_upgrade:
             ("document_templates_version", _template_version),
         )
     conn.commit()
-    print("+ built-in document templates upgraded ke client_ready_v4")
+    print("+ built-in document templates upgraded ke client_ready_v5")
 else:
-    print("= built-in document templates sudah client_ready_v4, skip")
+    print("= built-in document templates sudah client_ready_v5, skip")
 
 # ---------------------------------------------------------------------------
 # Migrasi: blast_messages table
@@ -1281,6 +1598,28 @@ if "contract_months" not in proj_cols_ws:
     print("+ kolom contract_months ditambahkan ke projects")
 else:
     print("= projects.contract_months sudah ada, skip")
+
+conn.commit()
+
+# ---------------------------------------------------------------------------
+# Migrasi: notifications table
+# ---------------------------------------------------------------------------
+cur.execute("""
+CREATE TABLE IF NOT EXISTS notifications (
+    id VARCHAR(36) PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    type VARCHAR(50) NOT NULL DEFAULT 'info',
+    target_type VARCHAR(50),
+    target_id VARCHAR(255),
+    action_url VARCHAR(1000),
+    is_read INTEGER NOT NULL DEFAULT 0,
+    created_at VARCHAR(255) NOT NULL,
+    read_at VARCHAR(255)
+)
+""")
+print("+ tabel notifications ready")
 
 conn.commit()
 

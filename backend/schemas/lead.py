@@ -34,6 +34,10 @@ class LeadOut(BaseModel):
     next_action_at: Optional[str] = None
     loss_reason: Optional[str] = None
     do_not_contact: bool = False
+    status_label: Optional[str] = None
+    score_adjustment: int = 0
+    score_adjustment_reason: Optional[str] = None
+    score_updated_at: Optional[str] = None
     model_config = {"from_attributes": True}
 
 
@@ -87,13 +91,23 @@ class ProductUpdate(BaseModel):
 
 class BlastIn(BaseModel):
     batch_name: str
-    product_category: str
+    product_category: Optional[str] = None
     min_rating: int = 0
     template_id: Optional[str] = None
+    filter_criteria: Optional[dict] = None
 
 
 class RatingUpdate(BaseModel):
     rating: int
+
+
+class ScoreAdjustmentUpdate(BaseModel):
+    adjustment: int = Field(0, ge=-50, le=50)
+    reason: Optional[str] = Field(None, max_length=500)
+
+
+class ScoringSettingsUpdate(BaseModel):
+    settings: dict = Field(default_factory=dict)
 
 
 class LeadCreate(BaseModel):

@@ -8,16 +8,32 @@ const STATUS_COLORS: Record<string, string> = {
   Replied: "bg-yellow-100 text-yellow-700",
   "Closed/Lost": "bg-red-100 text-red-700",
   "Closed/Client": "bg-green-100 text-green-700",
+  "Siap Blast": "bg-sky-100 text-sky-700",
+  "WA Terkirim": "bg-blue-100 text-blue-700",
+  "Laporan Dibuka": "bg-amber-100 text-amber-700",
+  "Mulai Membaca": "bg-amber-100 text-amber-700",
+  "Membaca Serius": "bg-orange-100 text-orange-700",
+  "Prospek Hangat": "bg-lime-100 text-lime-700",
+  "Prospek Panas": "bg-rose-100 text-rose-700",
+  "Follow Up": "bg-purple-100 text-purple-700",
+  "Proposal Dikirim": "bg-indigo-100 text-indigo-700",
+  Deal: "bg-emerald-100 text-emerald-700",
+  "Klien Aktif": "bg-green-100 text-green-700",
+  Selesai: "bg-neutral-100 text-neutral-700",
 };
-// Label untuk UMKM - mudah dimengerti
+
 const STATUS_LABELS: Record<string, string> = {
-  Scraped: "Baru",
-  Contacted: "Dihubungi",
-  Replied: "Ditanggapi",
-  "Closed/Lost": "Gagal",
-  "Closed/Client": "Jadi Klien",
+  Scraped: "Baru Discrape",
+  Contacted: "Sudah Dihubungi",
+  Replied: "Sudah Membalas",
+  "Closed/Lost": "Tidak Tertarik",
+  "Closed/Client": "Klien Aktif",
 };
-const STATUSES = ["Scraped", "Contacted", "Replied", "Closed/Lost", "Closed/Client"] as const;
+const STATUSES = [
+  "Scraped", "Siap Blast", "WA Terkirim", "Laporan Dibuka", "Mulai Membaca",
+  "Membaca Serius", "Prospek Hangat", "Prospek Panas", "Follow Up",
+  "Proposal Dikirim", "Deal", "Replied", "Closed/Lost", "Closed/Client",
+] as const;
 
 interface Lead {
   id: number;
@@ -26,6 +42,7 @@ interface Lead {
   address: string | null;
   original_url: string | null;
   status: string;
+  status_label?: string | null;
   product_interest: string | null;
   batch_name: string | null;
   rating: number;
@@ -41,6 +58,9 @@ interface Lead {
   next_action_at?: string | null;
   loss_reason?: string | null;
   do_not_contact: boolean;
+  score_adjustment?: number;
+  score_adjustment_reason?: string | null;
+  score_updated_at?: string | null;
 }
 
 interface LeadsTableBodyProps {
@@ -49,6 +69,8 @@ interface LeadsTableBodyProps {
   searchQuery: string;
   blastCategories: { id: string; name: string }[];
   updating: number | null;
+  page?: number;
+  pageSize?: number;
   onUpdateStatus: (id: number, status: string) => void;
   onUpdateProduct: (id: number, product: string) => void;
   onChatWA: (lead: Lead) => void;
@@ -56,6 +78,7 @@ interface LeadsTableBodyProps {
   onStartSequence: (lead: Lead) => void;
   onOpenSales: (lead: Lead) => void;
   onConvert: (lead: Lead) => void;
+  onAdjustScore: (lead: Lead) => void;
   onEdit: (lead: Lead) => void;
   onArchive: (lead: Lead) => void;
   onRestore: (id: number) => void;
@@ -80,8 +103,9 @@ function getScoreBreakdown(lead: Lead): string[] {
   const bn = (lead.batch_name || "").toLowerCase();
   if (bn.includes("web form")) parts.push("Web Form +20");
   else if (bn.includes("·") || bn.includes("scrape")) parts.push("Maps scraper -5");
-  if (lead.status === "Replied") parts.push("Replied +15");
-  else if (lead.status === "Contacted") parts.push("Contacted -10");
+  if (lead.status === "Replied") parts.push("Sudah membalas +15");
+  else if (lead.status === "Contacted" || lead.status === "WA Terkirim") parts.push("Sudah dihubungi belum balas -10");
+  if (lead.score_adjustment) parts.push(`Adjustment manual ${lead.score_adjustment > 0 ? "+" : ""}${lead.score_adjustment}`);
   const addr = (lead.address || "").toLowerCase();
   if (["jakarta","surabaya","bandung","bali","denpasar"].some(c => addr.includes(c))) parts.push("Tier 1 city +5");
   const name = (lead.business_name || "").toUpperCase();
@@ -90,9 +114,9 @@ function getScoreBreakdown(lead: Lead): string[] {
 }
 
 export default function LeadsTableBody({
-  leads, filters, searchQuery, blastCategories, updating,
+  leads, filters, searchQuery, blastCategories, updating, page = 1, pageSize = 25,
   onUpdateStatus, onUpdateProduct, onChatWA, onFollowUp, onStartSequence,
-  onOpenSales, onConvert, onEdit, onArchive, onRestore,
+  onOpenSales, onConvert, onAdjustScore, onEdit, onArchive, onRestore,
 }: LeadsTableBodyProps) {
   const filtered = leads.filter(l => {
     if (filters.rating !== 0 && l.rating < filters.rating) return false;
@@ -110,15 +134,18 @@ export default function LeadsTableBody({
     return bOverdue - aOverdue || (b.lead_score ?? 0) - (a.lead_score ?? 0);
   });
 
+  const start = (page - 1) * pageSize;
+  const paged = filtered.slice(start, start + pageSize);
+
   return (
     <>
-      {filtered.map((lead, i) => (
+      {paged.map((lead, i) => (
         <tr key={lead.id}
           className={`hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${lead.is_archived ? "opacity-70" : ""} ${lead.is_ghost_viewer ? "bg-red-500/10 border-l-4 border-l-red-500 animate-pulse" : ""}`}>
-          <td className="px-4 py-3 text-gray-400 text-xs">{i + 1}</td>
+          <td className="px-4 py-3 text-gray-400 text-xs">{start + i + 1}</td>
           <td className="px-4 py-3 font-medium text-gray-800 dark:text-neutral-50 max-w-[180px]">
             <div className="flex items-center gap-1.5">
-              <span>{lead.business_name}{lead.is_archived ? " (Archived)" : ""}</span>
+              <span>{lead.business_name}{lead.is_archived ? " (Arsip)" : ""}</span>
               {lead.is_ghost_viewer && (
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 whitespace-nowrap" title="Lead potensial - belum ada aktivitas">POTENSIAL</span>
               )}
@@ -161,6 +188,10 @@ export default function LeadsTableBody({
                 <div className="group relative w-28">
                   <div className="flex items-center gap-1.5 mb-1">
                     <span className="font-bold tabular-nums">{score}</span>
+                    <button type="button" onClick={() => onAdjustScore(lead)} title="Adjustment score manual"
+                      className="opacity-0 group-hover:opacity-100 rounded p-0.5 text-gray-400 hover:bg-amber-50 hover:text-amber-600 transition">
+                      <Pencil size={11} />
+                    </button>
                   </div>
                   <div className="text-[10px] text-gray-500 dark:text-gray-400 mb-1 truncate" title={tierLabel}>{tierLabel}</div>
                   <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
@@ -193,7 +224,7 @@ export default function LeadsTableBody({
             {lead.do_not_contact && <div className="text-[10px] text-red-500 font-bold mt-0.5">DIBLOKIR</div>}
           </td>
           <td className="px-4 py-3">
-            <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[lead.status] || ""}`}>{STATUS_LABELS[lead.status] || lead.status}</span>
+            <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[lead.status] || ""}`}>{lead.status_label || STATUS_LABELS[lead.status] || lead.status}</span>
           </td>
           <td className="px-4 py-3">
             <div className="flex items-center gap-1 flex-wrap max-w-[220px]">
@@ -208,7 +239,7 @@ export default function LeadsTableBody({
                     className="p-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-all disabled:opacity-50">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" /></svg>
                   </button>
-                  {(lead.status === "Contacted" || lead.status === "Replied") && (
+                  {(["Contacted", "WA Terkirim", "Replied", "Laporan Dibuka", "Prospek Hangat", "Prospek Panas"].includes(lead.status)) && (
                     <>
                       <button onClick={() => onFollowUp(lead)} disabled={updating === lead.id || lead.do_not_contact} title="Follow Up Manual"
                         className="p-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-all disabled:opacity-50">
@@ -229,7 +260,7 @@ export default function LeadsTableBody({
                     className="text-[11px] border border-neutral-200 dark:border-neutral-700 rounded-lg px-1.5 py-1.5 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 cursor-pointer focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50 transition-colors w-[90px]">
                     {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s] || s}</option>)}
                   </select>
-                  {lead.status !== "Closed/Client" && (
+                  {!["Closed/Client", "Klien Aktif"].includes(lead.status) && (
                     <button onClick={() => onConvert(lead)} disabled={updating === lead.id} title="Jadikan Klien"
                       className="p-1.5 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all disabled:opacity-50">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>

@@ -8,6 +8,7 @@ import { useDashboardData } from "../../hooks/useDashboard";
 import { getScoreColor, getScoreLabel } from "../../lib/leadScore";
 import { apiFetch } from "../../lib/api";
 import { useAuth } from "../../contexts/AuthContext";
+import { getLeadStatusLabel } from "../../types/lead";
 
 const STATUS_COLORS: Record<string, string> = {
   Scraped: "bg-gray-400",
@@ -257,7 +258,7 @@ function DashboardContent() {
                   {analytics?.leads_by_status.map(s => (
                     <div key={s.status}>
                       <div className="flex justify-between text-xs mb-1">
-                        <span className="font-medium text-neutral-700 dark:text-neutral-300">{s.status}</span>
+                        <span className="font-medium text-neutral-700 dark:text-neutral-300">{getLeadStatusLabel(s.status)}</span>
                         <span className="text-neutral-400">{s.count}</span>
                       </div>
                       <div className="h-2 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
@@ -276,7 +277,7 @@ function DashboardContent() {
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Flame size={14} className="text-red-500" />
-                  <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Top Leads by Score</h2>
+                  <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Prospek Prioritas Berdasarkan Skor</h2>
                 </div>
                 <span className="text-[10px] text-neutral-400 uppercase tracking-wide font-bold">{topScoredLeads.length} prioritas</span>
               </div>

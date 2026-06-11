@@ -6,17 +6,27 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks, UploadFile, File, Form, Query, Body
 from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import get_db, log_audit, BlastMessage, User, Lead, Contact, Project, Proposal, ProposalAnalytics, Transaction, ClientNote, ClientCredential, ClientDocument, DynamicTemplate, MessageTemplate, BrandKit, BrandAsset, Document, DocumentFolder, DocumentTemplate, GeneratedDocument, DocumentSequence, PaymentMethod, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, WorkspaceRow
+from models import get_db, log_audit, BlastMessage, User, Lead, Contact, Project, Proposal, ProposalAnalytics, Transaction, ClientNote, ClientCredential, ClientDocument, DynamicTemplate, MessageTemplate, BrandKit, BrandAsset, Document, DocumentFolder, DocumentTemplate, GeneratedDocument, DocumentSequence, PaymentMethod, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, WorkspaceRow, LeadActivityLog
 from schemas import *  # noqa: F403
 from app.core.cache import cached, clear_cache_prefix
-from app.services import _serialize_template, _next_doc_sequence, _peek_doc_sequence, _DOC_TYPE_PREFIX, _slugify_name
+from app.services import (
+    _serialize_template,
+    _next_doc_sequence,
+    _peek_doc_sequence,
+    _generate_document_filename,
+    _DOC_TYPE_PREFIX,
+    _slugify_name,
+)
 from app.services.pdf_renderer import inject_pdf_font as _inject_pdf_font
 from app.services.pdf_renderer import render_pdf_from_html
 from app.services.archive_service import parent_creates_cycle as _archive_parent_creates_cycle
 from app.core.dependencies import (get_current_user, require_admin, UPLOADS_DIR,
     _cors_list, _get_setting, HERMES_GATEWAY_URL, _hermes_headers, _office_profile, _ads_out)
+from app.constants import CLIENT_STATUS_VALUES, DOCUMENT_STATUSES, PAYMENT_STATUSES, DocumentStatus
+from app.services.sales_workflow_service import archive_generated_document
 from document_template_library import get_document_template_starters
 
 DOCUMENTS_DIR = os.path.join(UPLOADS_DIR, "generated_documents")
@@ -140,6 +150,12 @@ def delete_document(doc_id: str, current_user: User = Depends(require_admin), db
 class BrandKitUpdate(BaseModel):
     kit_name: Optional[str] = None
     is_active: Optional[bool] = None
+    brand_name: Optional[str] = None
+    tagline: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    logo: Optional[str] = None
 
 
 class BrandAssetIn(BaseModel):
@@ -158,6 +174,12 @@ def _serialize_kit(kit: BrandKit, db: Session) -> dict:
         "kit_name": kit.kit_name,
         "is_active": kit.is_active,
         "created_at": kit.created_at,
+        "brand_name": getattr(kit, "brand_name", "") or kit.kit_name or "",
+        "tagline": getattr(kit, "tagline", "") or "",
+        "phone": getattr(kit, "phone", "") or "",
+        "email": getattr(kit, "email", "") or "",
+        "address": getattr(kit, "address", "") or "",
+        "logo": getattr(kit, "logo", "") or "",
         "assets": [
             {
                 "id": a.id,
@@ -178,7 +200,20 @@ def _get_active_kit(db: Session) -> BrandKit:
     if not kit:
         kit = db.query(BrandKit).first()
     if not kit:
-        raise HTTPException(status_code=404, detail="Brand kit tidak ditemukan")
+        kit = BrandKit(
+            id=str(uuid.uuid4()),
+            kit_name="Kantor Teman",
+            brand_name="Kantor Teman",
+            tagline="Partner digital bisnis Anda",
+            phone="",
+            email="",
+            address="",
+            logo="",
+            is_active=True,
+        )
+        db.add(kit)
+        db.commit()
+        db.refresh(kit)
     return kit
 
 
@@ -200,6 +235,20 @@ def update_brand_kit(body: BrandKitUpdate, current_user: User = Depends(require_
     kit = _get_active_kit(db)
     if body.kit_name is not None:
         kit.kit_name = body.kit_name
+    if body.brand_name is not None:
+        kit.brand_name = body.brand_name
+        if not body.kit_name:
+            kit.kit_name = body.brand_name or kit.kit_name
+    if body.tagline is not None:
+        kit.tagline = body.tagline
+    if body.phone is not None:
+        kit.phone = body.phone
+    if body.email is not None:
+        kit.email = body.email
+    if body.address is not None:
+        kit.address = body.address
+    if body.logo is not None:
+        kit.logo = body.logo
     if body.is_active is not None:
         kit.is_active = body.is_active
     db.commit()
@@ -225,7 +274,7 @@ def get_document_template(tid: str, current_user: User = Depends(get_current_use
 
 @router.post("/api/document-templates", status_code=201)
 def create_document_template(body: DocumentTemplateIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    valid_types = {"proposal_pdf", "invoice", "receipt", "kontrak", "surat_penawaran", "custom"}
+    valid_types = {"proposal_pdf", "invoice", "receipt", "kontrak", "mou", "surat_penawaran", "custom"}
     if body.type not in valid_types:
         raise HTTPException(status_code=400, detail=f"Type harus salah satu: {', '.join(valid_types)}")
     t = DocumentTemplate(
@@ -270,15 +319,33 @@ def delete_document_template(tid: str, current_user: User = Depends(require_admi
 
 
 @router.get("/api/generated-documents")
-def list_generated_documents(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    docs = db.query(GeneratedDocument).order_by(GeneratedDocument.generated_at.desc()).all()
+def list_generated_documents(
+    lead_id: Optional[int] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    query = db.query(GeneratedDocument)
+    if lead_id is not None:
+        project_ids = [row[0] for row in db.query(Project.id).filter(Project.lead_id == lead_id).all()]
+        contact_ids = [str(row[0]) for row in db.query(Contact.id).filter(Contact.lead_id == lead_id).all()]
+        conditions = [
+            (GeneratedDocument.target_type == "lead") & (GeneratedDocument.target_id == str(lead_id)),
+        ]
+        if project_ids:
+            conditions.append((GeneratedDocument.target_type == "project") & (GeneratedDocument.target_id.in_(project_ids)))
+        if contact_ids:
+            conditions.append((GeneratedDocument.target_type == "contact") & (GeneratedDocument.target_id.in_(contact_ids)))
+        query = query.filter(or_(*conditions))
+    docs = query.order_by(GeneratedDocument.generated_at.desc()).all()
     # Pre-load targets for display name resolution
-    lead_ids = {d.target_id for d in docs if d.target_type == "lead" and d.target_id}
-    contact_ids = {d.target_id for d in docs if d.target_type == "contact" and d.target_id}
+    lead_ids = {int(d.target_id) for d in docs if d.target_type == "lead" and d.target_id and str(d.target_id).isdigit()}
+    contact_ids = {int(d.target_id) for d in docs if d.target_type == "contact" and d.target_id and str(d.target_id).isdigit()}
     project_ids = {d.target_id for d in docs if d.target_type == "project" and d.target_id}
-    leads = {l.id: l.business_name for l in db.query(Lead).filter(Lead.id.in_(lead_ids)).all()} if lead_ids else {}
-    contacts = {c.id: c.business_name for c in db.query(Contact).filter(Contact.id.in_(contact_ids)).all()} if contact_ids else {}
+    leads = {str(l.id): l.business_name for l in db.query(Lead).filter(Lead.id.in_(lead_ids)).all()} if lead_ids else {}
+    contacts = {str(c.id): c.business_name for c in db.query(Contact).filter(Contact.id.in_(contact_ids)).all()} if contact_ids else {}
     projects = {p.id: p.name for p in db.query(Project).filter(Project.id.in_(project_ids)).all()} if project_ids else {}
+    template_ids = {d.template_id for d in docs if d.template_id}
+    templates = {t.id: t.type for t in db.query(DocumentTemplate).filter(DocumentTemplate.id.in_(template_ids)).all()} if template_ids else {}
 
     result = []
     for d in docs:
@@ -293,11 +360,20 @@ def list_generated_documents(current_user: User = Depends(get_current_user), db:
             "id": d.id,
             "template_id": d.template_id,
             "template_name": d.template_name,
+            "template_type": templates.get(d.template_id),
             "target_type": d.target_type,
             "target_id": d.target_id,
             "target_display_name": display_name,
             "file_url": d.file_url,
             "display_filename": d.display_filename,
+            "status": getattr(d, "status", DocumentStatus.DRAFT),
+            "payment_status": getattr(d, "payment_status", None),
+            "review_notes": getattr(d, "review_notes", None),
+            "approved_at": getattr(d, "approved_at", None),
+            "rejected_at": getattr(d, "rejected_at", None),
+            "sent_at": getattr(d, "sent_at", None),
+            "signed_at": getattr(d, "signed_at", None),
+            "archived_at": getattr(d, "archived_at", None),
             "generated_at": d.generated_at,
             "generated_by": d.generated_by,
         })
@@ -320,6 +396,58 @@ def delete_generated_document(did: str, current_user: User = Depends(require_adm
                 pass
     db.delete(d)
     db.commit()
+
+
+@router.patch("/api/documents/generated/{did}/workflow")
+def update_generated_document_workflow(
+    did: str,
+    body: DocumentWorkflowUpdate,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    doc = db.query(GeneratedDocument).filter(GeneratedDocument.id == did).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
+    if body.status not in DOCUMENT_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Status harus salah satu: {', '.join(sorted(DOCUMENT_STATUSES))}")
+    if body.payment_status is not None and body.payment_status not in PAYMENT_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Status pembayaran harus salah satu: {', '.join(sorted(PAYMENT_STATUSES))}")
+
+    now = datetime.now(timezone.utc).isoformat()
+    doc.status = body.status
+    doc.review_notes = body.review_notes
+    if body.payment_status is not None:
+        doc.payment_status = body.payment_status
+    if body.status == "Disetujui":
+        doc.approved_at = now
+    elif body.status == "Ditolak":
+        doc.rejected_at = now
+    elif body.status == "Dikirim":
+        doc.sent_at = now
+    elif body.status == "Ditandatangani":
+        doc.signed_at = now
+    elif body.status == "Diarsipkan":
+        doc.archived_at = now
+
+    archive_doc = db.query(Document).filter(Document.source_type == "generated_document", Document.source_id == did).first()
+    if archive_doc:
+        archive_doc.status = body.status
+        archive_doc.review_notes = body.review_notes
+        archive_doc.tags = json.dumps([doc.template_name or "Dokumen", body.status])
+        archive_doc.updated_at = now
+    db.commit()
+    log_audit(db, current_user.name, "UPDATE", "generated_documents", did, {"status": body.status, "payment_status": body.payment_status})
+    return {
+        "id": doc.id,
+        "status": doc.status,
+        "payment_status": doc.payment_status,
+        "review_notes": doc.review_notes,
+        "approved_at": doc.approved_at,
+        "rejected_at": doc.rejected_at,
+        "sent_at": doc.sent_at,
+        "signed_at": doc.signed_at,
+        "archived_at": doc.archived_at,
+    }
 
 
 class InvoiceSequenceIn(BaseModel):
@@ -439,7 +567,7 @@ def _apply_target_company_aliases(defaults: dict, company_name: str) -> None:
 
 
 def _document_number(db: Session, template_type: str, reserve: bool = False) -> str:
-    prefixes = {"invoice": "INV", "receipt": "RCPT", "surat_penawaran": "SP"}
+    prefixes = {"invoice": "INV", "receipt": "RCPT", "surat_penawaran": "SP", "mou": "MOU"}
     prefix = prefixes.get(template_type)
     if not prefix:
         return ""
@@ -578,6 +706,16 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
             end_day = min(today.day, monthrange(end_year, end_month)[1])
             defaults["tanggal_akhir"] = _format_date_id(today.replace(year=end_year, month=end_month, day=end_day))
 
+    elif template_type == "mou":
+        defaults["nomor"] = _document_number(db, "mou")
+        defaults["tanggal"] = _format_date_id(today)
+        defaults["tujuan"] = "Membangun kerja sama awal untuk kebutuhan layanan digital dan pemasaran bisnis."
+        defaults["scope"] = "Pemetaan kebutuhan, penyusunan rekomendasi layanan, dan persiapan kerja sama lanjutan."
+        defaults["tanggung_jawab_seller"] = "Menyiapkan arahan layanan, estimasi pekerjaan, jadwal tindak lanjut, dan informasi teknis yang diperlukan."
+        defaults["tanggung_jawab_buyer"] = "Memberikan data bisnis yang benar, menunjuk PIC, dan meninjau rekomendasi yang disampaikan."
+        defaults["durasi"] = "Berlaku sejak tanggal ditandatangani sampai ada kontrak kerja sama lanjutan atau pembatalan tertulis."
+        defaults["terms"] = "Detail biaya, termin pembayaran, dan deliverable final dituangkan dalam kontrak atau invoice terpisah."
+
     elif template_type == "surat_penawaran":
         defaults["nomor"] = _document_number(db, "surat_penawaran")
         defaults["perihal"] = f"Penawaran Jasa {service_name}".strip()
@@ -609,7 +747,7 @@ def get_template_defaults(
     ttype = template.type or "custom"
     if ttype == "custom" and template.name:
         name_lower = template.name.lower()
-        for known in ["invoice", "receipt", "kontrak", "surat_penawaran", "proposal_pdf"]:
+        for known in ["invoice", "receipt", "kontrak", "mou", "surat_penawaran", "proposal_pdf"]:
             if known.replace("_", " ") in name_lower or known in name_lower:
                 ttype = known
                 break
@@ -700,12 +838,15 @@ _BUILTIN_DOCUMENT_TEMPLATE_TYPES = {
     "Proposal Penawaran PDF": "proposal_pdf",
     "Surat Penawaran Formal": "surat_penawaran",
     "Kontrak / MoU": "kontrak",
+    "Kontrak Kerja Sama": "kontrak",
+    "MOU Kerja Sama": "mou",
 }
 
 _LEGACY_DOCUMENT_TEMPLATE_MARKERS = {
     "proposal_pdf": ("{{services_html}}", "{{faqs_html}}"),
     "surat_penawaran": ("{{body}}", "{{ttd}}"),
     "kontrak": ("{{parties}}", "{{timeline}}", "{{payment_terms}}"),
+    "mou": ("{{tujuan}}", "{{tanggung_jawab_seller}}", "{{tanggung_jawab_buyer}}"),
 }
 
 
@@ -849,9 +990,23 @@ def generate_document(request: Request, body: DocumentGenerateIn, current_user: 
             variables_used=json.dumps(full_vars),
             file_url=file_url,
             display_filename=display_name,
+            status=DocumentStatus.DRAFT,
+            payment_status="Belum Dibayar" if _document_template_type(template) == "invoice" else None,
             generated_by=current_user.name,
         )
         db.add(doc)
+        db.flush()
+        try:
+            archive_generated_document(
+                db,
+                doc,
+                display_name,
+                full_vars.get("klien") or full_vars.get("nama") or "Klien",
+                full_vars.get("layanan") or body.target_type or "Dokumen",
+                template.name or _document_template_type(template),
+            )
+        except Exception as archive_err:
+            print(f"[GENERATED_DOC_ARCHIVE] skip: {archive_err}", flush=True)
         db.commit()
     except HTTPException as e:
         db.rollback()
@@ -988,7 +1143,7 @@ def get_template_stats(template_id: str, days: int = 30, current_user: User = De
     read = sum(1 for m in msgs if m.read_at)
     replied = sum(1 for m in msgs if m.replied_at)
     lead_ids = [m.lead_id for m in msgs if m.replied_at]
-    closed = db.query(Lead).filter(Lead.id.in_(lead_ids), Lead.status == "Closed/Client").count() if lead_ids else 0
+    closed = db.query(Lead).filter(Lead.id.in_(lead_ids), Lead.status.in_(CLIENT_STATUS_VALUES)).count() if lead_ids else 0
     reply_rate = round(replied / sent * 100, 1) if sent else 0.0
     conversion_rate = round(closed / sent * 100, 1) if sent else 0.0
     return {
@@ -1070,6 +1225,46 @@ def update_archive_folder(
     return {"id": folder.id, "name": folder.name, "parent_id": folder.parent_id, "color": folder.color, "created_at": folder.created_at}
 
 
+def _archive_folder_descendant_ids(db: Session, folder_id: str) -> list[str]:
+    folders = db.query(DocumentFolder.id, DocumentFolder.parent_id).all()
+    children: dict[str | None, list[str]] = defaultdict(list)
+    for fid, parent_id in folders:
+        children[parent_id].append(fid)
+    ordered: list[str] = []
+    stack = [folder_id]
+    while stack:
+        current = stack.pop()
+        if current in ordered:
+            continue
+        ordered.append(current)
+        stack.extend(children.get(current, []))
+    return ordered
+
+
+def _archive_folder_delete_summary(db: Session, folder_id: str) -> dict:
+    folder = db.query(DocumentFolder).filter(DocumentFolder.id == folder_id).first()
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder tidak ditemukan")
+    folder_ids = _archive_folder_descendant_ids(db, folder_id)
+    doc_count = db.query(Document).filter(Document.folder_id.in_(folder_ids)).count() if folder_ids else 0
+    return {
+        "folder_id": folder.id,
+        "folder_name": folder.name,
+        "folder_count": len(folder_ids),
+        "subfolder_count": max(0, len(folder_ids) - 1),
+        "document_count": doc_count,
+    }
+
+
+@router.get("/api/archive/folders/{folder_id}/delete-summary")
+def archive_folder_delete_summary(
+    folder_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _archive_folder_delete_summary(db, folder_id)
+
+
 
 @router.delete("/api/archive/folders/{folder_id}", status_code=204)
 def delete_archive_folder(
@@ -1080,9 +1275,13 @@ def delete_archive_folder(
     folder = db.query(DocumentFolder).filter(DocumentFolder.id == folder_id).first()
     if not folder:
         raise HTTPException(status_code=404, detail="Folder tidak ditemukan")
-    db.query(Document).filter(Document.folder_id == folder_id).update({"folder_id": None})
-    db.query(DocumentFolder).filter(DocumentFolder.parent_id == folder_id).update({"parent_id": None})
-    db.delete(folder)
+    folder_ids = _archive_folder_descendant_ids(db, folder_id)
+    if folder_ids:
+        db.query(Document).filter(Document.folder_id.in_(folder_ids)).delete(synchronize_session=False)
+        for fid in reversed(folder_ids):
+            db.query(DocumentFolder).filter(DocumentFolder.id == fid).delete(synchronize_session=False)
+    else:
+        db.delete(folder)
     db.commit()
 
 
@@ -1117,20 +1316,61 @@ def create_archive_doc(
     now = datetime.now(timezone.utc).isoformat()
     if body.folder_id and not db.query(DocumentFolder).filter(DocumentFolder.id == body.folder_id).first():
         raise HTTPException(status_code=400, detail="Folder tidak ditemukan")
+    if body.status and body.status not in DOCUMENT_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Status harus salah satu: {', '.join(sorted(DOCUMENT_STATUSES))}")
     doc = Document(
         id=str(uuid.uuid4()),
         user_id=current_user.id,
         folder_id=body.folder_id or None,
+        name=body.title.strip(),
+        type="document" if body.body else ("link" if body.url else "document"),
+        content=body.body or None,
         title=body.title.strip(),
         body=body.body or None,
         url=body.url or None,
         tags=json.dumps(body.tags or []),
+        status=body.status or DocumentStatus.DRAFT,
         created_at=now,
         updated_at=now,
     )
     db.add(doc)
     db.commit()
     return _archive_doc_to_dict(doc)
+
+
+@router.post("/api/archive/{doc_id}/attachment", status_code=201)
+async def upload_archive_attachment(
+    doc_id: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
+
+    allowed_ext = {".jpg", ".jpeg", ".png", ".pdf", ".webp", ".doc", ".docx", ".xls", ".xlsx", ".csv", ".txt"}
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in allowed_ext:
+        raise HTTPException(status_code=400, detail=f"Format tidak diizinkan: {ext or '-'}")
+
+    contents = await file.read()
+    if len(contents) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File terlalu besar (max 10MB)")
+
+    archive_dir = os.path.join(UPLOADS_DIR, "archive", doc_id)
+    os.makedirs(archive_dir, exist_ok=True)
+    fname = f"{uuid.uuid4().hex}{ext}"
+    fpath = os.path.join(archive_dir, fname)
+    with open(fpath, "wb") as fh:
+        fh.write(contents)
+
+    doc.url = f"/uploads/archive/{doc_id}/{fname}"
+    doc.file_size = len(contents)
+    doc.type = "file"
+    doc.updated_at = datetime.now(timezone.utc).isoformat()
+    db.commit()
+    return {**_archive_doc_to_dict(doc), "file_name": file.filename or fname, "file_size": len(contents)}
 
 
 
@@ -1160,12 +1400,21 @@ def update_archive_doc(
     changes = body.model_dump(exclude_unset=True)
     if body.title is not None:
         doc.title = body.title.strip()
+        doc.name = body.title.strip()
     if "body" in changes:
         doc.body = body.body or None
+        doc.content = body.body or None
     if "url" in changes:
         doc.url = body.url or None
+        doc.type = "link" if body.url else "document"
     if "tags" in changes:
         doc.tags = json.dumps(body.tags or [])
+    if "status" in changes:
+        if body.status and body.status not in DOCUMENT_STATUSES:
+            raise HTTPException(status_code=400, detail=f"Status harus salah satu: {', '.join(sorted(DOCUMENT_STATUSES))}")
+        doc.status = body.status or DocumentStatus.DRAFT
+    if "review_notes" in changes:
+        doc.review_notes = body.review_notes or None
     if "folder_id" in changes:
         if body.folder_id and not db.query(DocumentFolder).filter(DocumentFolder.id == body.folder_id).first():
             raise HTTPException(status_code=400, detail="Folder tidak ditemukan")
@@ -1201,6 +1450,11 @@ def _archive_doc_to_dict(doc: Document) -> dict:
         "body": doc.body,
         "url": doc.url,
         "tags": tags,
+        "status": getattr(doc, "status", DocumentStatus.DRAFT),
+        "review_notes": getattr(doc, "review_notes", None),
+        "source_type": getattr(doc, "source_type", None),
+        "source_id": getattr(doc, "source_id", None),
+        "file_size": getattr(doc, "file_size", None),
         "created_at": doc.created_at,
         "updated_at": doc.updated_at,
     }

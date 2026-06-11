@@ -4,13 +4,15 @@ import { formatRupiah } from "../../utils/formatter";
 interface ProposalPricingProps {
   proposal: {
     services_detail: { name: string; price: number }[];
+    total_price: number;
     base_price: number | null;
     discount_price: number | null;
   };
 }
 
 export default function ProposalPricing({ proposal }: ProposalPricingProps) {
-  const subtotal = proposal.base_price || 0;
+  const serviceTotal = proposal.services_detail.reduce((total, service) => total + (service.price || 0), 0);
+  const subtotal = proposal.base_price || proposal.total_price || serviceTotal;
   const discount = subtotal - (proposal.discount_price || subtotal);
   const finalTotal = proposal.discount_price || subtotal;
 

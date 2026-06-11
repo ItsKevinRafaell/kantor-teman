@@ -73,3 +73,15 @@ class BoardCardActivity(Base):
     actor = Column(String(255), nullable=False)
     created_at = Column(String(255), default=lambda: datetime.now(timezone.utc).isoformat())
     card = relationship("BoardCard", foreign_keys=[card_id], backref="activity")
+
+
+class BoardCardAttachment(Base):
+    __tablename__ = "board_card_attachments"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    card_id = Column(String(36), ForeignKey("board_cards.id"), nullable=False)
+    file_path = Column(String(500), nullable=False)
+    file_name = Column(String(255), nullable=False)
+    file_type = Column(String(100), nullable=True)
+    uploaded_by = Column(String(255), nullable=True)
+    uploaded_at = Column(String(255), default=lambda: datetime.now(timezone.utc).isoformat())
+    card = relationship("BoardCard", foreign_keys=[card_id], backref="attachments")

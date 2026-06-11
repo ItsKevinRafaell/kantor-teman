@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { apiFetch } from "../../lib/api";
-import { Plus, Trash2, Upload, ExternalLink } from "lucide-react";
+import { ArrowLeft, ArrowRight, Copy, ExternalLink, Pencil, Plus, Save, Search, Settings2, Trash2, Upload, X } from "lucide-react";
 import ConfirmModal from "../ConfirmModal";
 
 interface ColumnData {
@@ -48,15 +48,15 @@ interface Props {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  "To Do": "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300",
-  "In Progress": "bg-neutral-200/70 dark:bg-neutral-700/50 text-neutral-700 dark:text-neutral-300",
-  "Done": "bg-neutral-200/70 dark:bg-neutral-700/50 text-neutral-700 dark:text-neutral-300",
-  "Draft": "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300",
-  "Approved": "bg-neutral-200/70 dark:bg-neutral-700/50 text-neutral-700 dark:text-neutral-300",
-  "Posted": "bg-neutral-200/70 dark:bg-neutral-700/50 text-neutral-700 dark:text-neutral-300",
-  "Published": "bg-neutral-200/70 dark:bg-neutral-700/50 text-neutral-700 dark:text-neutral-300",
-  "Revision": "bg-neutral-200/70 dark:bg-neutral-700/50 text-neutral-700 dark:text-neutral-300",
-  "Review": "bg-neutral-200/70 dark:bg-neutral-700/50 text-neutral-700 dark:text-neutral-300",
+  "To Do": "bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300",
+  "In Progress": "bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-300",
+  "Done": "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300",
+  "Draft": "bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300",
+  "Approved": "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300",
+  "Posted": "bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-300",
+  "Published": "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300",
+  "Revision": "bg-orange-50 text-orange-700 dark:bg-orange-950/30 dark:text-orange-300",
+  "Review": "bg-violet-50 text-violet-700 dark:bg-violet-950/30 dark:text-violet-300",
 };
 
 const COL_WIDTHS: Record<string, string> = {
@@ -70,13 +70,36 @@ const COL_WIDTHS: Record<string, string> = {
   select: "min-w-[140px]",
 };
 
+const FIELD_TYPES = [
+  { value: "text", label: "Teks singkat" },
+  { value: "textarea", label: "Catatan panjang" },
+  { value: "status", label: "Status" },
+  { value: "select", label: "Pilihan" },
+  { value: "date", label: "Tanggal" },
+  { value: "number", label: "Angka" },
+  { value: "url", label: "Link / file" },
+  { value: "checkbox", label: "Checkbox" },
+];
+
+function slugField(label: string) {
+  return label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || `field_${Date.now()}`;
+}
+
+async function readApiError(res: Response, fallback: string) {
+  const err = await res.json().catch(() => ({}));
+  return err.detail || err.message || fallback;
+}
+
 export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }: Props) {
   const [rows, setRows] = useState<RowData[]>(sheet.rows);
+  const [columns, setColumns] = useState<ColumnData[]>(sheet.columns);
   const [saving, setSaving] = useState<string | null>(null);
   const [expandedCell, setExpandedCell] = useState<{ rowId: string; colId: string; value: string } | null>(null);
   const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [boardColumns, setBoardColumns] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [picFilter, setPicFilter] = useState("");
   const [sortCol, setSortCol] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [milestoneModal, setMilestoneModal] = useState<{
@@ -85,11 +108,22 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
     project_id: string | null; template_id: string | null;
   } | null>(null);
   const [generatingInvoice, setGeneratingInvoice] = useState(false);
+  const [showFieldManager, setShowFieldManager] = useState(false);
+  const [fieldDraft, setFieldDraft] = useState({ label: "", type: "text", options: "" });
+  const [editingColumn, setEditingColumn] = useState<ColumnData | null>(null);
+  const [fieldSaving, setFieldSaving] = useState(false);
+
+  useEffect(() => {
+    setRows(sheet.rows);
+    setColumns(sheet.columns);
+    setShowFieldManager(false);
+    setEditingColumn(null);
+  }, [sheet.id, sheet.rows, sheet.columns]);
 
   useEffect(() => {
     apiFetch("/api/users")
       .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(setUsers)
+      .then((items) => setUsers(Array.isArray(items) ? items : []))
       .catch(() => { onToast("Gagal memuat daftar user. PIC diisi manual sementara.", "error"); })
       .finally(() => setUsersLoading(false));
     // Fetch board columns dynamically
@@ -107,7 +141,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
   const [uploadTarget, setUploadTarget] = useState<{ rowId: string; colId: string } | null>(null);
   const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; message: string; onConfirm: () => void }>({ open: false, title: "", message: "", onConfirm: () => {} });
 
-  const colById = Object.fromEntries(sheet.columns.map(c => [c.id, c]));
+  const colById = Object.fromEntries(columns.map(c => [c.id, c]));
 
   function getCellValue(row: RowData, col: ColumnData): CellValue | null {
     return row.cells[col.id] || null;
@@ -134,13 +168,25 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
       setRows(prev => prev.map(r => {
         if (r.id !== rowId) return r;
         const existing = r.cells[colId] || { id: "", value_text: null, value_bool: null, value_number: null, value_date: null };
-        return { ...r, cells: { ...r.cells, [colId]: { ...existing, ...payload } } };
+        const nextCells = {
+          ...r.cells,
+          [colId]: { ...existing, id: data.id || existing.id, ...payload },
+        };
+        const col = colById[colId];
+        if (col?.column_key === "done" && payload.value_bool === true) {
+          const statusCol = columns.find(c => c.column_key === "status");
+          if (statusCol) {
+            const statusExisting = r.cells[statusCol.id] || { id: "", value_text: null, value_bool: null, value_number: null, value_date: null };
+            nextCells[statusCol.id] = { ...statusExisting, value_text: "Done" };
+          }
+        }
+        return { ...r, cells: nextCells };
       }));
       if (data.billing_milestone_triggered && data.milestone_data) {
         setMilestoneModal(data.milestone_data);
       }
-    } catch {
-      onToast("Gagal simpan", "error");
+    } catch (e: unknown) {
+      onToast(e instanceof Error ? e.message : "Gagal simpan", "error");
     } finally { setSaving(null); }
   }
 
@@ -185,11 +231,22 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
         method: "POST",
         body: JSON.stringify({ cells: { task_name: "Task baru" } }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error(await readApiError(res, "Gagal tambah row"));
       const newRow = await res.json();
       setRows(prev => [...prev, newRow]);
-    } catch { onToast("Gagal tambah row", "error"); }
+    } catch (e: unknown) { onToast(e instanceof Error ? e.message : "Gagal tambah row", "error"); }
     finally { setAddingRow(false); }
+  }
+
+  async function duplicateRow(rowId: string) {
+    try {
+      const res = await apiFetch(`/api/workspace/row/${rowId}/duplicate`, { method: "POST" });
+      if (!res.ok) throw new Error(await readApiError(res, "Gagal duplikasi row"));
+      await onRefresh();
+      onToast("Row berhasil diduplikasi");
+    } catch (e: unknown) {
+      onToast(e instanceof Error ? e.message : "Gagal duplikasi row", "error");
+    }
   }
 
   async function deleteRow(rowId: string, isTemplate: boolean) {
@@ -202,9 +259,101 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
         const res = await apiFetch(`/api/workspace/row/${rowId}`, { method: "DELETE" });
         if (res.ok || res.status === 204) {
           setRows(prev => prev.filter(r => r.id !== rowId));
+        } else {
+          const err = await readApiError(res, "Gagal hapus row");
+          onToast(err, "error");
         }
       },
     });
+  }
+
+  function startEditColumn(col: ColumnData) {
+    setEditingColumn(col);
+    setFieldDraft({
+      label: col.column_label,
+      type: col.column_type,
+      options: (col.column_options || []).join("\n"),
+    });
+    setShowFieldManager(true);
+  }
+
+  function resetFieldDraft() {
+    setEditingColumn(null);
+    setFieldDraft({ label: "", type: "text", options: "" });
+  }
+
+  async function saveField() {
+    const label = fieldDraft.label.trim();
+    if (!label) {
+      onToast("Nama field wajib diisi", "error");
+      return;
+    }
+    const options = fieldDraft.options.split(/\r?\n|,/).map(v => v.trim()).filter(Boolean);
+    setFieldSaving(true);
+    try {
+      const payload = editingColumn?.is_system
+        ? { column_label: label }
+        : {
+            column_label: label,
+            column_type: fieldDraft.type,
+            column_options: ["select", "status"].includes(fieldDraft.type) ? options : [],
+          };
+      const res = editingColumn
+        ? await apiFetch(`/api/workspace/column/${editingColumn.id}`, { method: "PATCH", body: JSON.stringify(payload) })
+        : await apiFetch(`/api/workspace/sheet/${sheet.id}/column`, {
+            method: "POST",
+            body: JSON.stringify({ ...payload, column_key: slugField(label) }),
+          });
+      if (!res.ok) throw new Error(await readApiError(res, "Gagal simpan field"));
+      resetFieldDraft();
+      await onRefresh();
+      onToast(editingColumn ? "Field diperbarui" : "Field ditambahkan");
+    } catch (e: unknown) {
+      onToast(e instanceof Error ? e.message : "Gagal simpan field", "error");
+    } finally {
+      setFieldSaving(false);
+    }
+  }
+
+  async function deleteColumn(col: ColumnData) {
+    if (col.is_system) {
+      onToast("Kolom sistem tidak bisa dihapus", "error");
+      return;
+    }
+    setConfirmState({
+      open: true,
+      title: "Hapus Field",
+      message: `Hapus field "${col.column_label}" beserta isi di semua row?`,
+      onConfirm: async () => {
+        const res = await apiFetch(`/api/workspace/column/${col.id}`, { method: "DELETE" });
+        if (!res.ok && res.status !== 204) {
+          onToast(await readApiError(res, "Gagal hapus field"), "error");
+          return;
+        }
+        await onRefresh();
+        onToast("Field dihapus");
+      },
+    });
+  }
+
+  async function moveColumn(colId: string, direction: -1 | 1) {
+    const currentIndex = columns.findIndex(c => c.id === colId);
+    const targetIndex = currentIndex + direction;
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= columns.length) return;
+    const nextColumns = [...columns];
+    const [item] = nextColumns.splice(currentIndex, 1);
+    nextColumns.splice(targetIndex, 0, item);
+    setColumns(nextColumns.map((col, idx) => ({ ...col, column_order: idx })));
+    try {
+      const res = await apiFetch(`/api/workspace/sheet/${sheet.id}/reorder-columns`, {
+        method: "PATCH",
+        body: JSON.stringify({ column_ids: nextColumns.map(c => c.id) }),
+      });
+      if (!res.ok) throw new Error(await readApiError(res, "Gagal geser field"));
+    } catch (e: unknown) {
+      onToast(e instanceof Error ? e.message : "Gagal geser field", "error");
+      setColumns(columns);
+    }
   }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -234,7 +383,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
 
   const totalTasks = rows.length;
   const doneTasks = rows.filter(r => {
-    const doneCol = sheet.columns.find(c => c.column_key === "done");
+    const doneCol = columns.find(c => c.column_key === "done");
     if (!doneCol) return false;
     return r.cells[doneCol.id]?.value_bool === true;
   }).length;
@@ -243,7 +392,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
   // Sorting
   const sortedRows = [...rows].sort((a, b) => {
     if (!sortCol) return a.row_order - b.row_order;
-    const col = sheet.columns.find(c => c.id === sortCol);
+    const col = columns.find(c => c.id === sortCol);
     if (!col) return 0;
     const cellA = a.cells[sortCol];
     const cellB = b.cells[sortCol];
@@ -267,28 +416,167 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
     else { setSortCol(colId); setSortDir("asc"); }
   }
 
+  function confirmDone(rowId: string, colId: string) {
+    setConfirmState({
+      open: true,
+      title: "Tandai tugas selesai?",
+      message: "Status tugas akan menjadi selesai dan board proyek ikut diperbarui ke kolom Done.",
+      onConfirm: () => patchCell(rowId, colId, { value_bool: true }),
+    });
+  }
+
+  const picCol = columns.find(c => c.column_key === "pic");
+  const nonAdminUsers = users.filter(u => u.name && u.name.trim() && (u as any).role !== "admin");
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const visibleRows = sortedRows.filter(row => {
+    if (picFilter && picCol && (row.cells[picCol.id]?.value_text || "") !== picFilter) return false;
+    if (!normalizedSearch) return true;
+    return columns.some(col => {
+      const cell = row.cells[col.id];
+      const values = [cell?.value_text, cell?.value_date, cell?.value_number?.toString(), cell?.value_bool ? "selesai done" : ""];
+      return values.some(v => (v || "").toLowerCase().includes(normalizedSearch));
+    });
+  });
+
   return (
     <div className="space-y-3">
       {/* Progress summary */}
-      <div className="flex items-center gap-3 text-sm">
+      <div className="flex items-center gap-3 text-sm rounded-xl border border-amber-100 bg-amber-50/40 p-3 dark:border-amber-900/50 dark:bg-amber-950/10">
         <span className="text-gray-500">{doneTasks}/{totalTasks} selesai</span>
         <div className="flex-1 max-w-xs h-2 bg-gray-200 dark:bg-neutral-700 rounded-full overflow-hidden">
-          <div className="h-full bg-neutral-400 dark:bg-neutral-600 rounded-full transition-all" style={{ width: `${pct}%` }} />
+          <div className="h-full bg-amber-400 dark:bg-amber-600 rounded-full transition-all" style={{ width: `${pct}%` }} />
         </div>
-        <span className="font-bold text-neutral-600 dark:text-neutral-400">{pct}%</span>
+        <span className="font-bold text-amber-700 dark:text-amber-300">{pct}%</span>
         <button onClick={() => { setSortCol(null); }}
-          className="ml-auto text-xs text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 px-2 py-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
-          Reset Sort
+          className="ml-auto text-xs text-amber-700 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-200 px-2 py-1 rounded-lg hover:bg-amber-100/70 dark:hover:bg-amber-900/30 transition-colors">
+          Reset urutan
         </button>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="relative min-w-[220px] flex-1 max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+          <input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Cari tugas, status, PIC, atau tanggal..."
+            className="w-full rounded-xl border border-neutral-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-amber-300 focus:ring-2 focus:ring-amber-200 dark:border-neutral-700 dark:bg-[var(--bg-surface)] dark:text-neutral-100"
+          />
+        </label>
+        {picCol && (
+          <select
+            value={picFilter}
+            onChange={e => setPicFilter(e.target.value)}
+            className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-[var(--bg-surface)] dark:text-neutral-100"
+          >
+            <option value="">Semua PIC</option>
+            {users.map(u => <option key={u.id} value={u.name}>{u.name}{(u as any).role === "admin" ? " (admin)" : ""}</option>)}
+          </select>
+        )}
+        <button
+          onClick={() => setShowFieldManager(v => !v)}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-700 hover:border-amber-300 hover:text-amber-700 dark:border-neutral-700 dark:bg-[var(--bg-surface)] dark:text-neutral-200">
+          <Settings2 size={14} /> Field
+        </button>
+      </div>
+
+      {showFieldManager && (
+        <div className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-700 dark:bg-[var(--bg-surface)]">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">Field Worksheet</p>
+              <p className="text-xs text-neutral-500">Tambah, rename, hapus, dan geser kolom tanpa buka spreadsheet lama.</p>
+            </div>
+            <button onClick={() => { setShowFieldManager(false); resetFieldDraft(); }} className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-[1fr_320px]">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[620px] text-sm">
+                <thead>
+                  <tr className="text-left text-[11px] uppercase tracking-wide text-neutral-400">
+                    <th className="px-2 py-2">Field</th>
+                    <th className="px-2 py-2">Tipe</th>
+                    <th className="px-2 py-2">Opsi</th>
+                    <th className="px-2 py-2 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                  {columns.map((col, idx) => (
+                    <tr key={col.id}>
+                      <td className="px-2 py-2">
+                        <div className="font-semibold text-neutral-800 dark:text-neutral-100">{col.column_label}</div>
+                        <div className="text-[11px] text-neutral-400">{col.column_key}{col.is_system ? " · sistem" : ""}</div>
+                      </td>
+                      <td className="px-2 py-2 text-xs text-neutral-600 dark:text-neutral-300">
+                        {FIELD_TYPES.find(t => t.value === col.column_type)?.label || col.column_type}
+                      </td>
+                      <td className="px-2 py-2 text-xs text-neutral-500 max-w-[220px] truncate">
+                        {(col.column_options || []).join(", ") || "—"}
+                      </td>
+                      <td className="px-2 py-2">
+                        <div className="flex justify-end gap-1">
+                          <button onClick={() => moveColumn(col.id, -1)} disabled={idx === 0} title="Geser kiri" className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-30 dark:hover:bg-neutral-800"><ArrowLeft size={14} /></button>
+                          <button onClick={() => moveColumn(col.id, 1)} disabled={idx === columns.length - 1} title="Geser kanan" className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-30 dark:hover:bg-neutral-800"><ArrowRight size={14} /></button>
+                          <button onClick={() => startEditColumn(col)} title="Edit field" className="rounded-lg p-1.5 text-neutral-500 hover:bg-amber-50 hover:text-amber-700 dark:hover:bg-amber-950/20"><Pencil size={14} /></button>
+                          <button onClick={() => deleteColumn(col)} disabled={col.is_system} title={col.is_system ? "Kolom sistem" : "Hapus field"} className="rounded-lg p-1.5 text-red-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-red-950/20"><Trash2 size={14} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="rounded-xl border border-neutral-100 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900/40">
+              <p className="mb-3 text-sm font-bold text-neutral-800 dark:text-neutral-100">{editingColumn ? "Edit Field" : "Tambah Field"}</p>
+              <div className="space-y-2">
+                <input
+                  value={fieldDraft.label}
+                  onChange={e => setFieldDraft(v => ({ ...v, label: e.target.value }))}
+                  placeholder="Nama field, contoh: Link Figma"
+                  className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-300 focus:ring-2 focus:ring-amber-200 dark:border-neutral-700 dark:bg-neutral-800"
+                />
+                <select
+                  value={fieldDraft.type}
+                  onChange={e => setFieldDraft(v => ({ ...v, type: e.target.value }))}
+                  disabled={!!editingColumn?.is_system}
+                  className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-300 focus:ring-2 focus:ring-amber-200 disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-800"
+                >
+                  {FIELD_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+                {["select", "status"].includes(fieldDraft.type) && !editingColumn?.is_system && (
+                  <textarea
+                    value={fieldDraft.options}
+                    onChange={e => setFieldDraft(v => ({ ...v, options: e.target.value }))}
+                    placeholder="Satu opsi per baris, contoh:&#10;Brief&#10;Produksi&#10;Review"
+                    rows={4}
+                    className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-300 focus:ring-2 focus:ring-amber-200 dark:border-neutral-700 dark:bg-neutral-800"
+                  />
+                )}
+                <div className="flex gap-2">
+                  {editingColumn && (
+                    <button onClick={resetFieldDraft} className="flex-1 rounded-lg bg-neutral-200 px-3 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-300 dark:bg-neutral-800 dark:text-neutral-300">
+                      Batal Edit
+                    </button>
+                  )}
+                  <button onClick={saveField} disabled={fieldSaving || !fieldDraft.label.trim()} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-white hover:bg-amber-600 disabled:opacity-50">
+                    <Save size={13} /> {fieldSaving ? "Menyimpan..." : editingColumn ? "Simpan Field" : "Tambah Field"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-[var(--border-default)] bg-white dark:bg-neutral-900">
+      <div className="overflow-x-auto rounded-xl border border-[var(--border-default)] bg-white dark:bg-[var(--bg-surface)]">
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="bg-gray-50 dark:bg-neutral-800 border-b border-[var(--border-default)]">
               <th className="w-8 px-2 py-2.5" />
-              {sheet.columns.map(col => (
+              {columns.map(col => (
                 <th key={col.id}
                   onClick={() => handleSort(col.id)}
                   className={`text-left px-3 py-2.5 text-xs font-semibold uppercase tracking-wide whitespace-nowrap cursor-pointer hover:bg-gray-100 dark:hover:bg-neutral-700 select-none ${COL_WIDTHS[col.column_type] || "min-w-[120px]"} ${sortCol === col.id ? "text-neutral-600 dark:text-neutral-400" : "text-gray-500"}`}>
@@ -306,18 +594,21 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border-subtle)]">
-            {sortedRows.map(row => (
+            {visibleRows.map(row => (
               <tr key={row.id} className="group hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors">
                 <td className="px-2 py-2 text-gray-300 text-xs text-center">{row.row_order + 1}</td>
-                {sheet.columns.map(col => {
+                {columns.map(col => {
                   const val = getDisplayValue(row, col);
                   const isSaving = saving === `${row.id}-${col.id}`;
                   return (
                     <td key={col.id} className="px-2 py-1.5 align-middle">
                       {col.column_type === "checkbox" ? (
                         <input type="checkbox" checked={!!val}
-                          onChange={e => patchCell(row.id, col.id, { value_bool: e.target.checked })}
-                          className="w-4 h-4 accent-neutral-500 cursor-pointer" />
+                          onChange={e => {
+                            if (col.column_key === "done" && e.target.checked) confirmDone(row.id, col.id);
+                            else patchCell(row.id, col.id, { value_bool: e.target.checked });
+                          }}
+                          className="w-4 h-4 accent-amber-500 cursor-pointer" />
                       ) : col.column_type === "status" ? (
                         (() => {
                           // Use board column names as options; preserve existing value even if column deleted
@@ -329,7 +620,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
                           return (
                             <select value={existingVal}
                               onChange={e => patchCell(row.id, col.id, { value_text: e.target.value })}
-                              className={`text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 ${STATUS_COLORS[existingVal] || "bg-gray-100 text-gray-600"}`}>
+                              className={`text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-300 dark:focus:ring-amber-700 ${STATUS_COLORS[existingVal] || "bg-gray-100 text-gray-600"}`}>
                               <option value="">—</option>
                               {allOptions.map(o => <option key={o} value={o}>{o}</option>)}
                             </select>
@@ -338,24 +629,24 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
                       ) : col.column_type === "select" ? (
                         <select value={(val as string) || ""}
                           onChange={e => patchCell(row.id, col.id, { value_text: e.target.value })}
-                          className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600">
+                          className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-amber-300">
                           <option value="">—</option>
                           {col.column_options.map(o => <option key={o} value={o}>{o}</option>)}
                         </select>
                       ) : col.column_type === "date" ? (
                         <input type="date" value={(val as string) || ""}
                           onChange={e => patchCell(row.id, col.id, { value_date: e.target.value })}
-                          className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600" />
+                          className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-amber-300" />
                       ) : col.column_type === "number" ? (
                         <input type="number" defaultValue={(val as number) ?? ""}
                           onBlur={e => patchCell(row.id, col.id, { value_number: e.target.value ? Number(e.target.value) : null })}
-                          className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 w-20 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600" />
+                          className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 w-20 focus:outline-none focus:ring-2 focus:ring-amber-300" />
                       ) : col.column_type === "url" ? (
                         <div className="flex items-center gap-1">
                           <input type="text" defaultValue={(val as string) || ""}
                             onBlur={e => patchCell(row.id, col.id, { value_text: e.target.value || null })}
                             placeholder="https://..."
-                            className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 w-32 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600" />
+                            className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 w-32 focus:outline-none focus:ring-2 focus:ring-amber-300" />
                           {val && <a href={val as string} target="_blank" rel="noopener noreferrer" className="text-neutral-500 hover:text-neutral-700"><ExternalLink size={12} /></a>}
                           <button onClick={() => { setUploadTarget({ rowId: row.id, colId: col.id }); fileInputRef.current?.click(); }}
                             className="text-gray-400 hover:text-neutral-500 transition-colors"><Upload size={12} /></button>
@@ -371,11 +662,10 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
                         ) : (
                           <select value={(val as string) || ""}
                             onChange={e => patchCell(row.id, col.id, { value_text: e.target.value || null })}
-                            className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 min-w-[120px]">
+                            className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-amber-300 min-w-[120px]">
                             <option value="">— PIC —</option>
-                            {users.length === 0
-                              ? <option disabled>Belum ada user terdaftar</option>
-                              : users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)
+                            {nonAdminUsers.length === 0 && <option disabled>Tidak ada anggota</option>}
+                            {users.map(u => <option key={u.id} value={u.name}>{u.name}{(u as any).role === "admin" ? " (admin)" : ""}</option>)
                             }
                           </select>
                         )
@@ -388,6 +678,11 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
                   );
                 })}
                 <td className="px-2 py-1.5">
+                  <button onClick={() => duplicateRow(row.id)}
+                    title="Duplikasi row"
+                    className="mr-1 opacity-0 group-hover:opacity-100 p-1 rounded transition-all text-neutral-400 hover:text-amber-600">
+                    <Copy size={13} />
+                  </button>
                   <button onClick={() => deleteRow(row.id, row.is_template)}
                     title={row.is_template ? "Row template" : "Hapus row"}
                     className={`opacity-0 group-hover:opacity-100 p-1 rounded transition-all ${row.is_template ? "text-gray-300 cursor-not-allowed" : "text-red-400 hover:text-red-600"}`}>
@@ -396,19 +691,26 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
                 </td>
               </tr>
             ))}
+            {visibleRows.length === 0 && (
+              <tr>
+                <td colSpan={columns.length + 2} className="px-4 py-8 text-center text-sm text-neutral-400">
+                  Tidak ada tugas yang cocok dengan filter.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
 
         <button onClick={addRow} disabled={addingRow}
-          className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-gray-400 hover:text-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors border-t border-[var(--border-subtle)]">
-          <Plus size={13} /> {addingRow ? "Menambah..." : "Add Row"}
+          className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-amber-700 hover:text-amber-900 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/20 transition-colors border-t border-[var(--border-subtle)]">
+          <Plus size={13} /> {addingRow ? "Menambah..." : "Tambah Tugas"}
         </button>
       </div>
 
       {/* Textarea expand modal */}
       {expandedCell && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-neutral-900 rounded-2xl p-5 w-full max-w-lg shadow-xl">
+          <div className="bg-white dark:bg-[var(--bg-surface)] rounded-2xl p-5 w-full max-w-lg shadow-xl">
             <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-100 mb-3">
               {colById[expandedCell.colId]?.column_label || "Catatan"}
             </h3>
@@ -416,7 +718,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
               defaultValue={expandedCell.value}
               rows={6}
               autoFocus
-              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-800 resize-y focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600"
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-800 resize-y focus:outline-none focus:ring-2 focus:ring-amber-300"
               onBlur={e => {
                 if (e.target.value !== expandedCell.value) {
                   patchCell(expandedCell.rowId, expandedCell.colId, { value_text: e.target.value || null });
@@ -425,7 +727,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
             />
             <div className="flex justify-end mt-3">
               <button onClick={() => setExpandedCell(null)}
-                className="px-4 py-2 text-sm font-semibold bg-neutral-500 hover:bg-neutral-600 text-white rounded-xl">
+                className="px-4 py-2 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-xl">
                 Tutup
               </button>
             </div>
@@ -437,7 +739,7 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
 
       {milestoneModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-neutral-900 rounded-2xl p-6 w-full max-w-md shadow-xl">
+          <div className="bg-white dark:bg-[var(--bg-surface)] rounded-2xl p-6 w-full max-w-md shadow-xl">
             <h3 className="text-base font-bold text-neutral-800 dark:text-neutral-100 mb-2">Milestone Invoice</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Task <span className="font-semibold">&quot;{milestoneModal.task_name}&quot;</span> selesai.
@@ -455,8 +757,8 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
                 Nanti
               </button>
               <button onClick={generateMilestoneInvoice} disabled={generatingInvoice}
-                className="flex-1 px-4 py-2.5 text-sm font-bold bg-neutral-500 hover:bg-neutral-600 text-white rounded-xl disabled:opacity-50">
-                {generatingInvoice ? "Generating..." : "Generate Invoice"}
+                className="flex-1 px-4 py-2.5 text-sm font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl disabled:opacity-50">
+                {generatingInvoice ? "Membuat..." : "Buat Invoice"}
               </button>
             </div>
           </div>
@@ -468,6 +770,8 @@ export default function WorkspaceSheet({ sheet, projectId, onRefresh, onToast }:
         onConfirm={confirmState.onConfirm}
         title={confirmState.title}
         message={confirmState.message}
+        danger={confirmState.title !== "Tandai tugas selesai?"}
+        confirmLabel={confirmState.title === "Tandai tugas selesai?" ? "Ya, tandai selesai" : "Ya, lanjutkan"}
       />
     </div>
   );

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../../lib/api";
-import { Plus, Edit2, Trash2, X, Package } from "lucide-react";
+import { Plus, Edit2, Trash2, X, Package, Search } from "lucide-react";
 import { formatRupiah, formatRupiahInput, cleanRupiahInput } from "../../../utils/formatter";
 import { inputCls, inputClsLarge } from "../../../lib/inputCls";
 import Pagination from "../../../components/Pagination";
@@ -37,6 +37,9 @@ export default function ProductsPage() {
   const [form, setForm] = useState({ name: "", description: "", base_price: 0, features: "", category_id: "", is_active: true, is_retainer: false });
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchProducts = useCallback(async () => {
@@ -48,7 +51,7 @@ export default function ProductsPage() {
 
   const fetchCategories = useCallback(async () => {
     try {
-      const res = await apiFetch("/api/categories?active_only=true");
+      const res = await apiFetch("/api/categories");
       if (res.ok) setCategories(await res.json());
     } catch { /* silent */ }
   }, []);
@@ -58,7 +61,7 @@ export default function ProductsPage() {
     fetchCategories();
     intervalRef.current = setInterval(fetchProducts, 30000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [fetchProducts]);
+  }, [fetchProducts, fetchCategories]);
 
   function openNew() {
     setEditing(null);
@@ -103,6 +106,20 @@ export default function ProductsPage() {
     setDeleteId(null);
   }
 
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredProducts = products.filter(p => {
+    if (statusFilter === "active" && !p.is_active) return false;
+    if (statusFilter === "inactive" && p.is_active) return false;
+    if (categoryFilter !== "all" && (p.category_id || "") !== categoryFilter) return false;
+    if (!normalizedSearch) return true;
+    return [p.name, p.description || "", p.category_name || "", p.features.join(" ")]
+      .some(v => v.toLowerCase().includes(normalizedSearch));
+  });
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, categoryFilter, searchQuery]);
+
 
   if (loading) {
     return (
@@ -135,9 +152,34 @@ export default function ProductsPage() {
         </button>
       </div>
 
+      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-amber-100 bg-white p-3 shadow-sm sm:grid-cols-4 dark:border-amber-900/40 dark:bg-[var(--bg-surface)]">
+        <label className="relative sm:col-span-2">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+          <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Cari produk, kategori, atau fitur..."
+            className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-neutral-800/70 dark:text-neutral-100" />
+        </label>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as "all" | "active" | "inactive")}
+          className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-neutral-800/70 dark:text-neutral-100">
+          <option value="all">Semua status</option>
+          <option value="active">Aktif</option>
+          <option value="inactive">Nonaktif</option>
+        </select>
+        <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
+          className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-neutral-800/70 dark:text-neutral-100">
+          <option value="all">Semua kategori</option>
+          <option value="">Tanpa kategori</option>
+          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
+
       {products.length === 0 ? (
         <div className="text-center py-12 bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] text-gray-400 text-sm">
           Belum ada produk. Tambahkan produk pertamamu.
+        </div>
+      ) : filteredProducts.length === 0 ? (
+        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] py-12 text-center text-sm text-gray-400">
+          Tidak ada produk yang cocok dengan filter.
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl shadow-sm border border-[var(--border-default)]">
@@ -150,7 +192,7 @@ export default function ProductsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-subtle)]">
-              {products.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(p => (
+              {filteredProducts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(p => (
                 <tr key={p.id} className="hover:bg-[var(--bg-surface-hover)] transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -180,8 +222,8 @@ export default function ProductsPage() {
               ))}
             </tbody>
           </table>
-          <Pagination page={page} pageSize={PAGE_SIZE} total={products.length} onPageChange={setPage} itemLabel="produk" />
-          <div className="px-4 py-2 bg-neutral-50 dark:bg-neutral-800 border-t border-[var(--border-default)] text-xs text-gray-400">{products.length} produk</div>
+          <Pagination page={page} pageSize={PAGE_SIZE} total={filteredProducts.length} onPageChange={setPage} itemLabel="produk" />
+          <div className="px-4 py-2 bg-neutral-50 dark:bg-neutral-800 border-t border-[var(--border-default)] text-xs text-gray-400">{filteredProducts.length} produk</div>
         </div>
       )}
 

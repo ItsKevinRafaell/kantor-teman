@@ -18,6 +18,7 @@ from app.core.dependencies import (get_current_user, require_admin, FONNTE_WEBHO
     sync_row_to_board, sync_row_status_to_board, _check_simple_rate_limit,
     _run_async_job, process_pending_blasts, _blast_jobs,
 )
+from app.constants import CLIENT_STATUS_VALUES, LeadStatus
 
 router = APIRouter()
 
@@ -29,16 +30,23 @@ async def start_blast(
 ):
     _check_simple_rate_limit(f"blast:{current_user.id}", 10, 60)
     import threading
+    incoming_criteria = body.filter_criteria or {}
+    batch_name = body.batch_name or incoming_criteria.get("batch_name")
+    if not batch_name:
+        raise HTTPException(status_code=422, detail="Batch wajib dipilih untuk WA Blast.")
+    min_rating = body.min_rating if body.min_rating is not None else int(incoming_criteria.get("min_rating") or 0)
+    product_category = body.product_category or incoming_criteria.get("product_category") or ""
+    criteria = {
+        "status": incoming_criteria.get("status") or "Scraped",
+        "batch_name": batch_name,
+        "min_rating": min_rating,
+        "product_category": product_category,
+    }
     campaign = BlastCampaign(
         id=str(uuid.uuid4()),
-        name=f"Blast {body.batch_name} - {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}",
+        name=f"Blast {batch_name} - {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}",
         template_id=body.template_id,
-        filter_criteria=json.dumps({
-            "status": "Scraped",
-            "batch_name": body.batch_name,
-            "min_rating": body.min_rating,
-            "product_category": body.product_category,
-        }),
+        filter_criteria=json.dumps(criteria),
         scheduled_for=datetime.now(timezone.utc).isoformat(),
         status="PENDING",
         created_at=datetime.now(timezone.utc).isoformat(),
@@ -47,7 +55,7 @@ async def start_blast(
     db.commit()
     log_audit(db, current_user.name, "CREATE", "blast_campaigns", campaign.id, {"name": campaign.name, "mode": "instant"})
     threading.Thread(target=_run_async_job, args=(process_pending_blasts,), daemon=True).start()
-    return {"message": "Campaign masuk antrean pengiriman.", "batch_name": body.batch_name, "campaign_id": campaign.id}
+    return {"message": "Campaign masuk antrean pengiriman.", "batch_name": batch_name, "campaign_id": campaign.id}
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +133,7 @@ async def fonnte_incoming(request: Request, db: Session = Depends(get_db)):
         latest_msg.status = "replied"
 
     # Only auto-promote Contacted → Replied. Don't downgrade other statuses.
-    if lead.status == "Contacted":
+    if lead.status in ("Contacted", LeadStatus.WA_SENT):
         lead.status = "Replied"
         db.add(LeadActivityLog(
             lead_id=lead.id,
@@ -601,7 +609,7 @@ async def fonnte_webhook(request: Request, db: Session = Depends(get_db)):
         # If status=replied, perform the same lead side-effects as fonnte-incoming
         if replied_msg and replied_msg.lead_id:
             lead = db.query(Lead).filter(Lead.id == replied_msg.lead_id).first()
-            if lead and lead.status == "Contacted":
+            if lead and lead.status in ("Contacted", LeadStatus.WA_SENT):
                 lead.status = "Replied"
                 db.add(LeadActivityLog(
                     lead_id=lead.id,
@@ -632,11 +640,11 @@ def get_blast_analytics(days: int = 30, current_user: User = Depends(get_current
     total_read = sum(1 for m in msgs if m.read_at)
     total_replied = sum(1 for m in msgs if m.replied_at)
     replied_lead_ids = [m.lead_id for m in msgs if m.replied_at]
-    total_closed = db.query(Lead).filter(Lead.id.in_(replied_lead_ids), Lead.status == "Closed/Client").count() if replied_lead_ids else 0
+    total_closed = db.query(Lead).filter(Lead.id.in_(replied_lead_ids), Lead.status.in_(CLIENT_STATUS_VALUES)).count() if replied_lead_ids else 0
 
     by_template: dict[str, dict] = {}
     closed_lead_ids = {
-        lead_id for (lead_id,) in db.query(Lead.id).filter(Lead.status == "Closed/Client").all()
+        lead_id for (lead_id,) in db.query(Lead.id).filter(Lead.status.in_(CLIENT_STATUS_VALUES)).all()
     }
     for m in msgs:
         tid = m.template_id or "unknown"
@@ -735,7 +743,7 @@ def sync_row_to_board(row_id: str, db: Session):
             board = Board(id=str(uuid.uuid4()), project_id=project.id)
             db.add(board)
             db.flush()
-            for i, (col_name, col_color) in enumerate([("To Do", "yellow"), ("In Progress", "blue"), ("Review", "purple"), ("Done", "green")]):
+            for i, (col_name, col_color) in enumerate([("To Do", "gray"), ("In Progress", "slate"), ("Review", "neutral"), ("Done", "stone")]):
                 db.add(BoardColumn(id=str(uuid.uuid4()), board_id=board.id, name=col_name, position=i, color=col_color))
             db.flush()
 
@@ -811,6 +819,3 @@ def sync_row_status_to_board(row_id: str, db: Session):
             db.commit()
     except Exception as e:
         print(f"[WORKSPACE_SYNC] sync_row_status error: {e}", flush=True)
-
-
-

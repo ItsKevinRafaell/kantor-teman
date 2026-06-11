@@ -23,7 +23,9 @@ from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 
 # ─── Config ───────────────────────────────────────────────────────────────────
-load_dotenv(os.environ.get("ENV_FILE", ".env.production"))
+_env_file = os.environ.get("ENV_FILE", ".env.production")
+load_dotenv(_env_file)
+load_dotenv(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env")), override=False)
 
 SECRET_ENCRYPTION_KEY = os.environ["SECRET_ENCRYPTION_KEY"]
 _fernet = Fernet(SECRET_ENCRYPTION_KEY.encode())
@@ -70,7 +72,7 @@ from models import (  # noqa: E402
     Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity,
     WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, WorkspaceAttachment,
     DynamicTemplate, Document, DocumentFolder, DocumentTemplate, GeneratedDocument,
-    BrandKit, BrandAsset, DocumentSequence,
+    ReportSnapshot, BrandKit, BrandAsset, DocumentSequence,
     ServiceItem, Category, Product,
     ClientNote, ClientCredential, ClientDocument,
     AdsCampaign, BlastCampaign, BlastMessage, FollowUpSequence, MessageTemplate,
@@ -270,48 +272,8 @@ def make_wa_url(phone_digits: str) -> str:
 # ─── Lead scoring ─────────────────────────────────────────────────────────────
 
 def calculate_lead_score(lead) -> tuple[int, dict]:
-    score = 50
-    breakdown: dict[str, int] = {}
-    if lead.google_rating is not None:
-        if lead.google_rating >= 4.5:
-            score += 15; breakdown["Rating ≥4.5"] = 15
-        elif lead.google_rating >= 4.0:
-            score += 10; breakdown["Rating 4.0-4.4"] = 10
-        elif lead.google_rating >= 3.5:
-            score += 5; breakdown["Rating 3.5-3.9"] = 5
-        else:
-            score -= 10; breakdown["Rating <3.5"] = -10
-    rc = lead.review_count or 0
-    if rc > 100:
-        score += 15; breakdown["Reviews >100"] = 15
-    elif rc >= 20:
-        score += 10; breakdown["Reviews 20-100"] = 10
-    has_website = bool(lead.website_url)
-    pi = (lead.product_interest or "").lower()
-    if has_website:
-        if any(k in pi for k in ["seo", "maintenance"]):
-            score += 5; breakdown["Has website (SEO/Maintenance)"] = 5
-        else:
-            score -= 5; breakdown["Has website"] = -5
-    else:
-        if "web" in pi:
-            score += 10; breakdown["No website (WebDev)"] = 10
-    bn = (lead.batch_name or "").lower()
-    if "web form" in bn:
-        score += 20; breakdown["Web Form (warm)"] = 20
-    elif any(k in bn for k in ["scrape", "maps", "gmaps", "·"]):
-        score -= 5; breakdown["Maps scraper (cold)"] = -5
-    if lead.status == "Replied":
-        score += 15; breakdown["Status: Replied"] = 15
-    elif lead.status == "Contacted":
-        score -= 10; breakdown["Status: Contacted (no reply)"] = -10
-    addr = (lead.address or "").lower()
-    if any(city in addr for city in ["jakarta", "surabaya", "bandung", "bali", "denpasar"]):
-        score += 5; breakdown["Tier 1 city"] = 5
-    name_upper = (lead.business_name or "").upper()
-    if any(k in name_upper for k in ["PT ", "PT.", " CV ", "CV.", "GROUP", "GRUP"]):
-        score += 10; breakdown["PT/CV/Group"] = 10
-    return max(0, min(100, score)), breakdown
+    from app.services.scoring_service import calculate_lead_score_from_settings
+    return calculate_lead_score_from_settings(lead)
 
 def _apply_decay(score: int, breakdown: dict, lead) -> tuple[int, dict]:
     ref = lead.last_followup_at
@@ -800,7 +762,7 @@ def sync_row_to_board(row_id: str, db: Session):
         return
     card = None
     if row.board_card_id:
-        card = db.query(BoardCard).filter(BoardCard.id == row.board_card_id, BoardCard.is_archived == False).first()
+        card = db.query(BoardCard).filter(BoardCard.id == row.board_card_id).first()
     if not card:
         default_col = _default_board_column(board, db, data)
         if not default_col:
@@ -847,6 +809,7 @@ def _sync_one_card(card, data: dict, db: Session):
             done_col = next((col for name, col in col_map.items() if "done" in name), None)
             if done_col:
                 card.column_id = done_col.id
+                card.is_archived = False
     if new_title:
         card.title = str(new_title)
     if new_due:
@@ -1040,7 +1003,7 @@ async def process_pending_blasts():
                         error_message=None if success else "Fonnte send returned non-200",
                     ))
                     if success:
-                        lead.status = "Contacted"
+                        lead.status = "WA Terkirim"
                         sent += 1
                     else:
                         failed += 1

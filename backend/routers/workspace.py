@@ -6,9 +6,10 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks, UploadFile, File, Form, Query, Body
 from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import get_db, log_audit, User, Lead, Contact, Project, Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, WorkspaceAttachment, DocumentTemplate, GeneratedDocument, Category
+from models import get_db, log_audit, User, Lead, Contact, Project, Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, BoardCardAttachment, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, WorkspaceAttachment, DocumentTemplate, GeneratedDocument, Category
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, FRONTEND_URL, UPLOADS_DIR,
     _get_setting, get_fonnte_token, build_analysis_prompt,
@@ -21,9 +22,86 @@ from app.services.workspace_service import (
     get_workspace_data,
     get_workspace_list_data,
 )
+from app.services.document_service import (
+    DOCUMENTS_DIR,
+    _slugify_name,
+    build_brand_context,
+)
+from app.services.pdf_renderer import render_pdf_from_html
+from app.services.sales_workflow_service import (
+    assert_project_can_complete,
+    generate_due_monthly_invoices,
+    get_default_dp_percent,
+)
 from app.core.cache import invalidate_workspace_list_cache, cached
 
 router = APIRouter()
+
+_WORKSPACE_COLUMN_TYPES = {"text", "textarea", "status", "checkbox", "date", "url", "number", "select"}
+
+
+def _workspace_column_key(label: str) -> str:
+    key = re.sub(r"[^a-zA-Z0-9]+", "_", (label or "").strip().lower()).strip("_")
+    return key or f"field_{uuid.uuid4().hex[:8]}"
+
+
+def _workspace_column_options(options: Optional[list[str]]) -> str:
+    cleaned = []
+    for option in options or []:
+        value = str(option).strip()
+        if value and value not in cleaned:
+            cleaned.append(value)
+    return json.dumps(cleaned)
+
+
+def _workspace_column_out(col: WorkspaceColumn) -> dict:
+    return {
+        "id": col.id,
+        "column_key": col.column_key,
+        "column_label": col.column_label,
+        "column_type": col.column_type,
+        "column_options": json.loads(col.column_options or "[]"),
+        "column_order": col.column_order,
+        "is_system": col.is_system,
+    }
+
+
+def _ensure_contact_lead(db: Session, contact: Contact) -> int:
+    if contact.lead_id:
+        linked_lead = db.query(Lead).filter(Lead.id == contact.lead_id).first()
+        if linked_lead:
+            return linked_lead.id
+        contact.lead_id = None
+
+    lead = db.query(Lead).filter(Lead.phone_number == contact.phone_number).first()
+    if not lead:
+        lead = Lead(
+            business_name=contact.business_name,
+            phone_number=contact.phone_number,
+            status="Closed/Client",
+            product_interest=contact.purchased_product,
+        )
+        db.add(lead)
+        db.flush()
+    contact.lead_id = lead.id
+    db.flush()
+    return lead.id
+
+
+def _resolve_project_lead_id(db: Session, lead_id: Optional[int], contact_id: Optional[int]) -> Optional[int]:
+    if contact_id and not lead_id:
+        contact = db.query(Contact).filter(Contact.id == contact_id).first()
+        if not contact:
+            raise HTTPException(status_code=404, detail="Kontak tidak ditemukan")
+        return _ensure_contact_lead(db, contact)
+
+    if lead_id:
+        lead = db.query(Lead).filter(Lead.id == lead_id).first()
+        if not lead:
+            raise HTTPException(status_code=400, detail="Lead tidak ditemukan")
+        return lead.id
+
+    return None
 
 @router.get("/api/projects", response_model=list[ProjectOut])
 def get_projects(
@@ -56,34 +134,10 @@ def create_project(body: ProjectIn, current_user: User = Depends(require_admin),
         raise HTTPException(status_code=400, detail="Type harus 'FIXED' atau 'RETAINER'")
     if body.status not in ("ACTIVE", "COMPLETED", "HOLD"):
         raise HTTPException(status_code=400, detail="Status harus 'ACTIVE', 'COMPLETED', atau 'HOLD'")
+    if body.status == "COMPLETED":
+        raise HTTPException(status_code=400, detail="Project selesai harus lewat tombol selesai agar invoice lunas bisa dicek.")
 
-    # Resolve lead_id: from contact_id if provided, or use lead_id directly
-    resolved_lead_id = body.lead_id
-    if body.contact_id and not resolved_lead_id:
-        contact = db.query(Contact).filter(Contact.id == body.contact_id).first()
-        if not contact:
-            raise HTTPException(status_code=404, detail="Kontak tidak ditemukan")
-        # If contact has no lead_id, find or create one by phone
-        if not contact.lead_id:
-            lead = db.query(Lead).filter(Lead.phone_number == contact.phone_number).first()
-            if not lead:
-                lead = Lead(
-                    business_name=contact.business_name,
-                    phone_number=contact.phone_number,
-                    status="Closed/Client",
-                    product_interest=contact.purchased_product,
-                )
-                db.add(lead)
-                db.flush()
-            contact.lead_id = lead.id
-            db.flush()
-        resolved_lead_id = contact.lead_id
-
-    # Validate lead_id exists if provided
-    if resolved_lead_id:
-        lead = db.query(Lead).filter(Lead.id == resolved_lead_id).first()
-        if not lead:
-            raise HTTPException(status_code=400, detail="Lead tidak ditemukan")
+    resolved_lead_id = _resolve_project_lead_id(db, body.lead_id, body.contact_id)
 
     # Auto-calculate contract_months and contract_days from dates
     months = body.contract_months
@@ -113,6 +167,9 @@ def create_project(body: ProjectIn, current_user: User = Depends(require_admin),
         color=body.color or "gray",
         service_type=body.service_type,
         contract_months=months,
+        dp_percent=body.dp_percent if body.dp_percent is not None else get_default_dp_percent(db),
+        monthly_invoice_enabled=bool(body.monthly_invoice_enabled) if body.monthly_invoice_enabled is not None else body.type == "RETAINER",
+        next_invoice_date=body.next_invoice_date,
     )
     db.add(project)
     db.flush()  # Get project.id without committing
@@ -122,7 +179,6 @@ def create_project(body: ProjectIn, current_user: User = Depends(require_admin),
     db.add(board)
     db.flush()
 
-    # Default columns: To Do, In Progress, Review, Done (neutral colors)
     default_columns = [
         ("To Do", "gray"),
         ("In Progress", "slate"),
@@ -216,34 +272,10 @@ def update_project(project_id: str, body: ProjectIn, current_user: User = Depend
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    if body.status == "COMPLETED" and project.status != "COMPLETED":
+        raise HTTPException(status_code=400, detail="Gunakan endpoint selesai project agar invoice lunas dicek dulu.")
 
-    # Resolve lead_id: from contact_id if provided, or use lead_id directly
-    resolved_lead_id = body.lead_id
-    if body.contact_id and not resolved_lead_id:
-        contact = db.query(Contact).filter(Contact.id == body.contact_id).first()
-        if not contact:
-            raise HTTPException(status_code=404, detail="Kontak tidak ditemukan")
-        # If contact has no lead_id, find or create one by phone
-        if not contact.lead_id:
-            lead = db.query(Lead).filter(Lead.phone_number == contact.phone_number).first()
-            if not lead:
-                lead = Lead(
-                    business_name=contact.business_name,
-                    phone_number=contact.phone_number,
-                    status="Closed/Client",
-                    product_interest=contact.purchased_product,
-                )
-                db.add(lead)
-                db.flush()
-            contact.lead_id = lead.id
-            db.flush()
-        resolved_lead_id = contact.lead_id
-
-    # Validate lead_id exists if provided
-    if resolved_lead_id:
-        lead = db.query(Lead).filter(Lead.id == resolved_lead_id).first()
-        if not lead:
-            raise HTTPException(status_code=400, detail="Lead tidak ditemukan")
+    resolved_lead_id = _resolve_project_lead_id(db, body.lead_id, body.contact_id)
 
     project.lead_id = resolved_lead_id
     project.name = body.name
@@ -255,11 +287,38 @@ def update_project(project_id: str, body: ProjectIn, current_user: User = Depend
     project.color = body.color or "gray"
     project.service_type = body.service_type
     project.contract_months = body.contract_months
+    project.dp_percent = body.dp_percent if body.dp_percent is not None else project.dp_percent
+    project.monthly_invoice_enabled = bool(body.monthly_invoice_enabled) if body.monthly_invoice_enabled is not None else project.monthly_invoice_enabled
+    project.next_invoice_date = body.next_invoice_date
     db.commit()
     db.refresh(project)
     log_audit(db, current_user.name, "UPDATE", "projects", project_id, {"name": body.name})
     invalidate_workspace_list_cache()
     return project
+
+
+@router.post("/api/projects/{project_id}/complete", response_model=ProjectOut)
+def complete_project(project_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    try:
+        assert_project_can_complete(db, project_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    project.status = "COMPLETED"
+    project.completed_at = datetime.now(timezone.utc).isoformat()
+    db.commit()
+    db.refresh(project)
+    log_audit(db, current_user.name, "UPDATE", "projects", project_id, {"status": "COMPLETED"})
+    invalidate_workspace_list_cache()
+    return project
+
+
+@router.post("/api/projects/billing/generate-due-invoices")
+def generate_project_due_invoices(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    docs = generate_due_monthly_invoices(db, current_user.name)
+    return {"generated": len(docs), "document_ids": [d.id for d in docs]}
 
 
 
@@ -288,6 +347,7 @@ def delete_project(project_id: str, current_user: User = Depends(require_admin),
         if col_ids:
             card_ids = [c.id for c in db.query(BoardCard.id).filter(BoardCard.column_id.in_(col_ids)).all()]
             if card_ids:
+                db.query(BoardCardAttachment).filter(BoardCardAttachment.card_id.in_(card_ids)).delete(synchronize_session=False)
                 db.query(BoardCardActivity).filter(BoardCardActivity.card_id.in_(card_ids)).delete(synchronize_session=False)
                 db.query(BoardCardChecklist).filter(BoardCardChecklist.card_id.in_(card_ids)).delete(synchronize_session=False)
                 db.query(BoardCardComment).filter(BoardCardComment.card_id.in_(card_ids)).delete(synchronize_session=False)
@@ -368,9 +428,10 @@ def card_to_out(card: BoardCard, workspace_linked_ids: set = None) -> BoardCardO
         lead=lead_out,
         color=card.color or "gray",
         is_workspace_linked=bool(workspace_linked_ids and card.id in workspace_linked_ids),
-        comments=[BoardCardCommentOut.model_validate(c) for c in card.comments] if hasattr(card, 'comments') else [],
-        checklist=[BoardCardChecklistOut.model_validate(c) for c in card.checklist] if hasattr(card, 'checklist') else [],
-        activity=[BoardCardActivityOut.model_validate(a) for a in card.activity] if hasattr(card, 'activity') else [],
+        comments=[BoardCardCommentOut.model_validate(c) for c in sorted(card.comments, key=lambda item: item.created_at or "", reverse=True)] if hasattr(card, 'comments') else [],
+        checklist=[BoardCardChecklistOut.model_validate(c) for c in sorted(card.checklist, key=lambda item: item.position or 0, reverse=True)] if hasattr(card, 'checklist') else [],
+        activity=[BoardCardActivityOut.model_validate(a) for a in sorted(card.activity, key=lambda item: item.created_at or "", reverse=True)] if hasattr(card, 'activity') else [],
+        attachments=[BoardCardAttachmentOut.model_validate(a) for a in sorted(card.attachments, key=lambda item: item.uploaded_at or "", reverse=True)] if hasattr(card, 'attachments') else [],
     )
 
 
@@ -456,7 +517,12 @@ def get_boards_overview(show_archived: bool = Query(False), current_user: User =
 
 
 @router.get("/api/projects/{project_id}/board", response_model=BoardOut)
-def get_project_board(project_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_project_board(
+    project_id: str,
+    include_archived: bool = Query(False),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """Get board for a project"""
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
@@ -485,7 +551,10 @@ def get_project_board(project_id: str, current_user: User = Depends(get_current_
         workspace_linked_ids = {r[0] for r in rows if r[0]}
     column_outs = []
     for col in columns:
-        cards = db.query(BoardCard).filter(BoardCard.column_id == col.id, BoardCard.is_archived == False).order_by(BoardCard.position).all()
+        cards_query = db.query(BoardCard).filter(BoardCard.column_id == col.id)
+        if not include_archived:
+            cards_query = cards_query.filter(BoardCard.is_archived == False)
+        cards = cards_query.order_by(BoardCard.position).all()
         card_outs = [card_to_out(c, workspace_linked_ids) for c in cards]
         column_outs.append(BoardColumnOut(
             id=col.id, board_id=col.board_id, name=col.name, position=col.position, color=col.color, cards=card_outs
@@ -526,15 +595,16 @@ def get_workspace_service_types(current_user: User = Depends(get_current_user), 
     for key, tmpl in WORKSPACE_TEMPLATES.items():
         label = type_to_label.get(key, key)
         for cat in categories:
-            if key == "web_dev" and "web" in cat.name.lower() and "bulanan" not in cat.name.lower():
+            cat_name = cat.name.lower()
+            if key == "web_dev" and ("web development" in cat_name or "website" in cat_name) and "maintenance" not in cat_name and "bulanan" not in cat_name:
                 label = cat.name
-            elif key == "seo_gmaps" and ("seo" in cat.name.lower() or "google" in cat.name.lower()):
+            elif key == "seo_gmaps" and ("seo" in cat_name or "google" in cat_name):
                 label = cat.name
-            elif key == "sosmed" and ("sosial" in cat.name.lower() or "kelola" in cat.name.lower()):
+            elif key == "sosmed" and ("sosial" in cat_name or "kelola" in cat_name):
                 label = cat.name
-            elif key == "maintenance" and "maintenance" in cat.name.lower():
+            elif key == "maintenance" and "maintenance" in cat_name:
                 label = cat.name
-            elif key == "branding" and ("logo" in cat.name.lower() or "desain" in cat.name.lower()):
+            elif key == "branding" and ("logo" in cat_name or "desain" in cat_name):
                 label = cat.name
         result.append({"value": key, "label": label, "default_months": tmpl.get("default_months", 1)})
     return result
@@ -716,6 +786,23 @@ def update_workspace_cell(row_id: str, column_id: str, body: WorkspaceCellUpdate
         cell.value_json = body.value_json
     cell.updated_at = datetime.now(timezone.utc).isoformat()
     row.updated_at = cell.updated_at
+
+    if col.column_key == "done" and body.value_bool is True:
+        status_col = db.query(WorkspaceColumn).filter(
+            WorkspaceColumn.sheet_id == col.sheet_id,
+            WorkspaceColumn.column_key == "status",
+        ).first()
+        if status_col:
+            status_cell = db.query(WorkspaceCell).filter(
+                WorkspaceCell.row_id == row_id,
+                WorkspaceCell.column_id == status_col.id,
+            ).first()
+            if not status_cell:
+                status_cell = WorkspaceCell(id=str(uuid.uuid4()), row_id=row_id, column_id=status_col.id)
+                db.add(status_cell)
+            status_cell.value_text = "Done"
+            status_cell.updated_at = cell.updated_at
+
     db.commit()
 
     if col.column_key in ("status", "done"):
@@ -765,7 +852,8 @@ def update_workspace_cell(row_id: str, column_id: str, body: WorkspaceCellUpdate
             card.title = cell.value_text or f"Task {row.row_order}"
             db.commit()
 
-    # G6: Auto-complete project when all tasks done
+    # Jika semua task selesai, project tetap menunggu admin klik selesai.
+    # Completion bisnis harus memastikan semua invoice lunas.
     if col.column_key == "done" and body.value_bool is True:
         sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.id == col.sheet_id).first()
         if sheet:
@@ -787,7 +875,7 @@ def update_workspace_cell(row_id: str, column_id: str, body: WorkspaceCellUpdate
             if all_done:
                 project = db.query(Project).filter(Project.id == sheet.project_id).first()
                 if project and project.status == "ACTIVE":
-                    project.status = "COMPLETED"
+                    log_audit(db, current_user.name, "READY_TO_COMPLETE", "projects", project.id, {"reason": "all_workspace_tasks_done"})
                     db.commit()
 
     return {"id": cell.id, "value_text": cell.value_text, "value_bool": cell.value_bool, "value_number": cell.value_number, "value_date": cell.value_date}
@@ -832,7 +920,10 @@ def add_workspace_row(sheet_id: str, body: WorkspaceRowIn, current_user: User = 
         db.add(cell)
 
     db.commit()
-    sync_row_to_board(row.id, db)
+    try:
+        sync_row_to_board(row.id, db)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Row berhasil dibuat, tapi sync ke board gagal: {e}")
 
     cells = db.query(WorkspaceCell).filter(WorkspaceCell.row_id == row.id).all()
     cells_map = {c.column_id: {"id": c.id, "value_text": c.value_text, "value_bool": c.value_bool, "value_number": c.value_number, "value_date": c.value_date} for c in cells}
@@ -893,6 +984,26 @@ def add_workspace_sheet(project_id: str, body: dict, current_user: User = Depend
     return {"id": sheet.id, "sheet_label": label, "sheet_index": max_idx}
 
 
+@router.patch("/api/workspace/sheet/{sheet_id}")
+def update_workspace_sheet(sheet_id: str, body: WorkspaceSheetUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.id == sheet_id).first()
+    if not sheet:
+        raise HTTPException(status_code=404, detail="Sheet tidak ditemukan")
+    if body.sheet_label is not None:
+        label = body.sheet_label.strip()
+        if not label:
+            raise HTTPException(status_code=400, detail="Nama sheet wajib diisi")
+        sheet.sheet_label = label
+    sheet.updated_at = datetime.now(timezone.utc).isoformat()
+    db.commit()
+    return {
+        "id": sheet.id,
+        "sheet_label": sheet.sheet_label,
+        "sheet_index": sheet.sheet_index,
+        "month_number": sheet.month_number,
+    }
+
+
 
 @router.delete("/api/workspace/sheet/{sheet_id}", status_code=204)
 def delete_workspace_sheet(sheet_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
@@ -923,18 +1034,22 @@ def add_workspace_column(sheet_id: str, body: WorkspaceColumnIn, current_user: U
     sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.id == sheet_id).first()
     if not sheet:
         raise HTTPException(status_code=404, detail="Sheet tidak ditemukan")
-    existing = db.query(WorkspaceColumn).filter(WorkspaceColumn.sheet_id == sheet_id, WorkspaceColumn.column_key == body.column_key).first()
+    column_key = (body.column_key or "").strip() or _workspace_column_key(body.column_label)
+    column_type = (body.column_type or "text").strip()
+    if column_type not in _WORKSPACE_COLUMN_TYPES:
+        raise HTTPException(status_code=400, detail=f"Tipe kolom '{column_type}' belum didukung")
+    existing = db.query(WorkspaceColumn).filter(WorkspaceColumn.sheet_id == sheet_id, WorkspaceColumn.column_key == column_key).first()
     if existing:
-        raise HTTPException(status_code=400, detail=f"column_key '{body.column_key}' sudah ada")
+        raise HTTPException(status_code=400, detail=f"Field '{column_key}' sudah ada")
 
     max_order = db.query(func.max(WorkspaceColumn.column_order)).filter(WorkspaceColumn.sheet_id == sheet_id).scalar() or 0
     col = WorkspaceColumn(
         id=str(uuid.uuid4()),
         sheet_id=sheet_id,
-        column_key=body.column_key,
-        column_label=body.column_label,
-        column_type=body.column_type,
-        column_options=json.dumps(body.column_options or []),
+        column_key=column_key,
+        column_label=(body.column_label or column_key).strip(),
+        column_type=column_type,
+        column_options=_workspace_column_options(body.column_options),
         column_order=body.column_order if body.column_order is not None else max_order + 1,
         is_system=False,
         created_at=datetime.now(timezone.utc).isoformat(),
@@ -947,7 +1062,39 @@ def add_workspace_column(sheet_id: str, body: WorkspaceColumnIn, current_user: U
         db.add(WorkspaceCell(id=str(uuid.uuid4()), row_id=row.id, column_id=col.id))
     db.commit()
 
-    return {"id": col.id, "column_key": col.column_key, "column_label": col.column_label, "column_type": col.column_type, "column_order": col.column_order}
+    return _workspace_column_out(col)
+
+
+@router.patch("/api/workspace/column/{column_id}")
+def update_workspace_column(column_id: str, body: WorkspaceColumnUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    col = db.query(WorkspaceColumn).filter(WorkspaceColumn.id == column_id).first()
+    if not col:
+        raise HTTPException(status_code=404, detail="Column tidak ditemukan")
+
+    if body.column_label is not None:
+        label = body.column_label.strip()
+        if not label:
+            raise HTTPException(status_code=400, detail="Nama field wajib diisi")
+        col.column_label = label
+
+    if body.column_order is not None:
+        col.column_order = body.column_order
+
+    if col.is_system and (body.column_type is not None or body.column_options is not None):
+        raise HTTPException(status_code=400, detail="Kolom sistem hanya bisa diganti label/urutan, bukan tipe field")
+
+    if not col.is_system and body.column_type is not None:
+        column_type = body.column_type.strip()
+        if column_type not in _WORKSPACE_COLUMN_TYPES:
+            raise HTTPException(status_code=400, detail=f"Tipe kolom '{column_type}' belum didukung")
+        col.column_type = column_type
+
+    if not col.is_system and body.column_options is not None:
+        col.column_options = _workspace_column_options(body.column_options)
+
+    db.commit()
+    db.refresh(col)
+    return _workspace_column_out(col)
 
 
 
@@ -964,6 +1111,21 @@ def delete_workspace_column(column_id: str, current_user: User = Depends(require
     db.commit()
 
 
+@router.patch("/api/workspace/sheet/{sheet_id}/reorder-columns")
+def reorder_workspace_columns(sheet_id: str, body: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    column_ids = body.get("column_ids", [])
+    if not isinstance(column_ids, list):
+        raise HTTPException(status_code=400, detail="column_ids wajib berupa list")
+    cols = db.query(WorkspaceColumn).filter(WorkspaceColumn.sheet_id == sheet_id).all()
+    col_by_id = {c.id: c for c in cols}
+    for i, cid in enumerate(column_ids):
+        col = col_by_id.get(cid)
+        if col:
+            col.column_order = i
+    db.commit()
+    return {"success": True}
+
+
 
 @router.patch("/api/workspace/sheet/{sheet_id}/reorder-rows")
 def reorder_workspace_rows(sheet_id: str, body: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -974,6 +1136,53 @@ def reorder_workspace_rows(sheet_id: str, body: dict, current_user: User = Depen
             row.row_order = i
     db.commit()
     return {"success": True}
+
+
+@router.post("/api/workspace/row/{row_id}/duplicate")
+def duplicate_workspace_row(row_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    source = db.query(WorkspaceRow).filter(WorkspaceRow.id == row_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Row tidak ditemukan")
+    insert_order = (source.row_order or 0) + 1
+    db.query(WorkspaceRow).filter(
+        WorkspaceRow.sheet_id == source.sheet_id,
+        WorkspaceRow.row_order >= insert_order,
+    ).update({WorkspaceRow.row_order: WorkspaceRow.row_order + 1}, synchronize_session=False)
+
+    now = datetime.now(timezone.utc).isoformat()
+    row = WorkspaceRow(
+        id=str(uuid.uuid4()),
+        sheet_id=source.sheet_id,
+        row_order=insert_order,
+        is_template=False,
+        created_at=now,
+    )
+    db.add(row)
+    db.flush()
+
+    cells = db.query(WorkspaceCell).filter(WorkspaceCell.row_id == source.id).all()
+    for cell in cells:
+        db.add(WorkspaceCell(
+            id=str(uuid.uuid4()),
+            row_id=row.id,
+            column_id=cell.column_id,
+            value_text=cell.value_text,
+            value_bool=cell.value_bool,
+            value_number=cell.value_number,
+            value_date=cell.value_date,
+            value_json=cell.value_json,
+            updated_at=now,
+        ))
+    db.commit()
+
+    try:
+        sync_row_to_board(row.id, db)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Row berhasil diduplikasi, tapi sync ke board gagal: {e}")
+
+    copied_cells = db.query(WorkspaceCell).filter(WorkspaceCell.row_id == row.id).all()
+    cells_map = {c.column_id: {"id": c.id, "value_text": c.value_text, "value_bool": c.value_bool, "value_number": c.value_number, "value_date": c.value_date} for c in copied_cells}
+    return {"id": row.id, "row_order": row.row_order, "board_card_id": row.board_card_id, "is_template": row.is_template, "cells": cells_map}
 
 
 
@@ -1319,7 +1528,7 @@ def generate_monthly_report(
         "artikel_tracker": artikel_tracker,
     }
 
-    brand = _build_brand_context(db)
+    brand = build_brand_context(db)
     rendered_html = _render_monthly_report_html(data, brand)
 
     file_id = str(uuid.uuid4())
@@ -1327,10 +1536,9 @@ def generate_monthly_report(
     pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
 
     try:
-        from weasyprint import HTML
-        HTML(string=rendered_html, url_fetcher=_pdf_url_fetcher).write_pdf(pdf_path)
-    except ImportError:
-        raise HTTPException(status_code=500, detail="WeasyPrint tidak terinstall. Jalankan: pip install weasyprint")
+        pdf_bytes = render_pdf_from_html(rendered_html, UPLOADS_DIR)
+        with open(pdf_path, "wb") as pdf_file:
+            pdf_file.write(pdf_bytes)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"PDF generation gagal: {e}")
 

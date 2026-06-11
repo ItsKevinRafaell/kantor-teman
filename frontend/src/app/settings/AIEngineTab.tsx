@@ -31,11 +31,8 @@ const PROVIDER_OPTIONS = [
 ];
 
 const FEATURES = [
-  { key: "chat", label: "Chat & Agent" },
   { key: "article", label: "Generate Artikel SEO" },
-  { key: "image", label: "Generate Gambar" },
   { key: "analysis", label: "Analisa Lead" },
-  { key: "caption", label: "Generate Caption Sosmed" },
 ] as const;
 
 export default function AIEngineTab() {
@@ -156,11 +153,11 @@ export default function AIEngineTab() {
       <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 space-y-4">
         <div>
           <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Provider Default</h2>
-          <p className="text-xs text-neutral-500 mt-1">Provider aktif yang digunakan CRM untuk semua AI call (bisa di-override per fitur di bawah).</p>
+          <p className="text-xs text-neutral-500 mt-1">Provider aktif untuk Artikel SEO dan Analisa Lead.</p>
         </div>
         {proxies.length === 0 ? (
           <div className="p-6 text-center">
-            <p className="text-sm text-neutral-500 mb-3">Belum ada provider config. Tambahkan di section "AI Proxies" di bawah.</p>
+            <p className="text-sm text-neutral-500 mb-3">Belum ada provider AI. Tambahkan base URL, API key, dan model di bawah.</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -186,8 +183,8 @@ export default function AIEngineTab() {
       {/* Model Override per Fitur */}
       <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 space-y-4">
         <div>
-          <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Model Override per Fitur</h2>
-          <p className="text-xs text-neutral-500 mt-1">Override provider default untuk fitur tertentu. Kosong = pakai provider aktif di atas.</p>
+          <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Model per Fitur</h2>
+          <p className="text-xs text-neutral-500 mt-1">Kosongkan jika semua fitur memakai provider aktif yang sama.</p>
         </div>
         <div className="space-y-3">
           {FEATURES.map(f => (

@@ -39,3 +39,53 @@ class UserUpdate(BaseModel):
     name: Optional[str] = None
     current_password: Optional[str] = None
     new_password: Optional[str] = None
+
+
+class UserCreate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=255)
+    email: str
+    password: str = Field(..., min_length=8, max_length=128)
+    role: str = "member"
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", v):
+            raise ValueError("Format email tidak valid")
+        if len(v) > 254:
+            raise ValueError("Email terlalu panjang")
+        return v
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: str) -> str:
+        if v not in {"admin", "member"}:
+            raise ValueError("Role harus admin atau member")
+        return v
+
+
+class UserAdminUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=2, max_length=255)
+    email: Optional[str] = None
+    password: Optional[str] = Field(None, min_length=8, max_length=128)
+    role: Optional[str] = None
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        v = v.strip().lower()
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", v):
+            raise ValueError("Format email tidak valid")
+        if len(v) > 254:
+            raise ValueError("Email terlalu panjang")
+        return v
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in {"admin", "member"}:
+            raise ValueError("Role harus admin atau member")
+        return v

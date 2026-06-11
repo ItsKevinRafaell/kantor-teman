@@ -26,6 +26,9 @@ class Proposal(Base):
     roi_data = Column(Text, nullable=True)
     accepted_at = Column(String(255), nullable=True)
     rejected_at = Column(String(255), nullable=True)
+    report_open_count = Column(Integer, default=0, nullable=False)
+    last_report_viewed_at = Column(String(255), nullable=True)
+    max_report_duration_seconds = Column(Integer, default=0, nullable=False)
     lead = relationship("Lead", backref="proposals")
 
 
@@ -47,3 +50,6 @@ class ProposalAnalytics(Base):
     sections_viewed = Column(Text, default="[]")
     event = Column(String(50), nullable=True)
     duration_seconds = Column(Integer, nullable=True)
+    visitor_hash = Column(String(64), nullable=True)
+    source = Column(String(50), nullable=True)
+    metadata_json = Column(Text, nullable=True)

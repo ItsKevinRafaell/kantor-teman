@@ -37,6 +37,8 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
   // Sales modal (inline)
   const [salesModal, setSalesModal] = useState<{ open: boolean; lead: any | null }>({ open: false, lead: null });
   const [salesForm, setSalesForm] = useState({ sales_owner: "", next_action_at: "", loss_reason: "", do_not_contact: false });
+  const [scoreModal, setScoreModal] = useState<{ open: boolean; lead: any | null }>({ open: false, lead: null });
+  const [scoreForm, setScoreForm] = useState({ adjustment: 0, reason: "" });
 
   // Add/Edit lead
   const [addLeadModal, setAddLeadModal] = useState(false);
@@ -65,8 +67,8 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
 
   async function handleRecalculateAll() {
     setRecalculating(true);
-    try { await recalculate(); showToast("Score dihitung ulang."); }
-    catch { showToast("Gagal recalculate", "error"); }
+    try { await recalculate(); showToast("Score berhasil dihitung ulang."); }
+    catch { showToast("Gagal menghitung ulang score", "error"); }
     finally { setRecalculating(false); }
   }
 
@@ -131,6 +133,30 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
     try { await updateProduct(id, product_interest); showToast("Layanan diupdate."); }
     catch (err: unknown) { showToast(err instanceof Error ? err.message : "Gagal update layanan.", "error"); }
     finally { setUpdating(null); }
+  }
+
+  function openScoreModal(lead: any) {
+    setScoreForm({ adjustment: lead.score_adjustment || 0, reason: lead.score_adjustment_reason || "" });
+    setScoreModal({ open: true, lead });
+  }
+
+  async function saveScoreAdjustment() {
+    if (!scoreModal.lead) return;
+    try {
+      const res = await apiFetch(`/api/leads/${scoreModal.lead.id}/score-adjustment`, {
+        method: "PATCH",
+        body: JSON.stringify({ adjustment: Number(scoreForm.adjustment) || 0, reason: scoreForm.reason }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.detail || "Gagal menyimpan adjustment score.");
+      }
+      showToast("Adjustment score tersimpan.");
+      setScoreModal({ open: false, lead: null });
+      await refresh();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Gagal menyimpan adjustment score.", "error");
+    }
   }
 
   function openSalesModal(lead: any) {
@@ -424,7 +450,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setBlastOpen(false)} className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl transition-colors">Batal</button>
-              <button onClick={handleStartBlast} disabled={blasting || !blastBatch || !blastTemplateId}
+              <button onClick={handleStartBlast} disabled={blasting || !blastBatch || !blastTemplateId || (blastSendMode === "scheduled" && !blastScheduledFor)}
                 className="px-4 py-2 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-all disabled:opacity-50">
                 {blasting ? "Mengirim..." : "Mulai Kirim Blast"}
               </button>
@@ -480,17 +506,19 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
               <LeadsTableBody
                 leads={leads} filters={filters} searchQuery={searchQuery}
                 blastCategories={blastCategories} updating={updating}
+                page={leadsPage} pageSize={LEADS_PAGE_SIZE}
                 onUpdateStatus={handleUpdateStatus} onUpdateProduct={handleUpdateProduct}
                 onChatWA={handleChatWA} onFollowUp={handleFollowUp} onStartSequence={startSequence}
                 onOpenSales={openSalesModal} onConvert={lead => setConvertModal({ open: true, lead })}
+                onAdjustScore={openScoreModal}
                 onEdit={openEditLead} onArchive={lead => setDeleteModal({ open: true, id: lead.id, name: lead.business_name })}
                 onRestore={handleRestore}
               />
             </tbody>
           </table>
-          <Pagination page={leadsPage} pageSize={LEADS_PAGE_SIZE} total={leads.length} onPageChange={p => setLeadsPage(p)} itemLabel="lead" />
+          <Pagination page={leadsPage} pageSize={LEADS_PAGE_SIZE} total={leads.length} onPageChange={p => setLeadsPage(p)} itemLabel="prospek" />
           <div className="px-4 py-2 bg-gray-50 dark:bg-[var(--bg-surface)] border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400">
-            {leads.length} lead{leads.length !== 1 ? "s" : ""}
+            {leads.length} prospek
             {filters.batch && <span className="ml-2 text-amber-400">· {filters.batch}</span>}
             {filters.rating > 0 && <span className="ml-2 text-amber-400">· Min. {filters.rating} Bintang</span>}
           </div>
@@ -498,7 +526,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
       )}
 
       {/* Add Lead */}
-      <Modal open={addLeadModal} title="Tambah Lead Baru" confirmLabel={savingLead ? "Menyimpan..." : "Simpan"} onConfirm={handleCreateLead} onCancel={() => setAddLeadModal(false)}>
+      <Modal open={addLeadModal} title="Tambah Prospek Baru" confirmLabel={savingLead ? "Menyimpan..." : "Simpan"} onConfirm={handleCreateLead} onCancel={() => setAddLeadModal(false)}>
         <div className="space-y-3">
           <input type="text" placeholder="Nama Bisnis *" value={leadForm.business_name} onChange={e => setLeadForm(f => ({ ...f, business_name: e.target.value }))}
             className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
@@ -528,6 +556,19 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
             <option value="">— Pilih Layanan —</option>
             {blastCategories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
+        </div>
+      </Modal>
+
+      <Modal open={scoreModal.open} title="Adjustment Score" confirmLabel="Simpan" onConfirm={saveScoreAdjustment} onCancel={() => setScoreModal({ open: false, lead: null })}>
+        <div className="space-y-3">
+          <p className="text-xs text-gray-500">{scoreModal.lead?.business_name}</p>
+          <label className="block text-xs font-semibold text-gray-500">Adjustment (-50 sampai +50)</label>
+          <input type="number" min={-50} max={50} value={scoreForm.adjustment} onChange={e => setScoreForm(f => ({ ...f, adjustment: Number(e.target.value) }))}
+            className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
+          <label className="block text-xs font-semibold text-gray-500">Alasan</label>
+          <textarea value={scoreForm.reason} onChange={e => setScoreForm(f => ({ ...f, reason: e.target.value }))}
+            className="w-full min-h-[90px] px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition"
+            placeholder="Contoh: prospek sudah minta proposal lewat WA." />
         </div>
       </Modal>
     </div>

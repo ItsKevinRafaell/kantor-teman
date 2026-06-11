@@ -7,6 +7,8 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
+from app.constants import LeadStatus, lead_status_label
+from app.services.scoring_service import recalculate_lead_score_with_context
 from models import Lead, LeadActivityLog, BlastMessage, AuditLog
 from schemas import LeadOut, StatusUpdate
 
@@ -16,6 +18,9 @@ from schemas import LeadOut, StatusUpdate
 VALID_STATUSES = [
     "Scraped", "Hot", "Replied", "Follow-up", "Qualified",
     "Negotiating", "Won", "Closed/Client", "Closed/Lost",
+    "Contacted", "Siap Blast", "WA Terkirim", "Laporan Dibuka",
+    "Mulai Membaca", "Membaca Serius", "Prospek Hangat", "Prospek Panas",
+    "Follow Up", "Proposal Dikirim", "Deal", "Klien Aktif", "Selesai",
 ]
 
 
@@ -95,6 +100,10 @@ def get_leads_with_ghost_viewer_flag(
             website_url=lead.website_url, sales_owner=lead.sales_owner,
             next_action_at=lead.next_action_at, loss_reason=lead.loss_reason,
             do_not_contact=bool(lead.do_not_contact),
+            status_label=lead_status_label(lead.status),
+            score_adjustment=lead.score_adjustment or 0,
+            score_adjustment_reason=lead.score_adjustment_reason,
+            score_updated_at=lead.score_updated_at,
         ))
     return results
 
@@ -136,9 +145,7 @@ def update_lead_status(
 
     # Recalculate score
     if recalculate_score:
-        # Import here to avoid circular dependency
-        from app.core.dependencies import calculate_lead_score_full
-        new_score, _ = calculate_lead_score_full(lead)
+        new_score, _ = recalculate_lead_score_with_context(db, lead)
         lead.lead_score = new_score
 
     db.commit()
@@ -157,25 +164,21 @@ def update_lead_status(
 
 def recalculate_lead_score(db: Session, lead_id: int) -> tuple[int, dict]:
     """Recalculate score for a single lead. Returns (score, breakdown)."""
-    from app.core.dependencies import calculate_lead_score_full
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise ValueError("Lead tidak ditemukan")
-    score, breakdown = calculate_lead_score_full(lead)
-    lead.lead_score = score
+    score, breakdown = recalculate_lead_score_with_context(db, lead)
     db.commit()
     return score, breakdown
 
 
 def recalculate_all_lead_scores(db: Session) -> dict:
     """Batch recalculate scores for all non-archived leads."""
-    from app.core.dependencies import calculate_lead_score_full
     leads = db.query(Lead).filter(Lead.is_archived == False).all()
     updated = 0
     for lead in leads:
-        new_score, _ = calculate_lead_score_full(lead)
+        new_score, _ = recalculate_lead_score_with_context(db, lead)
         if lead.lead_score != new_score:
-            lead.lead_score = new_score
             updated += 1
     db.commit()
     return {"total": len(leads), "updated": updated}

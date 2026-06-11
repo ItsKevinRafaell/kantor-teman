@@ -27,6 +27,12 @@ from app.services.lead_service import (
     recalculate_lead_score as _svc_recalculate_lead_score,
     recalculate_all_lead_scores,
 )
+from app.services.scoring_service import (
+    get_scoring_settings,
+    save_scoring_settings,
+    set_manual_score_adjustment,
+)
+from app.constants import CLIENT_STATUS_VALUES
 from app.core.cache import cached, clear_cache_prefix
 
 router = APIRouter()
@@ -188,8 +194,9 @@ async def search_businesses(
 
 
 @router.get("/api/leads/map")
-@cached(ttl_seconds=30, key_func=lambda r: f"cache:/api/leads/map")
+@cached(ttl_seconds=30, key_func=lambda r: f"cache:/api/leads/map?{r.url.query}")
 def get_leads_map(
+    request: Request,
     status: Optional[str] = Query(None),
     batch_name: Optional[str] = Query(None),
     product_interest: Optional[str] = Query(None),
@@ -239,8 +246,9 @@ class LeadEdit(BaseModel):
 
 
 @router.get("/api/leads", response_model=list[LeadOut])
-@cached(ttl_seconds=30, key_func=lambda r: f"cache:/api/leads")
+@cached(ttl_seconds=30, key_func=lambda r: f"cache:/api/leads?{r.url.query}")
 def list_leads(
+    request: Request,
     status: Optional[str] = Query(None),
     batch_name: Optional[str] = Query(None),
     include_archived: bool = Query(False),
@@ -342,10 +350,36 @@ def recalculate_all_scores(current_user: User = Depends(get_current_user), db: S
     return recalculate_all_lead_scores(db)
 
 
+@router.get("/api/leads/scoring-settings")
+def get_lead_scoring_settings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return {"settings": get_scoring_settings(db)}
+
+
+@router.put("/api/leads/scoring-settings")
+def update_lead_scoring_settings(body: ScoringSettingsUpdate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    settings = save_scoring_settings(db, body.settings, current_user.name)
+    result = recalculate_all_lead_scores(db)
+    return {"settings": settings, "recalculated": result}
+
+
 
 @router.post("/api/leads/{lead_id}/recalculate")
 def recalculate_lead_score(lead_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     score, breakdown = _svc_recalculate_lead_score(db, lead_id)
+    return {"lead_id": lead_id, "score": score, "breakdown": breakdown}
+
+
+@router.patch("/api/leads/{lead_id}/score-adjustment")
+def update_lead_score_adjustment(
+    lead_id: int,
+    body: ScoreAdjustmentUpdate,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    try:
+        score, breakdown = set_manual_score_adjustment(db, lead_id, body.adjustment, body.reason, current_user.name)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     return {"lead_id": lead_id, "score": score, "breakdown": breakdown}
 
 
@@ -354,7 +388,7 @@ def recalculate_lead_score(lead_id: int, current_user: User = Depends(get_curren
 def get_top_scored_leads(limit: int = 10, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     leads = db.query(Lead).filter(
         Lead.is_archived == False,
-        Lead.status.notin_(["Closed/Client", "Closed/Lost"]),
+        Lead.status.notin_(list(CLIENT_STATUS_VALUES) + ["Closed/Lost"]),
     ).order_by(Lead.lead_score.desc()).limit(limit).all()
     return [
         {
@@ -658,8 +692,8 @@ def generate_report_endpoint(lead_id: int, current_user: User = Depends(get_curr
     if not lead:
         raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
     slug = generate_report_for_lead(lead, db)
-    frontend_url = _get_setting("frontend_url", os.environ.get("FRONTEND_URL", "https://kantorteman.my.id"))
-    return {"slug": slug, "report_url": f"https://api.kantorteman.my.id/r/{slug}"}
+    frontend_url = (_get_setting("frontend_url", os.environ.get("FRONTEND_URL", FRONTEND_URL)) or FRONTEND_URL).rstrip("/")
+    return {"slug": slug, "report_url": f"{frontend_url}/r/{slug}"}
 
 
 
@@ -740,6 +774,7 @@ async def analyze_batch(
     leads = db.query(Lead).filter(Lead.batch_name == batch_name, Lead.is_archived == False).all()
     already_analyzed = {a.lead_id for a in db.query(LeadAnalysis.lead_id).all()}
     to_analyze = [l for l in leads if l.id not in already_analyzed]
+    lead_ids_to_analyze = [l.id for l in to_analyze]
     if not to_analyze:
         return {"message": "Semua lead di batch ini sudah dianalisa.", "analyzed": 0, "total": 0, "status": "done"}
 
@@ -749,7 +784,7 @@ async def analyze_batch(
 
     # Store job status in memory
     job_id = batch_name
-    _analysis_jobs[job_id] = {"status": "running", "total": len(to_analyze), "analyzed": 0, "batch_name": batch_name}
+    _analysis_jobs[job_id] = {"status": "running", "total": len(lead_ids_to_analyze), "analyzed": 0, "failed": 0, "batch_name": batch_name}
 
     # Run in background thread (WSGI kills event loop after response)
     def run_analysis_sync():
@@ -772,12 +807,20 @@ async def analyze_batch(
             _product_list = "\n".join([f"- {p.name}: {p.description or ''}" for p in _products]) if _products else "- SEO\n- Web Development"
             _db.close()
             analyzed = 0
-            for lead in to_analyze[:20]:
-                prompt = build_analysis_prompt(lead, _product_list)
+            for lead_id in lead_ids_to_analyze:
+                _db = _Session()
                 try:
+                    lead = _db.query(Lead).filter(Lead.id == lead_id, Lead.is_archived == False).first()
+                    if not lead:
+                        _db.close()
+                        continue
+                    existing = _db.query(LeadAnalysis.id).filter(LeadAnalysis.lead_id == lead.id).first()
+                    if existing:
+                        _db.close()
+                        continue
+                    prompt = build_analysis_prompt(lead, _product_list)
                     text = _call_ai_sync(prompt, _config, _httpx)
                     parsed = parse_ai_response(text)
-                    _db = _Session()
                     _db.add(LeadAnalysis(
                         lead_id=lead.id,
                         analysis=text,
@@ -789,11 +832,11 @@ async def analyze_batch(
                     _db.close()
                     analyzed += 1
                     _analysis_jobs[job_id]["analyzed"] = analyzed
-                    print(f"[AI ANALYZE PROGRESS] {analyzed}/{len(to_analyze)} lead_id={lead.id}", flush=True)
+                    print(f"[AI ANALYZE PROGRESS] {analyzed}/{len(lead_ids_to_analyze)} lead_id={lead.id}", flush=True)
                     _time.sleep(1)
                 except Exception as e:
                     import traceback
-                    print(f"[AI ANALYZE ERROR] lead={lead.id} error={e}", flush=True)
+                    print(f"[AI ANALYZE ERROR] lead={lead_id} error={e}", flush=True)
                     traceback.print_exc()
                     _analysis_jobs[job_id]["error"] = str(e)
                     _analysis_jobs[job_id]["failed"] = _analysis_jobs[job_id].get("failed", 0) + 1
@@ -804,7 +847,7 @@ async def analyze_batch(
                     continue
             _analysis_jobs[job_id]["status"] = "done"
             _analysis_jobs[job_id]["analyzed"] = analyzed
-            print(f"[AI ANALYZE DONE] analyzed={analyzed}/{len(to_analyze)} failed={_analysis_jobs[job_id].get('failed', 0)}", flush=True)
+            print(f"[AI ANALYZE DONE] analyzed={analyzed}/{len(lead_ids_to_analyze)} failed={_analysis_jobs[job_id].get('failed', 0)}", flush=True)
         except Exception as e:
             import traceback
             print(f"[AI ANALYZE FATAL] error={e}", flush=True)
@@ -816,7 +859,7 @@ async def analyze_batch(
 
     import threading
     threading.Thread(target=run_analysis_sync, daemon=True).start()
-    return {"message": f"Analisa dimulai untuk {len(to_analyze)} leads.", "analyzed": 0, "total": len(to_analyze), "status": "running", "job_id": job_id}
+    return {"message": f"Analisa dimulai untuk {len(lead_ids_to_analyze)} leads.", "analyzed": 0, "total": len(lead_ids_to_analyze), "status": "running", "job_id": job_id}
 
 
 # In-memory job tracker
@@ -834,6 +877,3 @@ def get_analyze_status(
     if not job:
         return {"status": "idle", "analyzed": 0, "total": 0}
     return job
-
-
-

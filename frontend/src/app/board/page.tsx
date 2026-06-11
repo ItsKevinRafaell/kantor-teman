@@ -1,7 +1,8 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { apiFetch } from "../../lib/api";
-import { User } from "lucide-react";
+import { Search, User } from "lucide-react";
+import type { DragEvent } from "react";
 import Toast from "../../components/Toast";
 import ConfirmModal from "../../components/ConfirmModal";
 import { useAuth } from "../../contexts/AuthContext";
@@ -11,12 +12,13 @@ import BoardHeader from "../../components/board/BoardHeader";
 import { ColumnModal, ProjectModal, EditProjectModal } from "../../components/board/BoardModals";
 import { CardModal } from "../../components/board/CardModal";
 import { COLUMN_COLORS, BOARD_TOP_BORDER } from "../../components/board/types";
-import type { Lead, Project, BoardCard, BoardColumn, Board, BoardOverview } from "../../components/board/types";
+import type { Lead, Project, BoardCard, BoardColumn, Board, BoardOverview, BoardUser } from "../../components/board/types";
 
 export default function BoardPage() {
   const { isAdmin } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [users, setUsers] = useState<BoardUser[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>("");
   const [board, setBoard] = useState<Board | null>(null);
   const [overview, setOverview] = useState<BoardOverview[]>([]);
@@ -28,6 +30,9 @@ export default function BoardPage() {
   const [cardForm, setCardForm] = useState({ title: "", description: "", due_date: "", labels: [] as string[], assignee: "", lead_id: null as number | null, color: "gray" });
   const [saving, setSaving] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterAssignee, setFilterAssignee] = useState("");
+  const [filterDue, setFilterDue] = useState("");
 
   const [columnModal, setColumnModal] = useState<{ open: boolean; column: BoardColumn | null }>({ open: false, column: null });
   const [columnName, setColumnName] = useState("");
@@ -38,6 +43,7 @@ export default function BoardPage() {
 
   const [draggedCard, setDraggedCard] = useState<{ card: BoardCard; fromColumn: string } | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+  const draggedCardRef = useRef<{ card: BoardCard; fromColumn: string } | null>(null);
 
   const [confirmModal, setConfirmModal] = useState<{ open: boolean; title: string; message: string; onConfirm: () => void } | null>(null);
   function showConfirm(title: string, message: string, onConfirm: () => void) {
@@ -52,11 +58,18 @@ export default function BoardPage() {
   async function fetchProjects() { try { const r = await apiFetch("/api/projects"); if (r.ok) setProjects(await r.json()); } catch {} }
   async function fetchOverview(archived = false) { try { const r = await apiFetch(`/api/boards/overview?show_archived=${archived}`); if (r.ok) setOverview(await r.json()); } catch {} finally { setLoading(false); } }
   async function fetchLeads() { try { const r = await apiFetch("/api/leads"); if (r.ok) setLeads(await r.json()); } catch {} }
-  async function fetchBoard(projectId: string) { try { const r = await apiFetch(`/api/projects/${projectId}/board`); if (r.ok) setBoard(await r.json()); } catch {} }
+  async function fetchUsers() { try { const r = await apiFetch("/api/users"); if (r.ok) setUsers(await r.json()); } catch {} }
+  async function fetchBoard(projectId: string, includeArchived = showArchived) {
+    try {
+      const suffix = includeArchived ? "?include_archived=true" : "";
+      const r = await apiFetch(`/api/projects/${projectId}/board${suffix}`);
+      if (r.ok) setBoard(await r.json());
+    } catch {}
+  }
 
-  useEffect(() => { fetchProjects(); fetchOverview(false); fetchLeads(); }, []);
+  useEffect(() => { fetchProjects(); fetchOverview(false); fetchLeads(); fetchUsers(); }, []);
   useEffect(() => { fetchOverview(showArchivedProjects); }, [showArchivedProjects]);
-  useEffect(() => { if (selectedProject) { fetchBoard(selectedProject); setViewMode("board"); } else { setBoard(null); setViewMode("overview"); } }, [selectedProject]);
+  useEffect(() => { if (selectedProject) { fetchBoard(selectedProject, showArchived); setViewMode("board"); } else { setBoard(null); setViewMode("overview"); } }, [selectedProject, showArchived]);
 
   // Project CRUD
   async function createProject() {
@@ -99,29 +112,53 @@ export default function BoardPage() {
   }
 
   async function archiveCard(cardId: string, isArchived: boolean) {
-    try { const res = await apiFetch(`/api/board-cards/${cardId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ is_archived: isArchived }) }); if (res.ok) { await fetchBoard(selectedProject); setCardModal({ open: false, card: null, columnId: "" }); setToast({ message: isArchived ? "Card diarsipkan" : "Card dipulihkan", type: "success" }); } }
+    try {
+      const res = await apiFetch(`/api/board-cards/${cardId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ is_archived: isArchived }) });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setToast({ message: err.detail || "Gagal arsipkan card", type: "error" });
+        return;
+      }
+      const updated = await res.json();
+      setBoard(prev => prev ? { ...prev, columns: prev.columns.map(col => ({ ...col, cards: (col.cards || []).map(c => c.id === cardId ? { ...c, ...updated } : c) })) } : prev);
+      await fetchBoard(selectedProject, showArchived);
+      setCardModal({ open: false, card: null, columnId: "" });
+      setToast({ message: isArchived ? "Card diarsipkan" : "Card dipulihkan", type: "success" });
+    }
     catch { setToast({ message: "Gagal arsipkan card", type: "error" }); }
   }
 
   async function deleteCard(cardId: string) {
-    try { const res = await apiFetch(`/api/board-cards/${cardId}`, { method: "DELETE" }); if (res.ok) { setBoard(prev => prev ? { ...prev, columns: prev.columns.map(col => ({ ...col, cards: (col.cards || []).filter(c => c.id !== cardId) })) } : prev); setCardModal({ open: false, card: null, columnId: "" }); setToast({ message: "Card dihapus", type: "success" }); } }
+    try { const res = await apiFetch(`/api/board-cards/${cardId}`, { method: "DELETE" }); if (res.ok) { setBoard(prev => prev ? { ...prev, columns: prev.columns.map(col => ({ ...col, cards: (col.cards || []).filter(c => c.id !== cardId) })) } : prev); setCardModal({ open: false, card: null, columnId: "" }); setToast({ message: "Card dihapus", type: "success" }); } else { const err = await res.json().catch(() => ({})); setToast({ message: err.detail || "Gagal hapus card", type: "error" }); } }
     catch { setToast({ message: "Gagal hapus card", type: "error" }); }
   }
 
   async function moveCard(cardId: string, toColumnId: string, toPosition?: number) {
-    try { const res = await apiFetch(`/api/board-cards/${cardId}/move`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ column_id: toColumnId, position: toPosition }) }); if (res.ok && selectedProject) fetchBoard(selectedProject); }
-    catch { setToast({ message: "Gagal memindahkan card", type: "error" }); }
+    try {
+      const res = await apiFetch(`/api/board-cards/${cardId}/move`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ column_id: toColumnId, position: toPosition }) });
+      if (res.ok) {
+        if (selectedProject) fetchBoard(selectedProject, showArchived);
+        return;
+      }
+      const err = await res.json().catch(() => ({}));
+      setToast({ message: err.detail || "Gagal memindahkan card", type: "error" });
+      if (selectedProject) fetchBoard(selectedProject, showArchived);
+    }
+    catch {
+      setToast({ message: "Gagal memindahkan card", type: "error" });
+      if (selectedProject) fetchBoard(selectedProject, showArchived);
+    }
   }
 
   // Column CRUD
   async function createColumn() {
     if (!columnName.trim() || !board) return;
-    try { const res = await apiFetch(`/api/boards/${board.id}/columns`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: columnName, color: columnColor }) }); if (res.ok) { const newCol = await res.json(); setBoard(prev => prev ? { ...prev, columns: [...prev.columns, { ...newCol, cards: [] }] } : prev); setColumnName(""); setColumnColor("gray"); setColumnModal({ open: false, column: null }); setToast({ message: "Kolom dibuat", type: "success" }); } }
+    try { const res = await apiFetch(`/api/boards/${board.id}/columns`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: columnName, color: "gray" }) }); if (res.ok) { const newCol = await res.json(); setBoard(prev => prev ? { ...prev, columns: [...prev.columns, { ...newCol, cards: [] }] } : prev); setColumnName(""); setColumnColor("gray"); setColumnModal({ open: false, column: null }); setToast({ message: "Kolom dibuat", type: "success" }); } }
     catch { setToast({ message: "Gagal membuat kolom", type: "error" }); }
   }
 
   async function updateColumn(columnId: string) {
-    try { const res = await apiFetch(`/api/board-columns/${columnId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: columnName, color: columnColor }) }); if (res.ok) { const updated = await res.json(); setBoard(prev => prev ? { ...prev, columns: prev.columns.map(col => col.id === columnId ? { ...col, ...updated } : col) } : prev); setColumnModal({ open: false, column: null }); setToast({ message: "Kolom diupdate", type: "success" }); } }
+    try { const res = await apiFetch(`/api/board-columns/${columnId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: columnName, color: "gray" }) }); if (res.ok) { const updated = await res.json(); setBoard(prev => prev ? { ...prev, columns: prev.columns.map(col => col.id === columnId ? { ...col, ...updated } : col) } : prev); setColumnModal({ open: false, column: null }); setToast({ message: "Kolom diupdate", type: "success" }); } }
     catch { setToast({ message: "Gagal update kolom", type: "error" }); }
   }
 
@@ -133,7 +170,7 @@ export default function BoardPage() {
   // Checklist & Comments
   async function addChecklistItem(cardId: string, text: string) {
     if (!text.trim()) return;
-    try { const res = await apiFetch(`/api/board-cards/${cardId}/checklist`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) }); if (res.ok) { const item = await res.json(); setBoard(prev => prev ? { ...prev, columns: prev.columns.map(col => ({ ...col, cards: (col.cards || []).map(c => c.id === cardId ? { ...c, checklist: [...c.checklist, item] } : c) })) } : prev); setCardModal(prev => prev.card?.id === cardId ? { ...prev, card: { ...prev.card!, checklist: [...(prev.card!.checklist || []), item] } } : prev); refreshCardActivity(cardId); } else { setToast({ message: "Gagal tambah checklist", type: "error" }); } }
+    try { const res = await apiFetch(`/api/board-cards/${cardId}/checklist`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) }); if (res.ok) { const item = await res.json(); setBoard(prev => prev ? { ...prev, columns: prev.columns.map(col => ({ ...col, cards: (col.cards || []).map(c => c.id === cardId ? { ...c, checklist: [item, ...(c.checklist || [])] } : c) })) } : prev); setCardModal(prev => prev.card?.id === cardId ? { ...prev, card: { ...prev.card!, checklist: [item, ...(prev.card!.checklist || [])] } } : prev); refreshCardActivity(cardId); } else { setToast({ message: "Gagal tambah checklist", type: "error" }); } }
     catch { setToast({ message: "Gagal tambah checklist", type: "error" }); }
   }
 
@@ -146,28 +183,100 @@ export default function BoardPage() {
 
   async function addComment(cardId: string, content: string) {
     if (!content.trim()) return;
-    try { const res = await apiFetch(`/api/board-cards/${cardId}/comments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content }) }); if (res.ok) { const comment = await res.json(); setBoard(prev => prev ? { ...prev, columns: prev.columns.map(col => ({ ...col, cards: (col.cards || []).map(c => c.id === cardId ? { ...c, comments: [...c.comments, comment] } : c) })) } : prev); setCardModal(prev => prev.card?.id === cardId ? { ...prev, card: { ...prev.card!, comments: [...(prev.card!.comments || []), comment] } } : prev); refreshCardActivity(cardId); } else { setToast({ message: "Gagal tambah komentar", type: "error" }); } }
+    try { const res = await apiFetch(`/api/board-cards/${cardId}/comments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content }) }); if (res.ok) { const comment = await res.json(); setBoard(prev => prev ? { ...prev, columns: prev.columns.map(col => ({ ...col, cards: (col.cards || []).map(c => c.id === cardId ? { ...c, comments: [comment, ...(c.comments || [])] } : c) })) } : prev); setCardModal(prev => prev.card?.id === cardId ? { ...prev, card: { ...prev.card!, comments: [comment, ...(prev.card!.comments || [])] } } : prev); refreshCardActivity(cardId); } else { setToast({ message: "Gagal tambah komentar", type: "error" }); } }
     catch { setToast({ message: "Gagal tambah komentar", type: "error" }); }
   }
 
+  async function uploadCardAttachment(cardId: string, file: File) {
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/board-cards/${cardId}/attachments`, {
+        method: "POST",
+        body: form,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setToast({ message: err.detail || "Gagal upload file", type: "error" });
+        return;
+      }
+      const attachment = await res.json();
+      setBoard(prev => prev ? { ...prev, columns: prev.columns.map(col => ({ ...col, cards: (col.cards || []).map(c => c.id === cardId ? { ...c, attachments: [attachment, ...(c.attachments || [])] } : c) })) } : prev);
+      setCardModal(prev => prev.card?.id === cardId ? { ...prev, card: { ...prev.card!, attachments: [attachment, ...(prev.card!.attachments || [])] } } : prev);
+      refreshCardActivity(cardId);
+      setToast({ message: "File ditambahkan", type: "success" });
+    } catch {
+      setToast({ message: "Gagal upload file", type: "error" });
+    }
+  }
+
   async function refreshCardActivity(cardId: string) {
-    try { const res = await apiFetch(`/api/board-cards/${cardId}`); if (res.ok) { const updated = await res.json(); setCardModal(prev => prev.card?.id === cardId ? { ...prev, card: { ...prev.card!, activity: updated.activity || [] } } : prev); } } catch {}
+    try { const res = await apiFetch(`/api/board-cards/${cardId}`); if (res.ok) { const updated = await res.json(); setCardModal(prev => prev.card?.id === cardId ? { ...prev, card: { ...prev.card!, activity: updated.activity || [] } } : prev); setBoard(prev => prev ? { ...prev, columns: prev.columns.map(col => ({ ...col, cards: (col.cards || []).map(c => c.id === cardId ? { ...c, activity: updated.activity || c.activity || [] } : c) })) } : prev); } } catch {}
   }
 
   // Drag & Drop
-  function handleDragStart(card: BoardCard, fromColumn: string) { setDraggedCard({ card, fromColumn }); }
-  function handleDragEnd() { setDraggedCard(null); setDragOverColumn(null); }
-  function handleDrop(toColumnId: string) { if (draggedCard && draggedCard.fromColumn !== toColumnId) moveCard(draggedCard.card.id, toColumnId); setDraggedCard(null); setDragOverColumn(null); }
+  function handleDragStart(card: BoardCard, fromColumn: string) {
+    const payload = { card, fromColumn };
+    draggedCardRef.current = payload;
+    setDraggedCard(payload);
+  }
+  function handleDragEnd() {
+    draggedCardRef.current = null;
+    setDraggedCard(null);
+    setDragOverColumn(null);
+  }
+  function handleDrop(toColumnId: string, event?: DragEvent<HTMLDivElement>) {
+    const transferJson = event?.dataTransfer.getData("application/json");
+    const transferCardId = event?.dataTransfer.getData("text/plain");
+    let activeDrag = draggedCardRef.current || draggedCard;
+    if (!activeDrag && (transferJson || transferCardId) && board) {
+      let cardId = transferCardId;
+      let fromColumn = "";
+      if (transferJson) {
+        try {
+          const parsed = JSON.parse(transferJson);
+          cardId = parsed.cardId || cardId;
+          fromColumn = parsed.fromColumn || "";
+        } catch {}
+      }
+      for (const column of board.columns) {
+        const found = (column.cards || []).find(c => c.id === cardId);
+        if (found) {
+          activeDrag = { card: found, fromColumn: fromColumn || column.id };
+          break;
+        }
+      }
+    }
+    if (activeDrag && activeDrag.fromColumn !== toColumnId) {
+      setBoard(prev => prev ? {
+        ...prev,
+        columns: prev.columns.map(col => {
+          if (col.id === activeDrag!.fromColumn) {
+            return { ...col, cards: (col.cards || []).filter(c => c.id !== activeDrag!.card.id) };
+          }
+          if (col.id === toColumnId) {
+            return { ...col, cards: [...(col.cards || []), { ...activeDrag!.card, column_id: toColumnId }] };
+          }
+          return col;
+        }),
+      } : prev);
+      moveCard(activeDrag.card.id, toColumnId);
+    }
+    handleDragEnd();
+  }
   function formatDateTime(d: string) { return new Date(d).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); }
 
   // Card modal helpers
   function openNewCardModal(columnId: string) {
     setCardModal({ open: true, card: null, columnId });
-    setCardForm({ title: "", description: "", due_date: "", labels: [], assignee: localStorage.getItem("kt_name") || "", lead_id: null, color: "gray" });
+    const nonAdmin = users.filter(u => u.role !== "admin");
+    const fallback = nonAdmin[0]?.name || users.find(u => u.role === "admin")?.name || localStorage.getItem("kt_name") || "";
+    setCardForm({ title: "", description: "", due_date: "", labels: [], assignee: fallback, lead_id: null, color: "gray" });
   }
   async function openEditCardModal(card: BoardCard, columnId: string) {
     setCardModal({ open: true, card, columnId });
-    setCardForm({ title: card.title, description: card.description || "", due_date: card.due_date || "", labels: Array.isArray(card.labels) ? card.labels : [], assignee: card.assignee || "", lead_id: card.lead_id ?? null, color: card.color || "gray" });
+    setCardForm({ title: card.title, description: card.description || "", due_date: card.due_date || "", labels: Array.isArray(card.labels) ? card.labels : [], assignee: card.assignee || "", lead_id: card.lead_id ?? null, color: "gray" });
     try { const res = await apiFetch(`/api/board-cards/${card.id}`); if (res.ok) { const fresh = await res.json(); setCardModal(prev => prev.card?.id === card.id ? { ...prev, card: fresh } : prev); } } catch {}
   }
 
@@ -175,6 +284,11 @@ export default function BoardPage() {
 
   const currentProject = projects.find(p => p.id === selectedProject);
   const currentProjectLead = leads.find(l => l.id === currentProject?.lead_id);
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredOverview = overview.filter(item => {
+    if (!normalizedSearch) return true;
+    return [item.project_name, item.client_name].some(v => (v || "").toLowerCase().includes(normalizedSearch));
+  });
 
   return (
     <div className="h-full flex flex-col p-6">
@@ -195,16 +309,49 @@ export default function BoardPage() {
         </div>
       )}
 
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <label className="relative min-w-[240px] flex-1 max-w-md">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+          <input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder={viewMode === "overview" ? "Cari nama proyek atau klien..." : "Cari card, proyek, klien, atau PIC..."}
+            className="w-full rounded-xl border border-amber-100 bg-amber-50/40 py-2 pl-9 pr-3 text-sm outline-none focus:border-amber-300 focus:ring-2 focus:ring-amber-200 dark:border-amber-900/50 dark:bg-amber-950/10 dark:text-neutral-100"
+          />
+        </label>
+        {viewMode === "board" && (
+          <>
+            <select
+              value={filterAssignee}
+              onChange={e => setFilterAssignee(e.target.value)}
+              className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+            >
+              <option value="">Semua PIC</option>
+              {users.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+            </select>
+            <select
+              value={filterDue}
+              onChange={e => setFilterDue(e.target.value)}
+              className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+            >
+              <option value="">Semua deadline</option>
+              <option value="soon">Mendekati deadline</option>
+              <option value="overdue">Terlambat</option>
+            </select>
+          </>
+        )}
+      </div>
+
       {/* Overview */}
       {viewMode === "overview" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {overview.length === 0 && (
+          {filteredOverview.length === 0 && (
             <div className="col-span-full bg-white dark:bg-[var(--bg-canvas)] rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
-              <p className="text-neutral-500">Belum ada proyek dengan board.</p>
-              <p className="text-xs text-neutral-400 mt-1">Klik "Proyek Baru" untuk mulai.</p>
+              <p className="text-neutral-500">{overview.length === 0 ? "Belum ada proyek dengan board." : "Tidak ada proyek yang cocok."}</p>
+              <p className="text-xs text-neutral-400 mt-1">{overview.length === 0 ? "Klik \"Proyek Baru\" untuk mulai." : "Coba ubah kata pencarian."}</p>
             </div>
           )}
-          {overview.map(item => (
+          {filteredOverview.map(item => (
             <BoardOverviewCard
               key={item.project_id} item={item} projects={projects}
               onSelectProject={setSelectedProject}
@@ -230,8 +377,9 @@ export default function BoardPage() {
                 draggedCard={draggedCard}
                 dragOverColumn={dragOverColumn}
                 showArchived={showArchived}
-                filterAssignee=""
-                filterDue=""
+                filterAssignee={filterAssignee}
+                filterDue={filterDue}
+                searchQuery={searchQuery}
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
                 onDragOver={setDragOverColumn}
@@ -239,7 +387,7 @@ export default function BoardPage() {
                 onDrop={handleDrop}
                 onOpenEditCard={openEditCardModal}
                 onOpenNewCard={openNewCardModal}
-                onEditColumn={col => { const c = board?.columns.find((x: any) => x.id === col.id); setColumnModal({ open: true, column: c || { id: col.id, board_id: "", name: col.name, color: col.color, position: 0, cards: [] } }); setColumnName(col.name); setColumnColor(col.color || "gray"); }}
+                onEditColumn={col => { const c = board?.columns.find((x: any) => x.id === col.id); setColumnModal({ open: true, column: c || { id: col.id, board_id: "", name: col.name, color: "gray", position: 0, cards: [] } }); setColumnName(col.name); setColumnColor("gray"); }}
                 onDeleteColumn={(id, name) => showConfirm("Hapus Kolom", `Kolom "${name}" dan semua card di dalamnya akan dihapus permanen.`, () => deleteColumn(id))}
               />
             ))}
@@ -252,6 +400,7 @@ export default function BoardPage() {
         open={cardModal.open} card={cardModal.card} columnId={cardModal.columnId}
         cardForm={cardForm} setCardForm={setCardForm} saving={saving}
         currentProject={currentProject} currentProjectLead={currentProjectLead} leads={leads}
+        users={users}
         onCreateCard={() => createCard(cardModal.columnId)}
         onUpdateCard={() => cardModal.card && updateCard(cardModal.card.id)}
         onArchiveCard={() => cardModal.card && archiveCard(cardModal.card.id, !cardModal.card.is_archived)}
@@ -261,6 +410,7 @@ export default function BoardPage() {
         onAddChecklist={(text) => cardModal.card && addChecklistItem(cardModal.card.id, text)}
         onToggleChecklist={(itemId, isDone) => cardModal.card && toggleChecklist(cardModal.card.id, itemId, isDone)}
         onAddComment={(content) => cardModal.card && addComment(cardModal.card.id, content)}
+        onUploadAttachment={(file) => cardModal.card && uploadCardAttachment(cardModal.card.id, file)}
         formatDateTime={formatDateTime}
       />
 

@@ -18,7 +18,7 @@ export interface ContentGeneration {
   error_msg?: string; created_at: string;
 }
 
-export type Tool = "seo_article" | "image" | "caption";
+export type Tool = "seo_article";
 export type ToastState = { msg: string; type: "success" | "error" | "info" } | null;
 
 export interface ContentGenResult {
@@ -37,15 +37,11 @@ export type ContentBlock =
 // ─── Tool metadata ────────────────────────────────────────────────────────────
 
 export const TOOL_LABELS: Record<Tool, string> = {
-  seo_article: "SEO Article",
-  image: "Image Generator",
-  caption: "Caption Sosmed",
+  seo_article: "Artikel SEO",
 };
 
 export const TOOL_COLORS: Record<Tool, string> = {
-  seo_article: "bg-neutral-100 dark:bg-neutral-800/30 text-neutral-700 dark:text-neutral-300",
-  image: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
-  caption: "bg-neutral-100 dark:bg-neutral-800/30 text-neutral-700 dark:text-neutral-300",
+  seo_article: "bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300",
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────

@@ -3,9 +3,10 @@ import { inputCls, inputClsLarge } from "../../../lib/inputCls";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../../lib/api";
-import { Plus, Edit2, Trash2, X, Grid3X3 } from "lucide-react";
+import { Plus, Edit2, Trash2, X, Grid3X3, Search } from "lucide-react";
 import Modal from "../../../components/Modal";
 import Toast from "../../../components/Toast";
+import Pagination from "../../../components/Pagination";
 
 interface Category {
   id: string;
@@ -22,6 +23,10 @@ export default function CategoriesPage() {
   const [form, setForm] = useState({ name: "", description: "", is_active: true });
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 15;
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchCategories = useCallback(async () => {
@@ -36,6 +41,23 @@ export default function CategoriesPage() {
     intervalRef.current = setInterval(fetchCategories, 30000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchCategories]);
+
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredCategories = categories.filter(c => {
+    if (statusFilter === "active" && !c.is_active) return false;
+    if (statusFilter === "inactive" && c.is_active) return false;
+    if (!normalizedSearch) return true;
+    return [c.name, c.description || ""].some(v => v.toLowerCase().includes(normalizedSearch));
+  });
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(filteredCategories.length / PAGE_SIZE));
+    if (page > totalPages) setPage(totalPages);
+  }, [filteredCategories.length, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, searchQuery]);
 
   function openNew() {
     setEditing(null);
@@ -85,6 +107,8 @@ export default function CategoriesPage() {
     );
   }
 
+  const pagedCategories = filteredCategories.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   return (
     <div className="max-w-6xl space-y-6">
       <div className="flex items-center justify-between">
@@ -97,9 +121,28 @@ export default function CategoriesPage() {
         </button>
       </div>
 
+      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-amber-100 bg-white p-3 shadow-sm sm:grid-cols-3 dark:border-amber-900/40 dark:bg-[var(--bg-surface)]">
+        <label className="relative sm:col-span-2">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+          <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Cari kategori atau deskripsi..."
+            className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-neutral-800/70 dark:text-neutral-100" />
+        </label>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as "all" | "active" | "inactive")}
+          className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-neutral-800/70 dark:text-neutral-100">
+          <option value="all">Semua status</option>
+          <option value="active">Aktif</option>
+          <option value="inactive">Nonaktif</option>
+        </select>
+      </div>
+
       {categories.length === 0 ? (
         <div className="text-center py-12 bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] text-gray-400 text-sm">
           Belum ada kategori. Tambahkan kategori pertamamu.
+        </div>
+      ) : filteredCategories.length === 0 ? (
+        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] py-12 text-center text-sm text-gray-400">
+          Tidak ada kategori yang cocok dengan filter.
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl shadow-sm border border-[var(--border-default)]">
@@ -112,7 +155,7 @@ export default function CategoriesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-subtle)]">
-              {categories.map(c => (
+              {pagedCategories.map(c => (
                 <tr key={c.id} className="hover:bg-[var(--bg-surface-hover)] transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -132,7 +175,7 @@ export default function CategoriesPage() {
               ))}
             </tbody>
           </table>
-          <div className="px-4 py-2 bg-neutral-50 dark:bg-neutral-800 border-t border-[var(--border-default)] text-xs text-gray-400">{categories.length} kategori</div>
+          <Pagination page={page} pageSize={PAGE_SIZE} total={filteredCategories.length} onPageChange={setPage} itemLabel="kategori" />
         </div>
       )}
 

@@ -2,6 +2,8 @@
 
 import { ExternalLink, Edit2, Trash2 } from "lucide-react";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
 interface Document {
   id: string;
   folder_id: string | null;
@@ -9,6 +11,7 @@ interface Document {
   body: string | null;
   url: string | null;
   tags: string[];
+  file_size?: number | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -27,9 +30,12 @@ export function DocCard({ doc, folderColor, folderName, onEdit, onDelete }: DocC
     month: "short",
     year: "numeric",
   });
+  const isLocalFile = !!doc.url?.startsWith("/uploads/");
+  const documentUrl = doc.url ? (doc.url.startsWith("/") ? `${API_BASE}${doc.url}` : doc.url) : null;
+  const linkLabel = doc.url ? (isLocalFile ? "File tersimpan" : doc.url.replace(/^https?:\/\//, "")) : "";
 
   return (
-    <div className="group relative bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow flex flex-col gap-2">
+    <div className="group relative flex flex-col gap-2 rounded-2xl border border-amber-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-amber-900/40 dark:bg-[var(--bg-surface)]">
       {folderColor && (
         <div className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl" style={{ backgroundColor: folderColor }} />
       )}
@@ -48,11 +54,11 @@ export function DocCard({ doc, folderColor, folderName, onEdit, onDelete }: DocC
         </div>
       </div>
 
-      {doc.url && (
-        <a href={doc.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+      {documentUrl && (
+        <a href={documentUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-xs font-medium hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors w-fit max-w-full">
           <ExternalLink size={10} />
-          <span className="truncate max-w-[180px]">{doc.url.replace(/^https?:\/\//, "")}</span>
+          <span className="truncate max-w-[180px]">{linkLabel}</span>
         </a>
       )}
 

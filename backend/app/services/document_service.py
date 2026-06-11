@@ -30,6 +30,7 @@ _DOC_TYPE_PREFIX = {
     "receipt": "RCPT",
     "proposal_pdf": "PROP",
     "kontrak": "KTR",
+    "mou": "MOU",
     "surat_penawaran": "SP",
     "custom": "DOC",
 }
@@ -134,6 +135,8 @@ def get_document_template_type(template: DocumentTemplate) -> str:
         "Proposal Penawaran PDF": "proposal_pdf",
         "Surat Penawaran Formal": "surat_penawaran",
         "Kontrak / MoU": "kontrak",
+        "Kontrak Kerja Sama": "kontrak",
+        "MOU Kerja Sama": "mou",
     }
     return _BUILTIN_DOCUMENT_TEMPLATE_TYPES.get(
         getattr(template, "name", ""),
@@ -392,12 +395,15 @@ _BUILTIN_DOCUMENT_TEMPLATE_TYPES = {
     "Proposal Penawaran PDF": "proposal_pdf",
     "Surat Penawaran Formal": "surat_penawaran",
     "Kontrak / MoU": "kontrak",
+    "Kontrak Kerja Sama": "kontrak",
+    "MOU Kerja Sama": "mou",
 }
 
 _LEGACY_DOCUMENT_TEMPLATE_MARKERS = {
     "proposal_pdf": ("{{services_html}}", "{{faqs_html}}"),
     "surat_penawaran": ("{{body}}", "{{ttd}}"),
     "kontrak": ("{{parties}}", "{{timeline}}", "{{payment_terms}}"),
+    "mou": ("{{tujuan}}", "{{tanggung_jawab_seller}}", "{{tanggung_jawab_buyer}}"),
 }
 
 
@@ -608,6 +614,18 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
             end_day = min(today.day, monthrange(end_year, end_month)[1])
             defaults["tanggal_akhir"] = _format_date_id(today.replace(year=end_year, month=end_month, day=end_day))
 
+    elif template_type == "mou":
+        seq = _peek_doc_sequence(db, "GLOBAL", "mou")
+        yyyymm = today.strftime("%Y%m")
+        defaults["nomor"] = f"MOU/{yyyymm}/{seq:03d}"
+        defaults["tanggal"] = _format_date_id(today)
+        defaults["tujuan"] = "Membangun kerja sama awal untuk kebutuhan layanan digital dan pemasaran bisnis."
+        defaults["scope"] = "Pemetaan kebutuhan, penyusunan rekomendasi layanan, dan persiapan kerja sama lanjutan."
+        defaults["tanggung_jawab_seller"] = "Menyiapkan arahan layanan, estimasi pekerjaan, jadwal tindak lanjut, dan informasi teknis yang diperlukan."
+        defaults["tanggung_jawab_buyer"] = "Memberikan data bisnis yang benar, menunjuk PIC, dan meninjau rekomendasi yang disampaikan."
+        defaults["durasi"] = "Berlaku sejak tanggal ditandatangani sampai ada kontrak kerja sama lanjutan atau pembatalan tertulis."
+        defaults["terms"] = "Detail biaya, termin pembayaran, dan deliverable final dituangkan dalam kontrak atau invoice terpisah."
+
     elif template_type == "surat_penawaran":
         seq = _peek_doc_sequence(db, "GLOBAL", "surat_penawaran")
         yyyymm = today.strftime("%Y%m")
@@ -668,7 +686,7 @@ def generate_document_pdf(
 
     # Reserve and apply document number
     number = None
-    if template_type in ("invoice", "receipt", "surat_penawaran"):
+    if template_type in ("invoice", "receipt", "surat_penawaran", "mou"):
         number = _document_number(db, template_type, reserve=True)
         if template_type == "invoice":
             full_vars["nomor_invoice"] = number
@@ -721,7 +739,7 @@ def generate_document_pdf(
 
 
 def _document_number(db: Session, template_type: str, reserve: bool = False) -> str:
-    prefixes = {"invoice": "INV", "receipt": "RCPT", "surat_penawaran": "SP"}
+    prefixes = {"invoice": "INV", "receipt": "RCPT", "surat_penawaran": "SP", "mou": "MOU"}
     prefix = prefixes.get(template_type)
     if not prefix:
         return ""
@@ -756,7 +774,7 @@ def create_document_template(
     variables: Optional[list],
     is_active: bool = True,
 ) -> DocumentTemplate:
-    valid_types = {"proposal_pdf", "invoice", "receipt", "kontrak", "surat_penawaran", "custom"}
+    valid_types = {"proposal_pdf", "invoice", "receipt", "kontrak", "mou", "surat_penawaran", "custom"}
     if type not in valid_types:
         raise ValueError(f"Type harus salah satu: {', '.join(valid_types)}")
     t = DocumentTemplate(

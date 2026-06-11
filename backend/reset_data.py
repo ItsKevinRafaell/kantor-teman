@@ -41,7 +41,7 @@ from main import (
     Project, Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity,
     BlastCampaign, FollowUpSequence, ReengagementAlert, AdsCampaign,
     ContentSession, ContentGeneration, ContentSchedule,
-    Document, DocumentFolder,
+    Document, DocumentFolder, GeneratedDocument, ReportSnapshot,
     ClientNote, ClientCredential, ClientDocument,
     MessageTemplate, ServiceItem, AuditLog,
 )
@@ -86,6 +86,10 @@ try:
     print(f"  Deleted {deleted} content_schedules")
 
     # --- Documents ---
+    deleted = db.query(ReportSnapshot).delete()
+    print(f"  Deleted {deleted} report_snapshots")
+    deleted = db.query(GeneratedDocument).delete()
+    print(f"  Deleted {deleted} generated_documents")
     deleted = db.query(Document).delete()
     print(f"  Deleted {deleted} documents")
     deleted = db.query(DocumentFolder).delete()

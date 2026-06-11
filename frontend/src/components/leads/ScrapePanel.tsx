@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, FormEvent } from "react";
 import { apiFetch } from "../../lib/api";
 import Toast from "../Toast";
+import { INDONESIA_LOCATION_PRESETS } from "../../lib/indonesiaLocations";
 
 interface Business {
   name: string;
@@ -41,9 +42,16 @@ interface Props {
   onBatchSelect: (batchName: string) => void;
 }
 
+const LOCATION_PRESETS = INDONESIA_LOCATION_PRESETS;
+
 export default function ScrapePanel({ onBatchSelect }: Props) {
   const [category, setCategory] = useState("");
   const [location, setLocation] = useState("");
+  const [province, setProvince] = useState("DKI Jakarta");
+  const [city, setCity] = useState("Jakarta Selatan");
+  const [district, setDistrict] = useState("");
+  const [manualLocation, setManualLocation] = useState("");
+  const [citySearch, setCitySearch] = useState("");
   const [maxResults, setMaxResults] = useState(20);
   const [productInterest, setProductInterest] = useState("");
   const [categories, setCategories] = useState<CategoryOption[]>([]);
@@ -100,7 +108,8 @@ export default function ScrapePanel({ onBatchSelect }: Props) {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const q = `${category.trim()} ${location.trim()}`.trim();
+    const selectedLocation = buildLocation();
+    const q = `${category.trim()} ${selectedLocation}`.trim();
     if (!q) return;
     setLoading(true);
     setResults([]);
@@ -109,7 +118,7 @@ export default function ScrapePanel({ onBatchSelect }: Props) {
         q, max_results: String(maxResults),
         product_interest: productInterest,
         category: category.trim(),
-        location: location.trim(),
+        location: selectedLocation,
       });
       const res = await apiFetch(`/api/search?${params}`);
       if (!res.ok) {
@@ -138,7 +147,7 @@ export default function ScrapePanel({ onBatchSelect }: Props) {
       const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
       const mon = months[now.getMonth()];
       const year = now.getFullYear();
-      const batchName = `${category.trim()} - ${location.trim()} · ${day} ${mon} ${year}`;
+      const batchName = `${category.trim()} - ${buildLocation()} · ${day} ${mon} ${year}`;
       const res = await apiFetch(`/api/leads/analyze-batch?batch_name=${encodeURIComponent(batchName)}`, { method: "POST" });
       if (res.ok) {
         const data = await res.json();
@@ -161,6 +170,17 @@ export default function ScrapePanel({ onBatchSelect }: Props) {
       setAnalyzing(false);
     }
   }
+
+  function buildLocation() {
+    const manual = manualLocation.trim();
+    if (manual) return manual;
+    return [district.trim(), city.trim(), province.trim()].filter(Boolean).join(", ");
+  }
+
+  const provinceNames = Object.keys(LOCATION_PRESETS);
+  const filteredCities = (LOCATION_PRESETS[province] || []).filter(c =>
+    !citySearch.trim() || c.toLowerCase().includes(citySearch.trim().toLowerCase())
+  );
 
   function pollAnalysisStatus(batchName: string) {
     const interval = setInterval(async () => {
@@ -199,11 +219,31 @@ export default function ScrapePanel({ onBatchSelect }: Props) {
                 value={category} onChange={(e) => setCategory(e.target.value)} disabled={loading}
                 className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 disabled:opacity-60 transition" />
             </div>
-            <div>
+            <div className="space-y-2">
               <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">Lokasi</label>
-              <input type="text" placeholder='Contoh: "Jakarta Selatan", "Surabaya"'
-                value={location} onChange={(e) => setLocation(e.target.value)} disabled={loading}
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 disabled:opacity-60 transition" />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <select value={province} onChange={(e) => { const next = e.target.value; setProvince(next); setCity(LOCATION_PRESETS[next]?.[0] || ""); setCitySearch(""); }} disabled={loading}
+                  className="px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-60 transition">
+                  {provinceNames.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+                <div className="space-y-1">
+                  <input type="search" value={citySearch} onChange={(e) => setCitySearch(e.target.value)} placeholder="Cari kota/kab."
+                    disabled={loading}
+                    className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-60 transition" />
+                  <select value={city} onChange={(e) => setCity(e.target.value)} disabled={loading}
+                    className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-60 transition">
+                    {filteredCities.map(c => <option key={c} value={c}>{c}</option>)}
+                    {filteredCities.length === 0 && <option value={city}>{city || "Tidak ada kota cocok"}</option>}
+                  </select>
+                </div>
+                <input type="text" placeholder="Kecamatan (opsional)"
+                  value={district} onChange={(e) => setDistrict(e.target.value)} disabled={loading}
+                  className="px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-60 transition" />
+              </div>
+              <input type="text" placeholder="Atau tulis lokasi bebas, mis. Canggu Bali"
+                value={manualLocation} onChange={(e) => { setManualLocation(e.target.value); setLocation(e.target.value); }} disabled={loading}
+                className="w-full px-4 py-2.5 border border-amber-100 dark:border-amber-900/50 rounded-xl text-sm bg-amber-50/40 dark:bg-amber-950/10 dark:text-neutral-50 focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-60 transition" />
+              <p className="text-xs text-neutral-400">Preset mencakup seluruh provinsi Indonesia. Untuk kecamatan/desa spesifik, pakai kolom lokasi bebas.</p>
             </div>
           </div>
 
@@ -226,7 +266,7 @@ export default function ScrapePanel({ onBatchSelect }: Props) {
             <label className="flex items-center gap-2 cursor-pointer pb-1">
               <input type="checkbox" checked={aiAnalysis} onChange={(e) => setAiAnalysis(e.target.checked)} disabled={loading}
                 className="w-4 h-4 rounded border-gray-300 text-brand-yellow focus:ring-brand-yellow/50" />
-              <span className="text-xs text-gray-700 dark:text-gray-300 font-medium">AI Analysis</span>
+              <span className="text-xs text-gray-700 dark:text-gray-300 font-medium">Analisa AI setelah scrape</span>
               {analyzing && (
                 <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
                   <div className="w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
@@ -234,7 +274,7 @@ export default function ScrapePanel({ onBatchSelect }: Props) {
                 </div>
               )}
             </label>
-            <button type="submit" disabled={loading || (!category.trim() && !location.trim())}
+            <button type="submit" disabled={loading || (!category.trim() && !buildLocation())}
               className="flex items-center gap-2 px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md">
               {loading ? (
                 <><svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>Mencari...</>

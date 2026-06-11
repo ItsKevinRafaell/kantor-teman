@@ -3,7 +3,7 @@ import { inputCls } from "../../../lib/inputCls";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../../lib/api";
-import { Plus, Edit2, Trash2, X, FileText } from "lucide-react";
+import { Plus, Edit2, Trash2, X, FileText, Search } from "lucide-react";
 import Breadcrumb from "../../../components/Breadcrumb";
 import Pagination from "../../../components/Pagination";
 import Modal from "../../../components/Modal";
@@ -65,6 +65,9 @@ export default function DynamicTemplatesPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const PAGE_SIZE = 15;
 
   const fetchTemplates = useCallback(async () => {
@@ -76,7 +79,7 @@ export default function DynamicTemplatesPage() {
 
   const fetchCategories = useCallback(async () => {
     try {
-      const res = await apiFetch("/api/categories?active_only=true");
+      const res = await apiFetch("/api/categories");
       if (res.ok) setCategories(await res.json());
     } catch { /* silent */ }
   }, []);
@@ -103,6 +106,10 @@ export default function DynamicTemplatesPage() {
     intervalRef.current = setInterval(fetchTemplates, 30000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchTemplates, fetchCategories]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [typeFilter, statusFilter, categoryFilter, searchQuery]);
 
   function openNew() {
     setEditing(null);
@@ -152,7 +159,16 @@ export default function DynamicTemplatesPage() {
     );
   }
 
-  const filtered = typeFilter === "all" ? templates : templates.filter(t => t.type === typeFilter);
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filtered = templates.filter(t => {
+    if (typeFilter !== "all" && t.type !== typeFilter) return false;
+    if (statusFilter === "active" && !t.is_active) return false;
+    if (statusFilter === "inactive" && t.is_active) return false;
+    if (categoryFilter !== "all" && (t.category_id || "") !== categoryFilter) return false;
+    if (!normalizedSearch) return true;
+    return [t.name, t.content, t.category_name || "", TEMPLATE_TYPES.find(tt => tt.value === t.type)?.label || t.type]
+      .some(v => v.toLowerCase().includes(normalizedSearch));
+  });
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
@@ -179,18 +195,30 @@ export default function DynamicTemplatesPage() {
         </button>
       </div>
 
-      {/* Type filter chips */}
-      <div className="flex flex-wrap gap-1.5">
-        <button onClick={() => { setTypeFilter("all"); setPage(1); }}
-          className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${typeFilter === "all" ? "bg-amber-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700"}`}>
-          Semua
-        </button>
-        {TEMPLATE_TYPES.map(t => (
-          <button key={t.value} onClick={() => { setTypeFilter(t.value); setPage(1); }}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${typeFilter === t.value ? "bg-amber-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700"}`}>
-            {t.label}
-          </button>
-        ))}
+      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-amber-100 bg-white p-3 shadow-sm sm:grid-cols-2 lg:grid-cols-4 dark:border-amber-900/40 dark:bg-[var(--bg-surface)]">
+        <label className="relative sm:col-span-2">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+          <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Cari nama, isi template, atau kategori..."
+            className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-neutral-800/70 dark:text-neutral-100" />
+        </label>
+        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
+          className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-neutral-800/70 dark:text-neutral-100">
+          <option value="all">Semua tipe</option>
+          {TEMPLATE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as "all" | "active" | "inactive")}
+          className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-neutral-800/70 dark:text-neutral-100">
+          <option value="all">Semua status</option>
+          <option value="active">Aktif</option>
+          <option value="inactive">Nonaktif</option>
+        </select>
+        <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
+          className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-neutral-800/70 dark:text-neutral-100 lg:col-span-4">
+          <option value="all">Semua kategori</option>
+          <option value="">Tanpa kategori</option>
+          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
       </div>
 
       {filtered.length === 0 ? (

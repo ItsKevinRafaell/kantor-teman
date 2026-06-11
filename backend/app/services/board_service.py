@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from models import (
     BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist,
-    BoardCardActivity, WorkspaceRow, Board, Lead, Project,
+    BoardCardActivity, BoardCardAttachment, WorkspaceRow, Board,
 )
 
 
@@ -27,11 +27,30 @@ def _board_column_to_out(col) -> dict:
 
 # ─── Board Card helpers ──────────────────────────────────────────────────────
 
+def _labels_to_list(raw_labels) -> list[str]:
+    if not raw_labels:
+        return []
+    if isinstance(raw_labels, list):
+        return raw_labels
+    try:
+        parsed = json.loads(raw_labels)
+        return parsed if isinstance(parsed, list) else []
+    except Exception:
+        return []
+
+
 def card_to_out(card, workspace_linked_ids: Optional[set] = None) -> dict:
     """Convert BoardCard model to BoardCardOut dict."""
-    comments = card.comments if hasattr(card, "comments") else []
-    checklist = card.checklist if hasattr(card, "checklist") else []
-    activities = card.activities if hasattr(card, "activities") else []
+    comments = sorted(card.comments if hasattr(card, "comments") else [], key=lambda c: c.created_at or "", reverse=True)
+    checklist = sorted(card.checklist if hasattr(card, "checklist") else [], key=lambda i: i.position or 0, reverse=True)
+    activity = sorted(card.activity if hasattr(card, "activity") else [], key=lambda a: a.created_at or "", reverse=True)
+    attachments = sorted(card.attachments if hasattr(card, "attachments") else [], key=lambda a: a.uploaded_at or "", reverse=True)
+    lead_out = None
+    if getattr(card, "lead_id", None) and getattr(card, "lead", None):
+        lead_out = {
+            "id": card.lead.id,
+            "business_name": card.lead.business_name,
+        }
     return {
         "id": card.id,
         "column_id": card.column_id,
@@ -39,16 +58,19 @@ def card_to_out(card, workspace_linked_ids: Optional[set] = None) -> dict:
         "description": card.description,
         "assignee": card.assignee,
         "due_date": card.due_date,
-        "labels": json.loads(card.labels) if card.labels else [],
+        "labels": _labels_to_list(card.labels),
         "position": card.position,
-        "lead_id": card.lead_id,
-        "color": card.color,
         "is_archived": card.is_archived,
-        "board_card_id": card.board_card_id if hasattr(card, "board_card_id") else None,
+        "created_at": card.created_at,
         "updated_at": card.updated_at,
+        "lead_id": card.lead_id,
+        "lead": lead_out,
+        "color": card.color or "gray",
+        "is_workspace_linked": bool(workspace_linked_ids and card.id in workspace_linked_ids),
         "comments": [_board_card_comment_to_out(c) for c in comments],
         "checklist": [_board_card_checklist_to_out(i) for i in checklist],
-        "activities": [_board_card_activity_to_out(a) for a in activities],
+        "activity": [_board_card_activity_to_out(a) for a in activity],
+        "attachments": [_board_card_attachment_to_out(a) for a in attachments],
     }
 
 
@@ -83,15 +105,32 @@ def _board_card_activity_to_out(activity) -> dict:
     }
 
 
+def _board_card_attachment_to_out(attachment) -> dict:
+    return {
+        "id": attachment.id,
+        "card_id": attachment.card_id,
+        "file_path": attachment.file_path,
+        "file_name": attachment.file_name,
+        "file_type": attachment.file_type,
+        "uploaded_by": attachment.uploaded_by,
+        "uploaded_at": attachment.uploaded_at,
+    }
+
+
 # ─── Board Column operations ──────────────────────────────────────────────────
 
-def create_board_column(db: Session, board_id: str, name: str, position: int, color: str) -> dict:
+def create_board_column(db: Session, board_id: str, name: str, position: Optional[int], color: Optional[str]) -> dict:
+    board = db.query(Board).filter(Board.id == board_id).first()
+    if not board:
+        raise ValueError("Board tidak ditemukan")
+    if position is None:
+        position = db.query(BoardColumn).filter(BoardColumn.board_id == board_id).count()
     col = BoardColumn(
         id=str(uuid.uuid4()),
         board_id=board_id,
         name=name,
         position=position,
-        color=color,
+        color=color or "gray",
     )
     db.add(col)
     db.commit()
@@ -99,13 +138,16 @@ def create_board_column(db: Session, board_id: str, name: str, position: int, co
     return _board_column_to_out(col)
 
 
-def update_board_column(db: Session, column_id: str, name: str, position: int, color: str) -> dict:
+def update_board_column(db: Session, column_id: str, name: Optional[str], position: Optional[int], color: Optional[str]) -> dict:
     col = db.query(BoardColumn).filter(BoardColumn.id == column_id).first()
     if not col:
         raise ValueError("Column tidak ditemukan")
-    col.name = name
-    col.position = position
-    col.color = color
+    if name:
+        col.name = name
+    if position is not None:
+        col.position = position
+    if color:
+        col.color = color
     db.commit()
     db.refresh(col)
     return _board_column_to_out(col)
@@ -118,6 +160,7 @@ def delete_board_column(db: Session, column_id: str) -> None:
     # Cascade delete cards and related data
     card_ids = [c.id for c in db.query(BoardCard.id).filter(BoardCard.column_id == column_id).all()]
     if card_ids:
+        db.query(BoardCardAttachment).filter(BoardCardAttachment.card_id.in_(card_ids)).delete(synchronize_session=False)
         db.query(BoardCardActivity).filter(BoardCardActivity.card_id.in_(card_ids)).delete(synchronize_session=False)
         db.query(BoardCardChecklist).filter(BoardCardChecklist.card_id.in_(card_ids)).delete(synchronize_session=False)
         db.query(BoardCardComment).filter(BoardCardComment.card_id.in_(card_ids)).delete(synchronize_session=False)
@@ -155,7 +198,7 @@ def create_board_card(
         labels=json.dumps(labels) if labels else None,
         position=max_pos,
         lead_id=lead_id,
-        color=color or "yellow",
+        color=color or "gray",
     )
     db.add(card)
 
@@ -244,9 +287,9 @@ def delete_board_card(db: Session, card_id: str) -> None:
     card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
     if not card:
         raise ValueError("Card tidak ditemukan")
-    if db.query(WorkspaceRow).filter(WorkspaceRow.board_card_id == card_id).first():
-        raise ValueError("Card terhubung ke workspace. Hapus task dari workspace agar sinkronisasi tetap konsisten.")
+    db.query(WorkspaceRow).filter(WorkspaceRow.board_card_id == card_id).update({"board_card_id": None})
     db.query(BoardCardActivity).filter(BoardCardActivity.card_id == card_id).delete()
+    db.query(BoardCardAttachment).filter(BoardCardAttachment.card_id == card_id).delete()
     db.query(BoardCardChecklist).filter(BoardCardChecklist.card_id == card_id).delete()
     db.query(BoardCardComment).filter(BoardCardComment.card_id == card_id).delete()
     db.delete(card)
@@ -265,19 +308,21 @@ def move_board_card(
     if not card:
         raise ValueError("Card tidak ditemukan")
 
-    # Admin-only rule: moves to Done/Revisi columns require admin role
     target_column = db.query(BoardColumn).filter(BoardColumn.id == target_column_id).first()
-    if target_column:
-        target_name = (target_column.name or "").strip().lower()
-        if target_name in {"done", "revisi", "selesai"} and (current_user_role or "").lower() != "admin":
-            raise ValueError(f"Hanya admin yang bisa pindahin card ke '{target_column.name}'.")
+    if not target_column:
+        raise ValueError("Kolom tujuan tidak ditemukan")
+    target_name = (target_column.name or "").strip().lower()
+    if target_name in {"done", "revisi", "selesai"} and (current_user_role or "").lower() != "admin":
+        raise PermissionError(f"Hanya admin yang bisa memindahkan card ke '{target_column.name}'.")
 
+    old_column_id = card.column_id
     card.column_id = target_column_id
     if position is not None:
-        card.position = position
+        card.position = max(0, position)
     else:
         max_pos = db.query(BoardCard).filter(BoardCard.column_id == target_column_id).count()
         card.position = max_pos
+    card.updated_at = datetime.now(timezone.utc).isoformat()
 
     # Add activity
     activity = BoardCardActivity(
@@ -290,8 +335,27 @@ def move_board_card(
     db.add(activity)
 
     db.commit()
+    _normalize_column_positions(db, old_column_id)
+    if old_column_id != target_column_id:
+        _normalize_column_positions(db, target_column_id)
     db.refresh(card)
     return card_to_out(card)
+
+
+def _normalize_column_positions(db: Session, column_id: str) -> None:
+    cards = (
+        db.query(BoardCard)
+        .filter(BoardCard.column_id == column_id, BoardCard.is_archived == False)
+        .order_by(BoardCard.position, BoardCard.created_at)
+        .all()
+    )
+    changed = False
+    for index, card in enumerate(cards):
+        if card.position != index:
+            card.position = index
+            changed = True
+    if changed:
+        db.commit()
 
 
 # ─── Board Card Comment operations ────────────────────────────────────────────

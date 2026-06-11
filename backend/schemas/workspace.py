@@ -28,3 +28,14 @@ class WorkspaceColumnIn(BaseModel):
     column_type: str = "text"
     column_options: Optional[List[str]] = None
     column_order: Optional[int] = None
+
+
+class WorkspaceColumnUpdate(BaseModel):
+    column_label: Optional[str] = None
+    column_type: Optional[str] = None
+    column_options: Optional[List[str]] = None
+    column_order: Optional[int] = None
+
+
+class WorkspaceSheetUpdate(BaseModel):
+    sheet_label: Optional[str] = None

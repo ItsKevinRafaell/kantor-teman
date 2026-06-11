@@ -31,7 +31,7 @@ export default function ReportFOMOCloser({ report, city, discountExpired, timeLe
       </p>
       {report.competitor_count > 0 && (
         <div className="rounded-xl bg-amber-50 dark:bg-amber-950/30 border-2 border-amber-200 dark:border-amber-800 px-4 py-2.5 text-center">
-          <p className="text-sm text-zinc-900 dark:text-zinc-100 font-medium">Saat ini ada <span className="font-black text-amber-600">{report.competitor_count} bisnis sejenis</span> di {city} yang juga sedang membuka laporan ini.</p>
+          <p className="text-sm text-zinc-900 dark:text-zinc-100 font-medium">Database lead kami mencatat <span className="font-black text-amber-600">{report.competitor_count} bisnis sejenis</span> di {city} sebagai pembanding awal.</p>
         </div>
       )}
       {!discountExpired && (
@@ -60,11 +60,11 @@ export default function ReportFOMOCloser({ report, city, discountExpired, timeLe
         </a>
       )}
       <button onClick={() => {
-        const shareText = `Eh Bro, coba liat audit website kita dari agensi Teman UMKM. Cek kalkulator proyeksi omzetnya di sini: kantorteman.com/report/${report.slug}`;
+        const shareText = `Saya baru baca laporan audit digital untuk ${report.nama_usaha || "bisnis ini"}. Cek insight dan proyeksinya di sini: kantorteman.com/report/${report.slug}`;
         if (navigator.share) navigator.share({ title: `Audit Digital - ${report.nama_usaha}`, text: shareText }).catch(() => {});
         else window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`, "_blank");
         fetch(`${apiBase}/api/proposals/public/report/${report.slug}/track-activity`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ activity_type: "SHARE_PARTNER_CLICKED" }) }).catch(() => {});
-      }} className="block w-full text-center py-3 px-4 rounded-xl border-2 border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-zinc-700 hover:text-zinc-900 font-bold text-sm transition-all">Share Laporan Ini ke Partner Bisnis Anda</button>
+      }} className="block w-full text-center py-3 px-4 rounded-xl border-2 border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 hover:text-zinc-900 dark:hover:text-white font-bold text-sm transition-all">Bagikan Laporan Ini ke Rekan Bisnis</button>
     </section>
   );
 }

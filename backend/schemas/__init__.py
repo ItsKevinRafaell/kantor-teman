@@ -2,11 +2,12 @@ import re
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Any
 
-from .auth import LoginIn, TokenOut, UserUpdate
+from .auth import LoginIn, TokenOut, UserUpdate, UserCreate, UserAdminUpdate
 from .lead import (
     Business, LeadOut, ContactOut, ContactUpdate, TemplateIn, TemplateOut,
     StatusUpdate, LeadSalesUpdate, ProductUpdate, BlastIn, RatingUpdate,
     LeadCreate, LeadEdit, WaSendIn, ExternalLeadIn,
+    ScoreAdjustmentUpdate, ScoringSettingsUpdate,
 )
 from .proposal import (
     ServiceDetail, TimelineItem, ProposalIn, ProposalOut,
@@ -24,9 +25,10 @@ from .product import (
 )
 from .workspace import (
     WorkspaceInitIn, WorkspaceCellUpdate, WorkspaceRowIn, WorkspaceColumnIn,
+    WorkspaceColumnUpdate, WorkspaceSheetUpdate,
 )
 from .board import (
-    LeadMin, BoardCardCommentOut, BoardCardChecklistOut, BoardCardActivityOut,
+    LeadMin, BoardCardCommentOut, BoardCardChecklistOut, BoardCardActivityOut, BoardCardAttachmentOut,
     BoardCardOut, BoardColumnOut, BoardOut, BoardColumnIn, BoardCardIn,
     BoardCardUpdate, MoveCardRequest, BoardCardCommentIn, BoardCardChecklistIn,
 )
@@ -38,6 +40,7 @@ from .credential import (
 from .document import (
     DocumentIn, DocumentOut, BrandKitUpdate, BrandAssetIn,
     DocumentTemplateIn, DocumentGenerateIn, DocumentEmailIn, InvoiceSequenceIn,
+    DocumentWorkflowUpdate,
 )
 from .campaign import (
     AdsCampaignIn, AdsCampaignUpdate, AdsCampaignOut,
@@ -65,11 +68,12 @@ __all__ = [
     "BaseModel", "Field", "field_validator",
     "Optional", "List", "Any",
     # auth
-    "LoginIn", "TokenOut", "UserUpdate",
+    "LoginIn", "TokenOut", "UserUpdate", "UserCreate", "UserAdminUpdate",
     # lead
     "Business", "LeadOut", "ContactOut", "ContactUpdate", "TemplateIn", "TemplateOut",
     "StatusUpdate", "LeadSalesUpdate", "ProductUpdate", "BlastIn", "RatingUpdate",
     "LeadCreate", "LeadEdit", "WaSendIn", "ExternalLeadIn",
+    "ScoreAdjustmentUpdate", "ScoringSettingsUpdate",
     # proposal
     "ServiceDetail", "TimelineItem", "ProposalIn", "ProposalOut",
     "ServiceItemIn", "ServiceItemOut", "TrackOpenIn", "TrackPingIn",
@@ -83,8 +87,9 @@ __all__ = [
     "DynamicTemplateIn", "DynamicTemplateOut",
     # workspace
     "WorkspaceInitIn", "WorkspaceCellUpdate", "WorkspaceRowIn", "WorkspaceColumnIn",
+    "WorkspaceColumnUpdate", "WorkspaceSheetUpdate",
     # board
-    "LeadMin", "BoardCardCommentOut", "BoardCardChecklistOut", "BoardCardActivityOut",
+    "LeadMin", "BoardCardCommentOut", "BoardCardChecklistOut", "BoardCardActivityOut", "BoardCardAttachmentOut",
     "BoardCardOut", "BoardColumnOut", "BoardOut", "BoardColumnIn", "BoardCardIn",
     "BoardCardUpdate", "MoveCardRequest", "BoardCardCommentIn", "BoardCardChecklistIn",
     # project
@@ -95,6 +100,7 @@ __all__ = [
     # document
     "DocumentIn", "DocumentOut", "BrandKitUpdate", "BrandAssetIn",
     "DocumentTemplateIn", "DocumentGenerateIn", "DocumentEmailIn", "InvoiceSequenceIn",
+    "DocumentWorkflowUpdate",
     # campaign
     "AdsCampaignIn", "AdsCampaignUpdate", "AdsCampaignOut",
     "BlastCampaignIn", "BlastCampaignOut", "FonnteWebhookIn",

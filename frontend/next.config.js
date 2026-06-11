@@ -1,10 +1,13 @@
 /** @type {import('next').NextConfig} */
+const localApiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+const isLocalApi = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/.test(localApiUrl);
+
 const withPWA = require("@ducanh2912/next-pwa").default({
   dest: "public",
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: true,
-  disable: process.env.NODE_ENV === "development",
+  disable: process.env.NODE_ENV === "development" || isLocalApi,
   workboxOptions: {
     runtimeCaching: [
       {
@@ -25,6 +28,12 @@ const backendOrigin = (() => {
 })();
 const connectSrc = ["'self'", backendOrigin, "wss:"];
 const imgSrc = ["'self'", "data:", backendOrigin, "blob:"];
+const scriptSrc = ["'self'", "'unsafe-inline'"];
+if (process.env.NODE_ENV === "development") {
+  scriptSrc.push("'unsafe-eval'");
+  connectSrc.push("http://localhost:8000", "http://127.0.0.1:8000");
+  imgSrc.push("http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8000", "http://127.0.0.1:8000");
+}
 
 const nextConfig = {
   trailingSlash: true,
@@ -44,9 +53,7 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline'",
-              // Note: 'unsafe-inline' required for Next.js App Router dynamic styles/scripts
-              // 'unsafe-eval' removed — not needed by App Router
+              `script-src ${scriptSrc.join(" ")}`,
               "style-src 'self' 'unsafe-inline'",
               // Note: 'unsafe-inline' required; Next.js generates inline styles dynamically
               `img-src ${imgSrc.join(" ")}`,

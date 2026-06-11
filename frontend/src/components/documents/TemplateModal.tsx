@@ -14,7 +14,8 @@ const TYPES = [
   { value: "receipt", label: "Receipt / Bukti Pembayaran" },
   { value: "proposal_pdf", label: "Proposal PDF" },
   { value: "surat_penawaran", label: "Surat Penawaran" },
-  { value: "kontrak", label: "Kontrak / MoU" },
+  { value: "kontrak", label: "Kontrak Kerja Sama" },
+  { value: "mou", label: "MOU Kerja Sama" },
   { value: "custom", label: "Custom" },
 ];
 

@@ -1,9 +1,20 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "../../../../../lib/api";
-import { FileText, Plus, Trash2 } from "lucide-react";
+import { Download, FileText, Plus, Trash2 } from "lucide-react";
 import Toast from "../../../../../components/Toast";
 import Modal from "../../../../../components/Modal";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const DOC_TYPE_LABELS: Record<string, string> = {
+  proposal_pdf: "Proposal PDF",
+  invoice: "Invoice",
+  receipt: "Kwitansi",
+  kontrak: "Kontrak",
+  mou: "MOU",
+  surat_penawaran: "Surat Penawaran",
+  custom: "Custom",
+};
 
 interface DocumentData {
   id: string;
@@ -13,8 +24,32 @@ interface DocumentData {
   created_at: string;
 }
 
+interface GeneratedDocumentData {
+  id: string;
+  template_name: string | null;
+  template_type?: string | null;
+  target_display_name?: string | null;
+  display_filename?: string | null;
+  status?: string | null;
+  payment_status?: string | null;
+  generated_at: string;
+}
+
+function generatedDocTypeLabel(doc: GeneratedDocumentData) {
+  if (doc.template_type && DOC_TYPE_LABELS[doc.template_type]) return DOC_TYPE_LABELS[doc.template_type];
+  const name = (doc.template_name || doc.display_filename || "").toLowerCase();
+  if (name.includes("invoice")) return "Invoice";
+  if (name.includes("kwitansi") || name.includes("receipt")) return "Kwitansi";
+  if (name.includes("kontrak")) return "Kontrak";
+  if (name.includes("mou")) return "MOU";
+  if (name.includes("penawaran")) return "Surat Penawaran";
+  if (name.includes("proposal")) return "Proposal PDF";
+  return "Dokumen";
+}
+
 export default function DocumentsTab({ leadId }: { leadId: number | null }) {
   const [documents, setDocuments] = useState<DocumentData[]>([]);
+  const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocumentData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ title: "", cloud_url: "" });
@@ -25,12 +60,17 @@ export default function DocumentsTab({ leadId }: { leadId: number | null }) {
   const fetchDocuments = useCallback(async () => {
     if (!leadId) {
       setDocuments([]);
+      setGeneratedDocuments([]);
       setLoading(false);
       return;
     }
     try {
-      const res = await apiFetch(`/api/documents?lead_id=${leadId}`);
-      if (res.ok) setDocuments(await res.json());
+      const [manualRes, generatedRes] = await Promise.all([
+        apiFetch(`/api/documents?lead_id=${leadId}`),
+        apiFetch(`/api/generated-documents?lead_id=${leadId}`),
+      ]);
+      if (manualRes.ok) setDocuments(await manualRes.json());
+      if (generatedRes.ok) setGeneratedDocuments(await generatedRes.json());
     } finally {
       setLoading(false);
     }
@@ -71,6 +111,8 @@ export default function DocumentsTab({ leadId }: { leadId: number | null }) {
     return <div className="p-6"><div className="h-32 bg-neutral-100 dark:bg-neutral-800 rounded-xl animate-pulse" /></div>;
   }
 
+  const hasAnyDocument = documents.length > 0 || generatedDocuments.length > 0;
+
   return (
     <div>
       <Toast message={docToast?.message ?? null} type={docToast?.type} onClose={() => setDocToast(null)} />
@@ -86,7 +128,7 @@ export default function DocumentsTab({ leadId }: { leadId: number | null }) {
       <div className="px-5 py-4 border-b border-[var(--border-default)] flex items-center justify-between">
         <div>
           <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-50">Dokumen & Media</h2>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Link dokumen cloud milik klien ini.</p>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Link cloud dan dokumen resmi milik klien ini.</p>
         </div>
         <button onClick={() => setShowModal(true)} disabled={!leadId} className="btn-primary flex items-center gap-1.5 text-xs disabled:opacity-50">
           <Plus size={14} /> Tambah
@@ -95,10 +137,46 @@ export default function DocumentsTab({ leadId }: { leadId: number | null }) {
 
       {!leadId ? (
         <div className="text-center py-12 text-amber-600 dark:text-amber-400 text-sm">Kontak ini belum memiliki relasi lead.</div>
-      ) : documents.length === 0 ? (
+      ) : !hasAnyDocument ? (
         <div className="text-center py-12 text-neutral-400 text-sm">Belum ada dokumen tersimpan.</div>
       ) : (
         <div className="divide-y divide-[var(--border-subtle)]">
+          {generatedDocuments.length > 0 && (
+            <div className="px-5 py-3 text-[11px] font-bold uppercase tracking-wide text-neutral-400">
+              Dokumen dari Generator
+            </div>
+          )}
+          {generatedDocuments.map(doc => (
+            <div key={doc.id} className="px-5 py-4 flex items-center justify-between hover:bg-[var(--bg-surface-hover)] transition-colors group">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/20 flex items-center justify-center shrink-0">
+                  <FileText size={16} className="text-amber-600 dark:text-amber-300" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">{doc.display_filename || doc.template_name || "Dokumen resmi"}</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+                    <span className="font-medium text-amber-700 dark:text-amber-300">{generatedDocTypeLabel(doc)}</span>
+                    {doc.status && <span className="ml-2">{doc.status}</span>}
+                    {doc.payment_status && <span className="ml-2">Pembayaran: {doc.payment_status}</span>}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[10px] text-neutral-400">
+                  {new Date(doc.generated_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
+                </span>
+                <a href={`${API_BASE}/api/documents/${doc.id}/download`} target="_blank" rel="noopener noreferrer"
+                  className="p-1.5 text-neutral-400 hover:text-amber-600 rounded-lg transition-colors">
+                  <Download size={13} />
+                </a>
+              </div>
+            </div>
+          ))}
+          {documents.length > 0 && generatedDocuments.length > 0 && (
+            <div className="px-5 py-3 text-[11px] font-bold uppercase tracking-wide text-neutral-400">
+              Link Cloud Manual
+            </div>
+          )}
           {documents.map(doc => (
             <div key={doc.id} className="px-5 py-4 flex items-center justify-between hover:bg-[var(--bg-surface-hover)] transition-colors group">
               <div className="flex items-center gap-3 min-w-0">

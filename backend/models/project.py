@@ -19,6 +19,10 @@ class Project(Base):
     is_archived = Column(Boolean, default=False, nullable=False)
     service_type = Column(String(50), nullable=True)
     contract_months = Column(Integer, nullable=True, default=1)
+    dp_percent = Column(Float, nullable=True)
+    monthly_invoice_enabled = Column(Boolean, default=False, nullable=False)
+    next_invoice_date = Column(String(255), nullable=True)
+    completed_at = Column(String(255), nullable=True)
     lead = relationship("Lead", foreign_keys=[lead_id])
 
 

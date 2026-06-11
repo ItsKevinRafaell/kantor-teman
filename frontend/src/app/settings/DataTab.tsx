@@ -108,7 +108,7 @@ export default function DataTab() {
       const match = disposition.match(/filename="?([^"]+)"?/);
       const filename = match ? match[1] : `kantorteman-backup-${Date.now()}.zip`;
       downloadBlob(blob, filename);
-      showToast("Backup terunduh.");
+      showToast("Backup tersimpan di server dan terunduh.");
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Backup gagal", "error");
     } finally {
@@ -222,8 +222,8 @@ export default function DataTab() {
               <h3 className="font-bold text-neutral-900 dark:text-neutral-50">Download Backup</h3>
             </div>
             <p className="text-sm text-neutral-600 dark:text-neutral-400">
-              Backup akan berisi <strong>dump database SQL</strong> dan folder <code className="font-mono text-xs">uploads/</code> dalam format .zip.
-              File cukup besar (bisa puluhan MB) dan proses preparation di server mungkin butuh beberapa detik.
+              Backup berisi <strong>database</strong> dan folder <code className="font-mono text-xs">uploads/</code> dalam format .zip.
+              File juga disimpan di folder backup yang setara dengan direktori project.
             </p>
             <p className="text-xs text-neutral-500 dark:text-neutral-400">
               Simpan backup secara rutin, terutama sebelum menjalankan <strong>Soft Reset</strong> atau <strong>Nuclear Reset</strong> yang bersifat irreversible.

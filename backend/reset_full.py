@@ -40,7 +40,7 @@ from main import (
     Project, Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity,
     BlastCampaign, FollowUpSequence, ReengagementAlert, AdsCampaign,
     ContentSession, ContentGeneration, ContentSchedule,
-    Document, DocumentFolder,
+    Document, DocumentFolder, GeneratedDocument, ReportSnapshot,
     ClientNote, ClientCredential, ClientDocument,
     MessageTemplate, ServiceItem, AuditLog,
     Category, Product, DynamicTemplate,
@@ -79,6 +79,8 @@ try:
     db.query(ContentGeneration).delete()
     db.query(ContentSession).delete()
     db.query(ContentSchedule).delete()
+    db.query(ReportSnapshot).delete()
+    db.query(GeneratedDocument).delete()
     db.query(Document).delete()
     db.query(DocumentFolder).delete()
 

@@ -36,18 +36,18 @@ export function ReportHero({ nama_usaha, category, city, monthly_search_volume, 
 
       {monthly_search_volume > 0 && (
         <div className="mt-6 pt-5 border-t-2 border-amber-200">
-          <p className="text-[10px] uppercase tracking-widest text-zinc-700 font-bold mb-3">Fakta Pasar Digital — {city}</p>
+          <p className="text-[10px] uppercase tracking-widest text-zinc-700 dark:text-zinc-300 font-bold mb-3">Fakta Pasar Digital — {city}</p>
           <div className="flex items-end gap-3 mb-3">
             <span className="text-4xl md:text-5xl font-black text-amber-600 tracking-tight">
               {monthly_search_volume.toLocaleString("id-ID")}
             </span>
-            <span className="text-sm text-zinc-700 font-medium pb-1">pencarian/bulan</span>
+            <span className="text-sm text-zinc-700 dark:text-zinc-300 font-medium pb-1">pencarian/bulan</span>
           </div>
           <div className="w-full h-2 bg-amber-200 rounded-full overflow-hidden">
             <div className="bg-amber-500 h-full rounded-full" style={{ width: "75%" }}></div>
           </div>
-          <p className="text-sm text-zinc-900 mt-3 leading-relaxed">
-            Ada sekitar <span className="font-bold text-amber-600">{monthly_search_volume.toLocaleString("id-ID")}</span> orang di <span className="font-bold text-zinc-900">{city}</span> yang aktif mencari solusi <span className="font-bold text-zinc-900">{category}</span> setiap bulannya di Google. Tanpa optimasi yang tepat, potensi pasar ini sepenuhnya mengalir ke kompetitor Anda.
+          <p className="text-sm text-zinc-900 dark:text-zinc-100 mt-3 leading-relaxed">
+            Ada estimasi <span className="font-bold text-amber-600">{monthly_search_volume.toLocaleString("id-ID")}</span> pencarian per bulan di <span className="font-bold text-zinc-900 dark:text-zinc-50">{city}</span> untuk kebutuhan <span className="font-bold text-zinc-900 dark:text-zinc-50">{category || "bisnis ini"}</span>. Peluang ini perlu ditangkap dengan profil digital, halaman penawaran, dan jalur WhatsApp yang jelas.
           </p>
         </div>
       )}

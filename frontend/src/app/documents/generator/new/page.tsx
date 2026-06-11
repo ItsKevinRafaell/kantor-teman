@@ -18,12 +18,12 @@ export default function DocumentNewPage() {
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <Breadcrumb items={[
-        { label: "Document Generator", href: "/documents/generator" },
-        { label: "Generate Baru" },
+        { label: "Dokumen Resmi", href: "/documents/generator" },
+        { label: "Buat Dokumen" },
       ]} showBack backHref="/documents/generator" />
       <div>
-        <h1 className="text-2xl font-bold text-neutral-800 dark:text-neutral-100">Generate Dokumen</h1>
-        <p className="text-sm text-gray-500 mt-1">Buat PDF dari template dalam beberapa langkah.</p>
+        <h1 className="text-2xl font-bold text-neutral-800 dark:text-neutral-100">Buat Dokumen Resmi</h1>
+        <p className="text-sm text-gray-500 mt-1">Pilih template formal, target, lalu generate PDF.</p>
       </div>
 
       <GeneratorSteps currentStep={ctx.step} />

@@ -29,6 +29,14 @@ class Lead(Base):
     next_action_at = Column(String(255), nullable=True)
     loss_reason = Column(String(500), nullable=True)
     do_not_contact = Column(Boolean, default=False, nullable=False)
+    score_adjustment = Column(Integer, default=0, nullable=False)
+    score_adjustment_reason = Column(String(500), nullable=True)
+    score_updated_at = Column(String(255), nullable=True)
+
+    @property
+    def status_label(self) -> str:
+        from app.constants import lead_status_label
+        return lead_status_label(self.status)
 
 
 class Contact(Base):
@@ -112,3 +120,18 @@ class AuditLog(Base):
     table_name = Column(String(255), nullable=False)
     record_id = Column(String(255), nullable=False)
     details = Column(Text, nullable=True)  # JSON string
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    title = Column(String(255), nullable=False)
+    message = Column(Text, nullable=False)
+    type = Column(String(50), nullable=False, default="info")
+    target_type = Column(String(50), nullable=True)
+    target_id = Column(String(255), nullable=True)
+    action_url = Column(String(1000), nullable=True)
+    is_read = Column(Boolean, default=False, nullable=False)
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    read_at = Column(String(255), nullable=True)

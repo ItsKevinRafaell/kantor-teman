@@ -227,6 +227,12 @@ def create_proposal(
     )
     db.add(proposal)
     db.commit()
+    try:
+        from app.services.sales_workflow_service import archive_proposal_pdf_for_lead
+        archive_proposal_pdf_for_lead(db, proposal, lead, actor)
+        db.commit()
+    except Exception as e:
+        print(f"[PROPOSAL_ARCHIVE_PDF] skip: {e}", flush=True)
     log_audit(db, actor, "CREATE", "proposals", proposal.id, {"lead": lead.business_name, "total": total})
     return proposal, lead
 
@@ -380,159 +386,12 @@ def accept_proposal(
     client_phone: str,
     accept_notes: Optional[str],
 ) -> dict:
-    """Accept a proposal, create project + board + workspace."""
-    import httpx as _httpx
-
+    """Accept a proposal through the canonical sales workflow."""
+    from app.services.sales_workflow_service import accept_proposal_workflow
     proposal = db.query(Proposal).filter(Proposal.id == proposal_id).first()
     if not proposal:
         raise ValueError("Proposal tidak ditemukan")
-    if proposal.status == "accepted":
-        project = db.query(Project).filter(Project.lead_id == proposal.lead_id).order_by(Project.id.desc()).first()
-        return {"success": True, "project_id": project.id if project else None, "already_accepted": True}
-    if proposal.status == "rejected":
-        raise ValueError("Proposal sudah ditolak")
-
-    lead = db.query(Lead).filter(Lead.id == proposal.lead_id).first()
-    now = datetime.now(timezone.utc).isoformat()
-
-    proposal.status = "accepted"
-    proposal.accepted_at = now
-    if lead and lead.status not in ("Closed/Client", "Active Client"):
-        lead.status = "Closed/Client"
-
-    services = json.loads(proposal.services_detail) if proposal.services_detail else []
-    project_type = detect_project_type(services)
-    detected_service_type = detect_service_type(services)
-    detected_months = detect_contract_months(proposal, services, now[:10], None)
-    active_price = proposal.discount_price or proposal.total_price
-    business_name = lead.business_name if lead else client_name
-    service_names = ", ".join(s.get("name", "") for s in services[:2])
-    project_name = f"{service_names} — {business_name}" if service_names else f"Project {business_name}"
-
-    project = Project(
-        id=str(uuid.uuid4()),
-        lead_id=proposal.lead_id,
-        name=project_name,
-        type=project_type,
-        status="ACTIVE",
-        nominal=active_price,
-        start_date=now[:10],
-        color="yellow",
-        service_type=detected_service_type,
-        contract_months=detected_months,
-    )
-    db.add(project)
-    db.flush()
-
-    board = Board(id=str(uuid.uuid4()), project_id=project.id)
-    db.add(board)
-    db.flush()
-
-    todo_col_id = None
-    for i, (col_name, col_color) in enumerate([("To Do", "yellow"), ("In Progress", "blue"), ("Review", "purple"), ("Done", "green")]):
-        col = BoardColumn(id=str(uuid.uuid4()), board_id=board.id, name=col_name, position=i, color=col_color)
-        db.add(col)
-        if col_name == "To Do":
-            todo_col_id = col.id
-
-    _ONBOARDING_BASE = [
-        "Kick-off call dengan klien",
-        "Kumpulkan requirement & brief",
-        "Approval timeline & milestone",
-        "Kirim deliverable pertama",
-    ]
-    _ONBOARDING_SERVICE = {
-        "web_dev": ["Setup domain & hosting", "Wireframe approval", "Development sprint 1"],
-        "seo_gmaps": ["Audit website awal", "Riset keyword", "On-page optimization"],
-        "sosmed": ["Content calendar approval", "Desain template feed", "Posting perdana"],
-        "maintenance": ["Inventarisasi aset klien", "Setup monitoring", "Laporan kondisi awal"],
-    }
-    if todo_col_id:
-        now_cards = datetime.now(timezone.utc).isoformat()
-        card_titles = _ONBOARDING_BASE + _ONBOARDING_SERVICE.get(detected_service_type or "", [])
-        for pos, title in enumerate(card_titles):
-            db.add(BoardCard(
-                id=str(uuid.uuid4()),
-                column_id=todo_col_id,
-                title=title,
-                labels=json.dumps(["onboarding"]),
-                position=pos,
-                updated_at=now_cards,
-            ))
-
-    db.commit()
-
-    # Auto-init workspace if service_type detected
-    if detected_service_type and detected_service_type in WORKSPACE_TEMPLATES:
-        try:
-            sheet_defs = build_sheets_for_service(detected_service_type, detected_months)
-            now_ws = datetime.now(timezone.utc).isoformat()
-            for idx, sdef in enumerate(sheet_defs):
-                sheet = WorkspaceSheet(
-                    id=str(uuid.uuid4()), project_id=project.id,
-                    sheet_index=idx, sheet_label=sdef["label"],
-                    service_type=detected_service_type, month_number=sdef.get("month"),
-                    created_at=now_ws,
-                )
-                db.add(sheet)
-                db.flush()
-                col_map = {}
-                for ci, cdef in enumerate(sdef["columns"]):
-                    col = WorkspaceColumn(
-                        id=str(uuid.uuid4()), sheet_id=sheet.id,
-                        column_key=cdef["key"], column_label=cdef["label"],
-                        column_type=cdef["type"], column_options=json.dumps(cdef.get("options", [])),
-                        column_order=ci, is_system=cdef.get("is_system", False), created_at=now_ws,
-                    )
-                    db.add(col)
-                    db.flush()
-                    col_map[cdef["key"]] = col
-                for ri, rdef in enumerate(sdef.get("default_rows", [])):
-                    row = WorkspaceRow(id=str(uuid.uuid4()), sheet_id=sheet.id, row_order=ri, is_template=True, created_at=now_ws)
-                    db.add(row)
-                    db.flush()
-                    for key, val in rdef.items():
-                        col = col_map.get(key)
-                        if not col:
-                            continue
-                        cell = WorkspaceCell(id=str(uuid.uuid4()), row_id=row.id, column_id=col.id, updated_at=now_ws)
-                        if col.column_type == "checkbox":
-                            cell.value_bool = bool(val)
-                        elif col.column_type == "number":
-                            cell.value_number = float(val) if val else None
-                        else:
-                            cell.value_text = str(val) if val else None
-                        db.add(cell)
-                    db.flush()
-                    sync_row_to_board(row.id, db)
-            db.commit()
-        except Exception as e:
-            print(f"[ACCEPT_AUTO_WORKSPACE] error: {e}", flush=True)
-
-    # Send admin WA notification
-    fonnte_token = get_fonnte_token(db)
-    admin_wa = _get_setting("admin_wa", ADMIN_WA)
-    msg = (
-        f"✅ *Proposal Diterima!*\n\n"
-        f"Klien: *{business_name}*\n"
-        f"Nama: {client_name}\n"
-        f"WA: {client_phone}\n"
-        f"Layanan: {service_names or '-'}\n"
-        f"Nilai: Rp {int(active_price):,}\n"
-        f"Tipe: {project_type}\n"
-        f"Project ID: {project.id[:8]}...\n\n"
-        f"Project & board sudah dibuat otomatis."
-    )
-    if accept_notes:
-        msg += f"\n\nCatatan klien: {accept_notes}"
-
-    threading.Thread(
-        target=_send_fonnte_sync,
-        args=(admin_wa, msg, fonnte_token, _httpx),
-        daemon=True,
-    ).start()
-
-    return {"success": True, "project_id": project.id, "already_accepted": False}
+    return accept_proposal_workflow(db, proposal, client_name, client_phone, accept_notes)
 
 
 def reject_proposal(db: Session, proposal_id: str, reason: Optional[str]) -> dict:

@@ -9,11 +9,59 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import get_db, log_audit, User, Lead, Contact, ScrapeHistory, LeadActivityLog, Proposal, ReengagementAlert, Transaction, AuditLog
+from models import get_db, log_audit, User, Lead, Contact, Project, ScrapeHistory, LeadActivityLog, Proposal, ReengagementAlert, Transaction, AuditLog, Notification
 from schemas import *
 from app.core.dependencies import get_current_user, require_admin, _check_simple_rate_limit, _analysis_jobs, _blast_jobs
+from app.services.notification_service import mark_notification_read, notification_to_dict
+from app.constants import CLIENT_STATUS_VALUES
 
 router = APIRouter()
+
+
+def _normalize_service_name(raw: Optional[str]) -> str:
+    key = (raw or "").strip()
+    if not key:
+        return "Belum ditentukan"
+    lower = key.lower()
+    if "landing page" in lower:
+        return "Landing Page"
+    if "website" in lower or "web dev" in lower or lower == "web":
+        return "Website Development"
+    if "seo" in lower and ("google maps" in lower or "gmaps" in lower):
+        return "SEO & Google Maps"
+    if "seo" in lower:
+        return "SEO"
+    if "sosmed" in lower or "sosial media" in lower or "social media" in lower:
+        return "Kelola Sosial Media"
+    if "maintenance" in lower or "maintain" in lower:
+        return "Maintenance Website"
+    if "logo" in lower or "branding" in lower or "desain logo" in lower:
+        return "Desain Logo & Branding"
+    return key
+
+
+_PROVINCE_WORDS = {
+    "indonesia", "jawa barat", "jawa tengah", "jawa timur", "dki jakarta",
+    "jakarta", "banten", "bali", "di yogyakarta", "yogyakarta",
+    "sumatera utara", "sumatera barat", "sumatera selatan", "lampung",
+    "kalimantan timur", "kalimantan barat", "kalimantan selatan",
+    "sulawesi selatan", "sulawesi utara",
+}
+
+
+def _extract_city(address: Optional[str]) -> str:
+    parts = [p.strip() for p in (address or "").split(",") if p.strip()]
+    if not parts:
+        return "Tidak diketahui"
+    for part in reversed(parts):
+        cleaned = re.sub(r"\b\d{4,}\b", "", part).strip()
+        if cleaned and cleaned.lower() not in _PROVINCE_WORDS:
+            return cleaned
+    return parts[-1]
+
+
+def _is_converted_lead(lead: Lead, contact_lead_ids: set[int]) -> bool:
+    return lead.status in CLIENT_STATUS_VALUES or lead.id in contact_lead_ids
 
 @router.get("/api/scrape-history")
 def get_scrape_history(
@@ -133,48 +181,47 @@ def get_leads(
 
 @router.get("/api/analytics")
 def get_analytics(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    total_leads = db.query(func.count(Lead.id)).scalar() or 0
+    active_leads = db.query(Lead).filter(Lead.is_archived == False).all()
+    total_leads = len(active_leads)
     total_clients = db.query(func.count(Contact.id)).scalar() or 0
-    conversion_rate = round((total_clients / total_leads * 100), 1) if total_leads > 0 else 0.0
+    contact_lead_ids = {row[0] for row in db.query(Contact.lead_id).filter(Contact.lead_id.isnot(None)).all()}
+    converted_lead_count = sum(1 for lead in active_leads if _is_converted_lead(lead, contact_lead_ids))
+    conversion_rate = round((converted_lead_count / total_leads * 100), 1) if total_leads > 0 else 0.0
 
-    # Normalize product names before grouping: strip whitespace, map common variations
-    # to canonical names to avoid "Website Development" appearing twice with different casing.
-    product_raw: dict = defaultdict(int)
-    all_products = db.query(Lead.product_interest).filter(Lead.product_interest.isnot(None)).all()
-    for (raw,) in all_products:
-        key = (raw or "").strip()
-        if not key:
-            continue
-        lower = key.lower()
-        if "website" in lower or "web dev" in lower:
-            key = "Website Development"
-        elif "seo" in lower and "google maps" in lower:
-            key = "SEO & Google Maps"
-        elif "seo" in lower:
-            key = "SEO"
-        elif "sosmed" in lower or "sosial media" in lower or "social media" in lower:
-            key = "Kelola Sosial Media"
-        elif "maintenance" in lower or "maintain" in lower:
-            key = "Maintenance Website"
-        elif "logo" in lower or "branding" in lower or "desain logo" in lower:
-            key = "Desain Logo & Branding"
-        elif "landing page" in lower:
-            key = "Landing Page"
-        product_raw[key] += 1
+    revenue_by_lead: dict[int, float] = defaultdict(float)
+    projects = db.query(Project).filter(Project.is_archived == False).all()
+    for project in projects:
+        if project.lead_id:
+            revenue_by_lead[project.lead_id] += float(project.nominal or 0)
+
+    product_raw: dict = defaultdict(lambda: {"count": 0, "converted": 0, "revenue": 0.0})
+    for lead in active_leads:
+        key = _normalize_service_name(lead.product_interest)
+        product_raw[key]["count"] += 1
+        if _is_converted_lead(lead, contact_lead_ids):
+            product_raw[key]["converted"] += 1
+        product_raw[key]["revenue"] += revenue_by_lead.get(lead.id, 0.0)
 
     leads_by_product = [
-        {"product": k, "count": v}
-        for k, v in sorted(product_raw.items(), key=lambda x: x[1], reverse=True)
+        {
+            "product": k,
+            "count": v["count"],
+            "converted": v["converted"],
+            "conversion_rate": round((v["converted"] / v["count"] * 100), 1) if v["count"] else 0,
+            "revenue": round(v["revenue"], 2),
+        }
+        for k, v in sorted(product_raw.items(), key=lambda x: (x[1]["converted"], x[1]["count"], x[1]["revenue"]), reverse=True)
     ]
 
     status_rows = db.execute(
-        select(Lead.status, func.count(Lead.id).label("count")).group_by(Lead.status)
+        select(Lead.status, func.count(Lead.id).label("count")).filter(Lead.is_archived == False).group_by(Lead.status)
     ).all()
     leads_by_status = [{"status": r[0], "count": r[1]} for r in status_rows]
 
     return {
         "total_leads": total_leads,
         "total_clients": total_clients,
+        "converted_leads": converted_lead_count,
         "conversion_rate": conversion_rate,
         "leads_by_product": leads_by_product,
         "leads_by_status": leads_by_status,
@@ -223,6 +270,29 @@ def mark_alert_read(alert_id: str, current_user: User = Depends(get_current_user
     return {"ok": True}
 
 
+@router.get("/api/notifications")
+def list_notifications(
+    include_read: bool = Query(False),
+    limit: int = Query(30, le=100),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Notification)
+    if not include_read:
+        query = query.filter(Notification.is_read == False)
+    notifications = query.order_by(Notification.created_at.desc()).limit(limit).all()
+    return [notification_to_dict(n) for n in notifications]
+
+
+@router.post("/api/notifications/{notification_id}/read")
+def read_notification(notification_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        notif = mark_notification_read(db, notification_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return notification_to_dict(notif)
+
+
 # ---------------------------------------------------------------------------
 # Follow-up Sequence
 # ---------------------------------------------------------------------------
@@ -231,15 +301,16 @@ def mark_alert_read(alert_id: str, current_user: User = Depends(get_current_user
 @router.get("/api/analytics/patterns")
 def get_conversion_patterns(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     leads = db.query(Lead).filter(Lead.is_archived == False).all()
+    contact_lead_ids = {row[0] for row in db.query(Contact.lead_id).filter(Contact.lead_id.isnot(None)).all()}
 
     by_category = {}
     by_city = {}
     by_rating = {"high": {"total": 0, "converted": 0}, "mid": {"total": 0, "converted": 0}, "low": {"total": 0, "converted": 0}}
 
     for lead in leads:
-        is_converted = lead.status == "Closed/Client"
-        category = lead.product_interest or "Lainnya"
-        city = lead.address.split(",")[-1].strip() if lead.address and "," in lead.address else (lead.address or "Unknown")
+        is_converted = _is_converted_lead(lead, contact_lead_ids)
+        category = _normalize_service_name(lead.product_interest)
+        city = _extract_city(lead.address)
 
         if category not in by_category:
             by_category[category] = {"total": 0, "converted": 0}
@@ -385,5 +456,3 @@ def get_all_background_jobs(current_user: User = Depends(require_admin)):
 # ---------------------------------------------------------------------------
 # Projects
 # ---------------------------------------------------------------------------
-
-

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import Modal from "../../../components/Modal";
 import { apiFetch } from "../../../lib/api";
 import WorkspaceSheet from "../../../components/workspace/WorkspaceSheet";
@@ -112,24 +113,6 @@ export default function WorkspaceDetailPage() {
   const [addingSheet, setAddingSheet] = useState(false);
   const [deleteSheetId, setDeleteSheetId] = useState<string | null>(null);
   const [reportMonth, setReportMonth] = useState(1);
-  const [generatingReport, setGeneratingReport] = useState(false);
-
-  async function handleGenerateReport() {
-    setGeneratingReport(true);
-    try {
-      const res = await apiFetch(`/api/workspace/${projectId}/generate-monthly-report?month=${reportMonth}`, { method: "POST" });
-      if (res.ok) {
-        const data = await res.json();
-        const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-        window.open(`${API_BASE}${data.file_url}`, "_blank");
-        showToast(`Laporan bulan ${reportMonth} berhasil dibuat.`);
-      } else {
-        const err = await res.json().catch(() => ({}));
-        showToast(err.detail || "Gagal generate laporan", "error");
-      }
-    } catch { showToast("Gagal generate laporan", "error"); }
-    finally { setGeneratingReport(false); }
-  }
 
   async function handleAddSheet() {
     if (!newSheetLabel.trim()) return;
@@ -179,7 +162,7 @@ export default function WorkspaceDetailPage() {
   const currentSheet = sheets[activeSheet] || sheets[0];
 
   return (
-    <div className="p-4 sm:p-6 max-w-[1400px] mx-auto space-y-4">
+    <div className="mx-auto max-w-[1400px] space-y-4 rounded-2xl bg-amber-50/20 p-4 sm:p-6 dark:bg-amber-950/5">
       <Breadcrumb items={[
         { label: "Workspace Klien", href: "/workspace" },
         { label: workspace.project_name || "Project" },
@@ -195,17 +178,16 @@ export default function WorkspaceDetailPage() {
           <select
             value={reportMonth}
             onChange={e => setReportMonth(Number(e.target.value))}
-            className="px-2 py-1.5 text-xs border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-gray-700 dark:text-gray-300">
+            className="rounded-lg border border-amber-100 bg-white px-2 py-1.5 text-xs text-gray-700 dark:border-amber-900/40 dark:bg-[var(--bg-surface)] dark:text-gray-300">
             {Array.from({ length: workspace.sheets.filter(s => s.month_number !== null).length || 12 }, (_, i) => i + 1).map(m => (
               <option key={m} value={m}>Bulan {m}</option>
             ))}
           </select>
-          <button
-            onClick={handleGenerateReport}
-            disabled={generatingReport}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-neutral-800 hover:bg-neutral-700 dark:bg-neutral-200 dark:hover:bg-white text-white dark:text-neutral-900 rounded-lg disabled:opacity-50 transition-colors">
-            {generatingReport ? "Membuat..." : "Generate Laporan"}
-          </button>
+          <Link
+            href={`/documents/reports?target_type=project&project_id=${projectId}&report_type=monthly&month=${reportMonth}`}
+            className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-amber-600">
+            Buat Laporan
+          </Link>
         </div>
       </div>
 
@@ -214,7 +196,7 @@ export default function WorkspaceDetailPage() {
         {sheets.map((s, i) => (
           <div key={s.id} className="relative group flex items-center">
             <button onClick={() => setActiveSheet(i)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors ${i === activeSheet ? "bg-neutral-800 text-white dark:bg-neutral-200 dark:text-neutral-900" : "bg-gray-100 dark:bg-neutral-800 text-gray-600 dark:text-neutral-300 hover:bg-gray-200"}`}>
+              className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${i === activeSheet ? "bg-amber-500 text-white" : "bg-white text-gray-600 hover:bg-amber-50 dark:bg-[var(--bg-surface)] dark:text-neutral-300 dark:hover:bg-amber-950/20"}`}>
               {s.sheet_label}
             </button>
             {s.month_number === null && (
@@ -225,7 +207,7 @@ export default function WorkspaceDetailPage() {
             )}
           </div>
         ))}
-        <button onClick={() => setAddSheetModal(true)} className="px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap border border-dashed border-gray-300 dark:border-neutral-700 text-gray-500 hover:border-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200">
+        <button onClick={() => setAddSheetModal(true)} className="whitespace-nowrap rounded-lg border border-dashed border-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:border-amber-400 hover:text-amber-900 dark:border-amber-900/50 dark:text-amber-300">
           + Sheet
         </button>
       </div>
@@ -243,13 +225,13 @@ export default function WorkspaceDetailPage() {
       {addSheetModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setAddSheetModal(false)} />
-          <div className="relative bg-white dark:bg-neutral-900 rounded-xl shadow-xl border border-gray-200 dark:border-neutral-700 w-full max-w-sm p-5 space-y-4">
+          <div className="relative w-full max-w-sm space-y-4 rounded-xl border border-amber-100 bg-white p-5 shadow-xl dark:border-amber-900/40 dark:bg-[var(--bg-surface)]">
             <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-100">Tambah Sheet</h3>
             <input value={newSheetLabel} onChange={e => setNewSheetLabel(e.target.value)} placeholder="Nama sheet..."
-              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800" autoFocus />
+              className="w-full rounded-lg border border-amber-100 bg-amber-50/40 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-amber-900/40 dark:bg-neutral-800/70" autoFocus />
             <div className="flex justify-end gap-2">
-              <button onClick={() => setAddSheetModal(false)} className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100 dark:bg-neutral-800 rounded-lg">Batal</button>
-              <button onClick={handleAddSheet} disabled={addingSheet || !newSheetLabel.trim()} className="px-3 py-1.5 text-xs font-semibold bg-neutral-800 hover:bg-neutral-700 dark:bg-neutral-200 dark:hover:bg-white text-white dark:text-neutral-900 rounded-lg disabled:opacity-50">
+              <button onClick={() => setAddSheetModal(false)} className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:bg-neutral-800/70">Batal</button>
+              <button onClick={handleAddSheet} disabled={addingSheet || !newSheetLabel.trim()} className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 disabled:opacity-50">
                 {addingSheet ? "..." : "Tambah"}
               </button>
             </div>

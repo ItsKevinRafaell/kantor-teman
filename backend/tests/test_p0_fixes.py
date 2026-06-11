@@ -194,6 +194,75 @@ class TestWorkspaceBoardSync:
         assert card.column_id == done.id
 
 
+class TestBoardCrudRuntime:
+    """Board card endpoints must work at runtime, not just compile."""
+
+    def _make_board(self, db_session):
+        project = Project(id="board-crud-project", lead_id=None, name="Board CRUD", type="FIXED", status="ACTIVE", nominal=0)
+        board = Board(id="board-crud-board", project_id=project.id)
+        todo = BoardColumn(id="board-crud-todo", board_id=board.id, name="To Do", position=0, color="gray")
+        progress = BoardColumn(id="board-crud-progress", board_id=board.id, name="In Progress", position=1, color="gray")
+        db_session.add_all([project, board, todo, progress])
+        db_session.commit()
+        return todo, progress
+
+    def test_card_crud_comment_checklist_move_archive_delete(self, db_session):
+        from routers import other
+        from schemas import BoardCardIn, BoardCardUpdate, BoardCardCommentIn, BoardCardChecklistIn, MoveCardRequest
+        from unittest.mock import MagicMock
+
+        user = MagicMock()
+        user.name = "Admin"
+        user.role = "admin"
+        todo, progress = self._make_board(db_session)
+
+        card = other.create_board_card(todo.id, BoardCardIn(title="Follow up lead", labels=["yellow"]), user, db_session)
+        assert card["title"] == "Follow up lead"
+        assert card["color"] == "gray"
+
+        comment = other.create_card_comment(card["id"], BoardCardCommentIn(content="Sudah dihubungi"), user, db_session)
+        assert comment["content"] == "Sudah dihubungi"
+
+        item = other.create_card_checklist(card["id"], BoardCardChecklistIn(text="Kirim report"), user, db_session)
+        toggled = other.update_card_checklist(card["id"], item["id"], True, user, db_session)
+        assert toggled["is_done"] is True
+
+        moved = other.move_board_card(card["id"], MoveCardRequest(column_id=progress.id), user, db_session)
+        assert moved["column_id"] == progress.id
+
+        archived = other.update_board_card(card["id"], BoardCardUpdate(is_archived=True), user, db_session)
+        assert archived["is_archived"] is True
+
+        detail = other.get_board_card(card["id"], user, db_session)
+        assert len(detail["comments"]) == 1
+        assert len(detail["checklist"]) == 1
+        assert len(detail["activity"]) >= 5
+
+        other.delete_board_card(card["id"], user, db_session)
+        assert db_session.query(BoardCard).filter(BoardCard.id == card["id"]).first() is None
+
+
+class TestBlastPayloadContract:
+    """WA Blast payload must match frontend instant/scheduled forms."""
+
+    def test_instant_blast_accepts_filter_criteria_payload(self):
+        from schemas import BlastIn
+
+        body = BlastIn(
+            batch_name="batch-001",
+            template_id="template-001",
+            filter_criteria={
+                "status": "Scraped",
+                "batch_name": "batch-001",
+                "min_rating": 4,
+                "product_category": "SEO & Google Maps",
+            },
+        )
+
+        assert body.product_category is None
+        assert body.filter_criteria["product_category"] == "SEO & Google Maps"
+
+
 class TestWebhookPhoneMatching:
     """P0-2: Webhook phone matching to 08xx DB storage"""
 
@@ -2022,32 +2091,22 @@ class TestDocumentGeneratorInputFields:
 
 
 class TestAIEngineMultiProviderCaption:
-    """P0-3: generate_caption uses canonical multi-provider routing."""
+    """P0-3: removed caption endpoint stays disabled."""
 
-    def test_generate_caption_delegates_to_service(self, db_session):
-        """generate_caption in content.py must delegate to ai_service.generate_caption."""
-        from unittest.mock import MagicMock, patch
-        # Verify by patching at the service location the router imports from
-        with patch("app.services.ai_service.generate_caption", MagicMock(return_value={
-            "id": "gen-1", "status": "done", "created_at": "2026-06-08T00:00:00Z",
-            "caption": "test", "hashtags": [], "notes": ""
-        })) as mock_svc:
-            from routers.content import generate_caption
-            body = MagicMock()
-            body.topic = "test topic"
-            body.platform = "instagram"
-            body.tone = "casual"
-            body.keywords = ["test"]
-            body.session_id = None
-            body.context_from = None
-            user = MagicMock()
-            user.id = 1
-            result = generate_caption(body, user, db_session)
-            mock_svc.assert_called_once()
-            call_kwargs = mock_svc.call_args[1]
-            assert call_kwargs["db"] is db_session
-            assert call_kwargs["user_id"] == 1
-            assert call_kwargs["topic"] == "test topic"
+    def test_generate_caption_removed(self, db_session):
+        """Caption generator is intentionally removed; endpoint returns 410."""
+        from unittest.mock import MagicMock
+        from fastapi import HTTPException
+        from routers.content import generate_caption
+
+        body = MagicMock()
+        user = MagicMock()
+        user.id = 1
+        try:
+            generate_caption(body, user, db_session)
+            assert False, "Should have raised"
+        except HTTPException as e:
+            assert e.status_code == 410
 
     def test_generate_seo_article_delegates_to_service(self, db_session):
         """generate_seo_article in content.py must delegate to ai_service.generate_seo_article."""

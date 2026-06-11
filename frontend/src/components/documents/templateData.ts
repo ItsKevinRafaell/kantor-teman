@@ -7,6 +7,7 @@ export const STARTER_VARIABLES: Record<string, string> = {
   proposal_pdf: "logo, tanggal, valid_until, klien, alamat, phone, layanan, items_rows, scope, brand_name, alamat_perusahaan, phone_perusahaan, email_perusahaan, tagline",
   surat_penawaran: "logo, nomor, tanggal, klien, alamat, phone, perihal, items_rows, terms, brand_name, alamat_perusahaan, phone_perusahaan, email_perusahaan",
   kontrak: "logo, tanggal_mulai, tanggal_akhir, klien, alamat, phone, layanan, durasi, nilai_kontrak, scope, terms, brand_name, alamat_perusahaan, phone_perusahaan, email_perusahaan, tagline",
+  mou: "logo, nomor, tanggal, klien, alamat, phone, tujuan, scope, tanggung_jawab_seller, tanggung_jawab_buyer, durasi, terms, brand_name, alamat_perusahaan, phone_perusahaan, email_perusahaan, tagline",
   custom: "",
 };
 
@@ -259,6 +260,41 @@ body{color:#1e293b;font-size:11px;line-height:1.6;background:#fff}
 </div>
 <div class="footer">{{brand_name}} &nbsp;·&nbsp; {{tagline}}</div>
 </div></body></html>`,
+
+  mou: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap');
+@page{size:A4;margin:2cm}
+*{font-family:'Noto Sans',Arial,sans-serif;box-sizing:border-box}
+body{color:#1e293b;font-size:12px;line-height:1.65}
+.header{text-align:center;border-bottom:2px solid #1e293b;padding-bottom:18px;margin-bottom:24px}
+.header h1{font-size:18px;letter-spacing:2px;margin:10px 0 4px}
+.meta{color:#64748b;font-size:10px}
+.parties{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:20px 0}
+.box{border:1px solid #e2e8f0;border-radius:8px;padding:14px;background:#f8fafc}
+.label{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;font-weight:700;margin-bottom:6px}
+.name{font-weight:700;color:#0f172a}
+.section{margin:18px 0}
+.section-title{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#92400e;font-weight:700;border-bottom:1px solid #fcd34d;padding-bottom:5px;margin-bottom:8px}
+.content{white-space:pre-line}
+.signatures{display:grid;grid-template-columns:1fr 1fr;gap:42px;margin-top:52px}
+.sig{text-align:center}.sig-space{height:56px}.sig-line{border-top:1px solid #1e293b;padding-top:6px;font-weight:700}
+</style></head><body>
+<div class="header">{{logo}}<h1>MEMORANDUM OF UNDERSTANDING</h1><div class="meta">No. {{nomor}} · {{tanggal}}</div></div>
+<p>Nota kesepahaman ini dibuat sebagai dasar kerja sama awal antara pihak-pihak berikut:</p>
+<div class="parties">
+  <div class="box"><div class="label">Pihak Pertama - Penyedia Jasa</div><div class="name">{{brand_name}}</div><div>{{alamat_perusahaan}}<br/>{{phone_perusahaan}}<br/>{{email_perusahaan}}</div></div>
+  <div class="box"><div class="label">Pihak Kedua - Klien</div><div class="name">{{klien}}</div><div>{{alamat}}<br/>{{phone}}</div></div>
+</div>
+<div class="section"><div class="section-title">Tujuan Kerja Sama</div><div class="content">{{tujuan}}</div></div>
+<div class="section"><div class="section-title">Ruang Lingkup</div><div class="content">{{scope}}</div></div>
+<div class="section"><div class="section-title">Tanggung Jawab Pihak Pertama</div><div class="content">{{tanggung_jawab_seller}}</div></div>
+<div class="section"><div class="section-title">Tanggung Jawab Pihak Kedua</div><div class="content">{{tanggung_jawab_buyer}}</div></div>
+<div class="section"><div class="section-title">Jangka Waktu dan Tindak Lanjut</div><div class="content">{{durasi}}<br/>{{terms}}</div></div>
+<div class="signatures">
+  <div class="sig"><div>Pihak Pertama,</div><div class="sig-space"></div><div class="sig-line">{{brand_name}}</div></div>
+  <div class="sig"><div>Pihak Kedua,</div><div class="sig-space"></div><div class="sig-line">{{klien}}</div></div>
+</div>
+</body></html>`,
 
   custom: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap');

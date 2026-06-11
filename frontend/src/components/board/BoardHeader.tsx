@@ -2,8 +2,8 @@
 import { Plus, Archive, ArchiveRestore } from "lucide-react";
 
 const COLORS = {
-  primary: "bg-neutral-500 hover:bg-neutral-600 text-white",
-  secondary: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700",
+  primary: "bg-amber-500 hover:bg-amber-600 text-white",
+  secondary: "bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30 border border-amber-100 dark:border-amber-900/50",
 };
 
 interface BoardHeaderProps {
@@ -37,15 +37,15 @@ export default function BoardHeader({
           </div>
         ) : (
           <div>
-            <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">Project Board</h1>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Kelola task proyek dengan kanban board</p>
+            <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">Board Proyek</h1>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Pantau tugas proyek dari rencana sampai selesai.</p>
           </div>
         )}
       </div>
       <div className="flex items-center gap-2 flex-wrap justify-end">
         {viewMode === "overview" && (
           <label className="flex items-center gap-2 px-3 py-2 text-sm rounded-xl cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
-            <input type="checkbox" checked={showArchivedProjects} onChange={e => setShowArchivedProjects(e.target.checked)} className="accent-neutral-500 w-4 h-4" />
+            <input type="checkbox" checked={showArchivedProjects} onChange={e => setShowArchivedProjects(e.target.checked)} className="accent-amber-500 w-4 h-4" />
             Tampilkan arsip
           </label>
         )}

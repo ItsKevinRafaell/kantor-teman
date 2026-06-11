@@ -22,6 +22,8 @@ from app.core.dependencies import (
     sync_row_to_board, sync_row_status_to_board,
     _acquire_scheduler_lock, _run_async_job,
 )
+from app.constants import CLIENT_STATUS_VALUES
+from app.constants import LeadStatus
 
 
 # ─── Module-level job state ───────────────────────────────────────────────────
@@ -85,7 +87,7 @@ def get_template_stats(db: Session, template_id: str, days: int = 30) -> dict:
     read = sum(1 for m in msgs if m.read_at)
     replied = sum(1 for m in msgs if m.replied_at)
     lead_ids = [m.lead_id for m in msgs if m.replied_at]
-    closed = db.query(Lead).filter(Lead.id.in_(lead_ids), Lead.status == "Closed/Client").count() if lead_ids else 0
+    closed = db.query(Lead).filter(Lead.id.in_(lead_ids), Lead.status.in_(CLIENT_STATUS_VALUES)).count() if lead_ids else 0
     reply_rate = round(replied / sent * 100, 1) if sent else 0.0
     conversion_rate = round(closed / sent * 100, 1) if sent else 0.0
     return {
@@ -222,11 +224,12 @@ async def execute_blast_campaign(campaign: BlastCampaign, db: Session, SessionLo
 
     sent = 0
     failed = 0
+    criteria_product = (criteria.get("product_category") or "").strip()
     for lead in leads:
-        report_slug = generate_report_for_lead(lead, db)
+        product_name = criteria_product or lead.product_interest or "layanan kami"
+        report_slug = generate_report_for_lead(lead, db, product_category=product_name)
         report_link = f"{FRONTEND_URL}/r/{report_slug}"
         if template:
-            product_name = criteria.get("product_category") or lead.product_interest or "layanan kami"
             message = template.content.replace("{{client_name}}", lead.business_name).replace("{{business_name}}", lead.business_name).replace("{{product_name}}", product_name)
         else:
             message = f"Halo {lead.business_name}, kami menyiapkan audit digital singkat untuk bisnis Anda. Apakah kami boleh menjelaskan poin yang paling prioritas?\n\nLaporan ringkas: {report_link}"
@@ -244,7 +247,7 @@ async def execute_blast_campaign(campaign: BlastCampaign, db: Session, SessionLo
             error_message=None if success else "Fonnte send returned non-200",
         ))
         if success:
-            lead.status = "Contacted"
+            lead.status = LeadStatus.WA_SENT
             sent += 1
         else:
             failed += 1

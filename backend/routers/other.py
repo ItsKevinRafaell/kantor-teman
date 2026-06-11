@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse,
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import get_db, log_audit, User, Lead, MessageTemplate, ClientDocument, BrandKit, BrandAsset, DocumentTemplate, GeneratedDocument, Document, DocumentFolder, DocumentSequence, PaymentMethod, SystemSettings, ClientCredential, ProviderConfig, DynamicTemplate
+from models import get_db, log_audit, User, Lead, MessageTemplate, ClientDocument, BrandKit, BrandAsset, DocumentTemplate, GeneratedDocument, Document, DocumentFolder, DocumentSequence, PaymentMethod, SystemSettings, ClientCredential, ProviderConfig, DynamicTemplate, BoardCard, BoardCardAttachment, BoardCardActivity
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, UPLOADS_DIR,
     encrypt_password, decrypt_password,
@@ -17,8 +17,21 @@ from app.core.dependencies import (get_current_user, require_admin, UPLOADS_DIR,
     _detect_project_type, _detect_service_type, _detect_contract_months,
     _check_simple_rate_limit, _call_ai_sync,
 )
+from app.constants import LeadStatus
+from app.services import board_service
 
 router = APIRouter()
+
+
+def _raise_board_http_error(exc: Exception) -> None:
+    detail = str(exc)
+    if isinstance(exc, PermissionError):
+        raise HTTPException(status_code=403, detail=detail)
+    if "tidak ditemukan" in detail.lower():
+        raise HTTPException(status_code=404, detail=detail)
+    if "terhubung ke workspace" in detail.lower():
+        raise HTTPException(status_code=409, detail=detail)
+    raise HTTPException(status_code=400, detail=detail)
 
 @router.post("/api/wa/send")
 def send_wa_manual(body: WaSendIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -38,7 +51,7 @@ def send_wa_manual(body: WaSendIn, current_user: User = Depends(get_current_user
     print(f"[WA SEND] success={success}", flush=True)
     if success:
         if lead.status == "Scraped":
-            lead.status = "Contacted"
+            lead.status = LeadStatus.WA_SENT
             db.commit()
         log_outreach_cost(db, None, 1)
         log_audit(db, current_user.name, "SEND_WA", "leads", lead.id, {"type": "manual"})
@@ -150,277 +163,169 @@ def get_timeline_templates(current_user: User = Depends(get_current_user), db: S
 @router.put("/api/board-columns/{column_id}", response_model=BoardColumnOut)
 def update_board_column(column_id: str, body: BoardColumnIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Update column name, position or color"""
-    col = db.query(BoardColumn).filter(BoardColumn.id == column_id).first()
-    if not col:
-        raise HTTPException(status_code=404, detail="Column tidak ditemukan")
-    if body.name:
-        col.name = body.name
-    if body.position is not None:
-        col.position = body.position
-    if body.color:
-        col.color = body.color
-    db.commit()
-    db.refresh(col)
-    return BoardColumnOut(id=col.id, board_id=col.board_id, name=col.name, position=col.position, color=col.color, cards=[])
+    try:
+        return board_service.update_board_column(db, column_id, body.name, body.position, body.color)
+    except (ValueError, PermissionError) as exc:
+        _raise_board_http_error(exc)
 
 
 
 @router.delete("/api/board-columns/{column_id}", status_code=204)
 def delete_board_column(column_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Delete a column and all its cards"""
-    col = db.query(BoardColumn).filter(BoardColumn.id == column_id).first()
-    if not col:
-        raise HTTPException(status_code=404, detail="Column tidak ditemukan")
-    card_ids = [c.id for c in db.query(BoardCard.id).filter(BoardCard.column_id == column_id).all()]
-    if card_ids:
-        db.query(BoardCardActivity).filter(BoardCardActivity.card_id.in_(card_ids)).delete(synchronize_session=False)
-        db.query(BoardCardChecklist).filter(BoardCardChecklist.card_id.in_(card_ids)).delete(synchronize_session=False)
-        db.query(BoardCardComment).filter(BoardCardComment.card_id.in_(card_ids)).delete(synchronize_session=False)
-    db.query(BoardCard).filter(BoardCard.column_id == column_id).delete()
-    db.delete(col)
-    db.commit()
+    try:
+        board_service.delete_board_column(db, column_id)
+    except (ValueError, PermissionError) as exc:
+        _raise_board_http_error(exc)
 
 
 
 @router.post("/api/board-columns/{column_id}/cards", response_model=BoardCardOut, status_code=201)
 def create_board_card(column_id: str, body: BoardCardIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Create a new card in column"""
-    col = db.query(BoardColumn).filter(BoardColumn.id == column_id).first()
-    if not col:
-        raise HTTPException(status_code=404, detail="Column tidak ditemukan")
-    max_pos = db.query(BoardCard).filter(BoardCard.column_id == column_id).count()
-    card = BoardCard(
-        id=str(uuid.uuid4()),
-        column_id=column_id,
-        title=body.title,
-        description=body.description,
-        assignee=body.assignee or current_user.name,
-        due_date=body.due_date,
-        labels=json.dumps(body.labels) if body.labels else None,
-        position=max_pos,
-        lead_id=body.lead_id,
-        color=body.color or "yellow",
-    )
-    db.add(card)
-
-    # Add activity
-    activity = BoardCardActivity(
-        id=str(uuid.uuid4()),
-        card_id=card.id,
-        action="created",
-        description=f"Card created: {body.title}",
-        actor=current_user.name,
-    )
-    db.add(activity)
-    db.commit()
-    db.refresh(card)
-
-    return card_to_out(card)
+    try:
+        return board_service.create_board_card(
+            db,
+            column_id,
+            body.title,
+            body.description,
+            body.assignee,
+            body.due_date,
+            body.labels,
+            body.lead_id,
+            body.color or "gray",
+            current_user.name,
+        )
+    except (ValueError, PermissionError) as exc:
+        _raise_board_http_error(exc)
 
 
 
 @router.get("/api/board-cards/{card_id}", response_model=BoardCardOut)
 def get_board_card(card_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get card details"""
-    card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
-    if not card:
-        raise HTTPException(status_code=404, detail="Card tidak ditemukan")
-    return card_to_out(card)
+    try:
+        return board_service.get_board_card(db, card_id)
+    except (ValueError, PermissionError) as exc:
+        _raise_board_http_error(exc)
 
 
 
 @router.put("/api/board-cards/{card_id}", response_model=BoardCardOut)
 def update_board_card(card_id: str, body: BoardCardUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Update card"""
-    card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
-    if not card:
-        raise HTTPException(status_code=404, detail="Card tidak ditemukan")
-
-    # Block title edit if card is linked to workspace row (1-way sync)
-    workspace_linked = db.query(WorkspaceRow).filter(WorkspaceRow.board_card_id == card_id).first()
-    if body.title is not None and workspace_linked:
-        pass  # ignore title change — managed by workspace
-    elif body.title is not None:
-        card.title = body.title
-    if body.description is not None:
-        card.description = body.description
-    if body.assignee is not None:
-        card.assignee = body.assignee
-    if body.due_date is not None:
-        card.due_date = body.due_date
-    if body.labels is not None:
-        card.labels = json.dumps(body.labels)
-    if body.column_id is not None:
-        card.column_id = body.column_id
-    if body.position is not None:
-        card.position = body.position
-    if body.lead_id is not None:
-        card.lead_id = body.lead_id
-    if body.color is not None:
-        card.color = body.color
-    if body.is_archived is not None:
-        card.is_archived = body.is_archived
-        # Add activity for archive/unarchive
-        action = "archived" if body.is_archived else "unarchived"
-        activity = BoardCardActivity(
-            id=str(uuid.uuid4()),
-            card_id=card.id,
-            action=action,
-            description=f"Card {action}",
-            actor=current_user.name,
-        )
-        db.add(activity)
-
-    card.updated_at = datetime.now(timezone.utc).isoformat()
-
-    # Add update activity
-    activity = BoardCardActivity(
-        id=str(uuid.uuid4()),
-        card_id=card.id,
-        action="updated",
-        description="Card updated",
-        actor=current_user.name,
-    )
-    db.add(activity)
-
-    db.commit()
-    db.refresh(card)
-    return card_to_out(card)
+    updates = body.model_dump(exclude_unset=True)
+    try:
+        return board_service.update_board_card(db, card_id, updates, current_user.name)
+    except (ValueError, PermissionError) as exc:
+        _raise_board_http_error(exc)
 
 
 
 @router.delete("/api/board-cards/{card_id}", status_code=204)
 def delete_board_card(card_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Delete a card"""
-    card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
-    if not card:
-        raise HTTPException(status_code=404, detail="Card tidak ditemukan")
-    if db.query(WorkspaceRow).filter(WorkspaceRow.board_card_id == card_id).first():
-        raise HTTPException(status_code=409, detail="Card terhubung ke workspace. Hapus task dari workspace agar sinkronisasi tetap konsisten.")
-    db.query(BoardCardActivity).filter(BoardCardActivity.card_id == card_id).delete()
-    db.query(BoardCardChecklist).filter(BoardCardChecklist.card_id == card_id).delete()
-    db.query(BoardCardComment).filter(BoardCardComment.card_id == card_id).delete()
-    db.delete(card)
-    db.commit()
+    try:
+        board_service.delete_board_card(db, card_id)
+    except (ValueError, PermissionError) as exc:
+        _raise_board_http_error(exc)
 
 
 
 @router.post("/api/board-cards/{card_id}/move", response_model=BoardCardOut)
 def move_board_card(card_id: str, body: MoveCardRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Move card to another column"""
-    card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
-    if not card:
-        raise HTTPException(status_code=404, detail="Card tidak ditemukan")
-
-    # Admin-only rule: moves to Done/Revisi columns require admin role
-    target_column = db.query(BoardColumn).filter(BoardColumn.id == body.column_id).first()
-    if target_column:
-        target_name = (target_column.name or "").strip().lower()
-        if target_name in {"done", "revisi", "selesai"} and (current_user.role or "").lower() != "admin":
-            raise HTTPException(status_code=403, detail=f"Hanya admin yang bisa pindahin card ke '{target_column.name}'.")
-
-    old_column = card.column_id
-    card.column_id = body.column_id
-    if body.position is not None:
-        card.position = body.position
-    else:
-        max_pos = db.query(BoardCard).filter(BoardCard.column_id == body.column_id).count()
-        card.position = max_pos
-
-    # Add activity
-    activity = BoardCardActivity(
-        id=str(uuid.uuid4()),
-        card_id=card.id,
-        action="moved",
-        description=f"Card moved to another column",
-        actor=current_user.name,
-    )
-    db.add(activity)
-
-    db.commit()
-    db.refresh(card)
-    return card_to_out(card)
+    try:
+        return board_service.move_board_card(
+            db,
+            card_id,
+            body.column_id,
+            body.position,
+            current_user.name,
+            current_user.role,
+        )
+    except (ValueError, PermissionError) as exc:
+        _raise_board_http_error(exc)
 
 
 
 @router.post("/api/board-cards/{card_id}/comments", response_model=BoardCardCommentOut, status_code=201)
 def create_card_comment(card_id: str, body: BoardCardCommentIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Add comment to card"""
-    card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
-    if not card:
-        raise HTTPException(status_code=404, detail="Card tidak ditemukan")
-
-    comment = BoardCardComment(
-        id=str(uuid.uuid4()),
-        card_id=card_id,
-        author=current_user.name,
-        content=body.content,
-    )
-    db.add(comment)
-
-    # Add activity
-    activity = BoardCardActivity(
-        id=str(uuid.uuid4()),
-        card_id=card_id,
-        action="commented",
-        description=f"Comment added: {body.content[:50]}...",
-        actor=current_user.name,
-    )
-    db.add(activity)
-    db.commit()
-    db.refresh(comment)
-    return comment
+    try:
+        return board_service.create_card_comment(db, card_id, current_user.name, body.content)
+    except (ValueError, PermissionError) as exc:
+        _raise_board_http_error(exc)
 
 
 
 @router.post("/api/board-cards/{card_id}/checklist", response_model=BoardCardChecklistOut, status_code=201)
 def create_card_checklist(card_id: str, body: BoardCardChecklistIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Add checklist item to card"""
-    card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
-    if not card:
-        raise HTTPException(status_code=404, detail="Card tidak ditemukan")
-
-    max_pos = db.query(BoardCardChecklist).filter(BoardCardChecklist.card_id == card_id).count()
-    item = BoardCardChecklist(
-        id=str(uuid.uuid4()),
-        card_id=card_id,
-        text=body.text,
-        position=max_pos,
-    )
-    db.add(item)
-    activity = BoardCardActivity(
-        id=str(uuid.uuid4()),
-        card_id=card_id,
-        action="checklist",
-        description=f'Checklist "{body.text}" ditambahkan',
-        actor=current_user.name,
-    )
-    db.add(activity)
-    db.commit()
-    db.refresh(item)
-    return item
+    try:
+        return board_service.create_card_checklist(db, card_id, body.text, current_user.name)
+    except (ValueError, PermissionError) as exc:
+        _raise_board_http_error(exc)
 
 
 
 @router.patch("/api/board-cards/{card_id}/checklist/{item_id}", response_model=BoardCardChecklistOut)
 def update_card_checklist(card_id: str, item_id: str, is_done: bool = Query(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Toggle checklist item"""
-    item = db.query(BoardCardChecklist).filter(BoardCardChecklist.id == item_id, BoardCardChecklist.card_id == card_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Checklist item tidak ditemukan")
-    item.is_done = is_done
-    status_text = "selesai" if is_done else "belum selesai"
-    activity = BoardCardActivity(
+    try:
+        return board_service.toggle_checklist_item(db, card_id, item_id, is_done, current_user.name)
+    except (ValueError, PermissionError) as exc:
+        _raise_board_http_error(exc)
+
+
+@router.post("/api/board-cards/{card_id}/attachments", response_model=BoardCardAttachmentOut, status_code=201)
+async def upload_board_card_attachment(
+    card_id: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
+    if not card:
+        raise HTTPException(status_code=404, detail="Card tidak ditemukan")
+
+    allowed_ext = {".jpg", ".jpeg", ".png", ".pdf", ".webp", ".doc", ".docx", ".xls", ".xlsx", ".csv", ".txt"}
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in allowed_ext:
+        raise HTTPException(status_code=400, detail=f"Format tidak diizinkan: {ext or '-'}")
+
+    contents = await file.read()
+    if len(contents) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File terlalu besar (max 10MB)")
+
+    card_dir = os.path.join(UPLOADS_DIR, "board", card_id)
+    os.makedirs(card_dir, exist_ok=True)
+    fname = f"{uuid.uuid4().hex}{ext}"
+    fpath = os.path.join(card_dir, fname)
+    with open(fpath, "wb") as fh:
+        fh.write(contents)
+
+    file_url = f"/uploads/board/{card_id}/{fname}"
+    attachment = BoardCardAttachment(
         id=str(uuid.uuid4()),
         card_id=card_id,
-        action="checklist",
-        description=f'Checklist "{item.text}" ditandai {status_text}',
-        actor=current_user.name,
+        file_path=file_url,
+        file_name=file.filename or fname,
+        file_type=file.content_type,
+        uploaded_by=current_user.name,
     )
-    db.add(activity)
+    db.add(attachment)
+    db.add(BoardCardActivity(
+        id=str(uuid.uuid4()),
+        card_id=card_id,
+        action="attachment",
+        description=f"File ditambahkan: {attachment.file_name}",
+        actor=current_user.name,
+    ))
+    card.updated_at = datetime.now(timezone.utc).isoformat()
     db.commit()
-    db.refresh(item)
-    return item
+    db.refresh(attachment)
+    return attachment
 
 
 # ---------------------------------------------------------------------------
@@ -873,6 +778,3 @@ def update_provider_config(provider_id: str, body: dict, current_user: User = De
         provider.price_output_token_usd = body["price_output_token_usd"]
     db.commit()
     return {"ok": True}
-
-
-

@@ -44,20 +44,20 @@ export default function ContentPreview({ result, showToast, onClose }: Props) {
   }
 
   return (
-    <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
+    <div className="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm dark:border-amber-900/40 dark:bg-[var(--bg-surface)]">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-semibold text-neutral-800 dark:text-neutral-200 text-base">{result.title}</h3>
         <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600">&times;</button>
       </div>
       {result.focus_keyword && (
         <div className="flex flex-wrap gap-1.5 mb-3">
-          <span className="px-2 py-0.5 bg-neutral-100 dark:bg-neutral-800/30 text-neutral-700 dark:text-neutral-300 text-xs rounded-full">{result.focus_keyword}</span>
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">{result.focus_keyword}</span>
           {result.secondary_keywords?.map((k, i) => (
-            <span key={i} className="px-2 py-0.5 bg-neutral-100 dark:bg-neutral-800/30 text-neutral-700 dark:text-neutral-300 text-xs rounded-full">{k}</span>
+            <span key={i} className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-300">{k}</span>
           ))}
         </div>
       )}
-      <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 max-h-96 overflow-y-auto">
+      <div className="max-h-96 overflow-y-auto rounded-xl bg-white p-4 ring-1 ring-amber-100 dark:bg-neutral-800/60 dark:ring-amber-900/30">
         <div className="prose-content" dangerouslySetInnerHTML={{ __html: markdownToHtml(result.body) }} />
       </div>
       <div className="flex gap-2 flex-wrap mt-4">

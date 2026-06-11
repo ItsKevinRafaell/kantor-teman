@@ -77,6 +77,7 @@ from app.services.document_service import (
     _serialize_template,
     _next_doc_sequence,
     _peek_doc_sequence,
+    _generate_document_filename,
     _slugify_name,
     _DOC_TYPE_PREFIX,
     render_document_html,

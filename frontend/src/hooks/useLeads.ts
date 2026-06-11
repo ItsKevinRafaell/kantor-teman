@@ -92,19 +92,35 @@ export function useLeadsTable(initialBatch?: string): UseLeadsTableReturn {
   }, [refresh]);
 
   const startBlast = useCallback(async (batch: string, categoryId: string, minRating: number, templateId: string, sendMode: string, scheduledFor: string) => {
+    const selectedCategory = categoriesData.find(c => String(c.id) === String(categoryId));
+    const productCategory = selectedCategory?.name || "";
+    const filterCriteria = {
+      status: "Scraped",
+      batch_name: batch,
+      min_rating: minRating,
+      product_category: productCategory,
+    };
     const payload: Record<string, unknown> = {
       batch_name: batch,
       template_id: templateId,
-      filter_criteria: { status: "Scraped", batch_name: batch, min_rating: minRating },
+      product_category: productCategory,
+      min_rating: minRating,
+      filter_criteria: filterCriteria,
     };
+    let res: Response;
     if (sendMode === "scheduled") {
+      if (!scheduledFor) throw new Error("Waktu jadwal wajib diisi.");
       payload.scheduled_for = new Date(scheduledFor).toISOString();
-      await apiFetch("/api/campaign/blast/schedule", { method: "POST", body: JSON.stringify(payload) });
+      res = await apiFetch("/api/campaign/blast/schedule", { method: "POST", body: JSON.stringify(payload) });
     } else {
-      await apiFetch("/api/campaign/blast", { method: "POST", body: JSON.stringify(payload) });
+      res = await apiFetch("/api/campaign/blast", { method: "POST", body: JSON.stringify(payload) });
       localStorage.setItem("blast_batch", batch);
     }
-  }, []);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Gagal memulai blast." }));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+  }, [categoriesData]);
 
   const saveSalesAction = useCallback(async (leadId: number, data: { sales_owner: string; next_action_at: string; loss_reason: string; do_not_contact: boolean }) => {
     await apiFetch(`/api/leads/${leadId}/sales`, {

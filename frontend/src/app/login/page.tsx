@@ -13,6 +13,11 @@ export default function LoginPage() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("email") || params.has("password")) {
+      window.history.replaceState(null, "", "/login/");
+    }
+
     fetch(`${API_BASE}/api/brand-kit/public`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -25,13 +30,24 @@ export default function LoginPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    const formData = new FormData(e.currentTarget as HTMLFormElement);
+    const formEmail = String(formData.get("email") ?? "").trim();
+    const formPassword = String(formData.get("password") ?? "");
+
+    if (!formEmail || !formPassword) {
+      setError("Email dan password wajib diisi.");
+      return;
+    }
+
+    setEmail(formEmail);
+    setPassword(formPassword);
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: formEmail, password: formPassword }),
         credentials: "include",
       });
       if (!res.ok) {
@@ -67,11 +83,12 @@ export default function LoginPage() {
 
         {/* Card */}
         <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-xl border border-gray-100 dark:border-neutral-800 p-8">
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} method="post" className="space-y-5">
             <div>
               <label htmlFor="email" className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Email</label>
               <input
                 id="email"
+                name="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -86,6 +103,7 @@ export default function LoginPage() {
               <label htmlFor="password" className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Password</label>
               <input
                 id="password"
+                name="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -105,7 +123,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading || !email || !password}
+              disabled={loading}
               className="w-full py-3 bg-brand-yellow hover:bg-amber-600 text-white font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm hover:shadow-md text-sm"
             >
               {loading ? "Masuk..." : "Masuk"}

@@ -14,6 +14,9 @@ class ProjectIn(BaseModel):
     color: Optional[str] = Field("gray", max_length=30)
     service_type: Optional[str] = Field(None, max_length=50)
     contract_months: Optional[int] = None
+    dp_percent: Optional[float] = None
+    monthly_invoice_enabled: Optional[bool] = None
+    next_invoice_date: Optional[str] = Field(None, max_length=30)
 
 
 class ProjectOut(BaseModel):
@@ -26,10 +29,14 @@ class ProjectOut(BaseModel):
     nominal: float
     start_date: Optional[str] = None
     end_date: Optional[str] = None
-    color: Optional[str] = "yellow"
+    color: Optional[str] = "gray"
     is_archived: bool = False
     service_type: Optional[str] = None
     contract_months: Optional[int] = None
+    dp_percent: Optional[float] = None
+    monthly_invoice_enabled: bool = False
+    next_invoice_date: Optional[str] = None
+    completed_at: Optional[str] = None
     model_config = {"from_attributes": True}
 
 

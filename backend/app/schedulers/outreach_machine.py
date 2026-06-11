@@ -6,6 +6,7 @@ dan memindahkan status Lead secara otomatis berdasarkan aturan pipeline penjuala
 import logging
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
+from app.constants import LeadStatus
 
 logger = logging.getLogger("outreach_machine")
 logger.setLevel(logging.INFO)
@@ -29,7 +30,7 @@ def process_outreach_lifecycle_states(SessionLocal, Lead, Proposal, log_audit):
         threshold_48h = now - timedelta(hours=48)
 
         blasted_leads = db.query(Lead).filter(
-            Lead.status == "BLASTED",
+            Lead.status.in_(["BLASTED", LeadStatus.WA_SENT]),
             Lead.is_archived == False,
         ).all()
 
@@ -53,15 +54,16 @@ def process_outreach_lifecycle_states(SessionLocal, Lead, Proposal, log_audit):
                 try:
                     created = datetime.fromisoformat(latest_proposal.created_at.replace("Z", "+00:00"))
                     if created < threshold_48h:
-                        lead.status = "FOLLOWUP_QUEUE"
+                        old_status = lead.status
+                        lead.status = LeadStatus.FOLLOW_UP
                         log_audit(db, "SYSTEM_SCHEDULER", "UPDATE", "leads", lead.id, {
                             "rule": "NO_CLICK_FOLLOWUP",
-                            "old_status": "BLASTED",
-                            "new_status": "FOLLOWUP_QUEUE",
+                            "old_status": old_status,
+                            "new_status": LeadStatus.FOLLOW_UP,
                             "stagnant_hours": round((now - created).total_seconds() / 3600, 1),
                         })
                         transitions_count += 1
-                        logger.info(f"[Rule 1] Lead #{lead.id} ({lead.business_name}): BLASTED → FOLLOWUP_QUEUE")
+                        logger.info(f"[Rule 1] Lead #{lead.id} ({lead.business_name}): masuk Follow Up")
                 except (ValueError, TypeError):
                     continue
 
@@ -74,7 +76,7 @@ def process_outreach_lifecycle_states(SessionLocal, Lead, Proposal, log_audit):
         threshold_24h = now - timedelta(hours=24)
 
         viewed_leads = db.query(Lead).filter(
-            Lead.status.in_(["REPORT_VIEWED", "HOT_PROSPECT"]),
+            Lead.status.in_(["REPORT_VIEWED", "HOT_PROSPECT", LeadStatus.REPORT_OPENED, LeadStatus.STARTED_READING, LeadStatus.READING_SERIOUSLY, LeadStatus.WARM_PROSPECT, LeadStatus.HOT_PROSPECT]),
             Lead.is_archived == False,
         ).all()
 
@@ -92,16 +94,16 @@ def process_outreach_lifecycle_states(SessionLocal, Lead, Proposal, log_audit):
                 first_view = datetime.fromisoformat(proposal.first_viewed_at.replace("Z", "+00:00"))
                 if first_view < threshold_24h:
                     old_status = lead.status
-                    lead.status = "WARM_STAGNANT"
+                    lead.status = LeadStatus.FOLLOW_UP
                     log_audit(db, "SYSTEM_SCHEDULER", "UPDATE", "leads", lead.id, {
                         "rule": "VIEWED_NO_CONTACT_STAGNANT",
                         "old_status": old_status,
-                        "new_status": "WARM_STAGNANT",
+                        "new_status": LeadStatus.FOLLOW_UP,
                         "first_viewed_at": proposal.first_viewed_at,
                         "stagnant_hours": round((now - first_view).total_seconds() / 3600, 1),
                     })
                     transitions_count += 1
-                    logger.info(f"[Rule 2] Lead #{lead.id} ({lead.business_name}): {old_status} → WARM_STAGNANT")
+                    logger.info(f"[Rule 2] Lead #{lead.id} ({lead.business_name}): {old_status} → {LeadStatus.FOLLOW_UP}")
             except (ValueError, TypeError):
                 continue
 

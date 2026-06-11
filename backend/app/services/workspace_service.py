@@ -444,11 +444,25 @@ def _sync_row_to_board(row_id: str, db: Session) -> None:
         WorkspaceCell.column_id == done_col.id,
     ).first()
 
-    # Update board card archive status based on done checkbox
-    from models import BoardCard
+    # Move linked board card to Done when workspace task is checked off.
+    from models import Board, BoardCard, BoardColumn
     card = db.query(BoardCard).filter(BoardCard.id == row.board_card_id).first()
     if card and done_cell and done_cell.value_bool:
-        card.is_archived = True
+        current_col = db.query(BoardColumn).filter(BoardColumn.id == card.column_id).first()
+        board = db.query(Board).filter(Board.id == current_col.board_id).first() if current_col else None
+        done_board_col = None
+        if board:
+            done_board_col = (
+                db.query(BoardColumn)
+                .filter(BoardColumn.board_id == board.id)
+                .filter(BoardColumn.name.ilike("%done%"))
+                .order_by(BoardColumn.position)
+                .first()
+            )
+        if done_board_col:
+            card.column_id = done_board_col.id
+        card.is_archived = False
+        card.updated_at = datetime.now(timezone.utc).isoformat()
         db.commit()
 
 

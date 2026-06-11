@@ -33,6 +33,9 @@ def list_ai_models(active_only: bool = Query(False), capability: Optional[str] =
 
 @router.post("/api/ai-models", response_model=dict, status_code=201)
 def create_ai_model(body: AIModelIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    body.capabilities = [c for c in body.capabilities if c in ("article", "analysis")]
+    if not body.capabilities:
+        raise HTTPException(status_code=400, detail="Pilih minimal satu fitur: article atau analysis")
     m = AIModel(
         name=body.name,
         model_id=body.model_id,
@@ -52,6 +55,9 @@ def update_ai_model(model_id: str, body: AIModelIn, current_user: User = Depends
     m = db.query(AIModel).filter(AIModel.id == model_id).first()
     if not m:
         raise HTTPException(status_code=404, detail="Model tidak ditemukan")
+    body.capabilities = [c for c in body.capabilities if c in ("article", "analysis")]
+    if not body.capabilities:
+        raise HTTPException(status_code=400, detail="Pilih minimal satu fitur: article atau analysis")
     m.name = body.name
     m.model_id = body.model_id
     m.description = body.description
@@ -75,8 +81,8 @@ def delete_ai_model(model_id: str, current_user: User = Depends(require_admin), 
 
 @router.post("/api/ai-models/{model_id}/set-default")
 def set_default_ai_model(model_id: str, capability: str = Query(...), current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    """Set this model as default for given capability (chat, image, article, analysis)."""
-    if capability not in ("chat", "image", "article", "analysis"):
+    """Set this model as default for an active AI capability."""
+    if capability not in ("article", "analysis"):
         raise HTTPException(status_code=400, detail="Capability tidak valid")
     m = db.query(AIModel).filter(AIModel.id == model_id).first()
     if not m:
@@ -173,12 +179,12 @@ def get_feature_defaults(current_user: User = Depends(get_current_user), db: Ses
 @router.post("/api/ai/feature-defaults")
 def set_feature_defaults(body: dict, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Set per-feature AI proxy mappings. Values must be AIProxy IDs."""
-    valid_features = {"chat", "article", "image", "analysis", "caption"}
+    valid_features = {"article", "analysis"}
     valid_proxy_ids = {p.id for p in db.query(AIProxy.id).all()}
     cleaned: dict[str, str] = {}
     for feature, proxy_id in (body or {}).items():
         if feature not in valid_features:
-            continue
+            raise HTTPException(status_code=400, detail=f"Fitur AI '{feature}' tidak valid")
         pid = (proxy_id or "").strip()
         if pid and pid not in valid_proxy_ids:
             raise HTTPException(status_code=400, detail=f"Proxy ID '{pid}' tidak valid untuk fitur '{feature}'")
@@ -453,6 +459,8 @@ def list_content_providers(
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    if tool_type in {"image", "caption"}:
+        return []
     q = db.query(ContentProvider)
     if tool_type:
         q = q.filter(ContentProvider.tool_type == tool_type)
@@ -478,6 +486,8 @@ def create_content_provider(
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    if body.tool_type in {"image", "caption"}:
+        raise HTTPException(status_code=410, detail="Fitur gambar dan caption sosmed sudah dihapus. Gunakan Artikel SEO.")
     p = ContentProvider(
         id=str(uuid.uuid4()), name=body.name, tool_type=body.tool_type,
         base_url=body.base_url.rstrip("/"), api_key=body.api_key, model=body.model,
@@ -501,6 +511,8 @@ def update_content_provider(
     p = db.query(ContentProvider).filter(ContentProvider.id == provider_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Provider tidak ditemukan")
+    if body.tool_type in {"image", "caption"}:
+        raise HTTPException(status_code=410, detail="Fitur gambar dan caption sosmed sudah dihapus. Gunakan Artikel SEO.")
     p.name = body.name; p.tool_type = body.tool_type
     p.base_url = body.base_url.rstrip("/"); p.model = body.model; p.is_active = body.is_active
     p.extra_params = json.dumps(body.extra_params) if body.extra_params else None
@@ -648,6 +660,7 @@ def generate_image(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    raise HTTPException(status_code=410, detail="Fitur generate gambar sudah dihapus. Gunakan Generator Artikel SEO.")
     provider = db.query(ContentProvider).filter(
         ContentProvider.id == body.provider_id,
         ContentProvider.tool_type == "image",
@@ -710,6 +723,7 @@ def generate_caption(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    raise HTTPException(status_code=410, detail="Fitur caption sosmed sudah dihapus. Gunakan Generator Artikel SEO.")
     """Generate caption using canonical multi-provider AI routing."""
     from app.services.ai_service import generate_caption as svc_generate_caption
     try:
@@ -861,6 +875,3 @@ def _archive_parent_creates_cycle(db: Session, folder_id: str, parent_id: Option
         current = db.query(DocumentFolder).filter(DocumentFolder.id == current_id).first()
         current_id = current.parent_id if current else None
     return False
-
-
-

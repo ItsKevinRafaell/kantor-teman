@@ -8,6 +8,7 @@ import { formatRupiah, formatRupiahInput, cleanRupiahInput } from "../../utils/f
 import { downloadBlob } from "../../utils/download";
 import Modal from "../Modal";
 import Toast from "../Toast";
+import Pagination from "../Pagination";
 
 interface WalletData {
   id: number;
@@ -54,6 +55,8 @@ export default function FinancePanel() {
   const [clients, setClients] = useState<ClientData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
+  const [txnPage, setTxnPage] = useState(1);
+  const TXN_PAGE_SIZE = 20;
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Wallet modal
@@ -92,6 +95,11 @@ export default function FinancePanel() {
       setLoading(false);
     }
   }, [showArchived]);
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(transactions.length / TXN_PAGE_SIZE));
+    if (txnPage > totalPages) setTxnPage(totalPages);
+  }, [transactions.length, txnPage]);
 
   useEffect(() => {
     fetchAll();
@@ -198,6 +206,7 @@ export default function FinancePanel() {
   }
 
   const totalExpenseCategory = report?.expense_by_category.reduce((s, c) => s + c.amount, 0) || 0;
+  const pagedTransactions = transactions.slice((txnPage - 1) * TXN_PAGE_SIZE, txnPage * TXN_PAGE_SIZE);
 
 
   if (loading) {
@@ -339,7 +348,7 @@ export default function FinancePanel() {
         <div className="px-5 py-4 border-b border-[var(--border-default)] flex items-center justify-between">
           <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-50">Transaksi Terbaru</h2>
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={showArchived} onChange={e => setShowArchived(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-brand-yellow focus:ring-brand-yellow/50" />
+            <input type="checkbox" checked={showArchived} onChange={e => { setShowArchived(e.target.checked); setTxnPage(1); }} className="w-4 h-4 rounded border-gray-300 text-brand-yellow focus:ring-brand-yellow/50" />
             <span className="text-xs text-gray-500 font-medium">Tampilkan Archived</span>
           </label>
         </div>
@@ -347,7 +356,7 @@ export default function FinancePanel() {
           <p className="text-sm text-gray-400 text-center py-8">Belum ada transaksi.</p>
         ) : (
           <div className="divide-y divide-[var(--border-subtle)]">
-            {transactions.slice(0, 20).map(t => (
+            {pagedTransactions.map(t => (
               <div key={t.id} className={`flex items-center justify-between px-5 py-3 hover:bg-[var(--bg-surface-hover)] transition-colors ${t.is_archived ? "opacity-40" : ""}`}>
                 <div className="flex items-center gap-3">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${t.type === "income" ? "bg-emerald-500" : "bg-red-400"}`}>
@@ -372,6 +381,7 @@ export default function FinancePanel() {
             ))}
           </div>
         )}
+        <Pagination page={txnPage} pageSize={TXN_PAGE_SIZE} total={transactions.length} onPageChange={setTxnPage} itemLabel="transaksi" />
       </div>
 
       {/* Wallet Modal */}

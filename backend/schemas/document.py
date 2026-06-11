@@ -14,6 +14,7 @@ class DocumentOut(BaseModel):
     title: str
     cloud_url: str
     created_at: str
+    status: Optional[str] = "Draft"
     model_config = {"from_attributes": True}
 
 
@@ -55,3 +56,9 @@ class DocumentEmailIn(BaseModel):
 class InvoiceSequenceIn(BaseModel):
     start_from: int = Field(..., ge=1)
     template_type: str = "invoice"
+
+
+class DocumentWorkflowUpdate(BaseModel):
+    status: str
+    review_notes: Optional[str] = Field(None, max_length=2000)
+    payment_status: Optional[str] = None

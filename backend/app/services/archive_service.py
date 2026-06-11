@@ -70,10 +70,27 @@ def delete_archive_folder(db: Session, folder_id: str) -> None:
     folder = db.query(DocumentFolder).filter(DocumentFolder.id == folder_id).first()
     if not folder:
         raise ValueError("Folder tidak ditemukan")
-    db.query(Document).filter(Document.folder_id == folder_id).update({"folder_id": None})
-    db.query(DocumentFolder).filter(DocumentFolder.parent_id == folder_id).update({"parent_id": None})
-    db.delete(folder)
+    folder_ids = archive_folder_descendant_ids(db, folder_id)
+    db.query(Document).filter(Document.folder_id.in_(folder_ids)).delete(synchronize_session=False)
+    for fid in reversed(folder_ids):
+        db.query(DocumentFolder).filter(DocumentFolder.id == fid).delete(synchronize_session=False)
     db.commit()
+
+
+def archive_folder_descendant_ids(db: Session, folder_id: str) -> list[str]:
+    folders = db.query(DocumentFolder.id, DocumentFolder.parent_id).all()
+    children: dict[str | None, list[str]] = {}
+    for fid, parent_id in folders:
+        children.setdefault(parent_id, []).append(fid)
+    ordered: list[str] = []
+    stack = [folder_id]
+    while stack:
+        current = stack.pop()
+        if current in ordered:
+            continue
+        ordered.append(current)
+        stack.extend(children.get(current, []))
+    return ordered
 
 
 def parent_creates_cycle(folder_id: str, parent_id: Optional[str], db: Session) -> bool:
@@ -103,6 +120,10 @@ def _archive_doc_to_dict(doc: Document) -> dict:
         "body": doc.body,
         "url": doc.url,
         "tags": tags,
+        "status": getattr(doc, "status", "Draft"),
+        "review_notes": getattr(doc, "review_notes", None),
+        "source_type": getattr(doc, "source_type", None),
+        "source_id": getattr(doc, "source_id", None),
         "created_at": doc.created_at,
         "updated_at": doc.updated_at,
     }
@@ -150,10 +171,14 @@ def create_archive_doc(
         id=str(uuid.uuid4()),
         user_id=user_id,
         folder_id=folder_id or None,
+        name=title.strip(),
+        type="document" if body else ("link" if url else "document"),
+        content=body or None,
         title=title.strip(),
         body=body or None,
         url=url or None,
         tags=json.dumps(tags or []),
+        status="Draft",
         created_at=now,
         updated_at=now,
     )
@@ -174,6 +199,10 @@ def update_archive_doc(db: Session, doc_id: str, updates: dict) -> dict:
         doc.url = updates["url"] or None
     if "tags" in updates:
         doc.tags = json.dumps(updates["tags"] or [])
+    if "status" in updates and updates["status"]:
+        doc.status = updates["status"]
+    if "review_notes" in updates:
+        doc.review_notes = updates["review_notes"] or None
     if "folder_id" in updates:
         folder_id = updates["folder_id"]
         if folder_id and not db.query(DocumentFolder).filter(DocumentFolder.id == folder_id).first():

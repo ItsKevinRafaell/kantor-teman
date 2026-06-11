@@ -19,11 +19,8 @@ const PROVIDER_OPTIONS = [
 
 const PROXY_FEATURES = [
   { key: "", label: "Fallback (semua fitur)" },
-  { key: "chat", label: "Chat" },
-  { key: "article", label: "Generate Artikel SEO" },
-  { key: "image", label: "Generate Gambar" },
+  { key: "article", label: "Artikel SEO" },
   { key: "analysis", label: "Analisa Lead" },
-  { key: "caption", label: "Generate Caption Sosmed" },
 ];
 
 interface ProxiesSectionProps {
@@ -47,7 +44,7 @@ export default function ProxiesSection({ proxies, onFetchProxies, showToast, onC
 
   async function saveProxy() {
     const { apiFetch } = await import("../../../lib/api");
-    if (!proxyForm.name || !proxyForm.base_url) { showToast("Nama dan Base URL wajib diisi"); return; }
+    if (!proxyForm.name || !proxyForm.base_url || !proxyForm.model) { showToast("Nama, Base URL, dan model wajib diisi"); return; }
     const payload: Record<string, unknown> = { name: proxyForm.name, base_url: proxyForm.base_url, model: proxyForm.model, feature: proxyForm.feature || null, provider: proxyForm.provider };
     if (proxyForm.api_key) payload.api_key = proxyForm.api_key;
     const res = editingProxy
@@ -86,8 +83,8 @@ export default function ProxiesSection({ proxies, onFetchProxies, showToast, onC
       <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">AI Proxies ({proxies.length})</h2>
-            <p className="text-xs text-neutral-500 mt-0.5">Provider per fitur — setiap fitur bisa pakai model berbeda</p>
+            <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Provider AI ({proxies.length})</h2>
+            <p className="text-xs text-neutral-500 mt-0.5">Isi base URL, API key, dan model yang dipakai aplikasi.</p>
           </div>
           <button onClick={() => openProxyModal(null)} className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-yellow hover:bg-amber-600 text-white text-xs font-semibold rounded-xl transition-colors">
             <Plus size={14} /> Tambah
@@ -95,7 +92,7 @@ export default function ProxiesSection({ proxies, onFetchProxies, showToast, onC
         </div>
 
         {proxies.length === 0 ? (
-          <p className="text-sm text-neutral-400 text-center py-4">Belum ada proxy. Tambah proxy untuk koneksi ke AI provider.</p>
+          <p className="text-sm text-neutral-400 text-center py-4">Belum ada provider. Tambahkan koneksi AI terlebih dulu.</p>
         ) : (
           <div className="space-y-2">
             {proxies.map(p => (
@@ -130,17 +127,17 @@ export default function ProxiesSection({ proxies, onFetchProxies, showToast, onC
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setProxyModal(false)} />
           <div className="relative bg-[var(--bg-surface)] rounded-2xl shadow-2xl border border-[var(--border-default)] w-full max-w-md p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-neutral-900 dark:text-neutral-50">{editingProxy ? "Edit Proxy" : "Tambah Proxy"}</h3>
+              <h3 className="font-bold text-neutral-900 dark:text-neutral-50">{editingProxy ? "Edit Provider AI" : "Tambah Provider AI"}</h3>
               <button onClick={() => setProxyModal(false)} className="text-neutral-400 hover:text-neutral-700"><X size={18} /></button>
             </div>
             <div className="space-y-3">
-              <input value={proxyForm.name} onChange={e => setProxyForm({...proxyForm, name: e.target.value})} placeholder="Nama (misal: Claude Direct)" className={inputCls} />
+              <input value={proxyForm.name} onChange={e => setProxyForm({...proxyForm, name: e.target.value})} placeholder="Nama provider" className={inputCls} />
               <select value={proxyForm.provider} onChange={e => setProxyForm({...proxyForm, provider: e.target.value})} className={inputCls}>
                 {PROVIDER_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
-              <input value={proxyForm.base_url} onChange={e => setProxyForm({...proxyForm, base_url: e.target.value})} placeholder="Base URL (misal: https://api.anthropic.com/v1)" className={inputCls} />
+              <input value={proxyForm.base_url} onChange={e => setProxyForm({...proxyForm, base_url: e.target.value})} placeholder="Base URL" className={inputCls} />
               <input value={proxyForm.api_key} onChange={e => setProxyForm({...proxyForm, api_key: e.target.value})} placeholder={editingProxy ? "API Key (kosongkan jika tidak berubah)" : "API Key"} type="password" className={inputCls} />
-              <input value={proxyForm.model} onChange={e => setProxyForm({...proxyForm, model: e.target.value})} placeholder="Model ID (misal: claude-sonnet-4-6-20250514)" className={inputCls} />
+              <input value={proxyForm.model} onChange={e => setProxyForm({...proxyForm, model: e.target.value})} placeholder="Model" className={inputCls} />
               <select value={proxyForm.feature} onChange={e => setProxyForm({...proxyForm, feature: e.target.value})} className={inputCls}>
                 {PROXY_FEATURES.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
               </select>

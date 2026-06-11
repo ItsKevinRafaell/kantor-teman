@@ -1,14 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { apiFetch } from "../../lib/api";
 import type { ContentSession, ContentGeneration, Tool } from "./types";
-import { TOOL_COLORS, formatDate } from "./types";
 
 const TOOL_LABELS: Record<Tool, string> = {
-  seo_article: "SEO Article Generator",
-  image: "Image Generator",
-  caption: "Caption Sosmed",
+  seo_article: "Artikel SEO",
 };
 
 interface Props {
@@ -25,7 +21,7 @@ interface Props {
   onCreateSession: (data: { name: string; description?: string }) => Promise<void>;
   onDeleteSession: (id: string) => Promise<void>;
   onRenameSession: (id: string, name: string) => Promise<void>;
-  onManageProviders: () => void;
+  onManageProviders?: () => void;
   activeTool: Tool;
   onToolChange: (tool: Tool) => void;
 }
@@ -34,8 +30,6 @@ function getGenerationPreview(g: ContentGeneration): string {
   const out = g.output_data as Record<string, unknown> | null;
   if (!out) return g.error_msg || "—";
   if (g.tool_type === "seo_article") return `${out.title || ""} — ${String(out.meta_description || "").slice(0, 80)}`;
-  if (g.tool_type === "image") return String((g.input_data as Record<string, unknown>).prompt || "").slice(0, 100) || "gambar";
-  if (g.tool_type === "caption") return String(out.caption || "").slice(0, 100) || "caption";
   return "—";
 }
 
@@ -44,7 +38,7 @@ export default function ContentSidebar({
   generations, generationsLoading, sharedContext, toggleContext,
   onClearContext,
   onDeleteGeneration, onCreateSession, onDeleteSession, onRenameSession,
-  onManageProviders, activeTool, onToolChange,
+  activeTool, onToolChange,
 }: Props) {
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const [sessionForm, setSessionForm] = useState({ name: "", description: "" });
@@ -65,14 +59,15 @@ export default function ContentSidebar({
   }
 
   return (
-    <aside className="w-full md:w-52 shrink-0 flex flex-col gap-3 overflow-x-auto md:overflow-y-auto">
+    <aside className="w-full shrink-0 rounded-2xl border border-amber-100 bg-white p-3 shadow-sm md:w-56 dark:border-amber-900/40 dark:bg-[var(--bg-surface)]">
+      <div className="flex flex-col gap-3 md:max-h-[calc(100vh-8rem)] md:overflow-y-auto">
       {/* Tools */}
       <div>
-        <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">Tools</p>
-        {(["seo_article", "image", "caption"] as Tool[]).map(t => (
+        <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">Fitur</p>
+        {(["seo_article"] as Tool[]).map(t => (
           <button key={t} onClick={() => onToolChange(t)}
             className={`w-full text-left px-3 py-2 rounded-xl text-sm font-medium mb-1 transition-all
-              ${activeTool === t ? "bg-neutral-500 text-white shadow-sm" : "text-neutral-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-neutral-800 dark:hover:text-neutral-200"}`}>
+              ${activeTool === t ? "bg-amber-500 text-white shadow-sm" : "text-neutral-500 hover:bg-amber-50 dark:hover:bg-amber-950/20 hover:text-amber-800 dark:hover:text-amber-300"}`}>
             {TOOL_LABELS[t]}
           </button>
         ))}
@@ -86,12 +81,12 @@ export default function ContentSidebar({
         </div>
         <button onClick={() => setSelectedSession(null)}
           className={`w-full text-left px-3 py-2 rounded-xl text-sm mb-1 transition-all
-            ${!selectedSession ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-medium" : "text-neutral-500 hover:bg-gray-100 dark:hover:bg-gray-800"}`}>
+            ${!selectedSession ? "bg-amber-50 text-amber-800 dark:bg-amber-950/20 dark:text-amber-300 font-medium" : "text-neutral-500 hover:bg-amber-50/70 dark:hover:bg-amber-950/20"}`}>
           Semua
         </button>
         {sessions.map(s => (
           <div key={s.id} className={`group flex items-center gap-1 px-3 py-2 rounded-xl text-sm mb-1 transition-all
-            ${selectedSession?.id === s.id ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-medium" : "text-neutral-500 hover:bg-gray-100 dark:hover:bg-gray-800"}`}>
+            ${selectedSession?.id === s.id ? "bg-amber-50 text-amber-800 dark:bg-amber-950/20 dark:text-amber-300 font-medium" : "text-neutral-500 hover:bg-amber-50/70 dark:hover:bg-amber-950/20"}`}>
             {renamingSession === s.id ? (
               <input
                 value={renameValue}
@@ -123,35 +118,28 @@ export default function ContentSidebar({
 
       {/* Context indicator */}
       {sharedContext.length > 0 && (
-        <div className="bg-neutral-50 dark:bg-neutral-900/20 border border-neutral-200 dark:border-neutral-800 rounded-xl p-3">
-          <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-400 mb-1">{sharedContext.length} konteks aktif</p>
+        <div className="rounded-xl border border-amber-100 bg-amber-50/60 p-3 dark:border-amber-900/40 dark:bg-amber-950/10">
+          <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 mb-1">{sharedContext.length} konteks aktif</p>
           <button onClick={onClearContext} className="text-xs text-neutral-500 hover:text-neutral-700">Hapus semua</button>
         </div>
       )}
-
-      {/* Image provider link */}
-      {activeTool === "image" && (
-        <button onClick={onManageProviders}
-          className="text-xs text-neutral-500 hover:text-neutral-600 px-3 py-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left">
-          Kelola Image Provider
-        </button>
-      )}
+      </div>
 
       {/* New Session Modal */}
       {showNewSessionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowNewSessionModal(false)}>
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
           <div className="relative bg-white dark:bg-[var(--bg-canvas)] rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Sederet Baru</h3>
+            <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Sesi Baru</h3>
             <input type="text" value={sessionForm.name} onChange={e => setSessionForm(p => ({ ...p, name: e.target.value }))}
               placeholder="Nama sesi"
-              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none" />
+              className="w-full rounded-lg border-0 bg-amber-50/50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:bg-neutral-800/70" />
             <input type="text" value={sessionForm.description} onChange={e => setSessionForm(p => ({ ...p, description: e.target.value }))}
               placeholder="Deskripsi (opsional)"
-              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none" />
+              className="w-full rounded-lg border-0 bg-amber-50/50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:bg-neutral-800/70" />
             <div className="flex gap-2">
-              <button onClick={() => setShowNewSessionModal(false)} className="flex-1 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-800 text-neutral-600">Batal</button>
-              <button onClick={commitCreate} disabled={!sessionForm.name.trim()} className="flex-1 py-2 text-sm rounded-lg bg-neutral-500 text-white disabled:opacity-50">Buat</button>
+              <button onClick={() => setShowNewSessionModal(false)} className="flex-1 rounded-lg bg-gray-100 py-2 text-sm text-neutral-600 dark:bg-neutral-800/70">Batal</button>
+              <button onClick={commitCreate} disabled={!sessionForm.name.trim()} className="flex-1 py-2 text-sm rounded-lg bg-amber-500 text-white disabled:opacity-50">Buat</button>
             </div>
           </div>
         </div>

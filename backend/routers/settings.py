@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse,
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import get_db, log_audit, AIModel, User, Lead, Product, Category, DynamicTemplate, MessageTemplate, BoardCardComment, BoardCardChecklist, BoardCardActivity, BoardCard, BoardColumn, Board, Project, ContentGeneration, ContentSession, ContentSchedule, Document, DocumentFolder, DocumentTemplate, GeneratedDocument, BrandKit, ReengagementAlert, FollowUpSequence, ClientNote, ClientCredential, ClientDocument, LeadActivityLog, LeadAnalysis, Proposal, ProposalAnalytics, BlastMessage, BlastCampaign, AdsCampaign, ScrapeHistory, Contact, Subscription, Transaction, Wallet, ServiceItem, SystemSettings, AuditLog
+from models import get_db, log_audit, AIModel, User, Lead, Product, Category, DynamicTemplate, MessageTemplate, BoardCardComment, BoardCardChecklist, BoardCardActivity, BoardCard, BoardColumn, Board, Project, ContentGeneration, ContentSession, ContentSchedule, Document, DocumentFolder, DocumentTemplate, GeneratedDocument, ReportSnapshot, BrandKit, ReengagementAlert, FollowUpSequence, ClientNote, ClientCredential, ClientDocument, LeadActivityLog, LeadAnalysis, Proposal, ProposalAnalytics, BlastMessage, BlastCampaign, AdsCampaign, ScrapeHistory, Contact, Subscription, Transaction, Wallet, ServiceItem, SystemSettings, AuditLog
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, verify_password,
     seed_data, get_fonnte_token, _send_fonnte_sync, _normalize_phone,
@@ -17,6 +17,8 @@ from app.core.dependencies import (get_current_user, require_admin, verify_passw
 )
 from app.core.config import IS_PRODUCTION
 from app.services.ai_service import _is_native_anthropic
+from app.services.sales_workflow_service import get_default_dp_percent, set_default_dp_percent
+from app.constants import CLIENT_STATUS_VALUES
 
 router = APIRouter()
 
@@ -33,6 +35,19 @@ def _require_dev():
 def get_production_mode(current_user: User = Depends(require_admin)):
     """Return whether this instance is running in production mode."""
     return {"is_production": IS_PRODUCTION}
+
+
+@router.get("/api/settings/billing-defaults")
+def get_billing_defaults(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    return {"default_dp_percent": get_default_dp_percent(db)}
+
+
+@router.put("/api/settings/billing-defaults")
+def update_billing_defaults(body: dict = Body(...), current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    percent = body.get("default_dp_percent", 50)
+    updated = set_default_dp_percent(db, percent)
+    log_audit(db, current_user.name, "UPDATE", "system_settings", "default_dp_percent", {"value": updated})
+    return {"default_dp_percent": updated}
 
 
 @router.get("/api/settings")
@@ -263,8 +278,14 @@ def admin_data_reset_soft(
         db.query(ContentGeneration).delete()
         db.query(ContentSession).delete()
         db.query(ContentSchedule).delete()
+        try: db.query(ReportSnapshot).delete()
+        except Exception: pass
+        try: db.query(GeneratedDocument).delete()
+        except Exception: pass
         db.query(Document).delete()
         db.query(DocumentFolder).delete()
+        try: db.query(ProposalAnalytics).delete()
+        except Exception: pass
         db.query(ReengagementAlert).delete()
         db.query(FollowUpSequence).delete()
         db.query(ClientNote).delete()
@@ -278,7 +299,7 @@ def admin_data_reset_soft(
         db.query(BlastCampaign).delete()
         db.query(AdsCampaign).delete()
         db.query(ScrapeHistory).delete()
-        db.query(Lead).filter(Lead.status != "Closed/Client").delete(synchronize_session=False)
+        db.query(Lead).filter(Lead.status.notin_(CLIENT_STATUS_VALUES)).delete(synchronize_session=False)
         # Contact records are preserved — only dev/test leads are removed
         db.query(AuditLog).delete()
         db.query(MessageTemplate).delete()
@@ -312,6 +333,8 @@ def admin_data_reset_nuclear(
         db.query(ContentGeneration).delete()
         db.query(ContentSession).delete()
         db.query(ContentSchedule).delete()
+        try: db.query(ReportSnapshot).delete()
+        except Exception: pass
         try: db.query(GeneratedDocument).delete()
         except Exception: pass
         db.query(Document).delete()
@@ -425,10 +448,12 @@ def admin_data_backup(
     import subprocess
     import zipfile
     import tempfile
+    import shutil
     from urllib.parse import urlparse, unquote
 
     db_url = DATABASE_URL
     is_mysql = "mysql" in db_url
+    backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     tmp_zip = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
     tmp_zip.close()
 
@@ -453,7 +478,9 @@ def admin_data_backup(
                     raise HTTPException(status_code=500, detail=f"mysqldump gagal: {proc.stderr.decode(errors='ignore')[:500]}")
                 zf.writestr(f"{dbname}.sql", proc.stdout)
             else:
-                sqlite_path = db_url.replace("sqlite:///", "")
+                sqlite_path = unquote(db_url.replace("sqlite:///", ""))
+                if sqlite_path and not os.path.isabs(sqlite_path):
+                    sqlite_path = os.path.abspath(os.path.join(backend_dir, sqlite_path))
                 if os.path.exists(sqlite_path):
                     zf.write(sqlite_path, arcname=os.path.basename(sqlite_path))
 
@@ -467,10 +494,15 @@ def admin_data_backup(
 
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
         filename = f"kantorteman-backup-{ts}.zip"
+        default_backup_dir = os.path.abspath(os.path.join(backend_dir, "..", "..", "kantorteman-backups"))
+        backup_dir = os.path.abspath(os.getenv("BACKUP_DIR", default_backup_dir))
+        os.makedirs(backup_dir, exist_ok=True)
+        stored_path = os.path.join(backup_dir, filename)
+        shutil.copy2(tmp_zip.name, stored_path)
 
         def _iterfile():
             try:
-                with open(tmp_zip.name, "rb") as f:
+                with open(stored_path, "rb") as f:
                     while chunk := f.read(65536):
                         yield chunk
             finally:
@@ -984,4 +1016,3 @@ def delete_dynamic_template(tmpl_id: str, current_user: User = Depends(require_a
 # ---------------------------------------------------------------------------
 # Timeline Templates API
 # ---------------------------------------------------------------------------
-

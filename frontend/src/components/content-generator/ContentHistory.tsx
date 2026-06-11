@@ -18,8 +18,6 @@ function getGenerationPreview(g: ContentGeneration): string {
   const out = g.output_data as Record<string, unknown> | null;
   if (!out) return g.error_msg || "—";
   if (g.tool_type === "seo_article") return `${out.title || ""} — ${String(out.meta_description || "").slice(0, 80)}`;
-  if (g.tool_type === "image") return String((g.input_data as Record<string, unknown>).prompt || "").slice(0, 100) || "gambar";
-  if (g.tool_type === "caption") return String(out.caption || "").slice(0, 100) || "caption";
   return "—";
 }
 
@@ -29,18 +27,19 @@ export default function ContentHistory({
 }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<ContentGeneration | null>(null);
+  const articleGenerations = generations.filter(g => g.tool_type === "seo_article");
 
   return (
-    <div className="bg-white dark:bg-[var(--bg-canvas)] rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
+    <div className="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm dark:border-amber-900/40 dark:bg-[var(--bg-surface)]">
       <div className="flex items-center gap-3 mb-3">
-        <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 shrink-0">History</h3>
+        <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 shrink-0">Riwayat Artikel</h3>
         <div className="flex-1 relative">
           <input
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Cari keyword, judul, prompt..."
-            className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-800 border-0 rounded-lg focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none"
+            placeholder="Cari keyword atau judul..."
+            className="w-full rounded-lg border-0 bg-amber-50/50 py-1.5 pl-8 pr-3 text-xs outline-none focus:ring-2 focus:ring-amber-300 dark:bg-neutral-800/70"
           />
           <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           {searchQuery && (
@@ -49,26 +48,26 @@ export default function ContentHistory({
             </button>
           )}
         </div>
-        <span className="text-xs text-neutral-400 shrink-0">{generations.length}</span>
+        <span className="text-xs text-neutral-400 shrink-0">{articleGenerations.length}</span>
       </div>
 
       {generationsLoading ? (
         <p className="text-xs text-neutral-400 text-center py-6">Memuat histori...</p>
-      ) : generations.length === 0 ? (
+      ) : articleGenerations.length === 0 ? (
         <p className="text-xs text-neutral-400 text-center py-6">
           {searchQuery ? `Tidak ada hasil untuk "${searchQuery}"` : "Belum ada konten yang dibuat."}
         </p>
       ) : (
         <div className="space-y-2 max-h-64 overflow-y-auto">
-          {generations
+          {articleGenerations
             .filter(g => !searchQuery || getGenerationPreview(g).toLowerCase().includes(searchQuery.toLowerCase()))
             .map(g => {
               const isCtx = sharedContext.includes(g.id);
               return (
                 <div key={g.id} className={`flex items-start gap-3 p-3 rounded-xl transition-colors
-                  ${isCtx ? "bg-neutral-50 dark:bg-neutral-900/20 border border-neutral-200 dark:border-neutral-800" : "bg-gray-50 dark:bg-gray-800/50"}`}>
+                  ${isCtx ? "border border-amber-100 bg-amber-50/50 dark:border-amber-900/40 dark:bg-amber-950/10" : "bg-gray-50 dark:bg-neutral-800/60"}`}>
                   <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${TOOL_COLORS[g.tool_type as Tool] || "bg-gray-100 text-gray-600"}`}>
-                    {g.tool_type === "seo_article" ? "Article" : g.tool_type === "image" ? "Image" : "Caption"}
+                    Artikel
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-neutral-600 dark:text-neutral-400 truncate">{getGenerationPreview(g)}</p>
@@ -89,13 +88,13 @@ export default function ContentHistory({
                         window.scrollTo({ top: 0, behavior: "smooth" });
                       }
                     }}
-                      className="shrink-0 text-xs px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 transition-all">
+                      className="shrink-0 rounded bg-amber-100 px-2 py-1 text-xs text-amber-700 transition-all hover:bg-amber-200 dark:bg-amber-950/30 dark:text-amber-300">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/></svg>
                     </button>
                   )}
                   <button onClick={() => toggleContext(g.id)}
                     className={`shrink-0 text-xs px-2 py-1 rounded font-medium transition-all
-                      ${isCtx ? "bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200" : "bg-gray-200 dark:bg-gray-700 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700"}`}>
+                      ${isCtx ? "bg-amber-200 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200" : "bg-gray-200 text-neutral-500 hover:bg-amber-100 hover:text-amber-800 dark:bg-neutral-800/70"}`}>
                     {isCtx ? "−" : "+"}
                   </button>
                   <button onClick={() => setDeleteTarget(g)}
@@ -116,7 +115,7 @@ export default function ContentHistory({
             <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Hapus Artikel</h3>
             <p className="text-sm text-neutral-600 dark:text-neutral-400">Yakin hapus artikel ini?</p>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-800 text-neutral-600">Batal</button>
+              <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 text-sm rounded-lg bg-gray-100 dark:bg-neutral-800/70 text-neutral-600">Batal</button>
               <button onClick={async () => { await onDeleteGeneration(deleteTarget.id); setDeleteTarget(null); }}
                 className="px-4 py-2 text-sm rounded-lg bg-red-500 hover:bg-red-600 text-white">Hapus</button>
             </div>

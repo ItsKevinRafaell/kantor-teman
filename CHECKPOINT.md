@@ -1,5 +1,7 @@
 # Checkpoint — 2025-06-04
 
+> Catatan 2026-06-09: file ini sudah checkpoint lama. Untuk status terbaru sesi Codex, baca `CODEX_SESSION_HANDOFF_2026-06-09.md` di root repo terlebih dahulu.
+
 ## Status Terakhir
 
 ### Commit HEAD

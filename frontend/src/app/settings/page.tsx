@@ -8,11 +8,13 @@ import Toast from "../../components/Toast";
 import AIEngineTab from "./AIEngineTab";
 import AuditLogsTab from "./AuditLogsTab";
 import DataTab from "./DataTab";
+import TeamTab from "./TeamTab";
 
-type Tab = "profile" | "ai-engine" | "integrasi" | "audit-logs" | "data";
+type Tab = "profile" | "team" | "ai-engine" | "integrasi" | "audit-logs" | "data";
 
 const TAB_LABELS: Record<Tab, string> = {
   profile: "Profil",
+  team: "Tim & Role",
   "ai-engine": "AI Engine",
   integrasi: "Integrasi",
   "audit-logs": "Audit Logs",
@@ -162,7 +164,7 @@ function SettingsContent() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-neutral-50">Pengaturan</h1>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Kelola profil, AI engine, dan integrasi.</p>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Kelola profil, tim, AI engine, dan integrasi.</p>
         </div>
         <button onClick={handleLogout}
           className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl transition-colors">
@@ -175,7 +177,7 @@ function SettingsContent() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-white dark:bg-[var(--bg-canvas)] border border-gray-200 dark:border-gray-700 rounded-xl p-1 w-fit shadow-sm overflow-x-auto">
-        {(["profile", "ai-engine", "integrasi", "audit-logs", "data"] as Tab[]).map((t) => (
+        {(["profile", "team", "ai-engine", "integrasi", "audit-logs", "data"] as Tab[]).map((t) => (
           <button key={t} onClick={() => switchTab(t)}
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors whitespace-nowrap ${tab === t ? "bg-amber-600 text-white shadow-sm" : "text-neutral-500 dark:text-neutral-400 hover:text-gray-700 dark:hover:text-gray-200"}`}>
             {TAB_LABELS[t]}
@@ -212,6 +214,9 @@ function SettingsContent() {
           </button>
         </div>
       )}
+
+      {/* Team tab */}
+      {tab === "team" && <TeamTab />}
 
       {/* AI Engine tab */}
       {tab === "ai-engine" && <AIEngineTab />}

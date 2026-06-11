@@ -1,9 +1,8 @@
 "use client";
 import { Modal } from "./SharedModal";
-import { COLUMN_COLORS } from "./types";
 
 const COLORS = {
-  primary: "bg-neutral-500 hover:bg-neutral-600 text-white",
+  primary: "bg-amber-500 hover:bg-amber-600 text-white",
   secondary: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700",
 };
 
@@ -19,24 +18,15 @@ interface ColumnModalProps {
   onClose: () => void;
 }
 
-export function ColumnModal({ open, column, columnName, setColumnName, columnColor, setColumnColor, onCreate, onUpdate, onClose }: ColumnModalProps) {
+export function ColumnModal({ open, column, columnName, setColumnName, onCreate, onUpdate, onClose }: ColumnModalProps) {
   return (
     <Modal open={open} onClose={onClose} title={column ? "Edit Kolom" : "Kolom Baru"}>
       <div className="space-y-4">
         <div>
           <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Nama Kolom</label>
           <input type="text" value={columnName} onChange={e => setColumnName(e.target.value)}
-            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none"
-            placeholder="e.g., In Progress" />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-2">Warna</label>
-          <div className="flex gap-2 flex-wrap">
-            {Object.keys(COLUMN_COLORS).map(color => (
-              <button key={color} type="button" title={color} onClick={() => setColumnColor(color)}
-                className={`w-8 h-8 rounded-xl ${COLUMN_COLORS[color].bg} border-2 transition-all ${columnColor === color ? "border-neutral-900 dark:border-white scale-110" : `${COLUMN_COLORS[color].border} hover:scale-105`}`} />
-            ))}
-          </div>
+            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-amber-300 dark:focus:ring-amber-700 outline-none"
+            placeholder="Contoh: Sedang Dikerjakan" />
         </div>
         <button onClick={() => column ? onUpdate() : onCreate()} disabled={!columnName.trim()}
           className={`w-full px-4 py-2 text-sm rounded-xl font-medium ${COLORS.primary} disabled:opacity-50`}>
@@ -68,7 +58,7 @@ export function ProjectModal({ open, form, setForm, leads, saving, onCreate, onC
             placeholder="Nama proyek..." />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Tipe</label>
+          <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Tipe proyek</label>
           <select value={form.type} onChange={e => setForm((p: any) => ({ ...p, type: e.target.value }))}
             className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm">
             <option value="FIXED">Fixed</option>
@@ -76,21 +66,12 @@ export function ProjectModal({ open, form, setForm, leads, saving, onCreate, onC
           </select>
         </div>
         <div>
-          <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Client (opsional)</label>
+          <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Klien (opsional)</label>
           <select value={form.lead_id ?? ""} onChange={e => setForm((p: any) => ({ ...p, lead_id: e.target.value ? Number(e.target.value) : null }))}
             className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm">
-            <option value="">— Tanpa client —</option>
+            <option value="">Tanpa klien</option>
             {leads.map((l: any) => <option key={l.id} value={l.id}>{l.business_name}</option>)}
           </select>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-2">Warna Proyek</label>
-          <div className="flex gap-2 flex-wrap">
-            {Object.keys(COLUMN_COLORS).map(color => (
-              <button key={color} type="button" title={color} onClick={() => setForm((p: any) => ({ ...p, color }))}
-                className={`w-8 h-8 rounded-xl ${COLUMN_COLORS[color].bg} border-2 transition-all ${form.color === color ? "border-neutral-900 dark:border-white scale-110" : `${COLUMN_COLORS[color].border} hover:scale-105`}`} />
-            ))}
-          </div>
         </div>
         <button onClick={onCreate} disabled={saving || !form.name.trim()}
           className={`w-full px-4 py-2 text-sm rounded-xl font-medium ${COLORS.primary} disabled:opacity-50`}>
@@ -121,7 +102,7 @@ export function EditProjectModal({ open, form, setForm, leads, saving, onSave, o
             className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none" />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Tipe</label>
+          <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Tipe proyek</label>
           <select value={form.type} onChange={e => setForm((p: any) => ({ ...p, type: e.target.value }))}
             className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm">
             <option value="FIXED">Fixed</option>
@@ -129,21 +110,12 @@ export function EditProjectModal({ open, form, setForm, leads, saving, onSave, o
           </select>
         </div>
         <div>
-          <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Client (opsional)</label>
+          <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Klien (opsional)</label>
           <select value={form.lead_id ?? ""} onChange={e => setForm((p: any) => ({ ...p, lead_id: e.target.value ? Number(e.target.value) : null }))}
             className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm">
-            <option value="">— Tanpa client —</option>
+            <option value="">Tanpa klien</option>
             {leads.map((l: any) => <option key={l.id} value={l.id}>{l.business_name}</option>)}
           </select>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-2">Warna</label>
-          <div className="flex gap-2 flex-wrap">
-            {Object.keys(COLUMN_COLORS).map(color => (
-              <button key={color} type="button" onClick={() => setForm((p: any) => ({ ...p, color }))}
-                className={`w-8 h-8 rounded-xl ${COLUMN_COLORS[color].bg} border-2 transition-all ${form.color === color ? "border-neutral-900 dark:border-white scale-110" : `${COLUMN_COLORS[color].border} hover:scale-105`}`} />
-            ))}
-          </div>
         </div>
         <button onClick={onSave} disabled={saving || !form.name.trim()}
           className={`w-full px-4 py-2 text-sm rounded-xl font-medium ${COLORS.primary} disabled:opacity-50`}>

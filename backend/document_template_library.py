@@ -93,6 +93,21 @@ AGREEMENT_HTML = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>{BA
 </body></html>"""
 
 
+MOU_HTML = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>{BASE_STYLE}</style></head><body>
+<table class="w100 top"><tr><td><div class="logo">{{{{logo}}}}</div><div class="eyebrow">{{{{brand_name}}}}</div><div class="title">MEMORANDUM OF UNDERSTANDING</div></td><td class="right muted">No. <span class="strong">{{{{nomor}}}}</span><br/>Tanggal: <span class="strong">{{{{tanggal}}}}</span></td></tr></table>
+<p>Nota kesepahaman ini dibuat sebagai dasar kerja sama awal antara pihak-pihak berikut:</p>
+<table class="w100"><tr><td width="49%" class="box"><div class="box-title">Pihak Pertama - Penyedia Jasa</div><div class="strong">{{{{brand_name}}}}</div><div class="muted">{{{{alamat_perusahaan}}}}<br/>{{{{phone_perusahaan}}}}<br/>{{{{email_perusahaan}}}}</div></td><td width="2%"></td><td width="49%" class="box"><div class="box-title">Pihak Kedua - Klien</div><div class="strong">{{{{klien}}}}</div><div class="muted">{{{{alamat}}}}<br/>{{{{phone}}}}</div></td></tr></table>
+<div class="section-title">Tujuan Kerja Sama</div><div class="soft">{{{{tujuan}}}}</div>
+<div class="section-title">Ruang Lingkup</div><div class="soft">{{{{scope}}}}</div>
+<div class="section-title">Tanggung Jawab Pihak Pertama</div><div class="soft">{{{{tanggung_jawab_seller}}}}</div>
+<div class="section-title">Tanggung Jawab Pihak Kedua</div><div class="soft">{{{{tanggung_jawab_buyer}}}}</div>
+<div class="section-title">Jangka Waktu dan Tindak Lanjut</div><div class="soft">{{{{durasi}}}}<br/>{{{{terms}}}}</div>
+<p>Nota kesepahaman ini bukan invoice atau bukti pembayaran. Detail komersial final dapat dituangkan dalam kontrak kerja sama atau surat pesanan terpisah.</p>
+<table class="w100"><tr><td width="45%" class="right">Pihak Pertama,<div class="sig-space"></div><div class="sig-line">{{{{brand_name}}}}</div><div class="muted">Penyedia Jasa</div></td><td width="10%"></td><td width="45%" class="right">Pihak Kedua,<div class="sig-space"></div><div class="sig-line">{{{{klien}}}}</div><div class="muted">Klien</div></td></tr></table>
+<div class="footer"><span class="strong">{{{{brand_name}}}}</span><br/>{{{{tagline}}}}<br/>Nota kesepahaman kerja sama.</div>
+</body></html>"""
+
+
 DEFAULT_DOCUMENT_TEMPLATES = [
     {
         "name": "Invoice",
@@ -131,13 +146,24 @@ DEFAULT_DOCUMENT_TEMPLATES = [
         ],
     },
     {
-        "name": "Kontrak / MoU",
+        "name": "Kontrak Kerja Sama",
         "type": "kontrak",
         "html_template": AGREEMENT_HTML,
         "variables": [
             "logo", "tanggal_mulai", "tanggal_akhir", "klien", "alamat", "phone",
             "layanan", "durasi", "nilai_kontrak", "scope", "terms", "brand_name",
             "alamat_perusahaan", "phone_perusahaan", "email_perusahaan", "tagline",
+        ],
+    },
+    {
+        "name": "MOU Kerja Sama",
+        "type": "mou",
+        "html_template": MOU_HTML,
+        "variables": [
+            "logo", "nomor", "tanggal", "klien", "alamat", "phone", "tujuan",
+            "scope", "tanggung_jawab_seller", "tanggung_jawab_buyer", "durasi",
+            "terms", "brand_name", "alamat_perusahaan", "phone_perusahaan",
+            "email_perusahaan", "tagline",
         ],
     },
 ]

@@ -18,5 +18,8 @@ frontend/public/sw.js
 frontend/public/swe-worker-*.js
 frontend/public/workbox-*.js
 frontend/tsconfig.tsbuildinfo
+frontend/test-results/
+frontend/playwright-report/
+frontend/qa-artifacts/
 backend/uploads/
 *.pdf

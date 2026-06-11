@@ -10,12 +10,10 @@ interface AIModel {
   is_default_article: boolean; is_default_analysis: boolean;
 }
 
-const CAPABILITIES = ["chat", "image", "article", "analysis"] as const;
-const CAP_LABELS: Record<string, string> = { chat: "Chat", image: "Image", article: "Artikel", analysis: "Analisa" };
+const CAPABILITIES = ["article", "analysis"] as const;
+const CAP_LABELS: Record<string, string> = { article: "Artikel SEO", analysis: "Analisa Lead" };
 const CAP_COLORS: Record<string, string> = {
-  chat: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  image: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-  article: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+  article: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
   analysis: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
 };
 
@@ -35,8 +33,8 @@ export default function ModelRegistrySection({
   const [editing, setEditing] = useState<AIModel | null>(null);
   const [form, setForm] = useState({ name: "", model_id: "", description: "", capabilities: ["chat"] as string[], is_active: true });
 
-  function openNew() { setEditing(null); setForm({ name: "", model_id: "", description: "", capabilities: ["chat"], is_active: true }); setModal(true); }
-  function openEdit(m: AIModel) { setEditing(m); setForm({ name: m.name, model_id: m.model_id, description: m.description || "", capabilities: m.capabilities, is_active: m.is_active }); setModal(true); }
+  function openNew() { setEditing(null); setForm({ name: "", model_id: "", description: "", capabilities: ["article"], is_active: true }); setModal(true); }
+  function openEdit(m: AIModel) { setEditing(m); setForm({ name: m.name, model_id: m.model_id, description: m.description || "", capabilities: m.capabilities.filter(c => CAPABILITIES.includes(c as any)), is_active: m.is_active }); setModal(true); }
   function toggleCapability(cap: string) { setForm(f => ({ ...f, capabilities: f.capabilities.includes(cap) ? f.capabilities.filter(c => c !== cap) : [...f.capabilities, cap] })); }
 
   return (
@@ -49,7 +47,7 @@ export default function ModelRegistrySection({
               <Plus size={14} /> Tambah Model
             </button>
           </div>
-          <p className="text-xs text-neutral-500 mt-2">Override capability tertentu (image gen). Kosong = pakai default per fitur.</p>
+          <p className="text-xs text-neutral-500 mt-2">Daftar model yang boleh dipilih untuk Artikel SEO dan Analisa Lead.</p>
         </div>
 
         {loading ? (
@@ -70,7 +68,7 @@ export default function ModelRegistrySection({
                     {m.capabilities.map(cap => (
                       <span key={cap} className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${CAP_COLORS[cap] || "bg-gray-100 text-gray-600"}`}>
                         {CAP_LABELS[cap] || cap}
-                        {(cap === "chat" && m.is_default_chat) || (cap === "image" && m.is_default_image) || (cap === "article" && m.is_default_article) || (cap === "analysis" && m.is_default_analysis) ? " *" : ""}
+                        {(cap === "article" && m.is_default_article) || (cap === "analysis" && m.is_default_analysis) ? " *" : ""}
                       </span>
                     ))}
                   </div>
@@ -78,8 +76,8 @@ export default function ModelRegistrySection({
                 <div className="flex items-center gap-1 shrink-0">
                   {m.capabilities.map(cap => (
                     <button key={cap} onClick={() => onSetDefault(m.id, cap)} title={`Set default ${CAP_LABELS[cap]}`}
-                      className={`p-1.5 rounded-lg transition-colors ${(cap === "chat" && m.is_default_chat) || (cap === "image" && m.is_default_image) || (cap === "article" && m.is_default_article) || (cap === "analysis" && m.is_default_analysis) ? "text-brand-yellow" : "text-gray-300 hover:text-brand-yellow"}`}>
-                      <Star size={12} fill={(cap === "chat" && m.is_default_chat) || (cap === "image" && m.is_default_image) || (cap === "article" && m.is_default_article) || (cap === "analysis" && m.is_default_analysis) ? "currentColor" : "none"} />
+                      className={`p-1.5 rounded-lg transition-colors ${(cap === "article" && m.is_default_article) || (cap === "analysis" && m.is_default_analysis) ? "text-brand-yellow" : "text-gray-300 hover:text-brand-yellow"}`}>
+                      <Star size={12} fill={(cap === "article" && m.is_default_article) || (cap === "analysis" && m.is_default_analysis) ? "currentColor" : "none"} />
                     </button>
                   ))}
                   <button onClick={() => openEdit(m)} className="p-1.5 text-gray-400 hover:text-brand-yellow rounded-lg transition-colors"><Edit2 size={14} /></button>
@@ -111,10 +109,10 @@ export default function ModelRegistrySection({
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Deskripsi (opsional)</label>
-                <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className={inputCls} placeholder="Override khusus untuk image gen" />
+                <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className={inputCls} placeholder="Contoh: model cepat untuk artikel SEO" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Capabilities</label>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Dipakai untuk</label>
                 <div className="flex flex-wrap gap-2 mt-1">
                   {CAPABILITIES.map(cap => (
                     <button key={cap} type="button" onClick={() => toggleCapability(cap)}

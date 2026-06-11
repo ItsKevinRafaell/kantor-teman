@@ -12,7 +12,9 @@ from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 
-load_dotenv(os.environ.get("ENV_FILE", ".env.production"))
+_env_file = os.environ.get("ENV_FILE", ".env.production")
+load_dotenv(_env_file)
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=False)
 
 # ── Re-export everything from dependencies for backward compat ─────────────────
 from app.core.dependencies import *  # noqa: F401, F403, E402
@@ -142,6 +144,19 @@ def _run_subscription_deductions():
         db.close()
 
 
+def _run_project_billing_invoices():
+    if not _acquire_scheduler_lock("project_billing_invoices", 82800):
+        return
+    db = SessionLocal()
+    try:
+        from app.services.sales_workflow_service import generate_due_monthly_invoices
+        generated = generate_due_monthly_invoices(db, "scheduler")
+        if generated:
+            print(f"[SCHEDULER] project monthly invoices generated={len(generated)}", flush=True)
+    finally:
+        db.close()
+
+
 def _start_background_scheduler():
     if os.getenv("ENABLE_BACKGROUND_SCHEDULER", "true").lower() != "true":
         return None
@@ -151,6 +166,7 @@ def _start_background_scheduler():
     sched.add_job(_run_async_job, "interval", hours=1, args=[scheduled_followup_processor], id="followups", max_instances=1, coalesce=True)
     sched.add_job(_run_outreach_lifecycle, "interval", hours=1, id="outreach-lifecycle", max_instances=1, coalesce=True)
     sched.add_job(_run_subscription_deductions, "cron", hour=0, minute=5, id="subscription-deductions", max_instances=1, coalesce=True)
+    sched.add_job(_run_project_billing_invoices, "cron", hour=0, minute=15, id="project-billing-invoices", max_instances=1, coalesce=True)
     sched.start()
     return sched
 
@@ -162,7 +178,7 @@ background_scheduler = _start_background_scheduler()
 
 from routers import (  # noqa: E402
     auth, leads, proposals, finance, clients, workspace,
-    documents, content, campaign, analytics, office, other,
+    documents, reports, content, campaign, analytics, office, other,
 )
 from routers import settings as settings_router  # noqa: E402
 
@@ -173,6 +189,7 @@ app.include_router(finance.router)
 app.include_router(clients.router)
 app.include_router(workspace.router)
 app.include_router(documents.router)
+app.include_router(reports.router)
 app.include_router(content.router)
 app.include_router(settings_router.router)
 app.include_router(campaign.router)
@@ -187,6 +204,7 @@ from routers.other import send_wa_manual  # noqa: E402
 from routers.finance import get_finance_reports  # noqa: E402
 from routers.documents import (  # noqa: E402
     delete_archive_folder, update_archive_doc,
+    archive_folder_delete_summary,
     preview_document, _render_document_pdf,
     _prepare_document_vars, _build_default_vars,
     _build_brand_context,

@@ -6,7 +6,7 @@ from .ai import AIProxy, ProviderConfig, AIModel
 from .lead import (
     Lead, Contact, MessageTemplate, ScrapeHistory,
     LeadActivityLog, LeadAnalysis, FollowUpSequence,
-    ReengagementAlert, AuditLog
+    ReengagementAlert, AuditLog, Notification
 )
 from .proposal import Proposal, ServiceItem, ProposalAnalytics
 from .product import Category, Product, DynamicTemplate
@@ -14,7 +14,7 @@ from .finance import Wallet, Transaction, Subscription, PaymentMethod
 from .project import Project, ClientNote, ClientCredential, ClientDocument
 from .board import (
     Board, BoardColumn, BoardCard, BoardCardComment,
-    BoardCardChecklist, BoardCardActivity
+    BoardCardChecklist, BoardCardActivity, BoardCardAttachment
 )
 from .campaign import AdsCampaign, BlastCampaign, BlastMessage
 from .workspace import (
@@ -26,7 +26,7 @@ from .content import (
 )
 from .document import (
     DocumentFolder, Document, BrandKit, BrandAsset,
-    DocumentTemplate, GeneratedDocument, DocumentSequence
+    DocumentTemplate, GeneratedDocument, ReportSnapshot, DocumentSequence
 )
 
 __all__ = [
@@ -39,7 +39,7 @@ __all__ = [
     # lead
     "Lead", "Contact", "MessageTemplate", "ScrapeHistory",
     "LeadActivityLog", "LeadAnalysis", "FollowUpSequence",
-    "ReengagementAlert", "AuditLog",
+    "ReengagementAlert", "AuditLog", "Notification",
     # proposal
     "Proposal", "ServiceItem", "ProposalAnalytics",
     # product
@@ -50,7 +50,7 @@ __all__ = [
     "Project", "ClientNote", "ClientCredential", "ClientDocument",
     # board
     "Board", "BoardColumn", "BoardCard", "BoardCardComment",
-    "BoardCardChecklist", "BoardCardActivity",
+    "BoardCardChecklist", "BoardCardActivity", "BoardCardAttachment",
     # campaign
     "AdsCampaign", "BlastCampaign", "BlastMessage",
     # workspace
@@ -60,5 +60,5 @@ __all__ = [
     "ContentSchedule", "ContentProvider", "ContentSession", "ContentGeneration",
     # document
     "DocumentFolder", "Document", "BrandKit", "BrandAsset",
-    "DocumentTemplate", "GeneratedDocument", "DocumentSequence",
+    "DocumentTemplate", "GeneratedDocument", "ReportSnapshot", "DocumentSequence",
 ]

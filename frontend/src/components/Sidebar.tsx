@@ -103,7 +103,7 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    title: "DOKUMEN",
+    title: "DOKUMEN & LAPORAN",
     items: [
       {
         href: "/master/internal-vault",
@@ -113,13 +113,18 @@ const NAV_GROUPS: NavGroup[] = [
       },
       {
         href: "/documents",
-        label: "Arsip Tim",
+        label: "Dokumen & Laporan",
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>,
       },
       {
         href: "/documents/generator",
-        label: "Buat Dokumen",
+        label: "Dokumen Resmi",
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="14" x2="15" y2="14" /><line x1="9" y1="18" x2="15" y2="18" /></svg>,
+      },
+      {
+        href: "/documents/reports",
+        label: "Laporan Klien",
+        icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="M7 15l3-3 3 2 5-7" /><path d="M18 7h-4" /><path d="M18 7v4" /></svg>,
       },
     ],
   },
@@ -218,9 +223,11 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
             )}
             <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 font-medium uppercase tracking-widest">CRM Internal</p>
           </div>
-          <button onClick={onClose} className="lg:hidden p-1 text-neutral-400 hover:text-neutral-600">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-          </button>
+          <div className="relative flex items-center gap-1">
+            <button onClick={onClose} className="lg:hidden p-1 text-neutral-400 hover:text-neutral-600">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+          </div>
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">

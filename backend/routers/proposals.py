@@ -18,8 +18,17 @@ from app.core.dependencies import (get_current_user, require_admin, FRONTEND_URL
     _detect_project_type, _detect_service_type, _detect_contract_months,
     WORKSPACE_TEMPLATES, build_sheets_for_service,
     sync_row_to_board, sync_row_status_to_board,
-    get_fonnte_token, _send_fonnte_sync,
+    get_fonnte_token, _send_fonnte_sync, send_fonnte_message,
 )
+from app.services.report_tracking_service import (
+    is_valid_report_viewer,
+    record_report_activity,
+    record_report_duration,
+    record_report_open,
+)
+from app.services.sales_workflow_service import accept_proposal_workflow, archive_proposal_pdf_for_lead
+from app.services.proposal_service import proposal_to_out as _proposal_to_out
+from search_volume_data import get_monthly_search_volume
 
 router = APIRouter()
 
@@ -91,11 +100,16 @@ def create_proposal(body: ProposalIn, current_user: User = Depends(get_current_u
         faqs=getattr(body, 'faqs', None) or default_faqs,
         selected_addons=_build_addons_from_products(db),
         timeline_data=timeline_json,
-        roi_data=_build_roi_data(db, body.services, body.roi_data),
+        roi_data=_build_roi_data(db, services_data, body.roi_data),
     )
     db.add(proposal)
     db.commit()
     db.refresh(proposal)
+    try:
+        archive_proposal_pdf_for_lead(db, proposal, lead, current_user.name)
+        db.commit()
+    except Exception as e:
+        print(f"[PROPOSAL_ARCHIVE_PDF] skip: {e}", flush=True)
     log_audit(db, current_user.name, "CREATE", "proposals", proposal.id, {"lead": lead.business_name, "total": total})
     return _proposal_to_out(proposal, lead)
 
@@ -103,12 +117,17 @@ def create_proposal(body: ProposalIn, current_user: User = Depends(get_current_u
 
 @router.get("/api/proposals/public/{proposal_id}")
 def get_public_proposal(proposal_id: str, db: Session = Depends(get_db)):
-    proposal = db.query(Proposal).filter(Proposal.id == proposal_id).first()
+    proposal = db.query(Proposal).filter((Proposal.id == proposal_id) | (Proposal.slug == proposal_id)).first()
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal tidak ditemukan")
     lead = db.query(Lead).filter(Lead.id == proposal.lead_id).first()
     out = _proposal_to_out(proposal, lead)
-    data = out.model_dump() if hasattr(out, "model_dump") else out.__dict__
+    if isinstance(out, dict):
+        data = dict(out)
+    elif hasattr(out, "model_dump"):
+        data = out.model_dump()
+    else:
+        data = vars(out)
     data["admin_wa"] = _get_setting("admin_wa", ADMIN_WA)
     data["admin_name"] = _get_setting("admin_name", "Admin")
     data["accepted_at"] = proposal.accepted_at
@@ -327,160 +346,13 @@ def _detect_contract_months(proposal, services: list, project_start: Optional[st
 
 @router.post("/api/proposals/public/{slug}/accept")
 def accept_proposal(slug: str, body: ProposalAcceptIn, db: Session = Depends(get_db)):
-    import threading, httpx as _httpx
-
     proposal = db.query(Proposal).filter(Proposal.slug == slug).first()
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal tidak ditemukan")
-    if proposal.status == "accepted":
-        project = db.query(Project).filter(Project.lead_id == proposal.lead_id).order_by(Project.id.desc()).first()
-        return {"success": True, "project_id": project.id if project else None, "already_accepted": True}
-    if proposal.status == "rejected":
-        raise HTTPException(status_code=400, detail="Proposal sudah ditolak")
-
-    lead = db.query(Lead).filter(Lead.id == proposal.lead_id).first()
-    now = datetime.now(timezone.utc).isoformat()
-
-    proposal.status = "accepted"
-    proposal.accepted_at = now
-
-    if lead and lead.status not in ("Closed/Client", "Active Client"):
-        lead.status = "Closed/Client"
-
-    services = json.loads(proposal.services_detail) if proposal.services_detail else []
-    project_type = _detect_project_type(services)
-    detected_service_type = _detect_service_type(services)
-    detected_months = _detect_contract_months(proposal, services, now[:10], None)
-    active_price = proposal.discount_price or proposal.total_price
-    business_name = lead.business_name if lead else body.client_name
-    service_names = ", ".join(s.get("name", "") for s in services[:2])
-    project_name = f"{service_names} — {business_name}" if service_names else f"Project {business_name}"
-
-    project = Project(
-        id=str(uuid.uuid4()),
-        lead_id=proposal.lead_id,
-        name=project_name,
-        type=project_type,
-        status="ACTIVE",
-        nominal=active_price,
-        start_date=now[:10],
-        color="gray",
-        service_type=detected_service_type,
-        contract_months=detected_months,
-    )
-    db.add(project)
-    db.flush()
-
-    board = Board(id=str(uuid.uuid4()), project_id=project.id)
-    db.add(board)
-    db.flush()
-
-    todo_col_id = None
-    for i, (col_name, col_color) in enumerate([("To Do", "gray"), ("In Progress", "slate"), ("Review", "neutral"), ("Done", "stone")]):
-        col = BoardColumn(id=str(uuid.uuid4()), board_id=board.id, name=col_name, position=i, color=col_color)
-        db.add(col)
-        if col_name == "To Do":
-            todo_col_id = col.id
-
-    _ONBOARDING_BASE = [
-        "Kick-off call dengan klien",
-        "Kumpulkan requirement & brief",
-        "Approval timeline & milestone",
-        "Kirim deliverable pertama",
-    ]
-    _ONBOARDING_SERVICE = {
-        "web_dev":   ["Setup domain & hosting", "Wireframe approval", "Development sprint 1"],
-        "seo_gmaps": ["Audit website awal", "Riset keyword", "On-page optimization"],
-        "sosmed":    ["Content calendar approval", "Desain template feed", "Posting perdana"],
-        "maintenance": ["Inventarisasi aset klien", "Setup monitoring", "Laporan kondisi awal"],
-    }
-    if todo_col_id:
-        now_cards = datetime.now(timezone.utc).isoformat()
-        card_titles = _ONBOARDING_BASE + _ONBOARDING_SERVICE.get(detected_service_type or "", [])
-        for pos, title in enumerate(card_titles):
-            db.add(BoardCard(
-                id=str(uuid.uuid4()),
-                column_id=todo_col_id,
-                title=title,
-                labels=json.dumps(["onboarding"]),
-                position=pos,
-                updated_at=now_cards,
-            ))
-
-    db.commit()
-
-    # Auto-init workspace if service_type detected
-    if detected_service_type and detected_service_type in WORKSPACE_TEMPLATES:
-        try:
-            sheet_defs = build_sheets_for_service(detected_service_type, detected_months)
-            now_ws = datetime.now(timezone.utc).isoformat()
-            for idx, sdef in enumerate(sheet_defs):
-                sheet = WorkspaceSheet(
-                    id=str(uuid.uuid4()), project_id=project.id,
-                    sheet_index=idx, sheet_label=sdef["label"],
-                    service_type=detected_service_type, month_number=sdef.get("month"),
-                    created_at=now_ws,
-                )
-                db.add(sheet)
-                db.flush()
-                col_map = {}
-                for ci, cdef in enumerate(sdef["columns"]):
-                    col = WorkspaceColumn(
-                        id=str(uuid.uuid4()), sheet_id=sheet.id,
-                        column_key=cdef["key"], column_label=cdef["label"],
-                        column_type=cdef["type"], column_options=json.dumps(cdef.get("options", [])),
-                        column_order=ci, is_system=cdef.get("is_system", False), created_at=now_ws,
-                    )
-                    db.add(col)
-                    db.flush()
-                    col_map[cdef["key"]] = col
-                for ri, rdef in enumerate(sdef.get("default_rows", [])):
-                    row = WorkspaceRow(id=str(uuid.uuid4()), sheet_id=sheet.id, row_order=ri, is_template=True, created_at=now_ws)
-                    db.add(row)
-                    db.flush()
-                    for key, val in rdef.items():
-                        col = col_map.get(key)
-                        if not col:
-                            continue
-                        cell = WorkspaceCell(id=str(uuid.uuid4()), row_id=row.id, column_id=col.id, updated_at=now_ws)
-                        if col.column_type == "checkbox":
-                            cell.value_bool = bool(val)
-                        elif col.column_type == "number":
-                            cell.value_number = float(val) if val else None
-                        else:
-                            cell.value_text = str(val) if val else None
-                        db.add(cell)
-                    db.flush()
-                    sync_row_to_board(row.id, db)
-            db.commit()
-        except Exception as e:
-            print(f"[ACCEPT_AUTO_WORKSPACE] error: {e}", flush=True)
-            try: db.rollback()
-            except Exception: pass
-
-    fonnte_token = get_fonnte_token(db)
-    admin_wa = _get_setting("admin_wa", ADMIN_WA)
-    msg = (
-        f"✅ *Proposal Diterima!*\n\n"
-        f"Klien: *{business_name}*\n"
-        f"Nama: {body.client_name}\n"
-        f"WA: {body.client_phone}\n"
-        f"Layanan: {service_names or '-'}\n"
-        f"Nilai: Rp {int(active_price):,}\n"
-        f"Tipe: {project_type}\n"
-        f"Project ID: {project.id[:8]}...\n\n"
-        f"Project & board sudah dibuat otomatis."
-    )
-    if body.accept_notes:
-        msg += f"\n\nCatatan klien: {body.accept_notes}"
-
-    threading.Thread(
-        target=_send_fonnte_sync,
-        args=(admin_wa, msg, fonnte_token, _httpx),
-        daemon=True,
-    ).start()
-
-    return {"success": True, "project_id": project.id, "already_accepted": False}
+    try:
+        return accept_proposal_workflow(db, proposal, body.client_name, body.client_phone, body.accept_notes)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 
@@ -502,18 +374,14 @@ def reject_proposal(slug: str, body: ProposalRejectIn, db: Session = Depends(get
 
 
 @router.get("/api/proposals/public/report/{slug}")
-def get_public_report_by_slug(slug: str, db: Session = Depends(get_db)):
+def get_public_report_by_slug(slug: str, request: Request, db: Session = Depends(get_db)):
     proposal = db.query(Proposal).filter(Proposal.slug == slug).first()
     if not proposal:
         raise HTTPException(status_code=404, detail="Report tidak ditemukan")
 
-    # Set first_viewed_at on first open (lock di database)
-    if not proposal.first_viewed_at:
-        proposal.first_viewed_at = datetime.now(timezone.utc).isoformat()
-        db.commit()
-        db.refresh(proposal)
-
     lead = db.query(Lead).filter(Lead.id == proposal.lead_id).first()
+    record_report_open(db, proposal, lead, request)
+    db.refresh(proposal)
 
     now = datetime.now(timezone.utc)
     is_discount_expired = False
@@ -572,6 +440,9 @@ def get_public_report_by_slug(slug: str, db: Session = Depends(get_db)):
         "is_discount_expired": is_discount_expired,
         "active_price": active_price,
         "first_viewed_at": proposal.first_viewed_at,
+        "report_open_count": proposal.report_open_count or 0,
+        "last_report_viewed_at": proposal.last_report_viewed_at,
+        "max_report_duration_seconds": proposal.max_report_duration_seconds or 0,
         "additional_options": proposal.additional_options,
         "status": proposal.status,
         "created_at": proposal.created_at,
@@ -598,10 +469,7 @@ def engage_report(slug: str, db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.id == proposal.lead_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
-    non_upgrade_statuses = {"HOT_PROSPECT", "CLOSED"}
-    if lead.status not in non_upgrade_statuses:
-        lead.status = "HOT_PROSPECT"
-        db.commit()
+    record_report_activity(db, proposal, lead, "CTA_CLICKED")
     return {"success": True, "status": lead.status}
 
 
@@ -637,7 +505,7 @@ class TrackActivityBody(BaseModel):
 
 @router.post("/api/proposals/public/report/{slug}/track-activity")
 def track_activity(slug: str, body: TrackActivityBody, request: Request, db: Session = Depends(get_db)):
-    if not is_valid_customer_request(request):
+    if not is_valid_report_viewer(request):
         return {"success": True, "filtered": True}
     proposal = db.query(Proposal).filter(Proposal.slug == slug).first()
     if not proposal:
@@ -645,26 +513,7 @@ def track_activity(slug: str, body: TrackActivityBody, request: Request, db: Ses
     lead = db.query(Lead).filter(Lead.id == proposal.lead_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
-
-    # Log activity ke LeadActivityLog (selalu insert untuk LINK_CLICKED)
-    if body.activity_type == "LINK_CLICKED":
-        db.add(LeadActivityLog(
-            lead_id=lead.id,
-            activity_type="LINK_CLICKED",
-            created_at=datetime.now(timezone.utc).isoformat(),
-        ))
-        db.commit()
-
-    points = SCORE_MAP.get(body.activity_type, 0)
-    if points == 0:
-        return {"success": True, "lead_score": lead.lead_score}
-    # LINK_CLICKED score hanya ditambahkan sekali (jika score sudah >= 30, skip)
-    if body.activity_type == "LINK_CLICKED" and (lead.lead_score or 0) >= 30:
-        return {"success": True, "lead_score": lead.lead_score}
-    new_score = min(100, (lead.lead_score or 0) + points)
-    lead.lead_score = new_score
-    db.commit()
-    return {"success": True, "lead_score": new_score}
+    return record_report_activity(db, proposal, lead, body.activity_type)
 
 
 
@@ -801,15 +650,8 @@ def track_view_duration(slug: str, body: ViewDurationIn, db: Session = Depends(g
     proposal = db.query(Proposal).filter(Proposal.slug == slug).first()
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal tidak ditemukan")
-
-    latest = db.query(ProposalAnalytics).filter(
-        ProposalAnalytics.proposal_id == proposal.id
-    ).order_by(ProposalAnalytics.opened_at.desc()).first()
-    if latest:
-        latest.duration_seconds = max(latest.duration_seconds or 0, body.duration_seconds)
-        db.commit()
-
-    return {"success": True}
+    lead = db.query(Lead).filter(Lead.id == proposal.lead_id).first()
+    return record_report_duration(db, proposal, lead, body.duration_seconds)
 
 
 
@@ -858,6 +700,9 @@ def get_proposal_analytics(proposal_id: str, current_user: User = Depends(get_cu
         "last_ping": r.last_ping,
         "total_time_seconds": r.total_time_seconds,
         "sections_viewed": json.loads(r.sections_viewed or "[]"),
+        "event": r.event,
+        "duration_seconds": r.duration_seconds,
+        "source": r.source,
     } for r in records]
 
 
@@ -883,7 +728,7 @@ def get_all_proposal_analytics(current_user: User = Depends(get_current_user), d
 
     for p in proposals:
         records = analytics_by_proposal.get(p.id, [])
-        total_opens = len(records)
+        total_opens = len([r for r in records if (r.event or "proposal_opened") in ("proposal_opened", "report_opened", None)])
         total_time = sum(r.total_time_seconds or 0 for r in records)
         last_opened = max((r.opened_at for r in records), default=None) if records else None
         results.append({
@@ -898,5 +743,3 @@ def get_all_proposal_analytics(current_user: User = Depends(get_current_user), d
 # ---------------------------------------------------------------------------
 # Analytics
 # ---------------------------------------------------------------------------
-
-

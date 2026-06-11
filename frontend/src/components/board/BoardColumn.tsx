@@ -3,6 +3,8 @@
 import { Plus, Calendar, User, MessageSquare, CheckSquare } from "lucide-react";
 import { CARD_COLORS, LABEL_COLORS } from "./types";
 import type { BoardCard, Lead } from "./types";
+import type { DragEvent, PointerEvent as ReactPointerEvent } from "react";
+import { useRef } from "react";
 
 interface Props {
   card: BoardCard;
@@ -11,25 +13,104 @@ interface Props {
   showArchived: boolean;
   onDragStart: (card: BoardCard) => void;
   onDragEnd: () => void;
+  onPointerDragOver: (columnId: string | null) => void;
+  onPointerDrop: (columnId: string) => void;
   onOpenEdit: (card: BoardCard) => void;
 }
 
-export function BoardCardItem({ card, leads, draggedCardId, showArchived, onDragStart, onDragEnd, onOpenEdit }: Props) {
+function columnIdFromPoint(x: number, y: number) {
+  const target = document.elementFromPoint(x, y) as HTMLElement | null;
+  return target?.closest<HTMLElement>("[data-board-column-id]")?.dataset.boardColumnId || null;
+}
+
+export function BoardCardItem({
+  card, leads, draggedCardId, showArchived, onDragStart, onDragEnd, onPointerDragOver, onPointerDrop, onOpenEdit,
+}: Props) {
   const cc = CARD_COLORS[card.color || "gray"] || CARD_COLORS.gray;
   const isDragging = draggedCardId === card.id;
   const leadName = card.lead?.business_name || leads.find(l => l.id === card.lead_id)?.business_name;
+  const suppressClickRef = useRef(false);
 
   function formatDate(d: string | null) {
     if (!d) return "";
     return new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
   }
 
+  function handlePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    if ((event.target as HTMLElement).closest("button,input,textarea,select,a")) return;
+
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let dragging = false;
+    let lastColumnId: string | null = null;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+
+    const cleanup = () => {
+      document.removeEventListener("pointermove", handleMove);
+      document.removeEventListener("pointerup", handleUp);
+      document.removeEventListener("pointercancel", handleCancel);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+
+    const startDrag = () => {
+      if (dragging) return;
+      dragging = true;
+      suppressClickRef.current = true;
+      document.body.style.cursor = "grabbing";
+      document.body.style.userSelect = "none";
+      onDragStart(card);
+    };
+
+    const handleMove = (moveEvent: PointerEvent) => {
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+      if (!dragging && Math.hypot(dx, dy) >= 8) startDrag();
+      if (!dragging) return;
+
+      moveEvent.preventDefault();
+      const columnId = columnIdFromPoint(moveEvent.clientX, moveEvent.clientY);
+      if (columnId !== lastColumnId) {
+        lastColumnId = columnId;
+        onPointerDragOver(columnId);
+      }
+    };
+
+    const handleUp = (upEvent: PointerEvent) => {
+      cleanup();
+      if (!dragging) return;
+      upEvent.preventDefault();
+      const columnId = columnIdFromPoint(upEvent.clientX, upEvent.clientY);
+      if (columnId) onPointerDrop(columnId);
+      else onDragEnd();
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 150);
+    };
+
+    const handleCancel = () => {
+      cleanup();
+      if (dragging) onDragEnd();
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 150);
+    };
+
+    document.addEventListener("pointermove", handleMove, { passive: false });
+    document.addEventListener("pointerup", handleUp);
+    document.addEventListener("pointercancel", handleCancel);
+  }
+
   return (
     <div
-      draggable
-      onDragStart={() => onDragStart(card)}
-      onDragEnd={onDragEnd}
-      onClick={() => onOpenEdit(card)}
+      data-board-card-id={card.id}
+      onPointerDown={handlePointerDown}
+      onClick={() => {
+        if (suppressClickRef.current) return;
+        onOpenEdit(card);
+      }}
       className={`rounded-xl p-3 shadow-sm cursor-pointer select-none transition-all duration-150
         ${cc.bg} ${cc.accent}
         ${card.is_archived ? "opacity-50" : ""}
@@ -83,11 +164,12 @@ interface ColumnProps {
   showArchived: boolean;
   filterAssignee: string;
   filterDue: string;
+  searchQuery: string;
   onDragStart: (card: BoardCard, fromColumn: string) => void;
   onDragEnd: () => void;
   onDragOver: (columnId: string) => void;
   onDragLeave: () => void;
-  onDrop: (toColumnId: string) => void;
+  onDrop: (toColumnId: string, event?: DragEvent<HTMLDivElement>) => void;
   onOpenEditCard: (card: BoardCard, columnId: string) => void;
   onOpenNewCard: (columnId: string) => void;
   onEditColumn: (column: { id: string; name: string; color?: string }) => void;
@@ -96,7 +178,7 @@ interface ColumnProps {
 
 export function BoardColumnItem({
   column, COLUMN_COLORS, BOARD_TOP_BORDER, leads, draggedCard, dragOverColumn,
-  showArchived, filterAssignee, filterDue, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop,
+  showArchived, filterAssignee, filterDue, searchQuery, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop,
   onOpenEditCard, onOpenNewCard, onEditColumn, onDeleteColumn,
 }: ColumnProps) {
   const colColor = COLUMN_COLORS[column.color || "gray"] || COLUMN_COLORS.gray;
@@ -108,13 +190,26 @@ export function BoardColumnItem({
   if (filterAssignee) cards = cards.filter(c => c.assignee === filterAssignee);
   if (filterDue === "overdue") cards = cards.filter(c => c.due_date && new Date(c.due_date) < new Date());
   if (filterDue === "soon") cards = cards.filter(c => c.due_date && new Date(c.due_date) <= new Date(Date.now() + 3 * 24 * 60 * 60 * 1000));
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  if (normalizedSearch) {
+    cards = cards.filter(c => {
+      const leadName = c.lead?.business_name || leads.find(l => l.id === c.lead_id)?.business_name || "";
+      return [c.title, c.description || "", c.assignee || "", leadName]
+        .some(v => v.toLowerCase().includes(normalizedSearch));
+    });
+  }
 
   return (
     <div
+      data-board-column-id={column.id}
       className={`w-72 shrink-0 rounded-xl flex flex-col transition-all ${colColor.bg} ${colTopBorder} ${isDropTarget ? "ring-2 ring-neutral-300 dark:ring-neutral-600 ring-inset shadow-lg" : ""}`}
-      onDragOver={e => { e.preventDefault(); onDragOver(column.id); }}
+      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; onDragOver(column.id); }}
       onDragLeave={onDragLeave}
-      onDrop={() => onDrop(column.id)}
+      onDrop={event => {
+        event.preventDefault();
+        event.stopPropagation();
+        onDrop(column.id, event);
+      }}
     >
       <div className={`p-3 border-b ${colColor.border} flex items-center justify-between`}>
         <div className="flex items-center gap-2">
@@ -123,7 +218,7 @@ export function BoardColumnItem({
           <span className="text-xs text-neutral-400 bg-white/60 dark:bg-black/20 px-1.5 py-0.5 rounded-full">{cards.length}</span>
         </div>
         <div className="flex items-center gap-0.5">
-          <button onClick={() => onEditColumn(column)} className="p-1 text-neutral-400 hover:text-neutral-500 rounded text-xs">Edit</button>
+          <button onClick={() => onEditColumn(column)} className="p-1 text-neutral-400 hover:text-neutral-500 rounded text-xs">Ubah</button>
           <button onClick={() => onDeleteColumn(column.id, column.name)} className="p-1 text-neutral-400 hover:text-red-500 rounded">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -140,8 +235,12 @@ export function BoardColumnItem({
             leads={leads}
             draggedCardId={draggedCard?.card.id ?? null}
             showArchived={showArchived}
-            onDragStart={c => onDragStart(c, column.id)}
+            onDragStart={c => {
+              onDragStart(c, column.id);
+            }}
             onDragEnd={onDragEnd}
+            onPointerDragOver={columnId => columnId ? onDragOver(columnId) : onDragLeave()}
+            onPointerDrop={toColumnId => onDrop(toColumnId)}
             onOpenEdit={c => onOpenEditCard(c, column.id)}
           />
         ))}

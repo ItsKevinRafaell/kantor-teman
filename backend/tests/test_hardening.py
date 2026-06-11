@@ -123,7 +123,7 @@ class HardeningRegressionTests(unittest.TestCase):
         self.assertEqual(report.break_even_point, 100_000)
         self.assertEqual(report.expense_by_category, [{"category": "Subscription", "amount": 100_000}])
 
-    def test_folder_delete_keeps_docs_and_moves_children_to_root(self):
+    def test_folder_delete_removes_docs_and_children_after_summary(self):
         parent = main.DocumentFolder(user_id=self.admin.id, name="Parent")
         self.db.add(parent)
         self.db.commit()
@@ -134,11 +134,20 @@ class HardeningRegressionTests(unittest.TestCase):
         self.db.commit()
         self.db.refresh(child)
         self.db.refresh(doc)
+        parent_id = parent.id
+        child_id = child.id
+        doc_id = doc.id
 
-        main.delete_archive_folder(parent.id, current_user=self.admin, db=self.db)
+        summary = main.archive_folder_delete_summary(parent_id, current_user=self.admin, db=self.db)
+        self.assertEqual(summary["subfolder_count"], 1)
+        self.assertEqual(summary["document_count"], 1)
+        self.assertEqual(summary["folder_count"], 2)
 
-        self.assertIsNone(self.db.query(main.Document).filter(main.Document.id == doc.id).one().folder_id)
-        self.assertIsNone(self.db.query(main.DocumentFolder).filter(main.DocumentFolder.id == child.id).one().parent_id)
+        main.delete_archive_folder(parent_id, current_user=self.admin, db=self.db)
+
+        self.assertIsNone(self.db.query(main.Document).filter(main.Document.id == doc_id).one_or_none())
+        self.assertIsNone(self.db.query(main.DocumentFolder).filter(main.DocumentFolder.id == child_id).one_or_none())
+        self.assertIsNone(self.db.query(main.DocumentFolder).filter(main.DocumentFolder.id == parent_id).one_or_none())
 
     def test_archive_update_can_clear_folder_url_and_body(self):
         folder = main.DocumentFolder(user_id=self.admin.id, name="Folder")
