@@ -15,6 +15,13 @@ from app.core.dependencies import (get_current_user, require_admin,
     _get_feature_defaults, get_proxy_for_feature,
     get_default_model, get_ai_config,
 )
+from app.services.ai_service import (
+    _canonical_provider,
+    _router_api_key,
+    _router_base_url,
+    _router_model,
+    fetch_9router_models_async,
+)
 
 router = APIRouter()
 
@@ -176,6 +183,16 @@ def get_feature_defaults(current_user: User = Depends(get_current_user), db: Ses
     return _get_feature_defaults(db)
 
 
+@router.get("/api/ai/router-models")
+async def list_9router_models(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Fetch model/combo registry directly from 9router /v1/models."""
+    config = get_ai_config(db, "chat")
+    try:
+        return await fetch_9router_models_async(config)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
 @router.post("/api/ai/feature-defaults")
 def set_feature_defaults(body: dict, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Set per-feature AI proxy mappings. Values must be AIProxy IDs."""
@@ -201,44 +218,22 @@ def set_feature_defaults(body: dict, current_user: User = Depends(require_admin)
 
 @router.get("/api/ai/health")
 async def ai_health(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Check active AI provider connectivity. Provider-aware: skips /models for Anthropic/Gemini native."""
-    from app.services.ai_service import _is_native_anthropic
-    proxy = get_proxy_for_feature(db, "chat")
-    if proxy:
-        provider = _canonical_provider(proxy.provider)
-        base = proxy.base_url.rstrip("/")
-        try:
-            # Gemini native uses generateContent, not /models
-            if provider == "gemini":
-                async with httpx.AsyncClient(timeout=5) as client:
-                    model = proxy.model or "gemini-2.0-flash"
-                    r = await client.post(
-                        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-                        headers={"x-goog-api-key": proxy.api_key},
-                        json={"contents": [{"parts": [{"text": "ping"}]}]},
-                    )
-                if r.status_code < 500:
-                    return {"status": "connected", "provider": provider, "base_url": base, "model": proxy.model}
-            # Anthropic native uses /v1/messages, not /models
-            elif provider == "anthropic" and _is_native_anthropic(base):
-                async with httpx.AsyncClient(timeout=5) as client:
-                    r = await client.post(
-                        "https://api.anthropic.com/v1/messages",
-                        headers={"x-api-key": proxy.api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-                        json={"model": proxy.model or "claude-haiku-4-5-20251001", "max_tokens": 1, "messages": [{"role": "user", "content": "ping"}]},
-                    )
-                if r.status_code < 500:
-                    return {"status": "connected", "provider": provider, "base_url": base, "model": proxy.model}
-            # OpenAI-compatible (openai, openrouter, custom) and proxies — use /models
-            else:
-                async with httpx.AsyncClient(timeout=5) as client:
-                    r = await client.get(f"{base}/models", headers={"Authorization": f"Bearer {proxy.api_key}"})
-                if r.status_code < 500:
-                    return {"status": "connected", "provider": provider, "base_url": base, "model": proxy.model}
-        except Exception as e:
-            print(f"[AI health] {e}", flush=True)
-        return {"status": "offline", "provider": provider, "base_url": base, "model": proxy.model}
-    return {"status": "not_configured", "provider": "none", "base_url": "", "model": ""}
+    """Check 9router connectivity through OpenAI-compatible /models."""
+    config = get_ai_config(db, "chat")
+    base = config.get("base_url", "")
+    model = config.get("model", "")
+    try:
+        result = await fetch_9router_models_async(config)
+        return {
+            "status": "connected",
+            "provider": "9router",
+            "base_url": result["base_url"],
+            "model": model,
+            "models_count": result["count"],
+        }
+    except Exception as e:
+        print(f"[AI health] {e}", flush=True)
+        return {"status": "offline", "provider": "9router", "base_url": base, "model": model}
 
 
 # ---------------------------------------------------------------------------
@@ -395,13 +390,12 @@ def list_ai_proxies(current_user: User = Depends(require_admin), db: Session = D
 
 @router.post("/api/ai-proxies", response_model=AIProxyOut, status_code=201)
 def create_ai_proxy(body: AIProxyIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    from app.services.ai_service import _canonical_provider
     proxy = AIProxy(
         name=body.name,
-        base_url=body.base_url.rstrip("/"),
-        api_key=body.api_key,
-        model=body.model,
-        provider=_canonical_provider(body.provider) or "openai",
+        base_url=_router_base_url(body.base_url),
+        api_key=_router_api_key(body.api_key),
+        model=_router_model(body.model),
+        provider=_canonical_provider(body.provider),
         feature=body.feature,
     )
     db.add(proxy)
@@ -412,17 +406,16 @@ def create_ai_proxy(body: AIProxyIn, current_user: User = Depends(require_admin)
 
 @router.put("/api/ai-proxies/{proxy_id}", response_model=AIProxyOut)
 def update_ai_proxy(proxy_id: str, body: AIProxyIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    from app.services.ai_service import _canonical_provider
     proxy = db.query(AIProxy).filter_by(id=proxy_id).first()
     if not proxy:
         raise HTTPException(status_code=404, detail="Proxy tidak ditemukan")
     proxy.name = body.name
-    proxy.base_url = body.base_url.rstrip("/")
+    proxy.base_url = _router_base_url(body.base_url)
     # Preserve existing api_key if incoming is blank or masked
     if body.api_key and body.api_key != "***" and body.api_key.strip():
-        proxy.api_key = body.api_key
-    proxy.model = body.model
-    proxy.provider = _canonical_provider(body.provider) or "openai"
+        proxy.api_key = _router_api_key(body.api_key)
+    proxy.model = _router_model(body.model)
+    proxy.provider = _canonical_provider(body.provider)
     proxy.feature = body.feature
     db.commit()
     db.refresh(proxy)

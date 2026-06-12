@@ -6,6 +6,7 @@ from models import (
     Lead, Contact, AIProxy, Project, BlastMessage, SystemSettings,
     FollowUpSequence, LeadActivityLog, Proposal, User, Board, BoardColumn,
     BoardCard, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell,
+    Notification, LeadAnalysis,
 )
 
 
@@ -189,6 +190,63 @@ class TestWorkspaceBoardSync:
         db_session.commit()
 
         sync_row_to_board(row.id, db_session)
+
+        card = db_session.query(BoardCard).filter(BoardCard.id == row.board_card_id).one()
+        assert card.column_id == done.id
+
+    def test_patch_task_name_creates_card_for_orphan_row(self, db_session):
+        from routers.workspace import update_workspace_cell
+        from schemas import WorkspaceCellUpdate
+        from unittest.mock import MagicMock
+
+        row, progress, _, _ = self._make_workspace_row(db_session)
+        task_col = db_session.query(WorkspaceColumn).filter(
+            WorkspaceColumn.sheet_id == row.sheet_id,
+            WorkspaceColumn.column_key == "task_name",
+        ).one()
+        user = MagicMock()
+        user.name = "Admin"
+
+        update_workspace_cell(row.id, task_col.id, WorkspaceCellUpdate(value_text="Updated task"), user, db_session)
+        db_session.refresh(row)
+
+        assert row.board_card_id is not None
+        card = db_session.query(BoardCard).filter(BoardCard.id == row.board_card_id).one()
+        assert card.title == "Updated task"
+        assert card.column_id == progress.id
+
+    def test_patch_due_date_updates_board_card(self, db_session):
+        from app.core.dependencies import sync_row_to_board
+        from routers.workspace import update_workspace_cell
+        from schemas import WorkspaceCellUpdate
+        from unittest.mock import MagicMock
+
+        row, _, _, _ = self._make_workspace_row(db_session)
+        sync_row_to_board(row.id, db_session)
+        due_col = db_session.query(WorkspaceColumn).filter(
+            WorkspaceColumn.sheet_id == row.sheet_id,
+            WorkspaceColumn.column_key == "due_date",
+        ).one()
+        user = MagicMock()
+        user.name = "Admin"
+
+        update_workspace_cell(row.id, due_col.id, WorkspaceCellUpdate(value_date="2026-06-20"), user, db_session)
+
+        card = db_session.query(BoardCard).filter(BoardCard.id == row.board_card_id).one()
+        assert card.due_date == "2026-06-20"
+
+    def test_patch_done_moves_card_to_done_column(self, db_session):
+        from app.core.dependencies import sync_row_to_board
+        from routers.workspace import update_workspace_cell
+        from schemas import WorkspaceCellUpdate
+        from unittest.mock import MagicMock
+
+        row, _, done, done_col = self._make_workspace_row(db_session)
+        sync_row_to_board(row.id, db_session)
+        user = MagicMock()
+        user.name = "Admin"
+
+        update_workspace_cell(row.id, done_col.id, WorkspaceCellUpdate(value_bool=True), user, db_session)
 
         card = db_session.query(BoardCard).filter(BoardCard.id == row.board_card_id).one()
         assert card.column_id == done.id
@@ -430,6 +488,131 @@ class TestFonnteStatusCallback:
         # Canonical 08xx should be updated
         assert msg_08.replied_at is not None
         assert msg_08.status == "replied"
+
+
+class TestWahaWebhook:
+    """WAHA webhook compatibility for direct WAHA or future AutoLead handoff."""
+
+    def test_waha_inbound_message_marks_lead_replied(self, db_session):
+        from routers.campaign import waha_webhook
+        from unittest.mock import MagicMock, AsyncMock
+
+        lead = Lead(business_name="WAHA Lead", phone_number="081234567890", status="Contacted")
+        db_session.add(lead)
+        db_session.commit()
+
+        request = MagicMock()
+        request.headers = {}
+        request.body = AsyncMock(return_value=json.dumps({
+            "event": "message",
+            "payload": {
+                "from": "6281234567890@c.us",
+                "body": "Halo, saya tertarik",
+                "fromMe": False,
+            },
+        }).encode("utf-8"))
+
+        result = asyncio.run(waha_webhook(request, db_session))
+
+        assert result["ok"] is True
+        assert result["lead_id"] == lead.id
+        assert result.get("new_status") == "Replied"
+
+    def test_waha_hmac_ack_updates_blast_message(self, db_session):
+        import hashlib
+        import hmac
+        from routers.campaign import waha_webhook
+        from unittest.mock import MagicMock, AsyncMock
+
+        db_session.add(SystemSettings(key="waha_webhook_secret", value="waha-secret"))
+        lead = Lead(business_name="WAHA Ack Lead", phone_number="081234567890")
+        db_session.add(lead)
+        db_session.flush()
+        msg = BlastMessage(
+            id="waha-ack-msg",
+            lead_id=lead.id,
+            phone_number="081234567890",
+            sent_at="2026-06-06T00:00:00+00:00",
+            status="sent",
+        )
+        db_session.add(msg)
+        db_session.commit()
+
+        raw_body = json.dumps({
+            "event": "message.ack",
+            "payload": {
+                "to": "6281234567890@c.us",
+                "ackName": "read",
+            },
+        }).encode("utf-8")
+        signature = hmac.new(b"waha-secret", raw_body, hashlib.sha512).hexdigest()
+
+        request = MagicMock()
+        request.headers = {"x-webhook-hmac": signature}
+        request.body = AsyncMock(return_value=raw_body)
+
+        result = asyncio.run(waha_webhook(request, db_session))
+
+        assert result["ok"] is True
+        db_session.refresh(msg)
+        assert msg.status == "read"
+        assert msg.delivered_at is not None
+        assert msg.read_at is not None
+
+
+class TestAutoLeadExternalLead:
+    """AutoLead -> KantorTeman external lead handoff."""
+
+    def test_autolead_external_lead_creates_notification_and_analysis(self, db_session, monkeypatch):
+        from fastapi import BackgroundTasks
+        from routers.leads import create_external_lead
+        from schemas import ExternalLeadIn
+        from unittest.mock import MagicMock
+
+        db_session.add(SystemSettings(key="external_lead_api_key", value="external-key"))
+        db_session.add(SystemSettings(key="fonnte_token", value=""))
+        db_session.commit()
+
+        monkeypatch.setattr("routers.leads._send_fonnte_sync", lambda *args, **kwargs: True)
+
+        request = MagicMock()
+        request.headers = {"X-API-Key": "external-key"}
+        body = ExternalLeadIn(
+            business_name="Prospek AutoLead",
+            phone_number="6281234567890",
+            message="Saya tertarik dan mau tanya harga website.",
+            product_interest="web_development",
+            source="leadbot_wa",
+            lead_stage="hot_lead",
+            lead_score=86,
+            ai_reason="User menyebut tertarik dan tanya harga.",
+            conversation_id="conv-123",
+        )
+
+        result = create_external_lead(request, body, BackgroundTasks(), db_session)
+
+        assert result["success"] is True
+        assert result["duplicate"] is False
+
+        lead = db_session.query(Lead).filter(Lead.id == result["lead_id"]).first()
+        assert lead is not None
+        assert lead.phone_number == "081234567890"
+        assert lead.status == "Replied"
+        assert lead.lead_score == 86
+        assert lead.score_adjustment_reason == "AutoLead score sync: 86"
+
+        analysis = db_session.query(LeadAnalysis).filter(LeadAnalysis.lead_id == lead.id).first()
+        assert analysis is not None
+        assert "Stage: hot_lead" in analysis.analysis
+        assert "Conversation: conv-123" in analysis.analysis
+
+        notification = db_session.query(Notification).filter(
+            Notification.target_type == "lead",
+            Notification.target_id == str(lead.id),
+        ).first()
+        assert notification is not None
+        assert notification.title == "Prospek baru dari AutoLead"
+        assert notification.action_url == "/leads"
 
 
 class TestDocumentGeneratorInput:

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Masuk - Teman UMKM Kita</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: light;
+      --yellow: #f5a700;
+      --charcoal: #242423;
+      --snow: #fcfaf7;
+      --white: #ffffff;
+      --line: #ebe2d4;
+      --muted: #756d63;
+      --soft-yellow: #fff4d7;
+      --shadow: 0 24px 70px rgba(36, 36, 35, 0.08);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --charcoal: #f7f1e8;
+        --snow: #121211;
+        --white: #1b1a18;
+        --line: #39342d;
+        --muted: #b9b0a4;
+        --soft-yellow: #2a2417;
+        --shadow: 0 24px 70px rgba(0, 0, 0, 0.3);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--snow);
+      color: var(--charcoal);
+      font-family: "Poppins", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .page {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(360px, 460px);
+    }
+
+    .brand-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: clamp(32px, 6vw, 72px);
+      border-right: 1px solid var(--line);
+    }
+
+    .brand-mark {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 600;
+    }
+
+    .brand-logo {
+      display: grid;
+      width: 46px;
+      height: 46px;
+      place-items: center;
+      border-radius: 8px;
+      background: var(--yellow);
+      color: #fff;
+      font-family: "Poppins", sans-serif;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    h1, h2 {
+      margin: 0;
+      font-family: "Poppins", sans-serif;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      max-width: 620px;
+      font-size: clamp(36px, 6vw, 64px);
+      line-height: 1.05;
+      font-weight: 650;
+    }
+
+    .tagline {
+      margin: 18px 0 0;
+      max-width: 560px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    .checklist {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      max-width: 680px;
+      margin-top: 42px;
+    }
+
+    .check-item {
+      min-height: 112px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--white);
+      padding: 18px;
+    }
+
+    .check-item strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 15px;
+    }
+
+    .check-item span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .login-panel {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 28px;
+      background: var(--surface, transparent);
+    }
+
+    .login-card {
+      width: 100%;
+      max-width: 390px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--white);
+      padding: 30px;
+      box-shadow: var(--shadow);
+    }
+
+    .login-card h2 {
+      font-size: 34px;
+      line-height: 1;
+      font-weight: 650;
+    }
+
+    .login-card p {
+      margin: 10px 0 26px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    label {
+      display: block;
+      margin: 18px 0 8px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    input {
+      width: 100%;
+      min-height: 48px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--snow);
+      color: var(--charcoal);
+      font: inherit;
+      outline: none;
+      padding: 0 14px;
+    }
+
+    input:focus {
+      border-color: var(--yellow);
+      box-shadow: 0 0 0 4px rgba(245, 167, 0, 0.15);
+    }
+
+    .notice {
+      display: none;
+      margin: 0 0 18px;
+      border: 1px solid rgba(245, 167, 0, 0.45);
+      border-radius: 8px;
+      background: var(--soft-yellow);
+      color: var(--charcoal);
+      padding: 12px 14px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .success {
+      border-color: rgba(33, 131, 95, 0.45);
+      background: color-mix(in srgb, #21835f 12%, var(--white));
+    }
+
+    .login-button {
+      width: 100%;
+      min-height: 50px;
+      margin-top: 24px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--yellow);
+      color: #fff;
+      cursor: pointer;
+      font: 600 15px "Poppins", sans-serif;
+    }
+
+    .login-button:hover { filter: brightness(0.96); }
+
+    .helper {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 920px) {
+      .page { grid-template-columns: 1fr; }
+      .brand-panel {
+        gap: 42px;
+        min-height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+        padding: 28px;
+      }
+      .checklist { grid-template-columns: 1fr; }
+      .login-panel { align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="brand-panel" aria-label="Informasi produk">
+      <div class="brand-mark">
+        <div class="brand-logo">KT</div>
+        <div>
+          <strong>Teman UMKM Kita</strong><br>
+          <span>Sahabat Digital, UMKM Makin Maju.</span>
+        </div>
+      </div>
+
+      <div>
+        <h1>Balasan WhatsApp yang kerja seperti sales.</h1>
+        <p class="tagline">Pantau percakapan, lead panas, eskalasi manusia, dan kualitas jawaban otomatis dari satu tempat yang rapi.</p>
+        <div class="checklist">
+          <div class="check-item"><strong>Cek pesan masuk</strong><span>Lihat chat baru dari WhatsApp blast tanpa muat ulang halaman.</span></div>
+          <div class="check-item"><strong>Cek lead panas</strong><span>Prioritaskan calon pelanggan yang sudah bertanya harga, paket, atau cara order.</span></div>
+          <div class="check-item"><strong>Cek eskalasi</strong><span>Tangani kasus yang butuh manusia dengan alasan yang tetap halus ke pelanggan.</span></div>
+          <div class="check-item"><strong>Cek referensi</strong><span>Pastikan bot punya bahan produk dan cara kerja terbaru sebelum menjawab.</span></div>
+        </div>
+      </div>
+
+      <div class="helper">Dasbor internal KantorTeman LeadBot.</div>
+    </section>
+
+    <section class="login-panel" aria-label="Form masuk">
+      <form class="login-card" method="POST" action="/login">
+        <h2>Masuk</h2>
+        <p>Gunakan akun admin untuk membuka pusat balasan WhatsApp.</p>
+        <div id="errorBox" class="notice">Username atau password belum cocok.</div>
+        <div id="logoutBox" class="notice success">Berhasil keluar. Silakan masuk lagi kalau perlu membuka dasbor.</div>
+        <input id="nextInput" type="hidden" name="next" value="/">
+
+        <label for="username">Username</label>
+        <input id="username" name="username" autocomplete="username" autofocus required>
+
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+        <button class="login-button" type="submit">Masuk ke Dasbor</button>
+        <div class="helper">Session aktif 12 jam di browser ini.</div>
+      </form>
+    </section>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get('next');
+    if (next && next.startsWith('/') && !next.startsWith('//')) {
+      document.getElementById('nextInput').value = next;
+    }
+    if (params.get('error')) {
+      document.getElementById('errorBox').style.display = 'block';
+    }
+    if (params.get('logged_out')) {
+      document.getElementById('logoutBox').style.display = 'block';
+    }
+  </script>
+</body>
+</html>

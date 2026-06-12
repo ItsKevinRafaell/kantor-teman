@@ -10,6 +10,12 @@ interface AIModel {
   is_default_article: boolean; is_default_analysis: boolean;
 }
 
+interface RouterModel {
+  id: string;
+  name?: string;
+  type?: string;
+}
+
 const CAPABILITIES = ["article", "analysis"] as const;
 const CAP_LABELS: Record<string, string> = { article: "Artikel SEO", analysis: "Analisa Lead" };
 const CAP_COLORS: Record<string, string> = {
@@ -19,6 +25,7 @@ const CAP_COLORS: Record<string, string> = {
 
 interface ModelRegistrySectionProps {
   models: AIModel[];
+  routerModels: RouterModel[];
   loading: boolean;
   onFetchModels: () => void;
   onDeleteModel: (id: string) => void;
@@ -27,7 +34,7 @@ interface ModelRegistrySectionProps {
 }
 
 export default function ModelRegistrySection({
-  models, loading, onFetchModels, onDeleteModel, onSetDefault, showToast,
+  models, routerModels, loading, onFetchModels, onDeleteModel, onSetDefault, showToast,
 }: ModelRegistrySectionProps) {
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<AIModel | null>(null);
@@ -47,7 +54,7 @@ export default function ModelRegistrySection({
               <Plus size={14} /> Tambah Model
             </button>
           </div>
-          <p className="text-xs text-neutral-500 mt-2">Daftar model yang boleh dipilih untuk Artikel SEO dan Analisa Lead.</p>
+          <p className="text-xs text-neutral-500 mt-2">Daftar model 9router yang boleh dipilih untuk Artikel SEO dan Analisa Lead.</p>
         </div>
 
         {loading ? (
@@ -105,7 +112,14 @@ export default function ModelRegistrySection({
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Model ID</label>
-                <input value={form.model_id} onChange={e => setForm(f => ({ ...f, model_id: e.target.value }))} className={inputCls} placeholder="claude-haiku-4-5-20251001" />
+                {routerModels.length > 0 ? (
+                  <select value={form.model_id} onChange={e => setForm(f => ({ ...f, model_id: e.target.value }))} className={inputCls}>
+                    <option value="">Pilih model 9router</option>
+                    {routerModels.map(model => <option key={model.id} value={model.id}>{model.id}</option>)}
+                  </select>
+                ) : (
+                  <input value={form.model_id} onChange={e => setForm(f => ({ ...f, model_id: e.target.value }))} className={inputCls} placeholder="combo-genflow" />
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Deskripsi (opsional)</label>

@@ -62,6 +62,7 @@ SENSITIVE_SETTING_KEYS = {
     "fonnte_token", "gemini_api_key", "claude_api_key", "openai_api_key",
     "ai_api_key", "google_api_key", "google_service_account_json",
     "cms_api_token", "external_lead_api_key", "smtp_password",
+    "waha_api_key", "waha_webhook_secret", "autolead_api_key",
 }
 
 # ─── Database ─────────────────────────────────────────────────────────────────
@@ -421,7 +422,9 @@ def generate_report_for_lead(lead, db: Session, product_category: str = None) ->
 # ─── Cost logging ─────────────────────────────────────────────────────────────
 
 def log_outreach_cost(db: Session, campaign_id: str, messages_count: int):
-    provider = db.query(ProviderConfig).filter_by(id="FONNTE").first()
+    from app.core.whatsapp_provider import get_whatsapp_cost_provider_id
+
+    provider = db.query(ProviderConfig).filter_by(id=get_whatsapp_cost_provider_id(db)).first()
     if not provider:
         return
     cost = provider.price_per_unit_idr * messages_count
@@ -505,48 +508,9 @@ def get_default_model(db: Session, capability: str) -> Optional[AIModel]:
     return db.query(AIModel).filter(getattr(AIModel, field) == 1, AIModel.is_active == 1).first()
 
 def get_ai_config(db: Session, capability: str = "chat") -> dict:
-    """Per-feature AIProxy first. Returns 'none' provider if no AIProxy configured.
-
-    Canonical provider IDs: openai, anthropic, gemini, openrouter, custom
-    - anthropic routes to native Anthropic Messages API
-    - openai/openrouter/custom route to OpenAI-compatible /chat/completions
-    - gemini routes to Gemini native API
-    - Legacy alias 'claude' maps to 'anthropic'
-    """
-    from app.services.ai_service import _canonical_provider
-    proxy = get_proxy_for_feature(db, capability)
-    if proxy:
-        provider = _canonical_provider(proxy.provider)
-        cfg = {
-            "provider": provider,
-            "base_url": proxy.base_url.rstrip("/"),
-            "model": proxy.model,
-        }
-        if provider == "gemini":
-            cfg["gemini_key"] = proxy.api_key
-            cfg["openai_key"] = ""
-            cfg["claude_key"] = ""
-        elif provider == "anthropic":
-            cfg["claude_key"] = proxy.api_key
-            cfg["openai_key"] = ""
-            cfg["gemini_key"] = ""
-        else:  # openai, openrouter, custom
-            cfg["openai_key"] = proxy.api_key
-            cfg["gemini_key"] = ""
-            cfg["claude_key"] = ""
-    else:
-        cfg = {
-            "provider": "none",
-            "base_url": "",
-            "model": "",
-            "openai_key": "",
-            "gemini_key": "",
-            "claude_key": "",
-        }
-    default_model = get_default_model(db, capability)
-    if default_model and default_model.model_id:
-        cfg["model"] = default_model.model_id
-    return cfg
+    """Single source of truth: every AI feature resolves to 9router."""
+    from app.services.ai_service import get_ai_config as _service_get_ai_config
+    return _service_get_ai_config(db, capability)
 
 def build_analysis_prompt(lead, product_list: str) -> str:
     return f"""Kamu adalah konsultan digital marketing untuk UMKM Indonesia. Analisa bisnis berikut dan berikan insight yang persuasif dan mudah dipahami pemilik usaha.
@@ -879,14 +843,37 @@ def seed_data(db: Session):
     if not db.query(SystemSettings).filter_by(key="fonnte_token").first():
         db.add(SystemSettings(key="fonnte_token", value=os.getenv("FONNTE_TOKEN", "")))
         db.commit()
+    default_settings = {
+        "whatsapp_provider": os.getenv("WHATSAPP_PROVIDER", "fonnte"),
+        "waha_base_url": os.getenv("WAHA_BASE_URL", "http://127.0.0.1:3000"),
+        "waha_api_key": os.getenv("WAHA_API_KEY", ""),
+        "waha_session": os.getenv("WAHA_SESSION", "default"),
+        "waha_webhook_secret": os.getenv("WAHA_WEBHOOK_SECRET", ""),
+        "autolead_base_url": os.getenv("AUTOLEAD_BASE_URL", ""),
+        "autolead_api_key": os.getenv("AUTOLEAD_API_KEY", ""),
+        "autolead_demo": os.getenv("AUTOLEAD_DEMO", "true"),
+        "whatsapp_blast_delay_seconds": os.getenv("WHATSAPP_BLAST_DELAY_SECONDS", "5"),
+    }
+    for key, value in default_settings.items():
+        if not db.query(SystemSettings).filter_by(key=key).first():
+            db.add(SystemSettings(key=key, value=value))
+    db.commit()
     if not db.query(ProviderConfig).first():
         providers = [
             ProviderConfig(id="FONNTE", provider_name="Fonnte WhatsApp", remaining_quota=10000, price_per_unit_idr=6.6, price_input_token_usd=0, price_output_token_usd=0),
+            ProviderConfig(id="WAHA", provider_name="WAHA WhatsApp", remaining_quota=0, price_per_unit_idr=0, price_input_token_usd=0, price_output_token_usd=0),
+            ProviderConfig(id="AUTOLEAD", provider_name="AutoLead Bridge", remaining_quota=0, price_per_unit_idr=0, price_input_token_usd=0, price_output_token_usd=0),
             ProviderConfig(id="GEMINI", provider_name="Gemini 2.5 Flash", remaining_quota=0, price_per_unit_idr=0, price_input_token_usd=0.000075, price_output_token_usd=0.0003),
             ProviderConfig(id="CLAUDE", provider_name="Claude 4.5 Haiku", remaining_quota=0, price_per_unit_idr=0, price_input_token_usd=0.00025, price_output_token_usd=0.0125),
             ProviderConfig(id="OPENAI", provider_name="GPT-5", remaining_quota=0, price_per_unit_idr=0, price_input_token_usd=0.0025, price_output_token_usd=0.010),
         ]
         db.add_all(providers)
+        db.commit()
+    elif not db.query(ProviderConfig).filter_by(id="WAHA").first():
+        db.add(ProviderConfig(id="WAHA", provider_name="WAHA WhatsApp", remaining_quota=0, price_per_unit_idr=0, price_input_token_usd=0, price_output_token_usd=0))
+        db.commit()
+    if not db.query(ProviderConfig).filter_by(id="AUTOLEAD").first():
+        db.add(ProviderConfig(id="AUTOLEAD", provider_name="AutoLead Bridge", remaining_quota=0, price_per_unit_idr=0, price_input_token_usd=0, price_output_token_usd=0))
         db.commit()
     if not db.query(DynamicTemplate).filter_by(type="TIMELINE_TEMPLATE").first():
         timeline_templates = [
@@ -974,7 +961,9 @@ async def process_pending_blasts():
                 if criteria.get("min_rating") and int(criteria["min_rating"]) > 0:
                     query = query.filter(Lead.rating >= int(criteria["min_rating"]))
                 leads = query.all()
-                token = get_fonnte_token(db)
+                from app.core.whatsapp_provider import get_whatsapp_config, send_whatsapp_message
+
+                whatsapp_config = get_whatsapp_config(db)
                 template = None
                 if campaign.template_id:
                     template = db.query(DynamicTemplate).filter(DynamicTemplate.id == campaign.template_id).first()
@@ -993,14 +982,21 @@ async def process_pending_blasts():
                     else:
                         message = f"Halo {lead.business_name}, kami menyiapkan audit digital singkat untuk bisnis Anda. Apakah kami boleh menjelaskan poin yang paling prioritas?\n\nLaporan ringkas: {report_link}"
                     message = message.replace("{{proposal_link}}", f"\n{report_link}\n")
-                    success = await send_fonnte_message(lead.phone_number, message, token)
+                    result = await send_whatsapp_message(db, lead.phone_number, message, {
+                        "lead_id": lead.id,
+                        "campaign_id": campaign.id,
+                        "template_id": template.id if template else None,
+                        "batch_name": criteria.get("batch_name"),
+                        "business_name": lead.business_name,
+                    })
+                    success = result.ok
                     db.add(BlastMessage(
                         id=str(uuid.uuid4()), campaign_id=campaign.id, lead_id=lead.id,
                         template_id=template.id if template else None,
                         phone_number=lead.phone_number,
                         sent_at=datetime.now(timezone.utc).isoformat(),
                         status="sent" if success else "failed",
-                        error_message=None if success else "Fonnte send returned non-200",
+                        error_message=None if success else (result.error or f"{result.provider} send failed"),
                     ))
                     if success:
                         lead.status = "WA Terkirim"
@@ -1008,7 +1004,7 @@ async def process_pending_blasts():
                     else:
                         failed += 1
                     db.commit()
-                    await asyncio.sleep(5)
+                    await asyncio.sleep(whatsapp_config.blast_delay_seconds)
                 campaign.sent_count = sent
                 campaign.failed_count = failed
                 campaign.status = "SUCCESS" if failed == 0 else "PARTIAL"
@@ -1039,7 +1035,8 @@ async def scheduled_followup_processor():
             FollowUpSequence.status == "ACTIVE",
             FollowUpSequence.next_send_at <= now.isoformat(),
         ).all()
-        token = get_fonnte_token(db)
+        from app.core.whatsapp_provider import send_whatsapp_message
+
         for seq in sequences:
             lead = db.query(Lead).filter(Lead.id == seq.lead_id).first()
             if not lead:
@@ -1062,8 +1059,12 @@ async def scheduled_followup_processor():
                     f"Halo Pak, ini follow up terakhir dari saya untuk {lead.business_name}. Jika memang belum berminat saat ini, tidak masalah. Tapi perlu diingat, slot optimasi wilayah Anda terbatas dan kompetitor terus bergerak.",
                 ]
                 message = followup_defaults[min(seq.current_step, len(followup_defaults) - 1)]
-            success = await send_fonnte_message(lead.phone_number, message, token)
-            if not success:
+            result = await send_whatsapp_message(db, lead.phone_number, message, {
+                "lead_id": lead.id,
+                "request_id": f"followup:{seq.id}:{seq.current_step}",
+                "business_name": lead.business_name,
+            })
+            if not result.ok:
                 continue
             seq.current_step += 1
             if seq.current_step >= len(delays):

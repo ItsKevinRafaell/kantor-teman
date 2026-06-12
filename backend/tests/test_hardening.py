@@ -375,6 +375,56 @@ class HardeningRegressionTests(unittest.TestCase):
 
         self.assertFalse(os.path.exists(pdf_path), "Physical file was not deleted")
 
+    def test_generated_document_uploads_documents_url_resolves_for_download_email_and_delete(self):
+        from models import GeneratedDocument
+
+        lead = main.Lead(business_name="Doc Target", phone_number="628111111114")
+        self.db.add(lead)
+        self.db.flush()
+
+        test_pdf_name = f"uploads-documents-test-{uuid.uuid4().hex}.pdf"
+        legacy_dir = routers.documents.LEGACY_DOCUMENTS_DIR
+        os.makedirs(legacy_dir, exist_ok=True)
+        pdf_path = os.path.join(legacy_dir, test_pdf_name)
+        with open(pdf_path, "wb") as f:
+            f.write(b"%PDF-1.4 test")
+
+        doc = GeneratedDocument(
+            id=str(uuid.uuid4()),
+            template_id=None,
+            template_name="Invoice",
+            target_type="lead",
+            target_id=str(lead.id),
+            variables_used="{}",
+            file_url=f"/uploads/documents/{test_pdf_name}",
+            display_filename="Test Invoice",
+            generated_by="test",
+        )
+        self.db.add(doc)
+        self.db.commit()
+        self.db.refresh(doc)
+
+        try:
+            response = routers.documents.download_document(doc.id, self.admin, self.db)
+            self.assertTrue(getattr(response, "path", "").endswith(test_pdf_name))
+
+            with patch("routers.documents._get_setting", return_value=""):
+                try:
+                    routers.documents.email_document(
+                        doc.id,
+                        routers.documents.DocumentEmailIn(to_email="test@test.com"),
+                        self.admin,
+                        self.db,
+                    )
+                except HTTPException as exc:
+                    self.assertNotIn("File tidak ada di disk", str(exc.detail))
+
+            routers.documents.delete_generated_document(doc.id, self.admin, self.db)
+            self.assertFalse(os.path.exists(pdf_path), "Physical /uploads/documents file was not deleted")
+        finally:
+            if os.path.exists(pdf_path):
+                os.remove(pdf_path)
+
 
 class ProductionGuardTests(unittest.TestCase):
     """Verify destructive admin endpoints are blocked in production mode."""
@@ -427,6 +477,23 @@ class ProductionGuardTests(unittest.TestCase):
     def test_production_mode_endpoint_returns_is_production(self):
         with patch.object(settings_router, "IS_PRODUCTION", True):
             self.assertEqual(settings_router.get_production_mode(current_user=self.admin), {"is_production": True})
+
+    def test_backup_endpoint_uses_configured_database_url_without_name_error(self):
+        uploads_dir = tempfile.mkdtemp(prefix="kantorteman-upload-backup-")
+        backup_dir = tempfile.mkdtemp(prefix="kantorteman-backup-")
+        sqlite_path = os.path.join(tempfile.mkdtemp(prefix="kantorteman-db-backup-"), "backup.db")
+        with open(sqlite_path, "wb") as f:
+            f.write(b"sqlite-test")
+        os.makedirs(os.path.join(uploads_dir, "documents"), exist_ok=True)
+        with open(os.path.join(uploads_dir, "documents", "test.pdf"), "wb") as f:
+            f.write(b"%PDF-1.4")
+
+        with patch.object(settings_router, "DATABASE_URL", f"sqlite:///{sqlite_path}"), \
+             patch.object(settings_router, "UPLOADS_DIR", uploads_dir), \
+             patch.dict(os.environ, {"BACKUP_DIR": backup_dir}):
+            response = settings_router.admin_data_backup(current_user=self.admin)
+
+        self.assertEqual(response.media_type, "application/zip")
 
     def test_soft_reset_does_not_delete_contact_records(self):
         """Soft reset preserves Contact rows — only non-client leads are removed."""

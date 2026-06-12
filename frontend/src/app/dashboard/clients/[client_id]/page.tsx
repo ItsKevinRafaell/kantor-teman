@@ -64,6 +64,10 @@ function daysLeft(dateStr: string | null): number | null {
   return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
+function resolveClientLeadId(data: ClientDetail | null): number | null {
+  return data?.lead_id ?? data?.profile.lead_id ?? null;
+}
+
 export default function ClientDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -111,6 +115,10 @@ export default function ClientDetailPage() {
 
   async function saveProject() {
     if (!projectForm.name) return;
+    if (!resolveClientLeadId(data)) {
+      setToast({ message: "Kontak ini belum memiliki relasi lead. Project belum bisa dibuat.", type: "error" });
+      return;
+    }
     setSaving(true);
     try {
       const method = editingProject ? "PUT" : "POST";
@@ -124,6 +132,9 @@ export default function ClientDetailPage() {
         setEditingProject(null);
         setProjectForm(DEFAULT_PROJECT_FORM);
         fetchDetail();
+      } else {
+        const error = await res.json().catch(() => null);
+        setToast({ message: error?.detail || "Gagal menyimpan project.", type: "error" });
       }
     } finally { setSaving(false); }
   }
@@ -144,6 +155,10 @@ export default function ClientDetailPage() {
   }
 
   function openNewProject() {
+    if (!resolveClientLeadId(data)) {
+      setToast({ message: "Kontak ini belum memiliki relasi lead. Project belum bisa dibuat.", type: "error" });
+      return;
+    }
     setEditingProject(null);
     setProjectForm({ ...DEFAULT_PROJECT_FORM, start_date: new Date().toISOString().slice(0, 10) });
     setProjectModal(true);
@@ -179,7 +194,7 @@ export default function ClientDetailPage() {
   }
 
   const { profile, ltv, active_billing, dana_talangan, projects } = data;
-  const clientLeadId = data.lead_id ?? profile.lead_id ?? null;
+  const clientLeadId = resolveClientLeadId(data);
   const isVIP = ltv >= 10000000;
 
   return (
@@ -255,12 +270,21 @@ export default function ClientDetailPage() {
       <div className="card overflow-hidden">
         <div className="px-5 py-4 border-b border-[var(--border-default)] flex items-center justify-between">
           <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-50">Proyek Klien</h2>
-          <button onClick={openNewProject} className="btn-primary flex items-center gap-1.5 text-xs">
+          <button
+            onClick={openNewProject}
+            disabled={!clientLeadId}
+            title={!clientLeadId ? "Kontak belum memiliki relasi lead" : undefined}
+            className="btn-primary flex items-center gap-1.5 text-xs disabled:opacity-50"
+          >
             <Plus size={14} /> Tambah Proyek Baru
           </button>
         </div>
 
-        {projects.length === 0 ? (
+        {!clientLeadId ? (
+          <div className="px-5 py-4 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-100 dark:border-amber-800">
+            Kontak ini belum memiliki relasi lead. Project, catatan, dokumen, dan kredensial belum bisa ditambahkan sampai relasi lead diperbaiki.
+          </div>
+        ) : projects.length === 0 ? (
           <div className="text-center py-12 text-neutral-400 text-sm">Belum ada proyek untuk klien ini.</div>
         ) : (
           <div className="overflow-x-auto">

@@ -2,7 +2,10 @@ import re
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Any
 
-from .auth import LoginIn, TokenOut, UserUpdate, UserCreate, UserAdminUpdate
+from .auth import (
+    LoginIn, TokenOut, UserUpdate, UserCreate, UserAdminUpdate,
+    PasswordResetRequest, PasswordResetConfirm,
+)
 from .lead import (
     Business, LeadOut, ContactOut, ContactUpdate, TemplateIn, TemplateOut,
     StatusUpdate, LeadSalesUpdate, ProductUpdate, BlastIn, RatingUpdate,
@@ -69,6 +72,7 @@ __all__ = [
     "Optional", "List", "Any",
     # auth
     "LoginIn", "TokenOut", "UserUpdate", "UserCreate", "UserAdminUpdate",
+    "PasswordResetRequest", "PasswordResetConfirm",
     # lead
     "Business", "LeadOut", "ContactOut", "ContactUpdate", "TemplateIn", "TemplateOut",
     "StatusUpdate", "LeadSalesUpdate", "ProductUpdate", "BlastIn", "RatingUpdate",

@@ -1,5 +1,6 @@
 import re, html as html_mod, random, asyncio, uuid, json, csv, io, base64, hmac, time, httpx
 import os
+from urllib.parse import urlparse
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
@@ -31,8 +32,39 @@ from document_template_library import get_document_template_starters
 
 DOCUMENTS_DIR = os.path.join(UPLOADS_DIR, "generated_documents")
 os.makedirs(DOCUMENTS_DIR, exist_ok=True)
+LEGACY_DOCUMENTS_DIR = os.path.join(UPLOADS_DIR, "documents")
 
 router = APIRouter()
+
+
+def _resolve_generated_document_file(file_url: str | None) -> str | None:
+    if not file_url:
+        return None
+    path = urlparse(str(file_url).strip()).path.replace("\\", "/").lstrip("/")
+    if not path:
+        return None
+
+    candidates: list[str] = []
+    if path.startswith("uploads/"):
+        candidates.append(os.path.join(UPLOADS_DIR, *path.split("/")[1:]))
+    elif path.startswith(("generated_documents/", "documents/")):
+        candidates.append(os.path.join(UPLOADS_DIR, *path.split("/")))
+    else:
+        filename = os.path.basename(path)
+        candidates.append(os.path.join(DOCUMENTS_DIR, filename))
+        candidates.append(os.path.join(LEGACY_DOCUMENTS_DIR, filename))
+
+    uploads_root = os.path.realpath(UPLOADS_DIR)
+    for candidate in candidates:
+        real = os.path.realpath(candidate)
+        try:
+            if os.path.commonpath([uploads_root, real]) != uploads_root:
+                continue
+        except ValueError:
+            continue
+        if os.path.exists(real):
+            return real
+    return None
 
 @router.get("/api/templates", response_model=list[TemplateOut])
 def get_templates(product_category: Optional[str] = Query(None), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -387,9 +419,8 @@ def delete_generated_document(did: str, current_user: User = Depends(require_adm
     if not d:
         raise HTTPException(status_code=404, detail="Document tidak ditemukan")
     if d.file_url:
-        filename = os.path.basename(d.file_url)
-        fpath = os.path.join(DOCUMENTS_DIR, filename)
-        if os.path.exists(fpath) and os.path.realpath(fpath).startswith(os.path.realpath(DOCUMENTS_DIR)):
+        fpath = _resolve_generated_document_file(d.file_url)
+        if fpath:
             try:
                 os.remove(fpath)
             except Exception:
@@ -1024,10 +1055,8 @@ def download_document(did: str, current_user: User = Depends(get_current_user), 
     doc = db.query(GeneratedDocument).filter(GeneratedDocument.id == did).first()
     if not doc or not doc.file_url:
         raise HTTPException(status_code=404, detail="Document tidak ditemukan")
-    # Use DOCUMENTS_DIR for the path
-    filename = os.path.basename(doc.file_url)
-    fpath = os.path.join(DOCUMENTS_DIR, filename)
-    if not os.path.exists(fpath):
+    fpath = _resolve_generated_document_file(doc.file_url)
+    if not fpath:
         raise HTTPException(status_code=404, detail="File tidak ada di disk")
     if doc.target_id and doc.target_id.isdigit():
         try:
@@ -1046,9 +1075,8 @@ def email_document(did: str, body: DocumentEmailIn, current_user: User = Depends
     doc = db.query(GeneratedDocument).filter(GeneratedDocument.id == did).first()
     if not doc or not doc.file_url:
         raise HTTPException(status_code=404, detail="Document tidak ditemukan")
-    filename = os.path.basename(doc.file_url)
-    fpath = os.path.join(DOCUMENTS_DIR, filename)
-    if not os.path.exists(fpath):
+    fpath = _resolve_generated_document_file(doc.file_url)
+    if not fpath:
         raise HTTPException(status_code=404, detail="File tidak ada di disk")
 
     smtp_host = _get_setting("smtp_host", "")

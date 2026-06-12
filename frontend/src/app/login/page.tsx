@@ -128,6 +128,9 @@ export default function LoginPage() {
             >
               {loading ? "Masuk..." : "Masuk"}
             </button>
+            <a href="/reset-password" className="block text-center text-xs font-semibold text-amber-700 hover:text-amber-800">
+              Lupa password?
+            </a>
           </form>
 
         </div>

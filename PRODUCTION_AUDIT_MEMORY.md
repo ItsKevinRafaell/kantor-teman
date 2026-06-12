@@ -1,4 +1,4 @@
-# Production Audit Memory - 2026-06-08
+# Production Audit Memory - 2026-06-11
 
 ## Context
 User wants a full production-readiness audit before pushing. Production data will be real, so do not push until all modules are clean. Features that are not safe or not important can be pending locally, but the user selected "semua modul" as the required production scope for now.
@@ -9,12 +9,14 @@ Important user decisions:
 - Data safety: reset/seed demo must be disabled in production.
 
 ## Current Verdict
-Production-readiness blockers from this memo have been addressed in the final integration pass. Verified on 2026-06-09 with targeted backend P0 suites, frontend type/build, and production-mode browser smoke audit against a local SQLite audit backend.
+Production-readiness blockers from this memo have been addressed in the local final integration pass. Re-verified on 2026-06-11 with targeted backend P0/hardening/campaign suites, frontend TypeScript check, and Next production build.
 
 Residual risk:
 - `backend/tests/test_security.py` hung without output and was killed.
 - `backend/tests/test_finance.py` and `backend/tests/test_api_contracts.py` still time out at 120 seconds, matching prior audit history.
 - Browser audit used empty local data, so it verified navigation/render/empty states rather than live production workflows with real records.
+- `npm run build` exits 0, but static generation logs `ECONNREFUSED 127.0.0.1:8000` when local API is not running. This is a local build-time fetch warning, not a compile failure.
+- Deploy environment values and production smoke with real shared-hosting records still must be verified before push/deploy.
 
 ## Looks Mostly Ready, Re-verify Only
 - Webhook Fonnte read/reply: backend supports incoming JSON/form, secret via header/query/body, dual phone matching, opt-out, reply status, follow-up stop, and activity logging. P0 tests passed.
@@ -33,8 +35,8 @@ Final status after integration:
 - Workspace-board sync: fixed and covered by regression tests.
 - Upload path consistency: fixed.
 - Workspace attachment upload auth: fixed.
-- Document email/delete path: fixed and covered by regression tests.
-- Settings destructive endpoints in production: fixed and covered by regression tests.
+- Document download/email/delete path: fixed for both generated document filename style and `/uploads/documents/...` URL style, covered by regression tests.
+- Settings destructive endpoints in production: fixed and covered by regression tests. Backup endpoint NameError was fixed by importing `DATABASE_URL` from config and adding backup coverage.
 - Production environment values: code is aligned; deploy env still must be set on hosting.
 
 ### 1. Contact ID vs Lead ID data integrity
@@ -138,6 +140,27 @@ Required fix after user shares env:
 - Local must mimic production domain/cookie behavior, not only localhost.
 
 ## Tests Already Run
+- Final local integration verification on 2026-06-11:
+  - `rtk python -m py_compile backend/routers/settings.py backend/routers/documents.py backend/routers/workspace.py backend/app/core/dependencies.py`
+    - Passed.
+  - `rtk pytest -q backend/tests/test_hardening.py::HardeningRegressionTests -k "upload_path or email_document or delete_generated or uploads_documents or backup"`
+    - 4 passed.
+  - `rtk pytest -q backend/tests/test_hardening.py::ProductionGuardTests`
+    - 7 passed.
+  - `rtk pytest -q backend/tests/test_p0_fixes.py::TestWorkspaceBoardSync`
+    - 5 passed.
+  - `rtk pytest -q backend/tests/test_p0_fixes.py`
+    - 99 passed.
+  - `rtk pytest -q backend/tests/test_hardening.py`
+    - 24 passed.
+  - `rtk pytest -q backend/tests/test_campaign.py`
+    - 6 passed.
+  - `cd frontend && rtk ./node_modules/.bin/tsc --noEmit --incremental false`
+    - Passed.
+  - `cd frontend && rtk npm run build`
+    - Passed. Build logged local API `ECONNREFUSED 127.0.0.1:8000`, but exited 0.
+
+Earlier verification:
 - `cd frontend && ./node_modules/.bin/tsc --noEmit --incremental false`
   - Passed.
 - `pytest -q backend/tests/test_p0_fixes.py`
@@ -152,7 +175,7 @@ Required fix after user shares env:
 - `backend/tests/test_finance.py` and `backend/tests/test_api_contracts.py` hung for more than 2 minutes and were killed.
 
 ## Release Hygiene
-Current worktree includes untracked/debug artifacts that must not be pushed:
+Final integration removed these debug artifacts from the root working tree:
 - `Parse`
 - `Run`
 - `Show`
@@ -161,7 +184,7 @@ Current worktree includes untracked/debug artifacts that must not be pushed:
 - `backend/tests/test_debug_proposal.py`
 - `backend/tests/test_direct_accept.py`
 
-Also verify whether `frontend/tsconfig.tsbuildinfo` should be committed. It appears to be a typecheck/build artifact and should not be included unless intentionally tracked.
+Still verify whether `frontend/tsconfig.tsbuildinfo` should be committed. It appears to be a typecheck/build artifact and was already modified in the root worktree before final integration.
 
 ## Recommended Fix Order
 1. Fix canonical upload path and production backup coverage.
@@ -179,3 +202,79 @@ Also verify whether `frontend/tsconfig.tsbuildinfo` should be committed. It appe
 - Do not assume localhost cookie behavior matches production.
 - Do not run seed/reset/demo on production data.
 - Do not upload local DB, local uploads, or local `.env` to production unless explicitly requested.
+
+## Ecosystem Integration Execution - 2026-06-11 15:49 WIB
+
+Kevin requested final integration matrix and execution in this order:
+1. TemanUMKMKita lead intake.
+2. AutoLead demo bridge.
+3. Office-Hermes permanent endpoint.
+4. Office command center read/actions.
+
+Implemented locally, no deploy/push/seed/reset/production mutation:
+- Added root ecosystem matrix: `/home/kevin/ECOSYSTEM_INTEGRATION_MATRIX.md`.
+- KantorTeman source-of-truth status contract:
+  - `backend/routers/integrations.py`
+  - registered in `backend/main.py`
+  - endpoint: `/api/integrations/ecosystem/status`
+  - reports lead-intake, AutoLead, and Hermes config state without exposing secrets.
+- Added KantorTeman regression:
+  - `backend/tests/test_ecosystem_integrations.py`
+
+Cross-project changes outside KantorTeman:
+- TemanUMKMKita:
+  - `backend/app/routers/contact.py`
+  - `backend/tests/test_contact_integration.py`
+  - `docs/kantorteman-lead-intake.md`
+- AutoLead / LeadBot:
+  - `.env.example`
+  - `package.json`
+  - `scripts/smoke-kantorteman-bridge.js`
+  - `src/config.js`
+  - `src/routes/webhook.js`
+  - `docs/KANTORTEMAN_BRIDGE.md`
+- OfficeKantorTeman:
+  - `.env.example`
+  - `MEMORY.md`
+  - `app/api/proxy/[...path]/route.ts`
+  - `app/api/ecosystem/status/route.ts`
+  - `app/api/ecosystem/actions/route.ts`
+  - `app/lib/api/ecosystem.ts`
+  - `app/lib/api.ts`
+  - `app/types/ecosystem.ts`
+  - `app/types/index.ts`
+  - `app/components/work/WorkMode.tsx`
+  - `docs/office-hermes-permanent-endpoint.md`
+  - `docs/ecosystem-command-center.md`
+
+Verification passed:
+- `cd /home/kevin/temanumkmkita && rtk pytest -q backend/tests/test_contact_integration.py`
+  - 2 passed.
+- `cd /home/kevin/kantorteman && rtk pytest -q backend/tests/test_ecosystem_integrations.py backend/tests/test_whatsapp_provider.py`
+  - 5 passed.
+- `cd /home/kevin/kantorteman && rtk pytest -q backend/tests/test_p0_fixes.py`
+  - 99 passed.
+- `cd /home/kevin/kantorteman && rtk pytest -q backend/tests/test_hardening.py`
+  - 24 passed.
+- `cd /home/kevin/kantorteman && rtk pytest -q backend/tests/test_campaign.py`
+  - 6 passed.
+- `cd /home/kevin/kantorteman/frontend && rtk ./node_modules/.bin/tsc --noEmit --incremental false`
+  - Passed.
+- `cd /home/kevin/kantorteman/frontend && rtk npm run build`
+  - Passed; known local API `ECONNREFUSED 127.0.0.1:8000` still logged but exit code was 0.
+- `cd /home/kevin/officekantorteman && rtk ./node_modules/.bin/tsc --noEmit --incremental false`
+  - Passed.
+- `cd /home/kevin/officekantorteman && rtk npm run build`
+  - Passed.
+- `cd /home/kevin/leadbot_remote_work && rtk node --check src/config.js && rtk node --check src/routes/webhook.js && rtk node --check scripts/smoke-kantorteman-bridge.js`
+  - Passed.
+
+Remaining risks:
+- Production env values are not confirmed in this session.
+- Live health/smoke checks were not run because they require real tokens/domains and Kevin approval.
+- `office.kantorteman.my.id` still needs DNS/reverse proxy/TLS setup to `127.0.0.1:18100` on VPS.
+- AutoLead path is not a git worktree at `/home/kevin/leadbot_remote_work`, so file-level handoff is required before deployment.
+- Root worktrees remain dirty with unrelated/pre-existing changes; do not reset/discard.
+
+Exact next step:
+- Kevin confirms production env values and approves live smoke/deploy order. Then run read-only health checks first, followed by approved AutoLead demo send only if `AUTOLEAD_SMOKE_SEND=true` is explicitly allowed.

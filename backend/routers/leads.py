@@ -12,6 +12,7 @@ from typing import Optional, List, Any
 from models import get_db, log_audit, User, Lead, Contact, Proposal, ProposalAnalytics, Product, FollowUpSequence, ScrapeHistory, LeadAnalysis
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, GOOGLE_API_KEY,
+    JWT_SECRET,
     FRONTEND_URL, _check_simple_rate_limit, search_semaphore,
     normalize_phone_storage, _normalize_phone, make_wa_url,
     calculate_lead_score, calculate_lead_score_full,
@@ -31,11 +32,72 @@ from app.services.scoring_service import (
     get_scoring_settings,
     save_scoring_settings,
     set_manual_score_adjustment,
+    recalculate_lead_score_with_context,
 )
+from app.services.notification_service import create_notification
 from app.constants import CLIENT_STATUS_VALUES
 from app.core.cache import cached, clear_cache_prefix
 
 router = APIRouter()
+
+PRODUCT_INTEREST_LABELS = {
+    "web_development": "Web Development",
+    "seo_google_maps": "SEO & Google Maps",
+    "kelola_sosial_media": "Kelola Sosial Media",
+    "maintenance_website": "Maintenance Website",
+    "desain_logo": "Desain Logo",
+}
+
+
+def _is_autolead_source(source: str) -> bool:
+    value = (source or "").lower()
+    return "leadbot" in value or "autolead" in value
+
+
+def _sync_autolead_context(db: Session, lead: Lead, body: ExternalLeadIn, duplicate: bool) -> None:
+    if body.lead_stage or body.lead_score is not None or body.ai_reason or body.conversation_id:
+        lines = [
+            "AutoLead AI handoff",
+            f"Stage: {body.lead_stage or '-'}",
+            f"Score: {body.lead_score if body.lead_score is not None else '-'}",
+            f"Reason: {body.ai_reason or '-'}",
+            f"Conversation: {body.conversation_id or '-'}",
+        ]
+        if body.message:
+            lines.append(f"Message: {body.message[:500]}")
+        db.add(LeadAnalysis(
+            lead_id=lead.id,
+            analysis="\n".join(lines),
+            pain_points=json.dumps([body.ai_reason] if body.ai_reason else []),
+            suggested_product=body.product_interest or "",
+            analyzed_at=datetime.now(timezone.utc).isoformat(),
+        ))
+        db.flush()
+
+    lead.score_adjustment = 0
+    lead.score_adjustment_reason = None
+    db.flush()
+    local_score, _ = recalculate_lead_score_with_context(db, lead)
+    if body.lead_score is not None:
+        adjustment = max(-100, min(100, int(body.lead_score) - local_score))
+        lead.score_adjustment = adjustment
+        lead.score_adjustment_reason = f"AutoLead score sync: {body.lead_score}"
+        recalculate_lead_score_with_context(db, lead)
+        lead.lead_score = int(body.lead_score)
+
+    score_text = f"score {body.lead_score}" if body.lead_score is not None else f"score {lead.lead_score or 0}"
+    stage_text = f", stage {body.lead_stage}" if body.lead_stage else ""
+    title = "Update prospek dari AutoLead" if duplicate else "Prospek baru dari AutoLead"
+    create_notification(
+        db,
+        title=title,
+        message=f"{lead.business_name} masuk dari AutoLead ({score_text}{stage_text}).",
+        notif_type="warning" if (body.lead_score or lead.lead_score or 0) >= 70 else "info",
+        target_type="lead",
+        target_id=lead.id,
+        action_url="/leads",
+    )
+
 
 @router.post("/api/leads/external", status_code=201)
 def create_external_lead(request: Request, body: ExternalLeadIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
@@ -48,7 +110,9 @@ def create_external_lead(request: Request, body: ExternalLeadIn, background_task
 
     _check_simple_rate_limit(f"external_lead:{api_key[:16]}", 30, 60)
 
-    phone = _normalize_phone_storage(body.phone_number)
+    phone = normalize_phone_storage(body.phone_number)
+    if not phone:
+        raise HTTPException(status_code=422, detail="Nomor WhatsApp tidak valid")
 
     existing = db.query(Lead).filter(Lead.phone_number == phone).first()
 
@@ -57,7 +121,10 @@ def create_external_lead(request: Request, body: ExternalLeadIn, background_task
         existing.batch_name = (existing.batch_name or "")[-200:] + f" | {note_text}"
         if existing.status == "Scraped":
             existing.status = "Replied"
+        if _is_autolead_source(body.source):
+            _sync_autolead_context(db, existing, body, duplicate=True)
         db.commit()
+        clear_cache_prefix("cache:/api/leads")
         return {"lead_id": existing.id, "success": True, "duplicate": True}
 
     try:
@@ -71,7 +138,10 @@ def create_external_lead(request: Request, body: ExternalLeadIn, background_task
         )
         db.add(lead)
         db.flush()
-        lead.lead_score, _ = calculate_lead_score(lead)
+        if _is_autolead_source(body.source):
+            _sync_autolead_context(db, lead, body, duplicate=False)
+        else:
+            lead.lead_score, _ = calculate_lead_score(lead)
         db.commit()
         db.refresh(lead)
     except Exception:
@@ -100,13 +170,15 @@ def create_external_lead(request: Request, body: ExternalLeadIn, background_task
         daemon=True,
     ).start()
 
-    db_url = os.getenv("DATABASE_URL", "sqlite:///./leads.db")
-    background_tasks.add_task(
-        _send_wa_auto_reply_sync,
-        lead.id, phone, body.business_name,
-        body.product_interest or "", db_url, JWT_SECRET,
-    )
+    if not _is_autolead_source(body.source):
+        db_url = os.getenv("DATABASE_URL", "sqlite:///./leads.db")
+        background_tasks.add_task(
+            _send_wa_auto_reply_sync,
+            lead.id, phone, body.business_name,
+            body.product_interest or "", db_url, JWT_SECRET,
+        )
 
+    clear_cache_prefix("cache:/api/leads")
     return {"lead_id": lead.id, "success": True, "duplicate": False}
 
 

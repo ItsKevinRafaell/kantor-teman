@@ -20,14 +20,17 @@ interface AIProxy {
   provider?: string;
 }
 
+interface RouterModel {
+  id: string;
+  name?: string;
+  type?: string;
+  owned_by?: string;
+}
+
 interface HealthState { status: "connected" | "offline" | "not_configured" | "loading"; provider: string; base_url: string; model: string; }
 
 const PROVIDER_OPTIONS = [
-  { value: "openai", label: "OpenAI" },
-  { value: "anthropic", label: "Anthropic" },
-  { value: "gemini", label: "Google Gemini" },
-  { value: "openrouter", label: "OpenRouter" },
-  { value: "custom", label: "Custom (OpenAI-compatible)" },
+  { value: "custom", label: "9router (OpenAI-compatible)" },
 ];
 
 const FEATURES = [
@@ -42,6 +45,7 @@ export default function AIEngineTab() {
   const [featureDefaults, setFeatureDefaults] = useState<Record<string, string>>({});
   const [savingDefaults, setSavingDefaults] = useState(false);
   const [proxies, setProxies] = useState<AIProxy[]>([]);
+  const [routerModels, setRouterModels] = useState<RouterModel[]>([]);
   const [confirmState, setConfirmState] = useState({ open: false, title: "", message: "", onConfirm: () => {} });
   const [toast, setToast] = useState<string | null>(null);
 
@@ -65,9 +69,18 @@ export default function AIEngineTab() {
   const fetchProxies = useCallback(async () => {
     try { const r = await apiFetch("/api/ai-proxies"); if (r.ok) setProxies(await r.json()); } catch {}
   }, []);
+  const fetchRouterModels = useCallback(async () => {
+    try {
+      const r = await apiFetch("/api/ai/router-models");
+      if (r.ok) {
+        const data = await r.json();
+        setRouterModels(Array.isArray(data.models) ? data.models : []);
+      }
+    } catch {}
+  }, []);
 
-  useEffect(() => { fetchModels(); checkHealth(); fetchFeatureDefaults(); fetchProxies(); },
-    [fetchModels, checkHealth, fetchFeatureDefaults, fetchProxies]);
+  useEffect(() => { fetchModels(); checkHealth(); fetchFeatureDefaults(); fetchProxies(); fetchRouterModels(); },
+    [fetchModels, checkHealth, fetchFeatureDefaults, fetchProxies, fetchRouterModels]);
 
   async function saveFeatureDefaultsHandler() {
     setSavingDefaults(true);
@@ -118,7 +131,7 @@ export default function AIEngineTab() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">AI Provider Status</h2>
-            <p className="text-xs text-neutral-500 mt-0.5">Status koneksi ke provider AI aktif</p>
+            <p className="text-xs text-neutral-500 mt-0.5">Status koneksi ke 9router aktif</p>
           </div>
           <div className="flex items-center gap-3">
             {health.status === "connected" && (
@@ -206,12 +219,12 @@ export default function AIEngineTab() {
 
       {/* Extracted sections */}
       <ModelRegistrySection
-        models={models} loading={loading}
+        models={models} routerModels={routerModels} loading={loading}
         onFetchModels={fetchModels} onDeleteModel={(id) => { const m = models.find(x => x.id === id); confirmDeleteModel(id, m?.name || "ini"); }}
         onSetDefault={setDefault}
         showToast={showToast}
       />
-      <ProxiesSection proxies={proxies} onFetchProxies={fetchProxies} showToast={showToast} onConfirmDelete={confirmDeleteProxy} />
+      <ProxiesSection proxies={proxies} routerModels={routerModels} onFetchProxies={fetchProxies} showToast={showToast} onConfirmDelete={confirmDeleteProxy} />
 
       <ConfirmModal
         open={confirmState.open} onClose={() => setConfirmState(s => ({ ...s, open: false }))}

@@ -1,7 +1,11 @@
 import re, html as html_mod, random, asyncio, uuid, json, csv, io, base64, hmac, time, httpx
 import os
+import hashlib
+import secrets
+import smtplib
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from email.mime.text import MIMEText
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks, UploadFile, File, Form, Query, Body
 from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse, Response
@@ -9,13 +13,78 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
 from urllib.parse import urlparse
-from models import get_db, log_audit, User
+from models import get_db, log_audit, PasswordResetToken, SystemSettings, User
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, hash_password,
     verify_password, _check_login_rate_limit, _record_login_failure, _record_login_success,
-    create_token, _mask_secret, SENSITIVE_SETTING_KEYS)
+    create_token, _mask_secret, SENSITIVE_SETTING_KEYS, _check_simple_rate_limit)
 
 router = APIRouter()
+
+RESET_TOKEN_EXPIRE_MINUTES = 60
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()[:64]
+    return request.client.host if request.client else "unknown"
+
+
+def _setting(db: Session, key: str, default: str = "") -> str:
+    row = db.query(SystemSettings).filter_by(key=key).first()
+    return row.value if row and row.value else default
+
+
+def _public_frontend_url() -> str:
+    return os.getenv("FRONTEND_URL", "https://kantorteman.my.id").rstrip("/")
+
+
+def _send_password_reset_email(db: Session, to_email: str, reset_url: str) -> bool:
+    smtp_host = _setting(db, "smtp_host")
+    smtp_port = int(_setting(db, "smtp_port", "587") or "587")
+    smtp_user = _setting(db, "smtp_user")
+    smtp_pass = _setting(db, "smtp_password")
+    smtp_from = _setting(db, "smtp_from", smtp_user)
+    if not smtp_host or not smtp_user or not smtp_pass:
+        return False
+
+    msg = MIMEText(
+        "\n".join([
+            "Halo,",
+            "",
+            "Ada permintaan reset password untuk akun KantorTeman kamu.",
+            "Buka link berikut untuk membuat password baru:",
+            reset_url,
+            "",
+            f"Link berlaku {RESET_TOKEN_EXPIRE_MINUTES} menit. Abaikan email ini kalau kamu tidak meminta reset password.",
+        ]),
+        "plain",
+        "utf-8",
+    )
+    msg["Subject"] = "Reset password KantorTeman"
+    msg["From"] = smtp_from
+    msg["To"] = to_email
+
+    if smtp_port == 465:
+        server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30)
+    else:
+        server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
+        server.starttls()
+    try:
+        server.login(smtp_user, smtp_pass)
+        server.sendmail(smtp_from, [to_email], msg.as_string())
+    finally:
+        server.quit()
+    return True
 
 def _auth_cookie_options():
     frontend_url = os.getenv("FRONTEND_URL", "https://kantorteman.my.id")
@@ -35,7 +104,7 @@ def _auth_cookie_options():
 
 @router.post("/api/auth/login")
 def login(body: LoginIn, request: Request, response: Response, db: Session = Depends(get_db)):
-    ip = request.client.host if request.client else "unknown"
+    ip = _client_ip(request)
     _check_login_rate_limit(ip)
     user = db.query(User).filter(User.email == body.email).first()
     if not user or not verify_password(body.password, user.hashed_password):
@@ -55,6 +124,55 @@ def login(body: LoginIn, request: Request, response: Response, db: Session = Dep
         email=user.email,
         role=user.role,
     )
+
+
+@router.post("/api/auth/password/forgot")
+def request_password_reset(body: PasswordResetRequest, request: Request, db: Session = Depends(get_db)):
+    ip = _client_ip(request)
+    _check_simple_rate_limit(f"password-reset:{ip}", 5, 300)
+    user = db.query(User).filter(User.email == body.email).first()
+    if user:
+        raw_token = secrets.token_urlsafe(32)
+        expires_at = _utc_now() + timedelta(minutes=RESET_TOKEN_EXPIRE_MINUTES)
+        db.add(PasswordResetToken(
+            id=str(uuid.uuid4()),
+            user_id=user.id,
+            token_hash=_hash_reset_token(raw_token),
+            expires_at=expires_at.isoformat(),
+            created_at=_utc_now().isoformat(),
+        ))
+        db.commit()
+        reset_url = f"{_public_frontend_url()}/reset-password?token={raw_token}"
+        try:
+            sent = _send_password_reset_email(db, user.email, reset_url)
+            if not sent:
+                print("[PASSWORD_RESET] SMTP not configured; reset email not sent.", flush=True)
+        except Exception as exc:
+            print(f"[PASSWORD_RESET] email failed: {type(exc).__name__}: {exc}", flush=True)
+    return {"ok": True, "message": "Jika email terdaftar dan SMTP aktif, instruksi reset password akan dikirim."}
+
+
+@router.post("/api/auth/password/reset")
+def reset_password(body: PasswordResetConfirm, db: Session = Depends(get_db)):
+    token_hash = _hash_reset_token(body.token)
+    row = db.query(PasswordResetToken).filter(PasswordResetToken.token_hash == token_hash).first()
+    if not row or row.used_at:
+        raise HTTPException(status_code=400, detail="Token reset tidak valid atau sudah dipakai.")
+    try:
+        expires_at = datetime.fromisoformat(row.expires_at)
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Token reset tidak valid.")
+    if expires_at < _utc_now():
+        raise HTTPException(status_code=400, detail="Token reset sudah kedaluwarsa.")
+    user = db.query(User).filter(User.id == row.user_id).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="User tidak ditemukan.")
+    user.hashed_password = hash_password(body.password)
+    row.used_at = _utc_now().isoformat()
+    db.commit()
+    return {"ok": True}
 
 
 
@@ -158,4 +276,3 @@ def update_me(body: UserUpdate, current_user: User = Depends(get_current_user), 
         user.hashed_password = hash_password(body.new_password)
     db.commit()
     return {"id": user.id, "name": user.name, "email": user.email}
-

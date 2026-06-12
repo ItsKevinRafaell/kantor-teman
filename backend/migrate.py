@@ -26,12 +26,12 @@ def _resolve_sqlite_db_path(db_url: str) -> str:
 _db_url = os.getenv("DATABASE_URL", "")
 if "mysql" in _db_url:
     import pymysql
-    from urllib.parse import urlparse, unquote
-    _p = urlparse(_db_url.replace("mysql+pymysql://", "mysql://"))
+    from sqlalchemy.engine import make_url
+    _p = make_url(_db_url)
     _mc = pymysql.connect(
-        host=_p.hostname, port=_p.port or 3306,
-        user=unquote(_p.username), password=unquote(_p.password),
-        database=_p.path.lstrip("/"), charset="utf8mb4",
+        host=_p.host, port=_p.port or 3306,
+        user=_p.username, password=_p.password,
+        database=_p.database, charset="utf8mb4",
     )
     _cur = _mc.cursor()
 
@@ -140,12 +140,14 @@ if "mysql" in _db_url:
     print("= contacts.lead_id backfill done")
 
     # Backfill ai_proxies.provider = 'openai' if NULL/empty
-    if _table_exists("ai_proxies"):
+    if _table_exists("ai_proxies") and _col_exists("ai_proxies", "provider"):
         _cur.execute("UPDATE ai_proxies SET provider = 'openai' WHERE provider IS NULL OR provider = ''")
         affected = _cur.rowcount
         if affected > 0:
             print(f"  Set provider=openai for {affected} ai_proxies")
         print("= ai_proxies.provider backfill done")
+    elif _table_exists("ai_proxies"):
+        print("= ai_proxies.provider belum ada, skip backfill")
 
     # Create ai_models table if not exists
     if not _table_exists("ai_models"):
@@ -242,6 +244,24 @@ if "mysql" in _db_url:
         print("+ MySQL: tabel board_card_attachments dibuat")
     else:
         print("= MySQL: board_card_attachments sudah ada, skip")
+
+    if not _table_exists("password_reset_tokens"):
+        _cur.execute("""
+            CREATE TABLE password_reset_tokens (
+                id VARCHAR(36) PRIMARY KEY,
+                user_id INT NOT NULL,
+                token_hash VARCHAR(64) NOT NULL,
+                expires_at VARCHAR(255) NOT NULL,
+                used_at VARCHAR(255) NULL,
+                created_at VARCHAR(255) NOT NULL,
+                UNIQUE KEY uniq_password_reset_token_hash (token_hash),
+                INDEX idx_password_reset_user_id (user_id),
+                INDEX idx_password_reset_expires_at (expires_at)
+            )
+        """)
+        print("+ MySQL: tabel password_reset_tokens dibuat")
+    else:
+        print("= MySQL: password_reset_tokens sudah ada, skip")
 
     for table, col, sql in _migrations:
         if not _table_exists(table):
@@ -527,6 +547,20 @@ cur.execute("CREATE INDEX IF NOT EXISTS idx_report_snapshots_lead_id ON report_s
 cur.execute("CREATE INDEX IF NOT EXISTS idx_report_snapshots_slug ON report_snapshots(public_slug)")
 print("+ tabel report_snapshots ready")
 
+cur.execute("""
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    token_hash TEXT UNIQUE NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    created_at TEXT NOT NULL
+)
+""")
+cur.execute("CREATE INDEX IF NOT EXISTS idx_password_reset_user_id ON password_reset_tokens(user_id)")
+cur.execute("CREATE INDEX IF NOT EXISTS idx_password_reset_expires_at ON password_reset_tokens(expires_at)")
+print("+ tabel password_reset_tokens ready")
+
 # Add event column if missing
 cur.execute("PRAGMA table_info(proposal_analytics)")
 pa_cols = {row[1] for row in cur.fetchall()}
@@ -631,6 +665,8 @@ if not cur.fetchone():
     )
     """)
     cur.execute("INSERT INTO provider_configs VALUES ('FONNTE', 'Fonnte WhatsApp', 10000, 6.6, 0, 0)")
+    cur.execute("INSERT INTO provider_configs VALUES ('WAHA', 'WAHA WhatsApp', 0, 0, 0, 0)")
+    cur.execute("INSERT INTO provider_configs VALUES ('AUTOLEAD', 'AutoLead Bridge', 0, 0, 0, 0)")
     cur.execute("INSERT INTO provider_configs VALUES ('GEMINI', 'Gemini 2.5 Flash', 0, 0, 0.000075, 0.0003)")
     cur.execute("INSERT INTO provider_configs VALUES ('CLAUDE', 'Claude 4.5 Haiku', 0, 0, 0.00025, 0.0125)")
     cur.execute("INSERT INTO provider_configs VALUES ('OPENAI', 'GPT-5', 0, 0, 0.0025, 0.010)")
@@ -638,6 +674,16 @@ if not cur.fetchone():
     print("+ tabel provider_configs dibuat dengan seed data")
 else:
     print("= provider_configs sudah ada, skip")
+    cur.execute("SELECT 1 FROM provider_configs WHERE id='WAHA'")
+    if not cur.fetchone():
+        cur.execute("INSERT INTO provider_configs VALUES ('WAHA', 'WAHA WhatsApp', 0, 0, 0, 0)")
+        conn.commit()
+        print("+ provider_config WAHA ditambahkan")
+    cur.execute("SELECT 1 FROM provider_configs WHERE id='AUTOLEAD'")
+    if not cur.fetchone():
+        cur.execute("INSERT INTO provider_configs VALUES ('AUTOLEAD', 'AutoLead Bridge', 0, 0, 0, 0)")
+        conn.commit()
+        print("+ provider_config AUTOLEAD ditambahkan")
 
 # ---------------------------------------------------------------------------
 # Migrasi proposals: tambah kolom slug

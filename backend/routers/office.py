@@ -15,6 +15,12 @@ from app.core.dependencies import (get_current_user, require_admin, UPLOADS_DIR,
 
 router = APIRouter()
 
+
+@router.get("/api/office/health")
+async def office_health():
+    return {"ok": True, "source": "kantor-teman"}
+
+
 @router.post("/api/office/chat/{profile}")
 async def office_chat(profile: str, body: OfficeChatRequest, current_user: User = Depends(get_current_user)):
     if not HERMES_GATEWAY_URL:
@@ -225,4 +231,3 @@ async def office_update_config(profile: str, body: OfficeConfigUpdate, current_u
     if resp.status_code != 200:
         raise HTTPException(status_code=resp.status_code, detail=resp.text[:300])
     return resp.json()
-

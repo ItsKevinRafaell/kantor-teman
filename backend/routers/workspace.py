@@ -38,6 +38,7 @@ from app.core.cache import invalidate_workspace_list_cache, cached
 router = APIRouter()
 
 _WORKSPACE_COLUMN_TYPES = {"text", "textarea", "status", "checkbox", "date", "url", "number", "select"}
+BOARD_SYNC_COLUMN_KEYS = {"task_name", "task", "title", "name", "due_date", "deadline", "tanggal", "date", "status", "done"}
 
 
 def _workspace_column_key(label: str) -> str:
@@ -688,6 +689,8 @@ def init_workspace(body: WorkspaceInitIn, current_user: User = Depends(get_curre
                     cell.value_bool = bool(val)
                 elif col.column_type == "number":
                     cell.value_number = float(val) if val else None
+                elif col.column_type == "date":
+                    cell.value_date = str(val) if val else None
                 else:
                     cell.value_text = str(val) if val else None
                 db.add(cell)
@@ -805,9 +808,10 @@ def update_workspace_cell(row_id: str, column_id: str, body: WorkspaceCellUpdate
 
     db.commit()
 
-    if col.column_key in ("status", "done"):
-        sync_row_status_to_board(row_id, db)
+    if col.column_key in BOARD_SYNC_COLUMN_KEYS:
+        sync_row_to_board(row_id, db)
 
+    if col.column_key in ("status", "done"):
         # Billing milestone detection
         new_val = body.value_text or ""
         is_done = new_val.lower() in ("done", "selesai") or body.value_bool is True

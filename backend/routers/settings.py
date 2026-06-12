@@ -13,9 +13,10 @@ from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, verify_password,
     seed_data, get_fonnte_token, _send_fonnte_sync, _normalize_phone,
     _ai_model_to_out, _mask_secret, SENSITIVE_SETTING_KEYS, ADMIN_WA,
-    _get_google_calendar_service, _get_setting, UPLOADS_DIR,
+    _get_google_calendar_service, _get_setting, get_ai_config, UPLOADS_DIR,
 )
-from app.core.config import IS_PRODUCTION
+from app.core.whatsapp_provider import test_autolead_connection, test_waha_connection
+from app.core.config import DATABASE_URL, IS_PRODUCTION
 from app.services.ai_service import _is_native_anthropic
 from app.services.sales_workflow_service import get_default_dp_percent, set_default_dp_percent
 from app.constants import CLIENT_STATUS_VALUES
@@ -52,7 +53,7 @@ def update_billing_defaults(body: dict = Body(...), current_user: User = Depends
 
 @router.get("/api/settings")
 def get_settings(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    keys = ["fonnte_token", "gemini_api_key", "claude_api_key", "openai_api_key", "ai_api_key", "ai_provider", "ai_base_url", "ai_model", "google_api_key", "google_calendar_id", "google_service_account_json", "admin_wa", "admin_name", "followup_enabled", "followup_hour", "cms_url", "cms_api_token", "external_lead_api_key", "smtp_host", "smtp_port", "smtp_user", "smtp_password", "smtp_from"]
+    keys = ["fonnte_token", "whatsapp_provider", "waha_base_url", "waha_api_key", "waha_session", "waha_webhook_secret", "autolead_base_url", "autolead_api_key", "autolead_demo", "whatsapp_blast_delay_seconds", "gemini_api_key", "claude_api_key", "openai_api_key", "ai_api_key", "ai_provider", "ai_base_url", "ai_model", "google_api_key", "google_calendar_id", "google_service_account_json", "admin_wa", "admin_name", "followup_enabled", "followup_hour", "cms_url", "cms_api_token", "external_lead_api_key", "smtp_host", "smtp_port", "smtp_user", "smtp_password", "smtp_from"]
     result = {}
     for k in keys:
         row = db.query(SystemSettings).filter_by(key=k).first()
@@ -60,6 +61,14 @@ def get_settings(current_user: User = Depends(require_admin), db: Session = Depe
         result[k] = _mask_secret(raw) if k in SENSITIVE_SETTING_KEYS else raw
     if not result["ai_provider"]:
         result["ai_provider"] = "gemini"
+    if not result.get("whatsapp_provider"):
+        result["whatsapp_provider"] = "fonnte"
+    if not result.get("waha_session"):
+        result["waha_session"] = "default"
+    if not result.get("autolead_demo"):
+        result["autolead_demo"] = "true"
+    if not result.get("whatsapp_blast_delay_seconds"):
+        result["whatsapp_blast_delay_seconds"] = "5"
     return result
 
 
@@ -68,6 +77,15 @@ def get_settings(current_user: User = Depends(require_admin), db: Session = Depe
 def update_settings(body: SettingsUpdate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     settings_map = {
         "fonnte_token": body.fonnte_token,
+        "whatsapp_provider": body.whatsapp_provider,
+        "waha_base_url": body.waha_base_url,
+        "waha_api_key": body.waha_api_key,
+        "waha_session": body.waha_session,
+        "waha_webhook_secret": body.waha_webhook_secret,
+        "autolead_base_url": body.autolead_base_url,
+        "autolead_api_key": body.autolead_api_key,
+        "autolead_demo": body.autolead_demo,
+        "whatsapp_blast_delay_seconds": body.whatsapp_blast_delay_seconds,
         "gemini_api_key": body.gemini_api_key,
         "claude_api_key": body.claude_api_key,
         "openai_api_key": body.openai_api_key,
@@ -551,6 +569,20 @@ async def test_api_connection(
                 return {"success": False, "message": f"Fonnte error: {resp.status_code} - {resp.text[:200]}"}
         except Exception as e:
             return {"success": False, "message": f"Gagal koneksi ke Fonnte: {str(e)}"}
+
+    elif provider == "waha":
+        result = await test_waha_connection(db)
+        if result.ok:
+            return {"success": True, "message": "WAHA terhubung. Session bisa diakses."}
+        detail = result.error or f"HTTP {result.status_code}"
+        return {"success": False, "message": f"WAHA belum siap: {detail}"}
+
+    elif provider == "autolead":
+        result = await test_autolead_connection(db)
+        if result.ok:
+            return {"success": True, "message": "AutoLead Bridge terhubung."}
+        detail = result.error or f"HTTP {result.status_code}"
+        return {"success": False, "message": f"AutoLead Bridge belum siap: {detail}"}
 
     elif provider == "gemini":
         if not config["gemini_key"]:

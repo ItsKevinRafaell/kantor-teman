@@ -1,4 +1,4 @@
-import re, html as html_mod, random, asyncio, uuid, json, csv, io, base64, hmac, time, httpx
+import re, html as html_mod, random, asyncio, uuid, json, csv, io, base64, hmac, hashlib, time, httpx
 import os
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -8,16 +8,17 @@ from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse,
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import get_db, log_audit, User, Lead, BlastCampaign, FollowUpSequence, DynamicTemplate, BlastMessage, LeadActivityLog, Transaction, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, Board, BoardColumn, BoardCard, Project, AdsCampaign
+from models import get_db, log_audit, User, Lead, BlastCampaign, FollowUpSequence, DynamicTemplate, BlastMessage, LeadActivityLog, Transaction, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, Board, BoardColumn, BoardCard, Project, AdsCampaign, SystemSettings
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, FONNTE_WEBHOOK_SECRET,
     GOOGLE_CALENDAR_ID, GOOGLE_SERVICE_ACCOUNT_JSON, _get_google_calendar_service,
-    get_fonnte_token, _ads_out, _send_fonnte_sync, send_fonnte_message,
+    _ads_out,
     _get_setting, normalize_phone, _normalize_phone, log_outreach_cost,
     WORKSPACE_TEMPLATES, build_sheets_for_service, build_sheets_for_days,
     sync_row_to_board, sync_row_status_to_board, _check_simple_rate_limit,
     _run_async_job, process_pending_blasts, _blast_jobs,
 )
+from app.core.whatsapp_provider import send_whatsapp_message
 from app.constants import CLIENT_STATUS_VALUES, LeadStatus
 
 router = APIRouter()
@@ -62,6 +63,131 @@ async def start_blast(
 # Public Template Endpoint (for proposal page)
 # ---------------------------------------------------------------------------
 
+def _record_incoming_whatsapp(db: Session, sender: str, message_text: str, actor: str) -> dict:
+    sender = str(sender or "").replace("@c.us", "").replace("@s.whatsapp.net", "")
+    sender_digits = normalize_phone(sender)
+    if not sender_digits:
+        return {"ok": True, "skipped": "no_sender"}
+
+    sender_08xx = sender_digits
+    if sender_digits.startswith("62"):
+        sender_08xx = "0" + sender_digits[2:]
+
+    lead = db.query(Lead).filter(Lead.phone_number == sender_08xx).first()
+    if not lead:
+        lead = db.query(Lead).filter(Lead.phone_number == sender_digits).first()
+    if not lead:
+        return {"ok": True, "skipped": "no_lead"}
+
+    message = str(message_text or "").strip().lower()
+    opt_out_terms = {"stop", "berhenti", "unsubscribe", "jangan hubungi", "hapus nomor"}
+    if any(term in message for term in opt_out_terms):
+        lead.do_not_contact = True
+        db.query(FollowUpSequence).filter(
+            FollowUpSequence.lead_id == lead.id,
+            FollowUpSequence.status == "ACTIVE",
+        ).update({"status": "STOPPED", "stopped_reason": "opt_out"}, synchronize_session=False)
+        db.commit()
+        log_audit(db, actor, "UPDATE", "leads", lead.id, {"field": "do_not_contact", "new": True, "via": "wa_opt_out"})
+        return {"ok": True, "lead_id": lead.id, "do_not_contact": True}
+
+    now = datetime.now(timezone.utc).isoformat()
+    latest_msg = db.query(BlastMessage).filter(
+        BlastMessage.phone_number == sender_08xx,
+        BlastMessage.sent_at.isnot(None),
+    ).order_by(BlastMessage.sent_at.desc()).first()
+    if not latest_msg:
+        latest_msg = db.query(BlastMessage).filter(
+            BlastMessage.phone_number == sender_digits,
+            BlastMessage.sent_at.isnot(None),
+        ).order_by(BlastMessage.sent_at.desc()).first()
+    if latest_msg and not latest_msg.replied_at:
+        latest_msg.replied_at = now
+        latest_msg.status = "replied"
+
+    if lead.status in ("Contacted", LeadStatus.WA_SENT):
+        lead.status = "Replied"
+        db.add(LeadActivityLog(
+            lead_id=lead.id,
+            activity_type="WA_REPLIED",
+            created_at=now,
+        ))
+        db.query(FollowUpSequence).filter(
+            FollowUpSequence.lead_id == lead.id,
+            FollowUpSequence.status == "ACTIVE",
+        ).update({"status": "STOPPED", "stopped_reason": "client_replied"}, synchronize_session=False)
+        db.commit()
+        log_audit(db, actor, "UPDATE", "leads", lead.id, {"field": "status", "old": "Contacted", "new": "Replied", "via": "wa_reply"})
+        return {"ok": True, "lead_id": lead.id, "new_status": "Replied"}
+
+    db.commit()
+    return {"ok": True, "lead_id": lead.id, "current_status": lead.status}
+
+
+def _update_blast_message_ack(db: Session, target: str, raw_status: str) -> dict:
+    if not target:
+        return {"ok": True, "skipped": "no_target"}
+    raw_status = (raw_status or "").strip().lower()
+    phone_62 = _normalize_phone(str(target).replace("@c.us", "").replace("@s.whatsapp.net", ""))
+    phone_08 = "0" + phone_62[2:] if phone_62.startswith("62") else phone_62
+    now = datetime.now(timezone.utc).isoformat()
+    msgs = db.query(BlastMessage).filter(
+        BlastMessage.phone_number == phone_08
+    ).order_by(BlastMessage.sent_at.desc()).limit(5).all()
+    if not msgs:
+        msgs = db.query(BlastMessage).filter(
+            BlastMessage.phone_number == phone_62
+        ).order_by(BlastMessage.sent_at.desc()).limit(5).all()
+
+    replied_msg = None
+    for msg in msgs:
+        if raw_status in {"delivered", "device", "read", "played"} and not msg.delivered_at:
+            msg.delivered_at = now
+            msg.status = "delivered"
+        if raw_status in {"read", "played"} and not msg.read_at:
+            msg.read_at = now
+            msg.status = "read"
+        if raw_status == "replied" and not msg.replied_at:
+            msg.replied_at = now
+            msg.status = "replied"
+            replied_msg = msg
+
+    if replied_msg and replied_msg.lead_id:
+        lead = db.query(Lead).filter(Lead.id == replied_msg.lead_id).first()
+        if lead and lead.status in ("Contacted", LeadStatus.WA_SENT):
+            lead.status = "Replied"
+            db.add(LeadActivityLog(
+                lead_id=lead.id,
+                activity_type="WA_REPLIED",
+                created_at=now,
+            ))
+            db.query(FollowUpSequence).filter(
+                FollowUpSequence.lead_id == lead.id,
+                FollowUpSequence.status == "ACTIVE",
+            ).update({"status": "STOPPED", "stopped_reason": "client_replied"}, synchronize_session=False)
+    db.commit()
+    return {"ok": True, "updated": len(msgs)}
+
+
+def _verify_waha_webhook(raw_body: bytes, body: dict, request: Request, db: Session) -> None:
+    row = db.query(SystemSettings).filter_by(key="waha_webhook_secret").first()
+    secret = ((row.value or "") if row else "") or FONNTE_WEBHOOK_SECRET
+    if not secret:
+        return
+    webhook_hmac = request.headers.get("x-webhook-hmac") or request.headers.get("X-Webhook-Hmac")
+    if webhook_hmac:
+        expected = hmac.new(secret.encode(), raw_body, hashlib.sha512).hexdigest()
+        if not hmac.compare_digest(webhook_hmac, expected):
+            raise HTTPException(status_code=401, detail="Webhook HMAC tidak valid")
+        return
+    legacy_secret = (
+        request.headers.get("x-waha-webhook-secret") or
+        request.query_params.get("secret") or
+        body.get("secret") or ""
+    )
+    if not hmac.compare_digest(legacy_secret, secret):
+        raise HTTPException(status_code=401, detail="Webhook secret tidak valid")
+
 
 @router.post("/api/webhook/fonnte-incoming")
 async def fonnte_incoming(request: Request, db: Session = Depends(get_db)):
@@ -89,68 +215,38 @@ async def fonnte_incoming(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Webhook secret tidak valid")
 
     sender = payload.get("sender") or payload.get("device") or payload.get("from") or payload.get("target") or ""
-    sender_digits = normalize_phone(str(sender))
-    if not sender_digits:
-        return {"ok": True, "skipped": "no_sender"}
+    message = payload.get("message") or payload.get("text") or ""
+    return _record_incoming_whatsapp(db, sender, message, "fonnte-webhook")
 
-    # DB stores 08xx, but might have 62xx stored. Try both formats.
-    sender_08xx = sender_digits
-    if sender_digits.startswith("62"):
-        sender_08xx = "0" + sender_digits[2:]
 
-    # Try 08xx first (canonical storage format), fall back to 62xx
-    lead = db.query(Lead).filter(Lead.phone_number == sender_08xx).first()
-    if not lead:
-        lead = db.query(Lead).filter(Lead.phone_number == sender_digits).first()
-    if not lead:
-        return {"ok": True, "skipped": "no_lead"}
+@router.post("/api/webhook/waha")
+@router.post("/api/blast/webhook/waha")
+async def waha_webhook(request: Request, db: Session = Depends(get_db)):
+    raw_body = await request.body()
+    try:
+        body = json.loads(raw_body.decode("utf-8") or "{}")
+    except Exception:
+        body = {}
+    _verify_waha_webhook(raw_body, body, request, db)
 
-    message = str(payload.get("message") or payload.get("text") or "").strip().lower()
-    opt_out_terms = {"stop", "berhenti", "unsubscribe", "jangan hubungi", "hapus nomor"}
-    if any(term in message for term in opt_out_terms):
-        lead.do_not_contact = True
-        db.query(FollowUpSequence).filter(
-            FollowUpSequence.lead_id == lead.id,
-            FollowUpSequence.status == "ACTIVE",
-        ).update({"status": "STOPPED", "stopped_reason": "opt_out"}, synchronize_session=False)
-        db.commit()
-        log_audit(db, "fonnte-webhook", "UPDATE", "leads", lead.id, {"field": "do_not_contact", "new": True, "via": "wa_opt_out"})
-        return {"ok": True, "lead_id": lead.id, "do_not_contact": True}
+    event = str(body.get("event") or "").lower()
+    payload = body.get("payload") if isinstance(body.get("payload"), dict) else body
+    if event in {"message", "message.any"}:
+        if payload.get("fromMe") or payload.get("source") == "api":
+            return {"ok": True, "skipped": "own_message"}
+        sender = payload.get("from") or payload.get("sender") or payload.get("chatId") or ""
+        message = payload.get("body") or payload.get("text") or payload.get("message") or ""
+        return _record_incoming_whatsapp(db, sender, message, "waha-webhook")
 
-    # Update BlastMessage.replied_at for latest sent message (check both phone formats)
-    now = datetime.now(timezone.utc).isoformat()
-    latest_msg = db.query(BlastMessage).filter(
-        BlastMessage.phone_number == sender_08xx,
-        BlastMessage.sent_at.isnot(None),
-    ).order_by(BlastMessage.sent_at.desc()).first()
-    if not latest_msg:
-        latest_msg = db.query(BlastMessage).filter(
-            BlastMessage.phone_number == sender_digits,
-            BlastMessage.sent_at.isnot(None),
-        ).order_by(BlastMessage.sent_at.desc()).first()
-    if latest_msg and not latest_msg.replied_at:
-        latest_msg.replied_at = now
-        latest_msg.status = "replied"
+    if event == "message.ack":
+        ack_name = str(payload.get("ackName") or payload.get("status") or "").lower()
+        ack_value = payload.get("ack")
+        if not ack_name and ack_value is not None:
+            ack_name = {"2": "device", "3": "read", "4": "played", "-1": "error"}.get(str(ack_value), "")
+        target = payload.get("to") or payload.get("from") or payload.get("chatId") or ""
+        return _update_blast_message_ack(db, target, ack_name)
 
-    # Only auto-promote Contacted → Replied. Don't downgrade other statuses.
-    if lead.status in ("Contacted", LeadStatus.WA_SENT):
-        lead.status = "Replied"
-        db.add(LeadActivityLog(
-            lead_id=lead.id,
-            activity_type="WA_REPLIED",
-            created_at=now,
-        ))
-        # Stop active follow-up sequences
-        db.query(FollowUpSequence).filter(
-            FollowUpSequence.lead_id == lead.id,
-            FollowUpSequence.status == "ACTIVE",
-        ).update({"status": "STOPPED", "stopped_reason": "client_replied"}, synchronize_session=False)
-        db.commit()
-        log_audit(db, "fonnte-webhook", "UPDATE", "leads", lead.id, {"field": "status", "old": "Contacted", "new": "Replied", "via": "wa_reply"})
-        return {"ok": True, "lead_id": lead.id, "new_status": "Replied"}
-
-    db.commit()
-    return {"ok": True, "lead_id": lead.id, "current_status": lead.status}
+    return {"ok": True, "event": event or "unknown", "skipped": "unsupported_event"}
 
 
 
@@ -238,7 +334,6 @@ async def process_followups(current_user: User = Depends(require_admin), db: Ses
         FollowUpSequence.next_send_at <= now.isoformat(),
     ).all()
 
-    token = get_fonnte_token(db)
     sent_count = 0
 
     for seq in sequences:
@@ -287,8 +382,12 @@ async def process_followups(current_user: User = Depends(require_admin), db: Ses
             ]
             message = followup_defaults[min(seq.current_step, len(followup_defaults) - 1)]
 
-        success = await send_fonnte_message(lead.phone_number, message, token)
-        if not success:
+        result = await send_whatsapp_message(db, lead.phone_number, message, {
+            "lead_id": lead.id,
+            "request_id": f"followup:{seq.id}:{seq.current_step}",
+            "business_name": lead.business_name,
+        })
+        if not result.ok:
             continue
         sent_count += 1
 

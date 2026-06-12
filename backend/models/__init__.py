@@ -1,7 +1,7 @@
 # Barrel export - re-export everything from domain sub-modules
 from .base import Base, engine, SessionLocal, get_db, log_audit, DATABASE_URL
 
-from .user import User, SystemSettings
+from .user import User, SystemSettings, PasswordResetToken
 from .ai import AIProxy, ProviderConfig, AIModel
 from .lead import (
     Lead, Contact, MessageTemplate, ScrapeHistory,
@@ -33,7 +33,7 @@ __all__ = [
     # base
     "Base", "engine", "SessionLocal", "get_db", "log_audit", "DATABASE_URL",
     # user
-    "User", "SystemSettings",
+    "User", "SystemSettings", "PasswordResetToken",
     # ai
     "AIProxy", "ProviderConfig", "AIModel",
     # lead

@@ -1,0 +1,840 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LeadBot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f6f3ed;
+      --surface: #fffdfa;
+      --surface-2: #f0eee8;
+      --text: #252525;
+      --muted: #6a665f;
+      --line: #ddd7cd;
+      --accent: #f5a700;
+      --accent-2: #2f8f83;
+      --danger: #c44d3c;
+      --info: #4169a8;
+      --shadow: 0 10px 28px rgba(36, 36, 35, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Poppins, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      letter-spacing: 0;
+    }
+    button, input, textarea, select {
+      font: inherit;
+    }
+    button {
+      border: 0;
+      cursor: pointer;
+      background: var(--text);
+      color: white;
+      min-height: 40px;
+      border-radius: 6px;
+      padding: 0 14px;
+      font-weight: 600;
+    }
+    button.secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--line); }
+    button.warning { background: var(--accent); color: #261d00; }
+    button.danger { background: var(--danger); }
+    button.success { background: var(--accent-2); }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: white;
+      color: var(--text);
+      border-radius: 6px;
+      padding: 10px 12px;
+      outline: none;
+    }
+    textarea { min-height: 104px; resize: vertical; }
+    label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+    .app {
+      display: grid;
+      grid-template-columns: 248px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+    .sidebar {
+      background: #242423;
+      color: #f8f5ef;
+      padding: 22px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .brand { padding: 4px 6px 16px; border-bottom: 1px solid rgba(255,255,255,.14); }
+    .brand h1 { margin: 0; font-size: 22px; letter-spacing: 0; }
+    .brand p { margin: 6px 0 0; color: #c9c3b6; font-size: 12px; }
+    .nav { display: grid; gap: 8px; }
+    .nav button {
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      color: #f8f5ef;
+      border: 1px solid transparent;
+      justify-content: flex-start;
+    }
+    .nav button.active { background: rgba(245,167,0,.16); border-color: rgba(245,167,0,.35); color: white; }
+    .main {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .topbar {
+      min-height: 76px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,253,250,.92);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .topbar h2 { margin: 0; font-size: 20px; }
+    .topbar .meta { color: var(--muted); font-size: 12px; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(86px, 1fr));
+      gap: 10px;
+      min-width: 420px;
+    }
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      min-height: 58px;
+    }
+    .stat strong { display: block; font-size: 18px; }
+    .stat span { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+    .content { padding: 22px 24px 32px; }
+    .view { display: none; }
+    .view.active { display: block; }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .panel-head h3 { margin: 0; font-size: 16px; }
+    .panel-body { padding: 18px; }
+    .inbox {
+      display: grid;
+      grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+      min-height: calc(100vh - 134px);
+    }
+    .conversation-list {
+      border-right: 1px solid var(--line);
+      overflow: auto;
+      max-height: calc(100vh - 134px);
+    }
+    .conversation-item {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      cursor: pointer;
+      background: white;
+    }
+    .conversation-item:hover, .conversation-item.active { background: #fff4d3; }
+    .conversation-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .conversation-name { font-weight: 700; overflow-wrap: anywhere; }
+    .conversation-last {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 6px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .badge.hot { background: #ffe3dc; color: #922f23; }
+    .badge.on { background: #dcf4ee; color: #126d5f; }
+    .badge.off { background: #eee7dd; color: #6a5540; }
+    .chat {
+      display: grid;
+      grid-template-rows: auto minmax(260px, 1fr) auto;
+      min-width: 0;
+      max-height: calc(100vh - 134px);
+    }
+    .chat-head {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .chat-title strong { display: block; }
+    .chat-title span { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+    .chat-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .messages {
+      padding: 18px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: #fbf8f1;
+    }
+    .bubble {
+      max-width: min(680px, 82%);
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: white;
+      border: 1px solid var(--line);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .bubble.outbound {
+      align-self: flex-end;
+      background: #dcf4ee;
+      border-color: #b8ded4;
+    }
+    .bubble .time { color: var(--muted); font-size: 10px; margin-top: 6px; }
+    .reply-box {
+      border-top: 1px solid var(--line);
+      padding: 14px;
+      background: var(--surface);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: end;
+    }
+    .reply-box textarea { min-height: 72px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .full { grid-column: 1 / -1; }
+    .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .muted { color: var(--muted); font-size: 12px; }
+    .result {
+      background: #1f2933;
+      color: #eef4f6;
+      border-radius: 8px;
+      padding: 14px;
+      min-height: 90px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+    .qr-box img { max-width: 260px; width: 100%; border: 1px solid var(--line); border-radius: 8px; background: white; }
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      background: #242423;
+      color: white;
+      padding: 12px 14px;
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      display: none;
+      max-width: 360px;
+      z-index: 40;
+    }
+    .toast.show { display: block; }
+    @media (max-width: 1020px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { position: static; }
+      .nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+      .stats { min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .inbox { grid-template-columns: 1fr; }
+      .conversation-list { max-height: 280px; border-right: 0; border-bottom: 1px solid var(--line); }
+      .chat { max-height: none; }
+      .form-grid, .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .reply-box { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <h1>LeadBot</h1>
+        <p>AI owner-sales untuk WhatsApp UMKM</p>
+      </div>
+      <nav class="nav">
+        <button class="active" data-view="inbox">Percakapan</button>
+        <button data-view="setup">Data Usaha</button>
+        <button data-view="docs">Dokumen</button>
+        <button data-view="ai-test">AI Test</button>
+        <button data-view="whatsapp">WhatsApp</button>
+      </nav>
+      <form method="post" action="/logout">
+        <button class="secondary" type="submit">Logout</button>
+      </form>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h2 id="viewTitle">Percakapan</h2>
+          <div class="meta" id="systemMeta">Memuat status...</div>
+        </div>
+        <div class="stats">
+          <div class="stat"><strong id="statActive">0</strong><span>Aktif</span></div>
+          <div class="stat"><strong id="statPaused">0</strong><span>Pause AI</span></div>
+          <div class="stat"><strong id="statToday">0</strong><span>Pesan hari ini</span></div>
+          <div class="stat"><strong id="statRate">0%</strong><span>Auto reply</span></div>
+        </div>
+      </header>
+
+      <section class="content">
+        <div id="view-inbox" class="view active">
+          <div class="panel inbox">
+            <div class="conversation-list" id="conversationList"></div>
+            <div class="chat">
+              <div class="chat-head">
+                <div class="chat-title">
+                  <strong id="chatName">Pilih percakapan</strong>
+                  <span id="chatMeta">Belum ada chat dipilih</span>
+                </div>
+                <div class="chat-actions">
+                  <button class="secondary" id="toggleAutoBtn" disabled>Pause AI</button>
+                  <button class="danger" id="closeChatBtn" disabled>Tutup</button>
+                </div>
+              </div>
+              <div class="messages" id="messages"></div>
+              <div class="reply-box">
+                <textarea id="replyText" placeholder="Balas manual dari sini..."></textarea>
+                <button id="sendReplyBtn" disabled>Kirim</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="view-setup" class="view">
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Data Usaha</h3>
+              <div class="toolbar">
+                <button class="secondary" id="loadKnowledgeBtn">Muat</button>
+                <button class="success" id="saveWizardBtn">Simpan</button>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="form-grid">
+                <div>
+                  <label>Nama usaha</label>
+                  <input id="businessName" placeholder="Contoh: Teman UMKM Kita">
+                </div>
+                <div>
+                  <label>Gaya bicara</label>
+                  <input id="tone" placeholder="Ramah, cepat, seperti owner langsung">
+                </div>
+                <div class="full">
+                  <label>Profil usaha</label>
+                  <textarea id="businessProfile" placeholder="Apa bisnis ini, siapa target customer, dan nilai utamanya."></textarea>
+                </div>
+                <div class="full">
+                  <label>Produk atau layanan</label>
+                  <textarea id="products" placeholder="Daftar produk/layanan, paket, manfaat, dan perbedaan tiap paket."></textarea>
+                </div>
+                <div class="full">
+                  <label>Harga</label>
+                  <textarea id="prices" placeholder="Harga pasti, mulai dari, paket, promo, atau aturan quotation."></textarea>
+                </div>
+                <div>
+                  <label>Cara order</label>
+                  <textarea id="orderFlow" placeholder="Langkah customer untuk order atau konsultasi."></textarea>
+                </div>
+                <div>
+                  <label>Pembayaran</label>
+                  <textarea id="payment" placeholder="Transfer, QRIS, DP, pelunasan, invoice."></textarea>
+                </div>
+                <div>
+                  <label>Pengiriman atau pengerjaan</label>
+                  <textarea id="shipping" placeholder="Area layanan, estimasi, ongkir, jadwal pengerjaan."></textarea>
+                </div>
+                <div>
+                  <label>Lokasi dan jam</label>
+                  <textarea id="locationHours" placeholder="Alamat, area, jam operasional."></textarea>
+                </div>
+                <div class="full">
+                  <label>Kebijakan dan batasan</label>
+                  <textarea id="policies" placeholder="Garansi, refund, stok, komplain, hal yang harus dicek admin."></textarea>
+                </div>
+              </div>
+              <p class="muted" id="knowledgeStatus">Belum dimuat.</p>
+            </div>
+          </div>
+        </div>
+
+        <div id="view-docs" class="view">
+          <div class="grid-2">
+            <div class="panel">
+              <div class="panel-head"><h3>Upload Knowledge</h3></div>
+              <div class="panel-body">
+                <form id="uploadForm">
+                  <label>PDF, DOCX, DOC, TXT, atau MD</label>
+                  <input id="knowledgeFile" name="file" type="file" accept=".pdf,.doc,.docx,.txt,.md,text/plain,application/pdf">
+                  <div style="height:12px"></div>
+                  <button class="success" type="submit">Upload</button>
+                </form>
+                <p class="muted" id="uploadStatus">Dokumen akan masuk sebagai knowledge tambahan.</p>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head">
+                <h3>Riwayat Upload</h3>
+                <button class="secondary" id="loadUploadsBtn">Muat</button>
+              </div>
+              <div class="panel-body" id="uploadList"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="view-ai-test" class="view">
+          <div class="grid-2">
+            <div class="panel">
+              <div class="panel-head"><h3>Coba AI</h3></div>
+              <div class="panel-body">
+                <label>Pesan customer</label>
+                <textarea id="testMessage">Halo kak, paketnya berapa dan bisa kirim ke Depok?</textarea>
+                <div style="height:12px"></div>
+                <button class="warning" id="runAiTestBtn">Test</button>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><h3>Hasil</h3></div>
+              <div class="panel-body">
+                <div class="result" id="aiResult">Belum dites.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="view-whatsapp" class="view">
+          <div class="grid-2">
+            <div class="panel">
+              <div class="panel-head">
+                <h3>Status WhatsApp</h3>
+                <div class="toolbar">
+                  <button class="secondary" id="checkWaBtn">Cek</button>
+                  <button class="success" id="startWaBtn">Start</button>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="result" id="waStatus">Belum dicek.</div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head">
+                <h3>Login</h3>
+                <button class="secondary" id="getQrBtn">QR</button>
+              </div>
+              <div class="panel-body">
+                <div class="form-grid">
+                  <div>
+                    <label>Nomor pairing</label>
+                    <input id="pairingPhone" placeholder="628xxxxxxxxxx">
+                  </div>
+                  <div style="align-self:end">
+                    <button class="warning" id="pairingBtn">Pairing Code</button>
+                  </div>
+                </div>
+                <div style="height:14px"></div>
+                <div class="qr-box" id="qrBox"></div>
+                <div class="result" id="pairingResult">Belum ada kode.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const state = {
+      conversations: [],
+      selectedId: null,
+      selectedConversation: null,
+      messages: [],
+    };
+
+    const titles = {
+      inbox: 'Percakapan',
+      setup: 'Data Usaha',
+      docs: 'Dokumen',
+      'ai-test': 'AI Test',
+      whatsapp: 'WhatsApp',
+    };
+
+    function $(id) { return document.getElementById(id); }
+
+    function toast(message) {
+      const el = $('toast');
+      el.textContent = message;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 3200);
+    }
+
+    async function fetchJson(url, options = {}) {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+          ...(options.headers || {}),
+        },
+      });
+      const text = await response.text();
+      let data;
+      try { data = text ? JSON.parse(text) : {}; } catch (error) { data = { raw: text }; }
+      if (!response.ok) throw new Error(data.error || data.message || text || 'Request gagal');
+      return data;
+    }
+
+    function switchView(name) {
+      document.querySelectorAll('.view').forEach((view) => view.classList.remove('active'));
+      document.querySelectorAll('.nav button').forEach((btn) => btn.classList.toggle('active', btn.dataset.view === name));
+      $('view-' + name).classList.add('active');
+      $('viewTitle').textContent = titles[name] || 'LeadBot';
+    }
+
+    function shortDate(value) {
+      if (!value) return '';
+      return new Date(value).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function stageLabel(stage) {
+      const labels = {
+        new: 'baru',
+        interested: 'tertarik',
+        follow_up: 'follow-up',
+        hot_lead: 'hot',
+        closing: 'closing',
+        not_fit: 'tidak cocok',
+        admin_needed: 'admin',
+      };
+      return labels[stage] || stage || 'baru';
+    }
+
+    function renderStats(stats = {}) {
+      $('statActive').textContent = stats.active || 0;
+      $('statPaused').textContent = stats.paused || 0;
+      $('statToday').textContent = stats.messagesToday || 0;
+      $('statRate').textContent = (stats.autoReplyRate || 0) + '%';
+      const ai = stats.ai?.configured ? 'AI aktif' : 'AI belum siap';
+      const waha = stats.waha?.session ? 'WAHA ' + stats.waha.session : 'WAHA belum siap';
+      $('systemMeta').textContent = ai + ' · ' + waha + ' · ' + shortDate(stats.updatedAt);
+    }
+
+    function renderConversations() {
+      const list = $('conversationList');
+      if (!state.conversations.length) {
+        list.innerHTML = '<div class="conversation-item"><div class="muted">Belum ada percakapan aktif.</div></div>';
+        return;
+      }
+      list.innerHTML = state.conversations.map((conv) => {
+        const active = conv.id === state.selectedId ? ' active' : '';
+        const hot = Number(conv.lead_score || 0) >= 70 ? ' hot' : '';
+        const paused = conv.auto_reply_paused ? '<span class="badge off">AI pause</span>' : '<span class="badge on">AI auto</span>';
+        return `
+          <div class="conversation-item${active}" data-id="${conv.id}">
+            <div class="conversation-row">
+              <div class="conversation-name">${escapeHtml(conv.contact_name || conv.phone)}</div>
+              <span class="badge${hot}">${stageLabel(conv.lead_stage)} · ${conv.lead_score || 0}</span>
+            </div>
+            <div class="conversation-row" style="margin-top:8px">
+              ${paused}
+              <span class="muted">${shortDate(conv.updated_at)}</span>
+            </div>
+            <div class="conversation-last">${escapeHtml(conv.last_message || '')}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderChat() {
+      const conv = state.selectedConversation;
+      $('sendReplyBtn').disabled = !conv;
+      $('toggleAutoBtn').disabled = !conv;
+      $('closeChatBtn').disabled = !conv;
+      if (!conv) {
+        $('chatName').textContent = 'Pilih percakapan';
+        $('chatMeta').textContent = 'Belum ada chat dipilih';
+        $('messages').innerHTML = '';
+        return;
+      }
+      $('chatName').textContent = conv.contact_name || conv.phone;
+      $('chatMeta').textContent = conv.phone + ' · ' + stageLabel(conv.lead_stage) + ' · skor ' + (conv.lead_score || 0);
+      $('toggleAutoBtn').textContent = conv.auto_reply_paused ? 'Resume AI' : 'Pause AI';
+      $('toggleAutoBtn').className = conv.auto_reply_paused ? 'success' : 'secondary';
+      $('messages').innerHTML = state.messages.map((msg) => {
+        const who = msg.direction === 'outbound' ? 'outbound' : 'inbound';
+        const responder = msg.responder ? ' · ' + escapeHtml(msg.responder) : '';
+        return `<div class="bubble ${who}">
+          <div>${escapeHtml(msg.content || '')}</div>
+          <div class="time">${shortDate(msg.timestamp)}${responder}</div>
+        </div>`;
+      }).join('');
+      $('messages').scrollTop = $('messages').scrollHeight;
+    }
+
+    async function loadStats() {
+      renderStats(await fetchJson('/api/dashboard/stats'));
+    }
+
+    async function loadConversations() {
+      state.conversations = await fetchJson('/api/dashboard/conversations');
+      if (state.selectedId) {
+        state.selectedConversation = state.conversations.find((conv) => conv.id === state.selectedId) || state.selectedConversation;
+      }
+      renderConversations();
+      renderChat();
+    }
+
+    async function selectConversation(id) {
+      state.selectedId = id;
+      state.selectedConversation = state.conversations.find((conv) => conv.id === id) || null;
+      state.messages = await fetchJson('/api/dashboard/conversations/' + encodeURIComponent(id));
+      renderConversations();
+      renderChat();
+    }
+
+    async function sendReply() {
+      const message = $('replyText').value.trim();
+      if (!state.selectedId || !message) return;
+      $('sendReplyBtn').disabled = true;
+      try {
+        await fetchJson('/api/dashboard/conversations/' + encodeURIComponent(state.selectedId) + '/reply', {
+          method: 'POST',
+          body: JSON.stringify({ message }),
+        });
+        $('replyText').value = '';
+        toast('Balasan terkirim. AI dipause untuk chat ini.');
+        await loadConversations();
+        await selectConversation(state.selectedId);
+      } catch (error) {
+        toast(error.message);
+      } finally {
+        $('sendReplyBtn').disabled = false;
+      }
+    }
+
+    async function toggleAutoReply() {
+      if (!state.selectedConversation) return;
+      const nextPaused = !state.selectedConversation.auto_reply_paused;
+      await fetchJson('/api/dashboard/conversations/' + encodeURIComponent(state.selectedId) + '/auto-reply', {
+        method: 'POST',
+        body: JSON.stringify({ paused: nextPaused }),
+      });
+      toast(nextPaused ? 'AI dipause.' : 'AI aktif lagi.');
+      await loadConversations();
+      await selectConversation(state.selectedId);
+    }
+
+    async function closeConversation() {
+      if (!state.selectedId) return;
+      await fetchJson('/api/dashboard/conversations/' + encodeURIComponent(state.selectedId) + '/close', { method: 'POST' });
+      state.selectedId = null;
+      state.selectedConversation = null;
+      state.messages = [];
+      await loadConversations();
+    }
+
+    function wizardItems() {
+      const values = {
+        businessName: $('businessName').value.trim(),
+        tone: $('tone').value.trim(),
+        businessProfile: $('businessProfile').value.trim(),
+        products: $('products').value.trim(),
+        prices: $('prices').value.trim(),
+        orderFlow: $('orderFlow').value.trim(),
+        payment: $('payment').value.trim(),
+        shipping: $('shipping').value.trim(),
+        locationHours: $('locationHours').value.trim(),
+        policies: $('policies').value.trim(),
+      };
+      const businessTitle = values.businessName || 'Profil usaha';
+      return [
+        { type: 'business_profile', title: businessTitle, content: [values.businessProfile, values.tone && ('Gaya bicara: ' + values.tone)].filter(Boolean).join('\n') },
+        { type: 'product', title: 'Produk dan layanan', content: values.products },
+        { type: 'price', title: 'Harga', content: values.prices },
+        { type: 'order_flow', title: 'Cara order', content: values.orderFlow },
+        { type: 'payment', title: 'Pembayaran', content: values.payment },
+        { type: 'shipping', title: 'Pengiriman atau pengerjaan', content: values.shipping },
+        { type: 'location', title: 'Lokasi dan jam', content: values.locationHours },
+        { type: 'policy', title: 'Kebijakan dan batasan', content: values.policies },
+      ].filter((item) => item.content.trim()).map((item) => ({
+        ...item,
+        keywords: item.title,
+        metadata: { source: 'dashboard_setup' },
+        active: true,
+      }));
+    }
+
+    async function saveWizard() {
+      const items = wizardItems();
+      if (!items.length) return toast('Isi minimal satu bagian data usaha.');
+      const result = await fetchJson('/api/dashboard/knowledge/wizard', {
+        method: 'POST',
+        body: JSON.stringify({ items }),
+      });
+      $('knowledgeStatus').textContent = result.count + ' data usaha tersimpan.';
+      toast('Data usaha tersimpan.');
+    }
+
+    async function loadKnowledgeItems() {
+      const data = await fetchJson('/api/dashboard/knowledge-items?active=true');
+      $('knowledgeStatus').textContent = (data.items || []).length + ' knowledge aktif.';
+    }
+
+    async function uploadDocument(event) {
+      event.preventDefault();
+      const file = $('knowledgeFile').files[0];
+      if (!file) return toast('Pilih file dulu.');
+      const form = new FormData();
+      form.append('file', file);
+      $('uploadStatus').textContent = 'Mengupload dan membaca dokumen...';
+      const result = await fetchJson('/api/dashboard/knowledge/upload', { method: 'POST', body: form });
+      $('uploadStatus').textContent = 'Tersimpan: ' + result.item.title;
+      toast('Dokumen masuk knowledge.');
+      await loadUploads();
+    }
+
+    async function loadUploads() {
+      const data = await fetchJson('/api/dashboard/knowledge/uploads');
+      const uploads = data.uploads || [];
+      $('uploadList').innerHTML = uploads.length ? uploads.map((item) => `
+        <div style="padding:10px 0;border-bottom:1px solid var(--line)">
+          <strong>${escapeHtml(item.filename)}</strong>
+          <div class="muted">${escapeHtml(item.mime_type || 'file')} · ${item.size_bytes || 0} byte · ${shortDate(item.created_at)}</div>
+        </div>
+      `).join('') : '<p class="muted">Belum ada upload.</p>';
+    }
+
+    async function runAiTest() {
+      $('aiResult').textContent = 'Meminta jawaban AI...';
+      try {
+        const result = await fetchJson('/api/dashboard/ai/test', {
+          method: 'POST',
+          body: JSON.stringify({ message: $('testMessage').value }),
+        });
+        $('aiResult').textContent = JSON.stringify(result, null, 2);
+      } catch (error) {
+        $('aiResult').textContent = error.message;
+      }
+    }
+
+    async function checkWhatsapp() {
+      $('waStatus').textContent = 'Mengecek WAHA...';
+      try {
+        $('waStatus').textContent = JSON.stringify(await fetchJson('/api/dashboard/whatsapp/session'), null, 2);
+      } catch (error) {
+        $('waStatus').textContent = error.message;
+      }
+    }
+
+    async function startWhatsapp() {
+      $('waStatus').textContent = 'Memulai session...';
+      $('waStatus').textContent = JSON.stringify(await fetchJson('/api/dashboard/whatsapp/start', { method: 'POST' }), null, 2);
+    }
+
+    async function getQr() {
+      const result = await fetchJson('/api/dashboard/whatsapp/qr');
+      const data = result.data || result;
+      const box = $('qrBox');
+      if (typeof data === 'string' && data.startsWith('data:image')) {
+        box.innerHTML = `<img alt="QR WhatsApp" src="${data}">`;
+      } else if (typeof data === 'string' && data.includes('<svg')) {
+        box.innerHTML = data;
+      } else {
+        box.textContent = JSON.stringify(data);
+      }
+    }
+
+    async function getPairingCode() {
+      const phoneNumber = $('pairingPhone').value.trim();
+      if (!phoneNumber) return toast('Isi nomor pairing dulu.');
+      $('pairingResult').textContent = JSON.stringify(await fetchJson('/api/dashboard/whatsapp/pairing-code', {
+        method: 'POST',
+        body: JSON.stringify({ phoneNumber }),
+      }), null, 2);
+    }
+
+    function escapeHtml(value) {
+      return String(value || '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+      }[char]));
+    }
+
+    function startEvents() {
+      try {
+        const events = new EventSource('/api/dashboard/events');
+        events.addEventListener('conversation', () => { loadConversations(); loadStats(); });
+        events.addEventListener('message', (event) => {
+          const data = JSON.parse(event.data || '{}');
+          if (data.payload?.conversation_id === state.selectedId) selectConversation(state.selectedId);
+          loadConversations();
+          loadStats();
+        });
+        events.onerror = () => {};
+      } catch (error) {}
+    }
+
+    document.querySelectorAll('.nav button').forEach((btn) => btn.addEventListener('click', () => switchView(btn.dataset.view)));
+    $('conversationList').addEventListener('click', (event) => {
+      const item = event.target.closest('.conversation-item[data-id]');
+      if (item) selectConversation(item.dataset.id);
+    });
+    $('sendReplyBtn').addEventListener('click', sendReply);
+    $('toggleAutoBtn').addEventListener('click', toggleAutoReply);
+    $('closeChatBtn').addEventListener('click', closeConversation);
+    $('saveWizardBtn').addEventListener('click', saveWizard);
+    $('loadKnowledgeBtn').addEventListener('click', loadKnowledgeItems);
+    $('uploadForm').addEventListener('submit', uploadDocument);
+    $('loadUploadsBtn').addEventListener('click', loadUploads);
+    $('runAiTestBtn').addEventListener('click', runAiTest);
+    $('checkWaBtn').addEventListener('click', checkWhatsapp);
+    $('startWaBtn').addEventListener('click', startWhatsapp);
+    $('getQrBtn').addEventListener('click', getQr);
+    $('pairingBtn').addEventListener('click', getPairingCode);
+
+    Promise.all([loadStats(), loadConversations(), loadKnowledgeItems(), loadUploads()]).catch((error) => toast(error.message));
+    startEvents();
+  </script>
+</body>
+</html>

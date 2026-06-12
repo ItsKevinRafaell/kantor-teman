@@ -15,13 +15,13 @@ from models import (
     log_audit, LeadActivityLog,
 )
 from app.core.dependencies import (
-    get_fonnte_token, send_fonnte_message, _send_fonnte_sync,
     _get_setting, FRONTEND_URL, ADMIN_WA, generate_report_for_lead,
     log_outreach_cost, log_ai_cost,
     WORKSPACE_TEMPLATES, build_sheets_for_service,
     sync_row_to_board, sync_row_status_to_board,
     _acquire_scheduler_lock, _run_async_job,
 )
+from app.core.whatsapp_provider import get_whatsapp_config, get_whatsapp_cost_provider_id, send_whatsapp_message
 from app.constants import CLIENT_STATUS_VALUES
 from app.constants import LeadStatus
 
@@ -35,9 +35,9 @@ _blast_jobs: dict = {}
 # ─── Cost logging ────────────────────────────────────────────────────────────
 
 def log_outreach_cost(db: Session, campaign_id: Optional[str], messages_count: int):
-    """Log outreach cost to ProviderConfig (Fonnte)."""
+    """Log outreach cost to the active WhatsApp ProviderConfig."""
     from models import ProviderConfig
-    provider = db.query(ProviderConfig).filter_by(id="FONNTE").first()
+    provider = db.query(ProviderConfig).filter_by(id=get_whatsapp_cost_provider_id(db)).first()
     if not provider:
         return
     cost = provider.price_per_unit_idr * messages_count
@@ -210,7 +210,7 @@ async def execute_blast_campaign(campaign: BlastCampaign, db: Session, SessionLo
         query = query.filter(Lead.rating >= int(criteria["min_rating"]))
     leads = query.all()
 
-    token = get_fonnte_token(db)
+    whatsapp_config = get_whatsapp_config(db)
     template = None
     if campaign.template_id:
         template = db.query(DynamicTemplate).filter(DynamicTemplate.id == campaign.template_id).first()
@@ -235,7 +235,14 @@ async def execute_blast_campaign(campaign: BlastCampaign, db: Session, SessionLo
             message = f"Halo {lead.business_name}, kami menyiapkan audit digital singkat untuk bisnis Anda. Apakah kami boleh menjelaskan poin yang paling prioritas?\n\nLaporan ringkas: {report_link}"
         message = message.replace("{{proposal_link}}", f"\n{report_link}\n")
 
-        success = await send_fonnte_message(lead.phone_number, message, token)
+        result = await send_whatsapp_message(db, lead.phone_number, message, {
+            "lead_id": lead.id,
+            "campaign_id": campaign.id,
+            "template_id": template.id if template else None,
+            "batch_name": criteria.get("batch_name"),
+            "business_name": lead.business_name,
+        })
+        success = result.ok
         db.add(BlastMessage(
             id=str(uuid.uuid4()),
             campaign_id=campaign.id,
@@ -244,7 +251,7 @@ async def execute_blast_campaign(campaign: BlastCampaign, db: Session, SessionLo
             phone_number=lead.phone_number,
             sent_at=datetime.now(timezone.utc).isoformat(),
             status="sent" if success else "failed",
-            error_message=None if success else "Fonnte send returned non-200",
+            error_message=None if success else (result.error or f"{result.provider} send failed"),
         ))
         if success:
             lead.status = LeadStatus.WA_SENT
@@ -252,7 +259,7 @@ async def execute_blast_campaign(campaign: BlastCampaign, db: Session, SessionLo
         else:
             failed += 1
         db.commit()
-        await asyncio.sleep(5)
+        await asyncio.sleep(whatsapp_config.blast_delay_seconds)
 
     campaign.sent_count = sent
     campaign.failed_count = failed
@@ -320,7 +327,6 @@ async def scheduled_followup_processor(
             FollowUpSequence.next_send_at <= now.isoformat(),
         ).all()
 
-        token = get_fonnte_token(db)
         for seq in sequences:
             lead = db.query(Lead).filter(Lead.id == seq.lead_id).first()
             if not lead:
@@ -367,8 +373,12 @@ async def scheduled_followup_processor(
                 ]
                 message = followup_defaults[min(seq.current_step, len(followup_defaults) - 1)]
 
-            success = await send_fonnte_message(lead.phone_number, message, token)
-            if not success:
+            result = await send_whatsapp_message(db, lead.phone_number, message, {
+                "lead_id": lead.id,
+                "request_id": f"followup:{seq.id}:{seq.current_step}",
+                "business_name": lead.business_name,
+            })
+            if not result.ok:
                 continue
 
             seq.current_step += 1

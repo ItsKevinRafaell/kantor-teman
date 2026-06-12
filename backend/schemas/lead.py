@@ -138,6 +138,10 @@ class ExternalLeadIn(BaseModel):
     message: Optional[str] = None
     product_interest: Optional[str] = None
     source: str = "website_temanumkmkita"
+    lead_stage: Optional[str] = Field(None, max_length=50)
+    lead_score: Optional[int] = Field(None, ge=0, le=100)
+    ai_reason: Optional[str] = Field(None, max_length=1000)
+    conversation_id: Optional[str] = Field(None, max_length=100)
 
     @field_validator("source")
     @classmethod

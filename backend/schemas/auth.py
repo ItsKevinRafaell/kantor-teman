@@ -89,3 +89,22 @@ class UserAdminUpdate(BaseModel):
         if v is not None and v not in {"admin", "member"}:
             raise ValueError("Role harus admin atau member")
         return v
+
+
+class PasswordResetRequest(BaseModel):
+    email: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", v):
+            raise ValueError("Format email tidak valid")
+        if len(v) > 254:
+            raise ValueError("Email terlalu panjang")
+        return v
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str = Field(..., min_length=32, max_length=256)
+    password: str = Field(..., min_length=8, max_length=128)

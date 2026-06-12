@@ -1,5 +1,6 @@
 """AI Service Layer — extracted from routers/content.py, routers/other.py, app/core/dependencies.py"""
 import json
+import os
 import uuid
 import re
 from datetime import datetime, timezone
@@ -8,6 +9,128 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from models import AIModel, SystemSettings, AIProxy, ContentProvider, ContentGeneration, ContentSession
+
+NINE_ROUTER_PUBLIC_BASE_URL = "http://9router.kantorteman.my.id/v1"
+NINE_ROUTER_DEFAULT_MODEL = "combo-genflow"
+
+
+def _ensure_v1_base_url(value: Optional[str]) -> str:
+    base = (value or "").strip().rstrip("/")
+    if not base:
+        return ""
+    return base if base.endswith("/v1") else f"{base}/v1"
+
+
+def _is_9router_url(value: Optional[str]) -> bool:
+    base = (value or "").lower()
+    return (
+        "9router" in base
+        or "127.0.0.1:20128" in base
+        or "localhost:20128" in base
+    )
+
+
+def _router_base_url(candidate: Optional[str] = None) -> str:
+    candidate_base = _ensure_v1_base_url(candidate)
+    if _is_9router_url(candidate_base):
+        return candidate_base
+    return _ensure_v1_base_url(
+        os.getenv("NINE_ROUTER_URL")
+        or os.getenv("AI_BASE_URL")
+        or os.getenv("OPENAI_BASE_URL")
+        or NINE_ROUTER_PUBLIC_BASE_URL
+    )
+
+
+def _router_model(candidate: Optional[str] = None) -> str:
+    return (
+        (candidate or "").strip()
+        or os.getenv("NINE_ROUTER_MODEL", "").strip()
+        or os.getenv("AI_MODEL", "").strip()
+        or NINE_ROUTER_DEFAULT_MODEL
+    )
+
+
+def _router_api_key(candidate: Optional[str] = None) -> str:
+    return (
+        (candidate or "").strip()
+        or os.getenv("NINE_ROUTER_API_KEY", "").strip()
+        or os.getenv("AI_API_KEY", "").strip()
+        or os.getenv("OPENAI_API_KEY", "").strip()
+    )
+
+
+def _setting_value(db: Session, key: str, default: str = "") -> str:
+    row = db.query(SystemSettings).filter_by(key=key).first()
+    return row.value if row and row.value else default
+
+
+def _router_headers(api_key: Optional[str]) -> dict:
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
+
+
+def _extract_router_models(payload: dict) -> list[dict]:
+    raw_models = payload.get("data") if isinstance(payload, dict) else []
+    if not isinstance(raw_models, list):
+        return []
+    result = []
+    for item in raw_models:
+        if not isinstance(item, dict):
+            continue
+        model_id = str(item.get("id") or "").strip()
+        if not model_id:
+            continue
+        model_type = item.get("type") or item.get("router_type") or ("combo" if model_id.startswith("combo-") else "model")
+        result.append({
+            "id": model_id,
+            "name": item.get("name") or model_id,
+            "owned_by": item.get("owned_by") or item.get("provider") or "9router",
+            "type": model_type,
+            "raw": item,
+        })
+    return result
+
+
+def fetch_9router_models_sync(config: dict, httpx_module=None) -> dict:
+    """Fetch models exactly as exposed by 9router's OpenAI-compatible /models."""
+    if httpx_module is None:
+        import httpx as httpx_module
+    base_url = _router_base_url(config.get("base_url"))
+    api_key = _router_api_key(config.get("openai_key") or config.get("api_key"))
+    with httpx_module.Client(timeout=20) as client:
+        resp = client.get(f"{base_url}/models", headers=_router_headers(api_key))
+    if resp.status_code != 200:
+        raise Exception(f"9router models fetch failed: HTTP {resp.status_code}")
+    models = _extract_router_models(resp.json())
+    return {
+        "base_url": base_url,
+        "external_base_url": _ensure_v1_base_url(os.getenv("NINE_ROUTER_EXTERNAL_URL") or NINE_ROUTER_PUBLIC_BASE_URL),
+        "models": models,
+        "combos": [model for model in models if model.get("type") == "combo" or str(model.get("id", "")).startswith("combo-")],
+        "count": len(models),
+    }
+
+
+async def fetch_9router_models_async(config: dict) -> dict:
+    """Async variant for FastAPI endpoints."""
+    import httpx
+    base_url = _router_base_url(config.get("base_url"))
+    api_key = _router_api_key(config.get("openai_key") or config.get("api_key"))
+    async with httpx.AsyncClient(timeout=20) as client:
+        resp = await client.get(f"{base_url}/models", headers=_router_headers(api_key))
+    if resp.status_code != 200:
+        raise Exception(f"9router models fetch failed: HTTP {resp.status_code}")
+    models = _extract_router_models(resp.json())
+    return {
+        "base_url": base_url,
+        "external_base_url": _ensure_v1_base_url(os.getenv("NINE_ROUTER_EXTERNAL_URL") or NINE_ROUTER_PUBLIC_BASE_URL),
+        "models": models,
+        "combos": [model for model in models if model.get("type") == "combo" or str(model.get("id", "")).startswith("combo-")],
+        "count": len(models),
+    }
 # ─── Feature Defaults ─────────────────────────────────────────────────────────
 
 def _get_feature_defaults(db: Session) -> dict:
@@ -50,7 +173,14 @@ def list_ai_proxies(db: Session) -> list[AIProxy]:
 
 
 def create_ai_proxy(db: Session, name: str, base_url: str, api_key: str, model: str, feature: str) -> AIProxy:
-    proxy = AIProxy(name=name, base_url=base_url.rstrip("/"), api_key=api_key, model=model, feature=feature)
+    proxy = AIProxy(
+        name=name,
+        base_url=_router_base_url(base_url),
+        api_key=_router_api_key(api_key),
+        model=_router_model(model),
+        provider="custom",
+        feature=feature,
+    )
     db.add(proxy)
     db.commit()
     db.refresh(proxy)
@@ -62,17 +192,19 @@ def update_ai_proxy(db: Session, proxy_id: str, updates: dict) -> AIProxy:
     if not proxy:
         raise ValueError("Proxy tidak ditemukan")
     valid_providers = {"openai", "anthropic", "gemini", "openrouter", "custom", "claude"}
-    aliases = {"claude": "anthropic"}
     for key in ("name", "base_url", "api_key", "model", "feature", "provider"):
         if key in updates:
             val = updates[key]
             if key == "base_url" and val:
-                val = val.rstrip("/")
+                val = _router_base_url(val)
             if key == "provider" and val:
                 if val not in valid_providers:
                     raise ValueError("Provider must be one of: " + ", ".join(sorted(valid_providers - {"claude"})))
-                if val in aliases:
-                    val = aliases[val]
+                val = "custom"
+            if key == "model":
+                val = _router_model(val)
+            if key == "api_key":
+                val = _router_api_key(val)
             setattr(proxy, key, val)
     db.commit()
     db.refresh(proxy)
@@ -130,48 +262,40 @@ def get_proxy_for_feature(db: Session, feature: str) -> Optional[AIProxy]:
 
 
 def _canonical_provider(provider: Optional[str]) -> str:
-    """Map legacy aliases to canonical provider IDs."""
-    aliases = {"claude": "anthropic"}
-    if not provider:
-        return "openai"
-    return aliases.get(provider, provider)
+    """Runtime AI provider is always 9router OpenAI-compatible.
+
+    Legacy provider values are still accepted in stored configs for backward
+    compatibility, but they must not route directly to external native APIs.
+    """
+    return "custom" if provider and provider != "none" else "custom"
 
 
 def get_ai_config(db: Session, capability: str = "chat") -> dict:
-    """Per-feature AIProxy first. Returns 'none' provider if no AIProxy configured.
-
-    Canonical provider IDs: openai, anthropic, gemini, openrouter, custom
-    - anthropic routes to native Anthropic Messages API (x-api-key, /v1/messages)
-    - openai/openrouter/custom route to OpenAI-compatible /chat/completions
-    - gemini routes to Gemini native API
-    - Legacy alias 'claude' maps to 'anthropic'
-    """
+    """Return a 9router OpenAI-compatible config for every AI feature."""
     proxy = get_proxy_for_feature(db, capability)
     if proxy:
-        provider = _canonical_provider(proxy.provider)
+        base_url = _router_base_url(proxy.base_url)
+        api_key = _router_api_key(proxy.api_key)
+        model = _router_model(proxy.model)
         cfg = {
-            "provider": provider,
-            "base_url": proxy.base_url.rstrip("/"),
-            "model": proxy.model,
+            "provider": "custom",
+            "stored_provider": proxy.provider,
+            "base_url": base_url,
+            "model": model,
+            "openai_key": api_key,
+            "gemini_key": "",
+            "claude_key": "",
         }
-        if provider == "gemini":
-            cfg["gemini_key"] = proxy.api_key
-            cfg["openai_key"] = ""
-            cfg["claude_key"] = ""
-        elif provider == "anthropic":
-            cfg["claude_key"] = proxy.api_key
-            cfg["openai_key"] = ""
-            cfg["gemini_key"] = ""
-        else:  # openai, openrouter, custom — all OpenAI-compatible /chat/completions
-            cfg["openai_key"] = proxy.api_key
-            cfg["gemini_key"] = ""
-            cfg["claude_key"] = ""
     else:
+        base_url = _router_base_url(_setting_value(db, "ai_base_url"))
+        api_key = _router_api_key(_setting_value(db, "ai_api_key") or _setting_value(db, "openai_api_key"))
+        model = _router_model(_setting_value(db, "ai_model"))
         cfg = {
-            "provider": "none",
-            "base_url": "",
-            "model": "",
-            "openai_key": "",
+            "provider": "custom",
+            "stored_provider": "9router",
+            "base_url": base_url,
+            "model": model,
+            "openai_key": api_key,
             "gemini_key": "",
             "claude_key": "",
         }
@@ -184,13 +308,8 @@ def get_ai_config(db: Session, capability: str = "chat") -> dict:
 # ─── Native Claude Messages API ──────────────────────────────────────────────
 
 def _is_native_anthropic(base_url: str) -> bool:
-    """Return True if base_url points to Anthropic's native API."""
-    normalized = base_url.lower().rstrip("/")
-    return (
-        "anthropic" in normalized
-        or normalized == "https://api.anthropic.com"
-        or normalized == "https://api.anthropic.com/v1"
-    )
+    """Native Anthropic calls are disabled; all AI goes through 9router."""
+    return False
 
 
 def _call_claude_native(client, api_key: str, model: str, prompt: str) -> str:
@@ -218,123 +337,35 @@ def _call_claude_native(client, api_key: str, model: str, prompt: str) -> str:
 # ─── AI Sync call ─────────────────────────────────────────────────────────────
 
 def call_ai_sync(prompt: str, config: dict, httpx_module) -> str:
-    """Synchronous HTTP call — supports openai, anthropic, gemini, openrouter, custom.
-
-    Canonical routing:
-    - anthropic: native Anthropic Messages API (/v1/messages, x-api-key header)
-    - gemini: Gemini native API (generateContent endpoint)
-    - openai/openrouter/custom: OpenAI-compatible /chat/completions
-    """
-    provider = _canonical_provider(config["provider"])
-    if provider == "none":
-        raise Exception("AI provider belum dikonfigurasi.")
+    """Synchronous HTTP call to 9router /chat/completions."""
+    api_key = _router_api_key(config.get("openai_key") or config.get("api_key"))
+    base_url = _router_base_url(config.get("base_url"))
+    model = _router_model(config.get("model"))
     with httpx_module.Client(timeout=120) as client:
-        if provider == "gemini":
-            if not config["gemini_key"]:
-                raise Exception("Gemini API Key belum dikonfigurasi.")
-            model = config.get("model") or "gemini-2.0-flash"
-            resp = client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-                headers={"x-goog-api-key": config["gemini_key"]},
-                json={"contents": [{"parts": [{"text": prompt}]}]},
-            )
-            if resp.status_code != 200:
-                raise Exception(f"Gemini API error: {resp.status_code} - {resp.text[:200]}")
-            return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        elif provider == "anthropic":
-            if not config["claude_key"]:
-                raise Exception("Claude API Key belum dikonfigurasi.")
-            base_url = config.get("base_url") or "https://api.anthropic.com"
-            model = config.get("model") or "claude-haiku-4-5-20251001"
-            if _is_native_anthropic(base_url):
-                return _call_claude_native(client, config["claude_key"], model, prompt)
-            # OpenAI-compatible endpoint (e.g. proxy or OpenRouter)
-            url = f"{base_url.rstrip('/')}/chat/completions"
-            resp = client.post(
-                url,
-                headers={"Authorization": f"Bearer {config['claude_key']}", "Content-Type": "application/json"},
-                json={"model": model, "max_tokens": 1024, "messages": [{"role": "user", "content": prompt}]},
-            )
-            if resp.status_code != 200:
-                raise Exception(f"Claude API error: {resp.status_code} - {resp.text[:200]}")
-            return resp.json()["choices"][0]["message"]["content"]
-        elif provider in ("openai", "openrouter", "custom"):
-            if not config["openai_key"]:
-                raise Exception("OpenAI API Key belum dikonfigurasi.")
-            base_url = config.get("base_url") or "https://api.openai.com/v1"
-            model = config.get("model") or "gpt-4o-mini"
-            resp = client.post(
-                f"{base_url.rstrip('/')}/chat/completions",
-                headers={"Authorization": f"Bearer {config['openai_key']}", "Content-Type": "application/json"},
-                json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 1024},
-            )
-            if resp.status_code != 200:
-                raise Exception(f"OpenAI-compatible API error: {resp.status_code} - {resp.text[:200]}")
-            return resp.json()["choices"][0]["message"]["content"]
-        else:
-            raise Exception(f"Provider '{provider}' tidak dikenali.")
+        resp = client.post(
+            f"{base_url}/chat/completions",
+            headers=_router_headers(api_key),
+            json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 1024},
+        )
+        if resp.status_code != 200:
+            raise Exception(f"9router API error: {resp.status_code} - {resp.text[:200]}")
+        return resp.json()["choices"][0]["message"]["content"]
 
 async def call_ai_provider_async(prompt: str, config: dict) -> str:
-    """Async AI call — single canonical path matching call_ai_sync routing."""
+    """Async AI call to 9router /chat/completions."""
     import httpx as _httpx
-    provider = _canonical_provider(config["provider"])
-    if provider == "none":
-        raise Exception("AI provider belum dikonfigurasi.")
+    api_key = _router_api_key(config.get("openai_key") or config.get("api_key"))
+    base_url = _router_base_url(config.get("base_url"))
+    model = _router_model(config.get("model"))
     async with _httpx.AsyncClient(timeout=60) as client:
-        if provider == "gemini":
-            if not config["gemini_key"]:
-                raise Exception("Gemini API Key belum dikonfigurasi.")
-            model = config.get("model") or "gemini-2.0-flash"
-            resp = await client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-                headers={"x-goog-api-key": config["gemini_key"]},
-                json={"contents": [{"parts": [{"text": prompt}]}]},
-            )
-            if resp.status_code != 200:
-                raise Exception(f"Gemini API error: {resp.status_code} - {resp.text[:200]}")
-            return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        elif provider == "anthropic":
-            if not config["claude_key"]:
-                raise Exception("Claude API Key belum dikonfigurasi.")
-            base_url = config.get("base_url") or "https://api.anthropic.com"
-            model = config.get("model") or "claude-haiku-4-5-20251001"
-            if _is_native_anthropic(base_url):
-                resp = await client.post(
-                    "https://api.anthropic.com/v1/messages",
-                    headers={
-                        "x-api-key": config["claude_key"],
-                        "anthropic-version": "2023-06-01",
-                        "content-type": "application/json",
-                    },
-                    json={"model": model, "max_tokens": 1024, "messages": [{"role": "user", "content": prompt}]},
-                )
-                if resp.status_code != 200:
-                    raise Exception(f"Claude native API error: {resp.status_code} - {resp.text[:200]}")
-                return resp.json()["content"][0]["text"]
-            else:
-                resp = await client.post(
-                    f"{base_url.rstrip('/')}/chat/completions",
-                    headers={"Authorization": f"Bearer {config['claude_key']}", "Content-Type": "application/json"},
-                    json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 1024},
-                )
-                if resp.status_code != 200:
-                    raise Exception(f"Claude API error: {resp.status_code} - {resp.text[:200]}")
-                return resp.json()["choices"][0]["message"]["content"]
-        elif provider in ("openai", "openrouter", "custom"):
-            if not config["openai_key"]:
-                raise Exception("OpenAI API Key belum dikonfigurasi.")
-            base_url = config.get("base_url") or "https://api.openai.com/v1"
-            model = config.get("model") or "gpt-4o-mini"
-            resp = await client.post(
-                f"{base_url.rstrip('/')}/chat/completions",
-                headers={"Authorization": f"Bearer {config['openai_key']}", "Content-Type": "application/json"},
-                json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 1024},
-            )
-            if resp.status_code != 200:
-                raise Exception(f"OpenAI API error: {resp.status_code} - {resp.text[:200]}")
-            return resp.json()["choices"][0]["message"]["content"]
-        else:
-            raise Exception(f"Provider '{provider}' tidak dikenali.")
+        resp = await client.post(
+            f"{base_url}/chat/completions",
+            headers=_router_headers(api_key),
+            json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 1024},
+        )
+        if resp.status_code != 200:
+            raise Exception(f"9router API error: {resp.status_code} - {resp.text[:200]}")
+        return resp.json()["choices"][0]["message"]["content"]
 
 
 # ─── Prompt builders ─────────────────────────────────────────────────────────
@@ -467,10 +498,6 @@ def generate_caption(
 ) -> dict:
     """Full caption generation pipeline — provider-agnostic via call_ai_sync."""
     ai = get_ai_config(db, "caption")
-    # Provider-agnostic check: any configured provider key is acceptable
-    has_key = ai.get("openai_key") or ai.get("claude_key") or ai.get("gemini_key")
-    if not has_key:
-        raise ValueError("API Key AI belum dikonfigurasi di Settings")
 
     system_msg = build_caption_system_message(platform, tone)
     user_parts = [f"Topik: {topic}"]
@@ -542,10 +569,6 @@ def generate_seo_article(
 ) -> dict:
     """Full SEO article generation pipeline — provider-agnostic via call_ai_sync."""
     ai = get_ai_config(db, "article")
-    # Provider-agnostic check: any configured provider key is acceptable
-    has_key = ai.get("openai_key") or ai.get("claude_key") or ai.get("gemini_key")
-    if not has_key:
-        raise ValueError("API Key AI belum dikonfigurasi di Settings")
 
     target_title = title or f"Panduan Lengkap: {keyword}"
 

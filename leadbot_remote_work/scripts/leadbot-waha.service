@@ -1,0 +1,17 @@
+[Unit]
+Description=LeadBot WAHA WhatsApp API
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/leadbot
+ExecStart=/opt/leadbot/scripts/waha-run.sh
+ExecStop=/usr/bin/docker stop leadbot-waha
+Restart=always
+RestartSec=10
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

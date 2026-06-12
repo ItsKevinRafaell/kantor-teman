@@ -28,20 +28,16 @@ class AIProxyIn(BaseModel):
     base_url: str
     api_key: str = ""
     model: str = ""
-    provider: str = "openai"  # openai, anthropic, gemini, openrouter, custom
+    provider: str = "custom"  # runtime always uses 9router/OpenAI-compatible
     feature: Optional[str] = None
 
     @field_validator("provider")
     @classmethod
     def validate_provider(cls, v: str) -> str:
-        # Map legacy names to canonical
-        aliases = {"claude": "anthropic"}
-        if v in aliases:
-            v = aliases[v]
-        valid = {"openai", "anthropic", "gemini", "openrouter", "custom"}
+        valid = {"openai", "anthropic", "gemini", "openrouter", "custom", "claude", "9router"}
         if v not in valid:
-            raise ValueError("Provider must be one of: " + ", ".join(sorted(valid)))
-        return v
+            raise ValueError("Provider must be 9router/OpenAI-compatible")
+        return "custom"
 
 
 class AIProxyOut(BaseModel):

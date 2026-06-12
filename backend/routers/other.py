@@ -12,11 +12,12 @@ from models import get_db, log_audit, User, Lead, MessageTemplate, ClientDocumen
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, UPLOADS_DIR,
     encrypt_password, decrypt_password,
-    get_fonnte_token, _send_fonnte_sync, log_outreach_cost,
+    log_outreach_cost,
     build_analysis_prompt, call_ai_provider, parse_ai_response,
     _detect_project_type, _detect_service_type, _detect_contract_months,
     _check_simple_rate_limit, _call_ai_sync,
 )
+from app.core.whatsapp_provider import send_whatsapp_message_sync
 from app.constants import LeadStatus
 from app.services import board_service
 
@@ -42,21 +43,21 @@ def send_wa_manual(body: WaSendIn, current_user: User = Depends(get_current_user
         raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
     if lead.do_not_contact:
         raise HTTPException(status_code=409, detail="Lead memilih opt-out. Pengiriman WhatsApp diblokir.")
-    token = get_fonnte_token(db)
-    print(f"[WA SEND] phone={lead.phone_number} token=***", flush=True)
-    if not token:
-        raise HTTPException(status_code=400, detail="Fonnte token belum dikonfigurasi.")
     import httpx as _httpx
-    success = _send_fonnte_sync(lead.phone_number, body.message, token, _httpx)
-    print(f"[WA SEND] success={success}", flush=True)
-    if success:
+    result = send_whatsapp_message_sync(db, lead.phone_number, body.message, _httpx, {
+        "lead_id": lead.id,
+        "request_id": f"manual:{lead.id}:{int(time.time())}",
+        "business_name": lead.business_name,
+    })
+    print(f"[WA SEND] provider={result.provider} success={result.ok}", flush=True)
+    if result.ok:
         if lead.status == "Scraped":
             lead.status = LeadStatus.WA_SENT
             db.commit()
         log_outreach_cost(db, None, 1)
         log_audit(db, current_user.name, "SEND_WA", "leads", lead.id, {"type": "manual"})
-        return {"success": True, "message": "Pesan terkirim via Fonnte."}
-    raise HTTPException(status_code=502, detail="Gagal mengirim pesan via Fonnte.")
+        return {"success": True, "message": f"Pesan terkirim via {result.provider.upper()}."}
+    raise HTTPException(status_code=502, detail=f"Gagal mengirim pesan via {result.provider.upper()}: {result.error or 'provider error'}")
 
 
 
