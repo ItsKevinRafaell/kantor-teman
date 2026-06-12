@@ -35,7 +35,7 @@ SECRET_ENCRYPTION_KEY="fernet-key-yang-sudah-dipakai"
 DATABASE_URL="mysql+pymysql://user:password@localhost/database"
 FRONTEND_URL="https://kantorteman.my.id"
 CORS_ORIGIN="https://kantorteman.my.id"
-ENABLE_BACKGROUND_SCHEDULER="true"
+ENABLE_BACKGROUND_SCHEDULER="false"
 FONNTE_WEBHOOK_SECRET=""
 ```
 
@@ -43,7 +43,7 @@ Catatan:
 
 - Jangan mengganti `SECRET_ENCRYPTION_KEY` jika sudah ada data brankas terenkripsi.
 - Isi `FONNTE_WEBHOOK_SECRET` hanya jika provider webhook dapat mengirim header `x-fonnte-webhook-secret`. Jika diisi, callback tanpa header tersebut ditolak.
-- Scheduler memproses antrean blast setiap menit, follow-up setiap jam, dan auto-deduct langganan setiap hari.
+- Di shared hosting Passenger/cPanel, biarkan `ENABLE_BACKGROUND_SCHEDULER="false"` supaya setiap worker web tidak menjalankan scheduler sendiri. Jalankan scheduler hanya dari worker/process terpisah yang memang disiapkan untuk background job.
 - API key provider dapat diatur dari menu admin setelah deploy.
 
 ## Verifikasi Setelah Restart

@@ -158,7 +158,7 @@ def _run_project_billing_invoices():
 
 
 def _start_background_scheduler():
-    if os.getenv("ENABLE_BACKGROUND_SCHEDULER", "true").lower() != "true":
+    if os.getenv("ENABLE_BACKGROUND_SCHEDULER", "false").lower() != "true":
         return None
     from apscheduler.schedulers.background import BackgroundScheduler
     sched = BackgroundScheduler(timezone="Asia/Jakarta", daemon=True)
