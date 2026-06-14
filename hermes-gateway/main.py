@@ -694,6 +694,24 @@ def _reschedule_queue(queue_id: str, delay_seconds: int = 5) -> Optional[dict]:
         con.close()
 
 
+def _mark_queue_final(run_id: Optional[str], status: str, error: str = "") -> None:
+    if not run_id:
+        return
+    con = _sync_db()
+    try:
+        con.execute(
+            """
+            UPDATE chat_queue
+            SET status = ?, error = ?, updated_at = ?
+            WHERE run_id = ?
+            """,
+            (status, error[:500], time.time(), run_id),
+        )
+        con.commit()
+    finally:
+        con.close()
+
+
 def _start_chat_run_now(
     profile: str,
     full_message: str,
@@ -1333,6 +1351,7 @@ def _flush_run_partial(profile: str, run_id: str, session_id: Optional[str] = No
 
 
 def _persist_run_final(profile: str, run_id: str, response: str, session_id: Optional[str] = None) -> None:
+    _mark_queue_final(run_id, "completed")
     with RUN_LOCK:
         should_mirror = bool(run_id and run_id not in MIRRORED_RUNS)
         if should_mirror:
@@ -1696,8 +1715,10 @@ def _normalize_run_response(profile: str, run: dict) -> dict:
         run_id = result.get("run_id")
         _persist_run_final(profile, run_id, result["response"], result.get("session_id"))
     elif result.get("status") in {"failed", "cancelled"}:
+        run_id = result.get("run_id")
+        _mark_queue_final(run_id, result["status"], str(result.get("error") or ""))
         with RUN_LOCK:
-            if ACTIVE_RUNS.get(profile) == result.get("run_id"):
+            if ACTIVE_RUNS.get(profile) == run_id:
                 ACTIVE_RUNS.pop(profile, None)
     return result
 
