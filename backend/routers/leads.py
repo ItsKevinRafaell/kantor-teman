@@ -53,6 +53,19 @@ PRODUCT_INTEREST_LABELS = {
 }
 
 
+def _places_error_message(resp: httpx.Response) -> str:
+    try:
+        payload = resp.json()
+    except Exception:
+        return f"HTTP {resp.status_code}: {resp.text[:200]}"
+    error = payload.get("error") if isinstance(payload, dict) else None
+    if isinstance(error, dict):
+        message = error.get("message") or error.get("status")
+        if message:
+            return str(message)
+    return f"HTTP {resp.status_code}"
+
+
 def _is_autolead_source(source: str) -> bool:
     value = (source or "").lower()
     return "leadbot" in value or "autolead" in value
@@ -212,16 +225,21 @@ async def search_businesses(
             "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.location,nextPageToken",
         }
 
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(timeout=20) as client:
             while len(results) < max_results:
                 body: dict = {"textQuery": q, "pageSize": min(20, max_results - len(results)), "languageCode": "id"}
                 if page_token:
                     body["pageToken"] = page_token
 
-                resp = await client.post(PLACES_NEW_SEARCH_URL, json=body, headers=headers)
+                try:
+                    resp = await client.post(PLACES_NEW_SEARCH_URL, json=body, headers=headers)
+                except httpx.TimeoutException:
+                    raise HTTPException(status_code=504, detail="Google Places timeout. Coba ulang dengan target hasil lebih kecil.")
+                except httpx.HTTPError as exc:
+                    raise HTTPException(status_code=502, detail=f"Gagal menghubungi Google Places: {str(exc)[:180]}")
                 if resp.status_code != 200:
-                    detail = resp.json().get("error", {}).get("message", f"HTTP {resp.status_code}")
-                    raise HTTPException(status_code=502, detail=f"Google API error: {detail}")
+                    detail = _places_error_message(resp)
+                    raise HTTPException(status_code=502, detail=f"Google Places error: {detail}")
 
                 data = resp.json()
                 for place in data.get("places", []):
@@ -253,6 +271,7 @@ async def search_businesses(
                 page_token = data.get("nextPageToken")
                 if not page_token:
                     break
+                await asyncio.sleep(1.5)
 
         # Record scrape history
         db.add(ScrapeHistory(

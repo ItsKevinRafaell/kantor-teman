@@ -60,7 +60,7 @@ LEGACY_PROFILE_DIRS = {
     "sena": "vision",
 }
 ROUTER_INTERNAL_BASE_URL = os.getenv("ROUTER_INTERNAL_BASE_URL", os.getenv("NINE_ROUTER_INTERNAL_BASE_URL", "http://127.0.0.1:20128/v1")).rstrip("/")
-ROUTER_EXTERNAL_BASE_URL = os.getenv("ROUTER_EXTERNAL_BASE_URL", os.getenv("NINE_ROUTER_EXTERNAL_BASE_URL", "http://9router.kantorteman.my.id/")).rstrip("/")
+ROUTER_EXTERNAL_BASE_URL = os.getenv("ROUTER_EXTERNAL_BASE_URL", os.getenv("NINE_ROUTER_EXTERNAL_BASE_URL", "https://9router.kantorteman.my.id")).rstrip("/")
 ROUTER_KEY_FILES = [
     Path("/home/kevin/.9router/auth/hermes-router-key"),
     Path("/root/.9router/auth/hermes-router-key"),
@@ -975,6 +975,71 @@ def _serialize_timeline(row: sqlite3.Row) -> dict:
     }
 
 
+def _telegram_binding_summary(profile: str) -> dict:
+    binding = _telegram_binding(profile)
+    origin = (binding or {}).get("origin") or {}
+    chat_id = str(origin.get("chat_id") or "")
+    return {
+        "profile": profile,
+        "display_name": _profile_display_name(profile),
+        "session_id": (binding or {}).get("session_id"),
+        "chat_id": chat_id[-6:] if chat_id else "",
+        "connected": bool(binding),
+    }
+
+
+def _timeline_rows_for_profiles(profiles: list[str], after: int, limit: int, source_filter: Optional[object] = None) -> tuple[list[sqlite3.Row], int, bool]:
+    if not profiles:
+        return [], 0, False
+    placeholders = ",".join("?" for _ in profiles)
+    params: list = [*profiles]
+    source_clause = ""
+    if isinstance(source_filter, (list, tuple, set)):
+        sources = [str(source) for source in source_filter if str(source)]
+        if sources:
+            source_placeholders = ",".join("?" for _ in sources)
+            source_clause = f"AND source IN ({source_placeholders})"
+            params.extend(sources)
+    elif source_filter:
+        source_clause = "AND source = ?"
+        params.append(str(source_filter))
+    latest_params = [*params]
+    con = _sync_db()
+    try:
+        latest = con.execute(
+            f"SELECT COALESCE(MAX(id), 0) FROM timeline_events WHERE profile IN ({placeholders}) {source_clause}",
+            latest_params,
+        ).fetchone()[0]
+        latest_id = int(latest or 0)
+        if after > latest_id:
+            after = 0
+        if after < 0:
+            rows = con.execute(
+                f"""
+                SELECT * FROM timeline_events
+                WHERE profile IN ({placeholders})
+                  {source_clause}
+                ORDER BY id DESC LIMIT ?
+                """,
+                [*params, limit],
+            ).fetchall()
+            return list(reversed(rows)), latest_id, False
+        rows = con.execute(
+            f"""
+            SELECT * FROM timeline_events
+            WHERE profile IN ({placeholders})
+              {source_clause}
+              AND id > ?
+            ORDER BY id LIMIT ?
+            """,
+            [*params, after, limit],
+        ).fetchall()
+        cursor = int(rows[-1]["id"]) if rows else after
+        return rows, cursor, len(rows) == limit
+    finally:
+        con.close()
+
+
 def _profiles_for_sync() -> list[str]:
     return [profile for profile, _ in _iter_agent_profiles()]
 
@@ -1844,6 +1909,47 @@ def timeline(profile: str, after: int = 0, limit: int = 200, _: str = Depends(ve
         "has_more": len(rows) == limit,
         "pending_approval_count": int(pending or 0),
     }
+
+
+@app.get("/api/office/telegram/mirror")
+def telegram_mirror(after: int = 0, limit: int = 200, profile: Optional[str] = None, profiles: Optional[str] = None, _: str = Depends(verify_auth)):
+    requested = profiles or profile
+    if requested:
+        profile_names = [resolve_profile(item.strip()) for item in requested.split(",") if item.strip()]
+    else:
+        profile_names = [item[0] for item in _iter_agent_profiles()]
+    for profile_name in profile_names:
+        _ingest_profile_messages(profile_name)
+    rows, cursor, has_more = _timeline_rows_for_profiles(profile_names, after, max(1, min(limit, 500)), source_filter=["telegram-db", "web", "web-run"])
+    grouped: dict[str, list[dict]] = {}
+    for row in rows:
+        grouped.setdefault(row["profile"], []).append(_serialize_timeline(row))
+    return {
+        "profiles": [_telegram_binding_summary(profile_name) for profile_name in profile_names],
+        "events": [_serialize_timeline(row) for row in rows],
+        "groups": grouped,
+        "next_cursor": cursor,
+        "has_more": has_more,
+    }
+
+
+class TelegramMirrorMessage(BaseModel):
+    message: str
+    profiles: Optional[list[str]] = None
+
+
+@app.post("/api/office/telegram/mirror")
+def telegram_mirror_send(req: TelegramMirrorMessage, _: str = Depends(verify_auth)):
+    content = req.message.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Message kosong")
+    targets = [resolve_profile(profile) for profile in (req.profiles or []) if profile]
+    if not targets:
+        targets = [profile for profile, _ in _iter_agent_profiles()]
+    results = []
+    for target in targets:
+        results.append(chat(target, ChatRequest(message=content), _))
+    return {"ok": True, "targets": targets, "results": results}
 
 
 @app.get("/api/office/approvals")

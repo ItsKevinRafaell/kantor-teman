@@ -19,6 +19,7 @@ from app.services.ai_service import (
     _canonical_provider,
     _router_api_key,
     _router_base_url,
+    _is_9router_url,
     _router_model,
     fetch_9router_models_async,
 )
@@ -227,12 +228,21 @@ async def ai_health(current_user: User = Depends(get_current_user), db: Session 
             "status": "connected",
             "provider": "9router",
             "base_url": result["base_url"],
+            "stored_base_url": config.get("stored_base_url", ""),
+            "base_url_repaired": bool(config.get("base_url_repaired")),
             "model": model,
             "models_count": result["count"],
         }
     except Exception as e:
         print(f"[AI health] {e}", flush=True)
-        return {"status": "offline", "provider": "9router", "base_url": base, "model": model}
+        return {
+            "status": "offline",
+            "provider": "9router",
+            "base_url": base,
+            "stored_base_url": config.get("stored_base_url", ""),
+            "base_url_repaired": bool(config.get("base_url_repaired")),
+            "model": model,
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -407,6 +417,8 @@ def list_ai_proxies(current_user: User = Depends(require_admin), db: Session = D
 
 @router.post("/api/ai-proxies", response_model=AIProxyOut, status_code=201)
 def create_ai_proxy(body: AIProxyIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    if not _is_9router_url(body.base_url):
+        raise HTTPException(status_code=400, detail="Base URL harus endpoint 9router VPS.")
     proxy = AIProxy(
         name=body.name,
         base_url=_router_base_url(body.base_url),
@@ -426,6 +438,8 @@ def update_ai_proxy(proxy_id: str, body: AIProxyIn, current_user: User = Depends
     proxy = db.query(AIProxy).filter_by(id=proxy_id).first()
     if not proxy:
         raise HTTPException(status_code=404, detail="Proxy tidak ditemukan")
+    if not _is_9router_url(body.base_url):
+        raise HTTPException(status_code=400, detail="Base URL harus endpoint 9router VPS.")
     proxy.name = body.name
     proxy.base_url = _router_base_url(body.base_url)
     # Preserve existing api_key if incoming is blank or masked

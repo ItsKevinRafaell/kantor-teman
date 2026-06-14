@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://api.kantorteman.my.id";
 
 let onUnauthorized: (() => void) | null = null;
 export function setUnauthorizedHandler(fn: () => void) { onUnauthorized = fn; }
@@ -37,7 +37,13 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string> ?? {}),
   };
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: "include" });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: "include" });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "network error";
+    throw new Error(`Tidak bisa menghubungi API KantorTeman (${API_BASE}). Cek koneksi, CORS, atau status backend. Detail: ${detail}`);
+  }
   if (res.status === 401 && typeof window !== "undefined" && !path.includes("/auth/")) {
     localStorage.removeItem("kt_name");
     localStorage.removeItem("kt_email");
@@ -54,8 +60,13 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
 export async function apiFetchJson<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await apiFetch(path, options);
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Request failed" }));
-    throw new Error(err.detail || `HTTP ${res.status}`);
+    const text = await res.text().catch(() => "");
+    let detail = text;
+    try {
+      const err = JSON.parse(text);
+      detail = err.detail || err.message || err.error || text;
+    } catch { /* keep text */ }
+    throw new Error(detail || `HTTP ${res.status}`);
   }
   return res.json();
 }

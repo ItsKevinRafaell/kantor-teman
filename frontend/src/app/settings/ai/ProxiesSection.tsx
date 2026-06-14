@@ -55,13 +55,20 @@ export default function ProxiesSection({ proxies, routerModels, onFetchProxies, 
   async function saveProxy() {
     const { apiFetch } = await import("../../../lib/api");
     if (!proxyForm.name || !proxyForm.base_url || !proxyForm.model) { showToast("Nama, Base URL, dan model wajib diisi"); return; }
+    if (!/9router|127\.0\.0\.1:20128|localhost:20128/i.test(proxyForm.base_url)) {
+      showToast("Base URL harus endpoint 9router VPS.");
+      return;
+    }
     const payload: Record<string, unknown> = { name: "9router", base_url: proxyForm.base_url, model: proxyForm.model, feature: proxyForm.feature || null, provider: "9router" };
     if (proxyForm.api_key) payload.api_key = proxyForm.api_key;
     const res = editingProxy
       ? await apiFetch(`/api/ai-proxies/${editingProxy.id}`, { method: "PUT", body: JSON.stringify(payload) })
       : await apiFetch("/api/ai-proxies", { method: "POST", body: JSON.stringify(payload) });
-    if (res.ok) { setProxyModal(false); onFetchProxies(); showToast(editingProxy ? "Proxy diupdate" : "Proxy ditambahkan"); }
-    else showToast("Gagal simpan proxy");
+    if (res.ok) { setProxyModal(false); onFetchProxies(); showToast(editingProxy ? "Endpoint 9router diupdate" : "Endpoint 9router ditambahkan"); }
+    else {
+      const body = await res.json().catch(() => ({}));
+      showToast(body.detail || "Gagal simpan endpoint 9router");
+    }
   }
 
   async function handleDeleteProxy(id: string) {
@@ -144,6 +151,7 @@ export default function ProxiesSection({ proxies, routerModels, onFetchProxies, 
               <input value={proxyForm.name} onChange={e => setProxyForm({...proxyForm, name: e.target.value})} placeholder="Nama endpoint" className={inputCls} />
               <input value="9router" disabled className={inputCls} />
               <input value={proxyForm.base_url} onChange={e => setProxyForm({...proxyForm, base_url: e.target.value})} placeholder={DEFAULT_9ROUTER_URL} className={inputCls} />
+              <p className="text-[11px] leading-5 text-neutral-500">Hanya endpoint 9router VPS yang diterima. URL tunnel lama atau provider lain akan ditolak.</p>
               <input value={proxyForm.api_key} onChange={e => setProxyForm({...proxyForm, api_key: e.target.value})} placeholder={editingProxy ? "API Key 9router (kosongkan jika tidak berubah)" : "API Key 9router (opsional jika VPS lokal tidak butuh key)"} type="password" className={inputCls} />
               {routerModels.length > 0 ? (
                 <select value={proxyForm.model} onChange={e => setProxyForm({...proxyForm, model: e.target.value})} className={inputCls}>

@@ -26,7 +26,15 @@ interface RouterModel {
   owned_by?: string;
 }
 
-interface HealthState { status: "connected" | "offline" | "not_configured" | "loading"; provider: string; base_url: string; model: string; }
+interface HealthState {
+  status: "connected" | "offline" | "not_configured" | "loading";
+  provider: string;
+  base_url: string;
+  model: string;
+  models_count?: number;
+  stored_base_url?: string;
+  base_url_repaired?: boolean;
+}
 
 const FEATURES = [
   { key: "article", label: "Generate Artikel SEO" },
@@ -152,10 +160,16 @@ export default function AIEngineTab() {
           </div>
         </div>
         {health.status === "connected" && (
-          <div className="flex items-center gap-4 text-xs text-neutral-500">
+          <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-500">
             <span><span className="font-semibold">Router:</span> 9router</span>
             <span><span className="font-semibold">Model:</span> {health.model || "—"}</span>
+            {health.models_count != null && <span><span className="font-semibold">Registry:</span> {health.models_count} model/combo</span>}
             <span className="truncate"><span className="font-semibold">URL:</span> {health.base_url || "—"}</span>
+          </div>
+        )}
+        {health.base_url_repaired && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+            Config lama di database mengarah ke endpoint non-9router dan sedang diabaikan. Runtime memakai {health.base_url || "endpoint 9router default"}.
           </div>
         )}
       </div>

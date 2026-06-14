@@ -32,14 +32,26 @@ def _is_9router_url(value: Optional[str]) -> bool:
 
 def _router_base_url(candidate: Optional[str] = None) -> str:
     candidate_base = _ensure_v1_base_url(candidate)
-    if candidate_base:
+    if candidate_base and _is_9router_url(candidate_base):
         return candidate_base
     return _ensure_v1_base_url(
-        os.getenv("NINE_ROUTER_URL")
-        or os.getenv("AI_BASE_URL")
-        or os.getenv("OPENAI_BASE_URL")
-        or NINE_ROUTER_PUBLIC_BASE_URL
+        next(
+            (
+                value for value in [
+                    os.getenv("NINE_ROUTER_URL"),
+                    os.getenv("AI_BASE_URL"),
+                    os.getenv("OPENAI_BASE_URL"),
+                ]
+                if _is_9router_url(value)
+            ),
+            NINE_ROUTER_PUBLIC_BASE_URL,
+        )
     )
+
+
+def _router_base_was_repaired(candidate: Optional[str]) -> bool:
+    value = _ensure_v1_base_url(candidate)
+    return bool(value and not _is_9router_url(value))
 
 
 def _router_model(candidate: Optional[str] = None) -> str:
@@ -173,6 +185,8 @@ def list_ai_proxies(db: Session) -> list[AIProxy]:
 
 
 def create_ai_proxy(db: Session, name: str, base_url: str, api_key: str, model: str, feature: str) -> AIProxy:
+    if base_url and not _is_9router_url(base_url):
+        raise ValueError("Base URL harus endpoint 9router")
     proxy = AIProxy(
         name=name,
         base_url=_router_base_url(base_url),
@@ -195,6 +209,8 @@ def update_ai_proxy(db: Session, proxy_id: str, updates: dict) -> AIProxy:
         if key in updates:
             val = updates[key]
             if key == "base_url" and val:
+                if not _is_9router_url(val):
+                    raise ValueError("Base URL harus endpoint 9router")
                 val = _router_base_url(val)
             if key == "provider" and val:
                 if val not in {"9router", "custom"}:
@@ -270,25 +286,31 @@ def get_ai_config(db: Session, capability: str = "chat") -> dict:
     proxy = get_proxy_for_feature(db, capability)
     if proxy:
         base_url = _router_base_url(proxy.base_url)
+        repaired = _router_base_was_repaired(proxy.base_url)
         api_key = _router_api_key(proxy.api_key)
         model = _router_model(proxy.model)
         cfg = {
             "provider": "9router",
             "stored_provider": "9router",
             "base_url": base_url,
+            "stored_base_url": proxy.base_url,
+            "base_url_repaired": repaired,
             "model": model,
             "openai_key": api_key,
             "gemini_key": "",
             "claude_key": "",
         }
     else:
-        base_url = _router_base_url(_setting_value(db, "ai_base_url"))
+        stored_base_url = _setting_value(db, "ai_base_url")
+        base_url = _router_base_url(stored_base_url)
         api_key = _router_api_key(_setting_value(db, "ai_api_key") or _setting_value(db, "openai_api_key"))
         model = _router_model(_setting_value(db, "ai_model"))
         cfg = {
             "provider": "9router",
             "stored_provider": "9router",
             "base_url": base_url,
+            "stored_base_url": stored_base_url,
+            "base_url_repaired": _router_base_was_repaired(stored_base_url),
             "model": model,
             "openai_key": api_key,
             "gemini_key": "",

@@ -41,6 +41,26 @@ interface Props {
   onBatchSelect: (batchName: string) => void;
 }
 
+async function readApiError(res: Response): Promise<string> {
+  const text = await res.text().catch(() => "");
+  if (!text) return `HTTP ${res.status}`;
+  try {
+    const parsed = JSON.parse(text) as { detail?: unknown; message?: unknown; error?: unknown };
+    const detail = parsed.detail ?? parsed.message ?? parsed.error;
+    if (typeof detail === "string") return detail;
+    if (detail && typeof detail === "object") return JSON.stringify(detail);
+  } catch { /* keep raw text */ }
+  return text.slice(0, 240);
+}
+
+function scrapeErrorMessage(err: unknown): string {
+  const message = err instanceof Error ? err.message : "Terjadi kesalahan.";
+  if (/Failed to fetch|NetworkError|Load failed|Tidak bisa menghubungi API/i.test(message)) {
+    return "Scrape gagal karena browser tidak bisa menghubungi API KantorTeman. Refresh halaman, pastikan sudah login, lalu coba lagi. Jika tetap gagal, backend/CORS production perlu dicek.";
+  }
+  return message;
+}
+
 export default function ScrapePanel({ onBatchSelect }: Props) {
   const [category, setCategory] = useState("");
   const [location, setLocation] = useState("");
@@ -114,8 +134,7 @@ export default function ScrapePanel({ onBatchSelect }: Props) {
       });
       const res = await apiFetch(`/api/search?${params}`);
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.detail ?? `HTTP ${res.status}`);
+        throw new Error(await readApiError(res));
       }
       const data: Business[] = await res.json();
       setResults(data);
@@ -125,7 +144,7 @@ export default function ScrapePanel({ onBatchSelect }: Props) {
         runBatchAnalysis();
       }
     } catch (err: unknown) {
-      setToast({ message: err instanceof Error ? err.message : "Terjadi kesalahan.", type: "error" });
+      setToast({ message: scrapeErrorMessage(err), type: "error" });
     } finally {
       setLoading(false);
     }
