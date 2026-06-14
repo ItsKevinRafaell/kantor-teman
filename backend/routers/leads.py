@@ -37,7 +37,10 @@ from app.services.scoring_service import (
 from app.services.notification_service import create_notification
 from app.constants import CLIENT_STATUS_VALUES
 from app.core.cache import cached, clear_cache_prefix
-from app.core.config import PLACES_NEW_SEARCH_URL
+try:
+    from app.core.config import PLACES_NEW_SEARCH_URL
+except Exception:
+    PLACES_NEW_SEARCH_URL = os.environ.get("PLACES_NEW_SEARCH_URL", "https://places.googleapis.com/v1/places:searchText")
 
 router = APIRouter()
 

@@ -381,10 +381,28 @@ class ProviderConfigOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+def _ai_proxy_out(proxy: AIProxy) -> dict:
+    base_url = _router_base_url(proxy.base_url)
+    legacy_name = (proxy.name or "").strip()
+    is_legacy_name = legacy_name.lower() in {"aimurah", "openai", "custom"} or "aimurah" in legacy_name.lower()
+    display_name = "9router" if is_legacy_name else (legacy_name or "9router")
+    api_key = proxy.api_key or ""
+    return {
+        "id": proxy.id,
+        "name": display_name,
+        "base_url": base_url,
+        "api_key": "***" if api_key else "",
+        "model": _router_model(proxy.model),
+        "provider": "9router",
+        "feature": proxy.feature,
+        "is_active": bool(proxy.is_active),
+        "created_at": proxy.created_at,
+    }
+
 
 @router.get("/api/ai-proxies", response_model=List[AIProxyOut])
 def list_ai_proxies(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    return db.query(AIProxy).order_by(AIProxy.created_at.asc()).all()
+    return [_ai_proxy_out(proxy) for proxy in db.query(AIProxy).order_by(AIProxy.created_at.asc()).all()]
 
 
 @router.post("/api/ai-proxies", response_model=AIProxyOut, status_code=201)

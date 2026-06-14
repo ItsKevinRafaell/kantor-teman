@@ -5,7 +5,6 @@ import { RefreshCw, CheckCircle2, XCircle } from "lucide-react";
 import ConfirmModal from "../../components/ConfirmModal";
 import ModelRegistrySection from "./ai/ModelRegistrySection";
 import ProxiesSection from "./ai/ProxiesSection";
-import { inputCls } from "../../lib/inputCls";
 
 interface AIModel {
   id: string; name: string; model_id: string; description: string | null;
@@ -29,14 +28,17 @@ interface RouterModel {
 
 interface HealthState { status: "connected" | "offline" | "not_configured" | "loading"; provider: string; base_url: string; model: string; }
 
-const PROVIDER_OPTIONS = [
-  { value: "9router", label: "9router" },
-];
-
 const FEATURES = [
   { key: "article", label: "Generate Artikel SEO" },
   { key: "analysis", label: "Analisa Lead" },
 ] as const;
+
+function displayProxyName(proxy?: AIProxy | null): string {
+  if (!proxy) return "Belum ada";
+  const name = (proxy.name || "").trim();
+  if (!name || /aimurah|openai|custom/i.test(name)) return "9router";
+  return name;
+}
 
 export default function AIEngineTab() {
   const [models, setModels] = useState<AIModel[]>([]);
@@ -114,10 +116,6 @@ export default function AIEngineTab() {
     if (res.ok) { fetchModels(); showToast(`Default ${capability} diset`); }
   }
 
-  // Get active 9router endpoint.
-  const activeProxy = proxies.find(p => p.is_active);
-  const activeProxyName = activeProxy?.name || "Belum ada";
-
   return (
     <div className="max-w-4xl space-y-6">
       {toast && (
@@ -178,9 +176,9 @@ export default function AIEngineTab() {
               <div key={p.id} className="flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-900/10">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">{p.name}</span>
+                    <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">{displayProxyName(p)}</span>
                     <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold rounded">AKTIF</span>
-                    {p.provider && <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500">{PROVIDER_OPTIONS.find(o => o.value === p.provider)?.label || p.provider}</span>}
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500">9router</span>
                   </div>
                   <p className="text-xs text-neutral-400 truncate mt-0.5">{p.base_url} • {p.model || "default"}</p>
                 </div>
@@ -206,7 +204,7 @@ export default function AIEngineTab() {
               <select value={featureDefaults[f.key] || ""} onChange={e => setFeatureDefaults(prev => ({ ...prev, [f.key]: e.target.value }))}
                 className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-neutral-50 dark:bg-neutral-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-yellow/50 transition">
                 <option value="">Default (endpoint aktif)</option>
-                {proxies.map(p => <option key={p.id} value={p.id}>{p.name} {p.model ? `(${p.model})` : ""}</option>)}
+                {proxies.map(p => <option key={p.id} value={p.id}>{displayProxyName(p)} {p.model ? `(${p.model})` : ""}</option>)}
               </select>
             </div>
           ))}

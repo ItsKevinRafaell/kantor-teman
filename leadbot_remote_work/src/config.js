@@ -65,9 +65,9 @@ module.exports = {
   },
   ai: {
     provider: '9router',
-    endpointStyle: 'openai',
+    endpointStyle: '9router-compatible',
     baseUrl: routerBaseFromEnv(),
-    externalBaseUrl: process.env.NINE_ROUTER_EXTERNAL_URL || 'http://9router.kantorteman.my.id/v1',
+    externalBaseUrl: process.env.NINE_ROUTER_EXTERNAL_URL || 'https://9router.kantorteman.my.id/v1',
     apiKey: process.env.AI_API_KEY || process.env.NINE_ROUTER_API_KEY || process.env.ROUTER_API_KEY || '',
     model: process.env.AI_MODEL || process.env.NINE_ROUTER_MODEL || 'combo-genflow',
     maxTokens: intFromEnv('AI_MAX_TOKENS', 450),

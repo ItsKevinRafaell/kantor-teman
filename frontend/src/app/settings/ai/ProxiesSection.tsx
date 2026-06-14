@@ -16,15 +16,19 @@ interface RouterModel {
   owned_by?: string;
 }
 
-const PROVIDER_OPTIONS = [
-  { value: "9router", label: "9router" },
-];
-
 const PROXY_FEATURES = [
   { key: "", label: "Fallback (semua fitur)" },
   { key: "article", label: "Artikel SEO" },
   { key: "analysis", label: "Analisa Lead" },
 ];
+
+const DEFAULT_9ROUTER_URL = "https://9router.kantorteman.my.id/v1";
+
+function displayProxyName(proxy: Pick<AIProxy, "name">): string {
+  const name = (proxy.name || "").trim();
+  if (!name || /aimurah|openai|custom/i.test(name)) return "9router";
+  return name;
+}
 
 interface ProxiesSectionProps {
   proxies: AIProxy[];
@@ -37,21 +41,21 @@ interface ProxiesSectionProps {
 export default function ProxiesSection({ proxies, routerModels, onFetchProxies, showToast, onConfirmDelete }: ProxiesSectionProps) {
   const [proxyModal, setProxyModal] = useState(false);
   const [editingProxy, setEditingProxy] = useState<AIProxy | null>(null);
-  const [proxyForm, setProxyForm] = useState({ name: "", base_url: "http://9router.kantorteman.my.id/v1", api_key: "", model: "combo-genflow", feature: "", provider: "9router" });
+  const [proxyForm, setProxyForm] = useState({ name: "", base_url: DEFAULT_9ROUTER_URL, api_key: "", model: "combo-genflow", feature: "", provider: "9router" });
   const [activatingProxy, setActivatingProxy] = useState<string | null>(null);
   const comboModels = routerModels.filter((model) => model.type === "combo" || model.id.startsWith("combo-"));
   const regularModels = routerModels.filter((model) => !comboModels.includes(model));
 
   function openProxyModal(p: AIProxy | null) {
     setEditingProxy(p);
-    setProxyForm(p ? { name: p.name, base_url: p.base_url, api_key: "", model: p.model, feature: p.feature || "", provider: "9router" } : { name: "9router", base_url: "http://9router.kantorteman.my.id/v1", api_key: "", model: comboModels[0]?.id || "combo-genflow", feature: "", provider: "9router" });
+    setProxyForm(p ? { name: displayProxyName(p), base_url: p.base_url || DEFAULT_9ROUTER_URL, api_key: "", model: p.model, feature: p.feature || "", provider: "9router" } : { name: "9router", base_url: DEFAULT_9ROUTER_URL, api_key: "", model: comboModels[0]?.id || "combo-genflow", feature: "", provider: "9router" });
     setProxyModal(true);
   }
 
   async function saveProxy() {
     const { apiFetch } = await import("../../../lib/api");
     if (!proxyForm.name || !proxyForm.base_url || !proxyForm.model) { showToast("Nama, Base URL, dan model wajib diisi"); return; }
-    const payload: Record<string, unknown> = { name: proxyForm.name, base_url: proxyForm.base_url, model: proxyForm.model, feature: proxyForm.feature || null, provider: proxyForm.provider };
+    const payload: Record<string, unknown> = { name: "9router", base_url: proxyForm.base_url, model: proxyForm.model, feature: proxyForm.feature || null, provider: "9router" };
     if (proxyForm.api_key) payload.api_key = proxyForm.api_key;
     const res = editingProxy
       ? await apiFetch(`/api/ai-proxies/${editingProxy.id}`, { method: "PUT", body: JSON.stringify(payload) })
@@ -62,9 +66,9 @@ export default function ProxiesSection({ proxies, routerModels, onFetchProxies, 
 
   async function handleDeleteProxy(id: string) {
     const p = proxies.find(x => x.id === id);
-    if (onConfirmDelete) { onConfirmDelete(id, p?.name || "ini"); return; }
+    if (onConfirmDelete) { onConfirmDelete(id, p ? displayProxyName(p) : "ini"); return; }
     // Fallback if no confirmation handler provided
-    if (confirm(`Hapus proxy "${p?.name || id}"?`)) {
+    if (confirm(`Hapus proxy "${p ? displayProxyName(p) : id}"?`)) {
       const { apiFetch } = await import("../../../lib/api");
       const res = await apiFetch(`/api/ai-proxies/${id}`, { method: "DELETE" });
       if (res.ok) { onFetchProxies(); showToast("Proxy dihapus"); }
@@ -105,7 +109,7 @@ export default function ProxiesSection({ proxies, routerModels, onFetchProxies, 
               <div key={p.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors ${p.is_active ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-900/10" : "border-[var(--border-default)]"}`}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">{p.name}</span>
+                    <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">{displayProxyName(p)}</span>
                     {p.is_active && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">AKTIF</span>}
                     <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500">{featureLabel(p.feature)}</span>
                   </div>
@@ -139,7 +143,7 @@ export default function ProxiesSection({ proxies, routerModels, onFetchProxies, 
             <div className="space-y-3">
               <input value={proxyForm.name} onChange={e => setProxyForm({...proxyForm, name: e.target.value})} placeholder="Nama endpoint" className={inputCls} />
               <input value="9router" disabled className={inputCls} />
-              <input value={proxyForm.base_url} onChange={e => setProxyForm({...proxyForm, base_url: e.target.value})} placeholder="http://9router.kantorteman.my.id/v1" className={inputCls} />
+              <input value={proxyForm.base_url} onChange={e => setProxyForm({...proxyForm, base_url: e.target.value})} placeholder={DEFAULT_9ROUTER_URL} className={inputCls} />
               <input value={proxyForm.api_key} onChange={e => setProxyForm({...proxyForm, api_key: e.target.value})} placeholder={editingProxy ? "API Key 9router (kosongkan jika tidak berubah)" : "API Key 9router (opsional jika VPS lokal tidak butuh key)"} type="password" className={inputCls} />
               {routerModels.length > 0 ? (
                 <select value={proxyForm.model} onChange={e => setProxyForm({...proxyForm, model: e.target.value})} className={inputCls}>
