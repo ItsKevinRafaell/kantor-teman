@@ -30,7 +30,7 @@ interface RouterModel {
 interface HealthState { status: "connected" | "offline" | "not_configured" | "loading"; provider: string; base_url: string; model: string; }
 
 const PROVIDER_OPTIONS = [
-  { value: "custom", label: "9router (OpenAI-compatible)" },
+  { value: "9router", label: "9router" },
 ];
 
 const FEATURES = [
@@ -97,7 +97,7 @@ export default function AIEngineTab() {
   }
 
   function confirmDeleteModel(id: string, name: string) {
-    openConfirm(`Hapus Model "${name}"?`, "Model override akan dihapus permanen. Provider default tetap aktif.", () => deleteModel(id));
+    openConfirm(`Hapus Model "${name}"?`, "Model override akan dihapus permanen. Endpoint 9router default tetap aktif.", () => deleteModel(id));
   }
 
   async function deleteProxy(id: string) {
@@ -106,7 +106,7 @@ export default function AIEngineTab() {
   }
 
   function confirmDeleteProxy(id: string, name: string) {
-    openConfirm(`Hapus Provider "${name}"?`, "Provider ini akan dihapus permanen.", () => deleteProxy(id));
+    openConfirm(`Hapus Endpoint "${name}"?`, "Endpoint 9router ini akan dihapus permanen.", () => deleteProxy(id));
   }
 
   async function setDefault(id: string, capability: string) {
@@ -114,7 +114,7 @@ export default function AIEngineTab() {
     if (res.ok) { fetchModels(); showToast(`Default ${capability} diset`); }
   }
 
-  // Get active proxy as default provider
+  // Get active 9router endpoint.
   const activeProxy = proxies.find(p => p.is_active);
   const activeProxyName = activeProxy?.name || "Belum ada";
 
@@ -126,12 +126,12 @@ export default function AIEngineTab() {
         </div>
       )}
 
-      {/* AI Provider Health */}
+      {/* 9router Health */}
       <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">AI Provider Status</h2>
-            <p className="text-xs text-neutral-500 mt-0.5">Status koneksi ke 9router aktif</p>
+            <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Status 9router</h2>
+            <p className="text-xs text-neutral-500 mt-0.5">Model dan combo dibaca realtime dari 9router VPS.</p>
           </div>
           <div className="flex items-center gap-3">
             {health.status === "connected" && (
@@ -155,22 +155,22 @@ export default function AIEngineTab() {
         </div>
         {health.status === "connected" && (
           <div className="flex items-center gap-4 text-xs text-neutral-500">
-            <span><span className="font-semibold">Provider:</span> {PROVIDER_OPTIONS.find(o => o.value === health.provider)?.label || health.provider || "—"}</span>
+            <span><span className="font-semibold">Router:</span> 9router</span>
             <span><span className="font-semibold">Model:</span> {health.model || "—"}</span>
             <span className="truncate"><span className="font-semibold">URL:</span> {health.base_url || "—"}</span>
           </div>
         )}
       </div>
 
-      {/* Active Provider Config */}
+      {/* Active 9router Config */}
       <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 space-y-4">
         <div>
-          <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Provider Default</h2>
-          <p className="text-xs text-neutral-500 mt-1">Provider aktif untuk Artikel SEO dan Analisa Lead.</p>
+          <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Endpoint Default</h2>
+          <p className="text-xs text-neutral-500 mt-1">Endpoint 9router aktif untuk Artikel SEO dan Analisa Lead.</p>
         </div>
         {proxies.length === 0 ? (
           <div className="p-6 text-center">
-            <p className="text-sm text-neutral-500 mb-3">Belum ada provider AI. Tambahkan base URL, API key, dan model di bawah.</p>
+            <p className="text-sm text-neutral-500 mb-3">Belum ada endpoint 9router. Tambahkan base URL, API key, dan combo/model di bawah.</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -187,7 +187,7 @@ export default function AIEngineTab() {
               </div>
             ))}
             {proxies.filter(p => !p.is_active).length > 0 && (
-              <p className="text-xs text-neutral-400 mt-2">{proxies.filter(p => !p.is_active).length} provider lain tidak aktif. Aktifkan di section "AI Proxies".</p>
+              <p className="text-xs text-neutral-400 mt-2">{proxies.filter(p => !p.is_active).length} endpoint lain tidak aktif. Aktifkan di section "Endpoint 9router".</p>
             )}
           </div>
         )}
@@ -197,7 +197,7 @@ export default function AIEngineTab() {
       <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 space-y-4">
         <div>
           <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Model per Fitur</h2>
-          <p className="text-xs text-neutral-500 mt-1">Kosongkan jika semua fitur memakai provider aktif yang sama.</p>
+          <p className="text-xs text-neutral-500 mt-1">Kosongkan jika semua fitur memakai endpoint aktif yang sama.</p>
         </div>
         <div className="space-y-3">
           {FEATURES.map(f => (
@@ -205,7 +205,7 @@ export default function AIEngineTab() {
               <label className="text-sm text-neutral-700 dark:text-neutral-300 w-40 shrink-0">{f.label}</label>
               <select value={featureDefaults[f.key] || ""} onChange={e => setFeatureDefaults(prev => ({ ...prev, [f.key]: e.target.value }))}
                 className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-neutral-50 dark:bg-neutral-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-yellow/50 transition">
-                <option value="">Default (provider aktif)</option>
+                <option value="">Default (endpoint aktif)</option>
                 {proxies.map(p => <option key={p.id} value={p.id}>{p.name} {p.model ? `(${p.model})` : ""}</option>)}
               </select>
             </div>

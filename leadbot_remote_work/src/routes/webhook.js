@@ -3,7 +3,7 @@ const router = express.Router();
 const config = require('../config');
 const db = require('../db');
 const conversationService = require('../services/conversationService');
-const wahaService = require('../services/wahaService');
+const fonnteService = require('../services/fonnteService');
 const telegramService = require('../services/telegramService');
 const leadService = require('../services/leadService');
 const rateLimit = require('../middleware/rateLimit');
@@ -11,9 +11,12 @@ const aiService = require('../services/aiService');
 const escalationService = require('../services/escalationService');
 
 function verifyWebhookSecret(req, res, next) {
-  if (!config.waha.webhookSecret) return next();
-  const provided = req.get('x-webhook-secret') || req.get('x-waha-secret') || req.query.secret || req.body.secret;
-  if (provided === config.waha.webhookSecret) return next();
+  if (!config.fonnte.webhookSecret) return next();
+  const provided = req.get('x-webhook-secret')
+    || req.get('x-fonnte-webhook-secret')
+    || req.query.secret
+    || req.body.secret;
+  if (provided === config.fonnte.webhookSecret) return next();
   return res.status(401).json({ error: 'Invalid webhook secret' });
 }
 
@@ -44,7 +47,8 @@ router.get('/health', async (req, res) => {
     timestamp: new Date().toISOString(),
     rateLimit: rateLimit.getStats(),
     ai: aiService.getStatus(),
-    waha: wahaService.getStatus(),
+    whatsapp: fonnteService.getStatus(),
+    fonnte: fonnteService.getStatus(),
     escalations: await escalationService.getEscalationCount(),
   });
 });
@@ -56,14 +60,15 @@ router.get('/integrations/kantorteman/health', verifyKantorTemanBridge, async (r
     demo: config.kantorteman.bridgeDemo,
     bridgeTokenConfigured: Boolean(config.kantorteman.bridgeToken),
     allowedActions: ['health', 'whatsapp.demo_send'],
-    waha: wahaService.getStatus(),
+    whatsapp: fonnteService.getStatus(),
+    fonnte: fonnteService.getStatus(),
     timestamp: new Date().toISOString(),
   });
 });
 
 router.post('/webhook', verifyWebhookSecret, async (req, res) => {
   try {
-    const payload = wahaService.parseWebhookPayload(req.body);
+    const payload = fonnteService.parseWebhookPayload(req.body);
     if (payload.fromMe) return res.json({ success: true, ignored: 'from_me' });
     if (!payload.sender) return res.status(400).json({ error: 'Payload tidak valid: sender kosong' });
 
@@ -75,7 +80,7 @@ router.post('/webhook', verifyWebhookSecret, async (req, res) => {
       return res.status(429).json({ error: 'Rate limit exceeded' });
     }
 
-    console.log('[Webhook] WAHA inbound from', payload.sender);
+    console.log('[Webhook] Fonnte inbound from', payload.sender);
     const conversation = await conversationService.getOrCreateConversation(payload.sender, payload.name);
     await conversationService.addMessage(conversation.id, 'inbound', inboundText, {
       responder: 'customer',
@@ -150,7 +155,7 @@ router.post('/integrations/kantorteman/whatsapp/send', verifyKantorTemanBridge, 
     if (!target) return res.status(400).json({ success: false, error: 'target/phone wajib diisi' });
     if (!text) return res.status(400).json({ success: false, error: 'message/text wajib diisi' });
 
-    const phone = wahaService.normalizePhone(target);
+    const phone = fonnteService.normalizePhone(target);
     if (!phone) return res.status(400).json({ success: false, error: 'Nomor WhatsApp tidak valid' });
     if (!rateLimit.checkRateLimit('kt:' + phone)) {
       return res.status(429).json({ success: false, error: 'Rate limit exceeded' });
@@ -182,19 +187,19 @@ router.post('/integrations/kantorteman/whatsapp/send', verifyKantorTemanBridge, 
       return res.json({
         success: true,
         action: 'demo_recorded',
-        provider: 'autolead_bridge',
+        provider: 'fonnte',
         dryRun: true,
         conversationId: conversation.id,
         phone,
       });
     }
 
-    const sent = await wahaService.sendMessage(phone, text);
+    const sent = await fonnteService.sendMessage(phone, text);
     if (!sent.success) {
       return res.status(502).json({
         success: false,
         action: 'send_failed',
-        provider: 'autolead_bridge',
+        provider: 'fonnte',
         dryRun: false,
         conversationId: conversation.id,
         phone,
@@ -205,11 +210,11 @@ router.post('/integrations/kantorteman/whatsapp/send', verifyKantorTemanBridge, 
     return res.json({
       success: true,
       action: 'sent',
-      provider: 'autolead_bridge',
+      provider: 'fonnte',
       dryRun: false,
       conversationId: conversation.id,
       phone,
-      waha: sent.data || null,
+      fonnte: sent.data || null,
     });
   } catch (error) {
     console.error('[KantorTeman Bridge] Error:', error);
@@ -229,9 +234,9 @@ async function sendAutoReply(conversation, phone, response, aiResult) {
       model: aiResult.model,
     },
   });
-  const sent = await wahaService.sendMessage(phone, response);
+  const sent = await fonnteService.sendMessage(phone, response, { inboxId: aiResult.inboxId });
   if (!sent.success) {
-    await escalationService.createEscalation(conversation.id, response, 'Auto-reply WAHA gagal dikirim: ' + sent.error, {});
+    await escalationService.createEscalation(conversation.id, response, 'Auto-reply Fonnte gagal dikirim: ' + sent.error, {});
     return { action: 'send_failed_escalated', responder: 'ai_owner_sales', autoReply: false, escalated: true, error: sent.error };
   }
   return { action: 'auto_replied', responder: 'ai_owner_sales', autoReply: true, escalated: false };

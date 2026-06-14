@@ -55,12 +55,10 @@ def log_ai_cost(
     input_tokens: int,
     output_tokens: int,
 ) -> None:
-    """Log AI cost to ProviderConfig based on model."""
+    """Log AI cost to the single 9router ProviderConfig."""
     from models import ProviderConfig
     from app.core.dependencies import USD_TO_IDR
-    provider_map = {"gemini": "GEMINI", "claude": "CLAUDE", "anthropic": "CLAUDE", "openai": "OPENAI"}
-    provider_id = provider_map.get(model_name, model_name.upper())
-    provider = db.query(ProviderConfig).filter_by(id=provider_id).first()
+    provider = db.query(ProviderConfig).filter_by(id="9ROUTER").first()
     if not provider:
         return
     cost_usd = (provider.price_input_token_usd * input_tokens / 1000) + (provider.price_output_token_usd * output_tokens / 1000)

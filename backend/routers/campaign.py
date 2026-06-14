@@ -169,26 +169,6 @@ def _update_blast_message_ack(db: Session, target: str, raw_status: str) -> dict
     return {"ok": True, "updated": len(msgs)}
 
 
-def _verify_waha_webhook(raw_body: bytes, body: dict, request: Request, db: Session) -> None:
-    row = db.query(SystemSettings).filter_by(key="waha_webhook_secret").first()
-    secret = ((row.value or "") if row else "") or FONNTE_WEBHOOK_SECRET
-    if not secret:
-        return
-    webhook_hmac = request.headers.get("x-webhook-hmac") or request.headers.get("X-Webhook-Hmac")
-    if webhook_hmac:
-        expected = hmac.new(secret.encode(), raw_body, hashlib.sha512).hexdigest()
-        if not hmac.compare_digest(webhook_hmac, expected):
-            raise HTTPException(status_code=401, detail="Webhook HMAC tidak valid")
-        return
-    legacy_secret = (
-        request.headers.get("x-waha-webhook-secret") or
-        request.query_params.get("secret") or
-        body.get("secret") or ""
-    )
-    if not hmac.compare_digest(legacy_secret, secret):
-        raise HTTPException(status_code=401, detail="Webhook secret tidak valid")
-
-
 @router.post("/api/webhook/fonnte-incoming")
 async def fonnte_incoming(request: Request, db: Session = Depends(get_db)):
     """
@@ -217,37 +197,6 @@ async def fonnte_incoming(request: Request, db: Session = Depends(get_db)):
     sender = payload.get("sender") or payload.get("device") or payload.get("from") or payload.get("target") or ""
     message = payload.get("message") or payload.get("text") or ""
     return _record_incoming_whatsapp(db, sender, message, "fonnte-webhook")
-
-
-@router.post("/api/webhook/waha")
-@router.post("/api/blast/webhook/waha")
-async def waha_webhook(request: Request, db: Session = Depends(get_db)):
-    raw_body = await request.body()
-    try:
-        body = json.loads(raw_body.decode("utf-8") or "{}")
-    except Exception:
-        body = {}
-    _verify_waha_webhook(raw_body, body, request, db)
-
-    event = str(body.get("event") or "").lower()
-    payload = body.get("payload") if isinstance(body.get("payload"), dict) else body
-    if event in {"message", "message.any"}:
-        if payload.get("fromMe") or payload.get("source") == "api":
-            return {"ok": True, "skipped": "own_message"}
-        sender = payload.get("from") or payload.get("sender") or payload.get("chatId") or ""
-        message = payload.get("body") or payload.get("text") or payload.get("message") or ""
-        return _record_incoming_whatsapp(db, sender, message, "waha-webhook")
-
-    if event == "message.ack":
-        ack_name = str(payload.get("ackName") or payload.get("status") or "").lower()
-        ack_value = payload.get("ack")
-        if not ack_name and ack_value is not None:
-            ack_name = {"2": "device", "3": "read", "4": "played", "-1": "error"}.get(str(ack_value), "")
-        target = payload.get("to") or payload.get("from") or payload.get("chatId") or ""
-        return _update_blast_message_ack(db, target, ack_name)
-
-    return {"ok": True, "event": event or "unknown", "skipped": "unsupported_event"}
-
 
 
 @router.post("/api/followup/start")

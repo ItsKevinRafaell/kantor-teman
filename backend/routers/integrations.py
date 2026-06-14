@@ -23,12 +23,9 @@ def _host(value: str) -> str:
 @router.get("/api/integrations/ecosystem/status")
 def ecosystem_status(db: Session = Depends(get_db)):
     whatsapp = get_whatsapp_config(db)
-    autolead_configured = bool(whatsapp.autolead_base_url and whatsapp.autolead_api_key)
     lead_key_configured = _configured_setting(db, "external_lead_api_key")
 
-    status = "ok" if lead_key_configured and (
-        whatsapp.provider != "autolead" or autolead_configured
-    ) else "warning"
+    status = "ok" if lead_key_configured and _configured_setting(db, "fonnte_token") else "warning"
 
     return {
         "service": "kantorteman",
@@ -41,9 +38,7 @@ def ecosystem_status(db: Session = Depends(get_db)):
         },
         "whatsapp": {
             "provider": whatsapp.provider,
-            "autolead_configured": autolead_configured,
-            "autolead_demo": whatsapp.autolead_demo,
-            "autolead_host": _host(whatsapp.autolead_base_url),
+            "fonnte_configured": _configured_setting(db, "fonnte_token"),
         },
         "office": {
             "hermes_gateway_configured": bool(os.getenv("HERMES_GATEWAY_URL", "")),

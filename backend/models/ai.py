@@ -11,9 +11,9 @@ class AIProxy(Base):
     base_url = Column(String(500), nullable=False)
     api_key = Column(String(500), default="")
     model = Column(String(255), default="")
-    # Provider type: openai (OpenAI-compatible), claude (Anthropic), gemini (Google)
-    provider = Column(String(50), default="openai", nullable=False)
-    feature = Column(String(50), nullable=True, index=True)  # chat|agent|content|analysis|followup, NULL=fallback
+    # Kept for database compatibility; runtime provider is always 9router.
+    provider = Column(String(50), default="9router", nullable=False)
+    feature = Column(String(50), nullable=True, index=True)  # article|analysis, NULL=fallback
     is_active = Column(Boolean, default=False)
     created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
 
@@ -32,8 +32,8 @@ class ProviderConfig(Base):
 class AIModel(Base):
     __tablename__ = "ai_models"
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    name = Column(String(255), nullable=False)  # display name (e.g. "Claude Haiku 4.5")
-    model_id = Column(String(255), nullable=False)  # provider model ID (e.g. "claude-haiku-4-5-20251001")
+    name = Column(String(255), nullable=False)  # display name (e.g. "combo-genflow")
+    model_id = Column(String(255), nullable=False)  # 9router model/combo ID
     description = Column(Text, nullable=True)
     capabilities = Column(Text, nullable=False, default='["chat"]')  # JSON: ["chat", "image", "article", "analysis"]
     is_active = Column(Integer, default=1)

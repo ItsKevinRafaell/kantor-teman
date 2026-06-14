@@ -18,6 +18,7 @@ from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, hash_password,
     verify_password, _check_login_rate_limit, _record_login_failure, _record_login_success,
     create_token, _mask_secret, SENSITIVE_SETTING_KEYS, _check_simple_rate_limit)
+from app.core.config import AUTH_ALLOWED_EMAIL_DOMAINS
 
 router = APIRouter()
 
@@ -37,6 +38,15 @@ def _client_ip(request: Request) -> str:
     if forwarded:
         return forwarded.split(",")[0].strip()[:64]
     return request.client.host if request.client else "unknown"
+
+
+def _email_domain(email: str) -> str:
+    return email.rsplit("@", 1)[-1].lower()
+
+
+def _ensure_allowed_email(email: str) -> None:
+    if AUTH_ALLOWED_EMAIL_DOMAINS and _email_domain(email) not in AUTH_ALLOWED_EMAIL_DOMAINS:
+        raise HTTPException(status_code=400, detail="Gunakan email resmi yang sudah ditentukan.")
 
 
 def _setting(db: Session, key: str, default: str = "") -> str:
@@ -105,6 +115,7 @@ def _auth_cookie_options():
 @router.post("/api/auth/login")
 def login(body: LoginIn, request: Request, response: Response, db: Session = Depends(get_db)):
     ip = _client_ip(request)
+    _ensure_allowed_email(body.email)
     _check_login_rate_limit(ip)
     user = db.query(User).filter(User.email == body.email).first()
     if not user or not verify_password(body.password, user.hashed_password):
@@ -130,6 +141,8 @@ def login(body: LoginIn, request: Request, response: Response, db: Session = Dep
 def request_password_reset(body: PasswordResetRequest, request: Request, db: Session = Depends(get_db)):
     ip = _client_ip(request)
     _check_simple_rate_limit(f"password-reset:{ip}", 5, 300)
+    if AUTH_ALLOWED_EMAIL_DOMAINS and _email_domain(body.email) not in AUTH_ALLOWED_EMAIL_DOMAINS:
+        return {"ok": True, "message": "Jika email terdaftar dan SMTP aktif, instruksi reset password akan dikirim."}
     user = db.query(User).filter(User.email == body.email).first()
     if user:
         raw_token = secrets.token_urlsafe(32)
@@ -142,7 +155,8 @@ def request_password_reset(body: PasswordResetRequest, request: Request, db: Ses
             created_at=_utc_now().isoformat(),
         ))
         db.commit()
-        reset_url = f"{_public_frontend_url()}/reset-password?token={raw_token}"
+        frontend_url = body.frontend_url or _public_frontend_url()
+        reset_url = f"{frontend_url}/reset-password?token={raw_token}"
         try:
             sent = _send_password_reset_email(db, user.email, reset_url)
             if not sent:
@@ -203,6 +217,7 @@ def _count_admins(db: Session) -> int:
 @router.post("/api/users", status_code=201)
 def create_user(body: UserCreate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     email = body.email.strip().lower()
+    _ensure_allowed_email(email)
     existing = db.query(User).filter(User.email == email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email sudah dipakai")
@@ -226,6 +241,7 @@ def update_user(user_id: int, body: UserAdminUpdate, current_user: User = Depend
         raise HTTPException(status_code=404, detail="User tidak ditemukan")
     if body.email is not None:
         email = body.email.strip().lower()
+        _ensure_allowed_email(email)
         existing = db.query(User).filter(User.email == email, User.id != user_id).first()
         if existing:
             raise HTTPException(status_code=400, detail="Email sudah dipakai")

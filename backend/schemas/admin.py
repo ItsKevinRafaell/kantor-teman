@@ -5,17 +5,7 @@ from typing import Optional
 class SettingsUpdate(BaseModel):
     fonnte_token: Optional[str] = None
     whatsapp_provider: Optional[str] = None
-    waha_base_url: Optional[str] = None
-    waha_api_key: Optional[str] = None
-    waha_session: Optional[str] = None
-    waha_webhook_secret: Optional[str] = None
-    autolead_base_url: Optional[str] = None
-    autolead_api_key: Optional[str] = None
-    autolead_demo: Optional[str] = None
     whatsapp_blast_delay_seconds: Optional[str] = None
-    gemini_api_key: Optional[str] = None
-    claude_api_key: Optional[str] = None
-    openai_api_key: Optional[str] = None
     ai_api_key: Optional[str] = None
     ai_provider: Optional[str] = None
     ai_base_url: Optional[str] = None

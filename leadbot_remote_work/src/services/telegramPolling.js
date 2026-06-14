@@ -1,6 +1,6 @@
 const config = require('../config');
 const conversationService = require('./conversationService');
-const wahaService = require('./wahaService');
+const fonnteService = require('./fonnteService');
 
 class TelegramPolling {
   constructor() {
@@ -72,7 +72,7 @@ class TelegramPolling {
       if (!phone || !message) return this.sendMessage(chatId, 'Format: /reply <phone> <message>');
       const conversation = await conversationService.getOrCreateConversation(phone, 'Telegram Admin');
       await conversationService.addMessage(conversation.id, 'outbound', message, { responder: 'admin_telegram' });
-      const sent = await wahaService.sendMessage(phone, message);
+      const sent = await fonnteService.sendMessage(phone, message);
       await conversationService.markHumanReply(conversation.id);
       await this.sendMessage(chatId, sent.success ? 'Terkirim ke ' + phone : 'Gagal: ' + sent.error);
     } else {

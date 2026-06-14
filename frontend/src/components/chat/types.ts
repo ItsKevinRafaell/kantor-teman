@@ -41,7 +41,7 @@ export interface ChatModel {
 }
 
 export const DEFAULT_MODELS: ChatModel[] = [
-  { id: "glm-5", name: "GLM-5", description: "Model cepat dan efisien" },
-  { id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Model ringan OpenAI" },
-  { id: "deepseek-chat", name: "DeepSeek Chat", description: "Model cepat dan murah" },
+  { id: "combo-genflow", name: "combo-genflow", description: "Combo default 9router" },
+  { id: "combo-clarifie", name: "combo-clarifie", description: "Combo analisis 9router" },
+  { id: "combo-databytes", name: "combo-databytes", description: "Combo data 9router" },
 ];

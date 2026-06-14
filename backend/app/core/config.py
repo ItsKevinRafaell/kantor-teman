@@ -32,3 +32,8 @@ if "mysql" in DATABASE_URL and "pymysql" not in DATABASE_URL:
 
 # Production detection: explicit flag or MySQL = production
 IS_PRODUCTION = os.getenv("ENVIRONMENT", "").lower() == "production" or "mysql" in DATABASE_URL
+AUTH_ALLOWED_EMAIL_DOMAINS = [
+    domain.strip().lower()
+    for domain in os.getenv("AUTH_ALLOWED_EMAIL_DOMAINS", "temanumkmkita.com").split(",")
+    if domain.strip()
+]

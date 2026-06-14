@@ -13,7 +13,9 @@ async function runMigrations() {
   `);
 
   await db.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT NULL");
-  await db.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS channel VARCHAR(50) DEFAULT 'waha'");
+  await db.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS channel VARCHAR(50) DEFAULT 'fonnte'");
+  await db.query("ALTER TABLE conversations ALTER COLUMN channel SET DEFAULT 'fonnte'");
+  await db.query("UPDATE conversations SET channel = 'fonnte' WHERE channel = 'waha'");
   await db.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS auto_reply_paused BOOLEAN DEFAULT false");
   await db.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS lead_stage VARCHAR(50) DEFAULT 'new'");
   await db.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS lead_score INTEGER DEFAULT 0");
@@ -67,6 +69,36 @@ async function runMigrations() {
   `);
 
   await db.query('CREATE INDEX IF NOT EXISTS idx_document_uploads_created ON document_uploads(created_at DESC)');
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS dashboard_users (
+      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      email TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      role VARCHAR(50) DEFAULT 'admin',
+      active BOOLEAN DEFAULT true,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  await db.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_dashboard_users_email_lower ON dashboard_users (LOWER(email))');
+  await db.query('CREATE INDEX IF NOT EXISTS idx_dashboard_users_active ON dashboard_users(active)');
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS dashboard_password_reset_tokens (
+      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      user_id UUID NOT NULL REFERENCES dashboard_users(id) ON DELETE CASCADE,
+      token_hash TEXT UNIQUE NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      used_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  await db.query('CREATE INDEX IF NOT EXISTS idx_dashboard_reset_user_id ON dashboard_password_reset_tokens(user_id)');
+  await db.query('CREATE INDEX IF NOT EXISTS idx_dashboard_reset_expires_at ON dashboard_password_reset_tokens(expires_at)');
 
   await db.query(
     `INSERT INTO settings (key, value)

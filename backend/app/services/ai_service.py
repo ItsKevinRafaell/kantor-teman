@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from models import AIModel, SystemSettings, AIProxy, ContentProvider, ContentGeneration, ContentSession
 
-NINE_ROUTER_PUBLIC_BASE_URL = "http://9router.kantorteman.my.id/v1"
+NINE_ROUTER_PUBLIC_BASE_URL = "https://9router.kantorteman.my.id/v1"
 NINE_ROUTER_DEFAULT_MODEL = "combo-genflow"
 
 
@@ -32,7 +32,7 @@ def _is_9router_url(value: Optional[str]) -> bool:
 
 def _router_base_url(candidate: Optional[str] = None) -> str:
     candidate_base = _ensure_v1_base_url(candidate)
-    if _is_9router_url(candidate_base):
+    if candidate_base:
         return candidate_base
     return _ensure_v1_base_url(
         os.getenv("NINE_ROUTER_URL")
@@ -178,7 +178,7 @@ def create_ai_proxy(db: Session, name: str, base_url: str, api_key: str, model: 
         base_url=_router_base_url(base_url),
         api_key=_router_api_key(api_key),
         model=_router_model(model),
-        provider="custom",
+        provider="9router",
         feature=feature,
     )
     db.add(proxy)
@@ -191,16 +191,15 @@ def update_ai_proxy(db: Session, proxy_id: str, updates: dict) -> AIProxy:
     proxy = db.query(AIProxy).filter_by(id=proxy_id).first()
     if not proxy:
         raise ValueError("Proxy tidak ditemukan")
-    valid_providers = {"openai", "anthropic", "gemini", "openrouter", "custom", "claude"}
     for key in ("name", "base_url", "api_key", "model", "feature", "provider"):
         if key in updates:
             val = updates[key]
             if key == "base_url" and val:
                 val = _router_base_url(val)
             if key == "provider" and val:
-                if val not in valid_providers:
-                    raise ValueError("Provider must be one of: " + ", ".join(sorted(valid_providers - {"claude"})))
-                val = "custom"
+                if val not in {"9router", "custom"}:
+                    raise ValueError("Provider must be 9router")
+                val = "9router"
             if key == "model":
                 val = _router_model(val)
             if key == "api_key":
@@ -262,12 +261,8 @@ def get_proxy_for_feature(db: Session, feature: str) -> Optional[AIProxy]:
 
 
 def _canonical_provider(provider: Optional[str]) -> str:
-    """Runtime AI provider is always 9router OpenAI-compatible.
-
-    Legacy provider values are still accepted in stored configs for backward
-    compatibility, but they must not route directly to external native APIs.
-    """
-    return "custom" if provider and provider != "none" else "custom"
+    """Runtime AI provider is always 9router."""
+    return "9router"
 
 
 def get_ai_config(db: Session, capability: str = "chat") -> dict:
@@ -278,8 +273,8 @@ def get_ai_config(db: Session, capability: str = "chat") -> dict:
         api_key = _router_api_key(proxy.api_key)
         model = _router_model(proxy.model)
         cfg = {
-            "provider": "custom",
-            "stored_provider": proxy.provider,
+            "provider": "9router",
+            "stored_provider": "9router",
             "base_url": base_url,
             "model": model,
             "openai_key": api_key,
@@ -291,7 +286,7 @@ def get_ai_config(db: Session, capability: str = "chat") -> dict:
         api_key = _router_api_key(_setting_value(db, "ai_api_key") or _setting_value(db, "openai_api_key"))
         model = _router_model(_setting_value(db, "ai_model"))
         cfg = {
-            "provider": "custom",
+            "provider": "9router",
             "stored_provider": "9router",
             "base_url": base_url,
             "model": model,
@@ -303,35 +298,6 @@ def get_ai_config(db: Session, capability: str = "chat") -> dict:
     if default_model and default_model.model_id:
         cfg["model"] = default_model.model_id
     return cfg
-
-
-# ─── Native Claude Messages API ──────────────────────────────────────────────
-
-def _is_native_anthropic(base_url: str) -> bool:
-    """Native Anthropic calls are disabled; all AI goes through 9router."""
-    return False
-
-
-def _call_claude_native(client, api_key: str, model: str, prompt: str) -> str:
-    """Call Anthropic Messages API directly."""
-    url = "https://api.anthropic.com/v1/messages"
-    resp = client.post(
-        url,
-        headers={
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        },
-        json={
-            "model": model,
-            "max_tokens": 1024,
-            "messages": [{"role": "user", "content": prompt}],
-        },
-    )
-    if resp.status_code != 200:
-        raise Exception(f"Claude native API error: {resp.status_code} - {resp.text[:200]}")
-    data = resp.json()
-    return data["content"][0]["text"]
 
 
 # ─── AI Sync call ─────────────────────────────────────────────────────────────

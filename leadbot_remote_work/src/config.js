@@ -16,6 +16,13 @@ function boolFromEnv(name, fallback) {
   return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
 }
 
+function listFromEnv(name, fallback) {
+  return String(process.env[name] || fallback || '')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 function routerBaseFromEnv() {
   const candidates = [
     process.env.NINE_ROUTER_URL,
@@ -37,13 +44,13 @@ module.exports = {
     user: process.env.DB_USER || 'leadbot',
     password: process.env.DB_PASSWORD,
   },
-  waha: {
-    baseUrl: process.env.WAHA_BASE_URL || 'http://127.0.0.1:3001',
-    apiKey: process.env.WAHA_API_KEY || '',
-    session: process.env.WAHA_SESSION || 'default',
-    webhookSecret: process.env.WAHA_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET || '',
-    mediaDownload: boolFromEnv('WAHA_MEDIA_DOWNLOAD', false),
-    maxMediaBytes: intFromEnv('WAHA_MAX_MEDIA_BYTES', 5 * 1024 * 1024),
+  fonnte: {
+    baseUrl: (process.env.FONNTE_BASE_URL || 'https://api.fonnte.com').replace(/\/+$/, ''),
+    token: process.env.FONNTE_TOKEN || process.env.FONNTE_API_KEY || '',
+    webhookSecret: process.env.FONNTE_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET || '',
+    countryCode: process.env.FONNTE_COUNTRY_CODE || '62',
+    connectOnly: boolFromEnv('FONNTE_CONNECT_ONLY', true),
+    timeoutMs: intFromEnv('FONNTE_TIMEOUT_MS', 20000),
   },
   telegram: {
     botToken: process.env.TELEGRAM_BOT_TOKEN,
@@ -54,6 +61,7 @@ module.exports = {
   app: {
     port: intFromEnv('PORT', 3000),
     env: process.env.NODE_ENV || 'development',
+    publicUrl: (process.env.AUTOLEAD_PUBLIC_URL || 'https://autolead.kantorteman.my.id').replace(/\/+$/, ''),
   },
   ai: {
     provider: '9router',
@@ -68,8 +76,20 @@ module.exports = {
     temperature: floatFromEnv('AI_TEMPERATURE', 0.45),
   },
   security: {
+    allowedEmailDomains: listFromEnv('AUTH_ALLOWED_EMAIL_DOMAINS', 'temanumkmkita.com'),
+    dashboardEmail: process.env.DASHBOARD_EMAIL || '',
+    dashboardName: process.env.DASHBOARD_NAME || 'AutoLead Admin',
     dashboardUser: process.env.DASHBOARD_USER || '',
     dashboardPassword: process.env.DASHBOARD_PASSWORD || '',
+    dashboardAuthDisabled: boolFromEnv('DASHBOARD_AUTH_DISABLED', false),
+    dashboardSessionSecret: process.env.DASHBOARD_SESSION_SECRET || '',
+  },
+  smtp: {
+    host: process.env.SMTP_HOST || '',
+    port: intFromEnv('SMTP_PORT', 587),
+    user: process.env.SMTP_USER || '',
+    password: process.env.SMTP_PASSWORD || '',
+    from: process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@temanumkmkita.com',
   },
   kantorteman: {
     apiUrl: process.env.KANTORTEMAN_API_URL || 'https://api.kantorteman.my.id',

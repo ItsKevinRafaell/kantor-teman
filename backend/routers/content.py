@@ -109,17 +109,16 @@ def get_default_model(db: Session, capability: str) -> Optional[AIModel]:
 
 
 # ---------------------------------------------------------------------------
-# AI Provider Config — multi-provider canonical path
+# 9router AI Config
 # ---------------------------------------------------------------------------
 
-# Legacy alias for backward compat — delegates to canonical get_ai_config
 def _get_system_ai_config(db: Session) -> dict:
-    """Return AI config for content generation. Uses canonical multi-provider path."""
+    """Return 9router config for content generation."""
     return get_ai_config(db, "chat")
 
 
 def _call_text_gen(messages: list, api_key: str, base_url: str, model: str, max_tokens: int) -> str:
-    """Call OpenAI-compatible /chat/completions endpoint for text generation."""
+    """Call 9router /chat/completions endpoint for text generation."""
     url = f"{base_url.rstrip('/')}/chat/completions"
     with httpx.Client(timeout=120) as client:
         resp = client.post(
@@ -134,38 +133,38 @@ def _call_text_gen(messages: list, api_key: str, base_url: str, model: str, max_
 
 @router.get("/api/ai/combos")
 def list_ai_combos(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Return list of saved AI providers from AIProxy table."""
+    """Return saved 9router endpoint/model choices."""
     proxies = db.query(AIProxy).order_by(AIProxy.created_at.asc()).all()
-    return [{"name": p.name, "display_name": f"{p.provider.title()} ({p.model})", "provider": p.provider, "model": p.model} for p in proxies]
+    return [{"name": p.name, "display_name": f"9router ({p.model})", "provider": "9router", "model": p.model} for p in proxies]
 
 
 @router.get("/api/ai/active-combo")
 def get_active_combo(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Return the active AI provider config from AIProxy table. Returns 'none' status if no provider configured."""
+    """Return the active 9router endpoint config."""
     proxy = get_proxy_for_feature(db, "chat")
     if proxy:
-        return {"combo": proxy.name, "provider": proxy.provider, "base_url": proxy.base_url, "model": proxy.model}
-    return {"combo": "none", "provider": "none", "base_url": "", "model": "", "status": "AI provider belum dikonfigurasi"}
+        return {"combo": proxy.name, "provider": "9router", "base_url": proxy.base_url, "model": proxy.model}
+    return {"combo": "none", "provider": "9router", "base_url": "", "model": "", "status": "Endpoint 9router belum dikonfigurasi"}
 
 
 @router.post("/api/ai/active-combo")
 def set_active_combo(body: dict, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    """Set active AI provider by AIProxy ID."""
+    """Set active 9router endpoint by AIProxy ID."""
     proxy_id = body.get("proxy_id") or body.get("combo", "").strip()
     if not proxy_id:
         raise HTTPException(status_code=400, detail="Field 'proxy_id' wajib diisi")
     proxy = db.query(AIProxy).filter(AIProxy.id == proxy_id).first()
     if not proxy:
-        raise HTTPException(status_code=404, detail="AI Provider tidak ditemukan")
+        raise HTTPException(status_code=404, detail="Endpoint 9router tidak ditemukan")
     db.query(AIProxy).filter(AIProxy.feature == proxy.feature).update({"is_active": False})
     proxy.is_active = True
     db.commit()
-    return {"ok": True, "combo": proxy.name, "provider": proxy.provider, "base_url": proxy.base_url, "model": proxy.model}
+    return {"ok": True, "combo": proxy.name, "provider": "9router", "base_url": proxy.base_url, "model": proxy.model}
 
 
 @router.post("/api/ai/proxy-url")
 def set_proxy_url(body: dict, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    """Set custom AI proxy URL (fallback when no AIProxy is configured). Prefer using AIProxy table directly."""
+    """Set fallback 9router URL when no endpoint row is configured."""
     url = (body.get("url") or "").strip().rstrip("/")
     if not url:
         raise HTTPException(status_code=400, detail="Field 'url' wajib diisi")
@@ -218,7 +217,7 @@ def set_feature_defaults(body: dict, current_user: User = Depends(require_admin)
 
 @router.get("/api/ai/health")
 async def ai_health(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Check 9router connectivity through OpenAI-compatible /models."""
+    """Check 9router connectivity through /models."""
     config = get_ai_config(db, "chat")
     base = config.get("base_url", "")
     model = config.get("model", "")

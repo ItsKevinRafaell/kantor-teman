@@ -22,7 +22,7 @@ class ConversationService {
     if (result.rows.length === 0) {
       result = await db.query(
         'INSERT INTO conversations (phone, contact_name, channel) VALUES ($1, $2, $3) RETURNING *',
-        [phone, contactName, 'waha']
+        [phone, contactName, 'fonnte']
       );
       eventService.emit('conversation', result.rows[0]);
       return result.rows[0];

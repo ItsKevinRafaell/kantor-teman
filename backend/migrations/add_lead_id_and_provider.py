@@ -38,14 +38,14 @@ def migrate():
         db.commit()
         print(f"  Done: {len(contacts)} contacts processed")
 
-        # 2. Add provider to ai_proxies (default to "openai")
+        # 2. Normalize provider to 9router
         print("Migrating ai_proxies.provider...")
         proxies = db.query(AIProxy).filter(
-            (AIProxy.provider == None) | (AIProxy.provider == "")
+            (AIProxy.provider == None) | (AIProxy.provider == "") | (AIProxy.provider != "9router")
         ).all()
         for proxy in proxies:
-            proxy.provider = "openai"
-            print(f"  Set provider=openai for AIProxy {proxy.id}")
+            proxy.provider = "9router"
+            print(f"  Set provider=9router for AIProxy {proxy.id}")
         db.commit()
         print(f"  Done: {len(proxies)} proxies updated")
 

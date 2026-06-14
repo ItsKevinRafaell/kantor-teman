@@ -35,14 +35,6 @@ function SettingsContent() {
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [fonnteToken, setFonnteToken] = useState("");
-  const [whatsappProvider, setWhatsappProvider] = useState("fonnte");
-  const [wahaBaseUrl, setWahaBaseUrl] = useState("http://127.0.0.1:3000");
-  const [wahaApiKey, setWahaApiKey] = useState("");
-  const [wahaSession, setWahaSession] = useState("default");
-  const [wahaWebhookSecret, setWahaWebhookSecret] = useState("");
-  const [autoleadBaseUrl, setAutoleadBaseUrl] = useState("");
-  const [autoleadApiKey, setAutoleadApiKey] = useState("");
-  const [autoleadDemo, setAutoleadDemo] = useState(true);
   const [whatsappBlastDelaySeconds, setWhatsappBlastDelaySeconds] = useState("5");
   const [followupEnabled, setFollowupEnabled] = useState(false);
   const [followupHour, setFollowupHour] = useState("9");
@@ -69,14 +61,6 @@ function SettingsContent() {
     setName(info.name);
     apiFetch("/api/settings").then((r) => r.json()).then((d) => {
       setFonnteToken(d.fonnte_token ?? "");
-      setWhatsappProvider(d.whatsapp_provider ?? "fonnte");
-      setWahaBaseUrl(d.waha_base_url ?? "http://127.0.0.1:3000");
-      setWahaApiKey(d.waha_api_key ?? "");
-      setWahaSession(d.waha_session ?? "default");
-      setWahaWebhookSecret(d.waha_webhook_secret ?? "");
-      setAutoleadBaseUrl(d.autolead_base_url ?? "");
-      setAutoleadApiKey(d.autolead_api_key ?? "");
-      setAutoleadDemo((d.autolead_demo ?? "true") === "true");
       setWhatsappBlastDelaySeconds(d.whatsapp_blast_delay_seconds ?? "5");
       setFollowupEnabled(d.followup_enabled === "true");
       setFollowupHour(d.followup_hour ?? "9");
@@ -143,14 +127,7 @@ function SettingsContent() {
     try {
       const res = await apiFetch("/api/settings", { method: "PUT", body: JSON.stringify({
         fonnte_token: fonnteToken,
-        whatsapp_provider: whatsappProvider,
-        waha_base_url: wahaBaseUrl,
-        waha_api_key: wahaApiKey,
-        waha_session: wahaSession,
-        waha_webhook_secret: wahaWebhookSecret,
-        autolead_base_url: autoleadBaseUrl,
-        autolead_api_key: autoleadApiKey,
-        autolead_demo: autoleadDemo ? "true" : "false",
+        whatsapp_provider: "fonnte",
         whatsapp_blast_delay_seconds: whatsappBlastDelaySeconds,
         followup_enabled: followupEnabled ? "true" : "false",
         followup_hour: followupHour,
@@ -261,16 +238,13 @@ function SettingsContent() {
           {/* ── WhatsApp Provider ── */}
           <div>
             <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200 mb-3">WhatsApp Provider</h3>
-            <p className="text-xs text-gray-400 mb-4">WAHA dipakai untuk blast/follow-up dari Kantor Teman. Auto-reply CS tetap idealnya dipegang AutoLead.</p>
+            <p className="text-xs text-gray-400 mb-4">Fonnte dipakai untuk blast, follow-up, dan callback WhatsApp produksi.</p>
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelCls}>Provider Aktif</label>
-                <select value={whatsappProvider} onChange={(e) => setWhatsappProvider(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
-                  <option value="fonnte">Fonnte</option>
-                  <option value="waha">WAHA</option>
-                  <option value="autolead">AutoLead Bridge</option>
-                </select>
+                <div className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50">
+                  Fonnte
+                </div>
               </div>
               <div>
                 <label className={labelCls}>Delay Blast per Pesan</label>
@@ -282,7 +256,7 @@ function SettingsContent() {
             <div className="border-t border-[var(--border-default)] mt-5 pt-5 space-y-4">
               <div>
                 <label className={labelCls}>Fonnte API Token</label>
-                <p className="text-xs text-gray-400 mb-3">Fallback lama untuk WA Blast sampai WAHA stabil.</p>
+                <p className="text-xs text-gray-400 mb-3">Token untuk kirim WhatsApp real via Fonnte.</p>
                 <input type="password" value={fonnteToken} onChange={(e) => setFonnteToken(e.target.value)}
                   placeholder="Masukkan Fonnte token..." className={inputCls} />
                 <button onClick={() => testApi("fonnte")} disabled={testing === "fonnte"}
@@ -290,63 +264,9 @@ function SettingsContent() {
                   {testing === "fonnte" ? "Testing..." : "Test Koneksi Fonnte"}
                 </button>
               </div>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className={labelCls}>WAHA Base URL</label>
-                  <input value={wahaBaseUrl} onChange={(e) => setWahaBaseUrl(e.target.value)}
-                    placeholder="http://127.0.0.1:3000" className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>WAHA Session</label>
-                  <input value={wahaSession} onChange={(e) => setWahaSession(e.target.value)}
-                    placeholder="default" className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>WAHA API Key</label>
-                  <input type="password" value={wahaApiKey} onChange={(e) => setWahaApiKey(e.target.value)}
-                    placeholder="X-Api-Key untuk WAHA" className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>WAHA Webhook Secret</label>
-                  <input type="password" value={wahaWebhookSecret} onChange={(e) => setWahaWebhookSecret(e.target.value)}
-                    placeholder="Secret HMAC webhook" className={inputCls} />
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button onClick={() => testApi("waha")} disabled={testing === "waha"}
-                  className="px-3 py-1.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg hover:bg-emerald-100 transition-colors disabled:opacity-50">
-                  {testing === "waha" ? "Testing..." : "Test Koneksi WAHA"}
-                </button>
-                <p className="text-[11px] text-neutral-400">Webhook Kantor Teman: <span className="font-mono">/api/webhook/waha</span></p>
-              </div>
-            </div>
-
-            <div className="border-t border-[var(--border-default)] mt-5 pt-5 space-y-4">
-              <div>
-                <label className={labelCls}>AutoLead Bridge Base URL</label>
-                <p className="text-xs text-gray-400 mb-3">URL publik VPS AutoLead. Untuk production shared hosting, KantorTeman akan hit URL ini, lalu AutoLead yang bicara ke WAHA lokal VPS.</p>
-                <input value={autoleadBaseUrl} onChange={(e) => setAutoleadBaseUrl(e.target.value)}
-                  placeholder="https://leadbot.domainmu.com" className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>AutoLead Bridge Token</label>
-                <input type="password" value={autoleadApiKey} onChange={(e) => setAutoleadApiKey(e.target.value)}
-                  placeholder="X-KantorTeman-Key" className={inputCls} />
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Mode Demo AutoLead</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Pesan dicatat di inbox AutoLead tanpa dikirim ke WhatsApp sampai WAHA container aktif.</p>
-                </div>
-                <button type="button" onClick={() => setAutoleadDemo(!autoleadDemo)}
-                  className={`relative w-11 h-6 rounded-full transition-colors ${autoleadDemo ? "bg-amber-500" : "bg-gray-300 dark:bg-gray-600"}`}>
-                  <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${autoleadDemo ? "translate-x-6" : "translate-x-1"}`}></div>
-                </button>
-              </div>
-              <button onClick={() => testApi("autolead")} disabled={testing === "autolead"}
-                className="px-3 py-1.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg hover:bg-emerald-100 transition-colors disabled:opacity-50">
-                {testing === "autolead" ? "Testing..." : "Test AutoLead Bridge"}
-              </button>
+              <p className="text-[11px] text-neutral-400">
+                Webhook Fonnte: <span className="font-mono">/api/webhook/fonnte-incoming</span> dan <span className="font-mono">/api/blast/webhook/fonnte</span>
+              </p>
             </div>
           </div>
 

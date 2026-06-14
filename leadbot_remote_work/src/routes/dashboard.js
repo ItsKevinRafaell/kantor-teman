@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const router = express.Router();
 const conversationService = require('../services/conversationService');
-const wahaService = require('../services/wahaService');
+const fonnteService = require('../services/fonnteService');
 const aiService = require('../services/aiService');
 const escalationService = require('../services/escalationService');
 const eventService = require('../services/eventService');
@@ -53,7 +53,7 @@ router.post('/conversations/:id/reply', async (req, res) => {
     if (!conversation) return res.status(404).json({ error: 'Percakapan tidak ditemukan' });
 
     await conversationService.addMessage(req.params.id, 'outbound', message, { responder: 'admin' });
-    const sent = await wahaService.sendMessage(conversation.phone, message);
+    const sent = await fonnteService.sendMessage(conversation.phone, message);
     await conversationService.markHumanReply(req.params.id);
     await escalationService.respondEscalation(req.params.id, message, 'admin');
     res.json({ success: true, sent, autoReplyPaused: true });
@@ -107,7 +107,8 @@ router.get('/stats', async (req, res) => {
     res.json({
       ...(await conversationService.getDashboardStats()),
       ai: aiService.getStatus(),
-      waha: wahaService.getStatus(),
+      whatsapp: fonnteService.getStatus(),
+      fonnte: fonnteService.getStatus(),
       pendingEscalations: await escalationService.getEscalationCount(),
       realtimeClients: eventService.getClientCount(),
     });
@@ -117,26 +118,8 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-router.get('/whatsapp/session', async (req, res) => {
-  res.json({ config: wahaService.getStatus(), session: await wahaService.getSessionStatus() });
-});
-
-router.post('/whatsapp/start', async (req, res) => {
-  res.json(await wahaService.startSession());
-});
-
-router.post('/whatsapp/stop', async (req, res) => {
-  res.json(await wahaService.stopSession());
-});
-
-router.get('/whatsapp/qr', async (req, res) => {
-  res.json(await wahaService.getQr());
-});
-
-router.post('/whatsapp/pairing-code', async (req, res) => {
-  const phoneNumber = String(req.body.phoneNumber || '').trim();
-  if (!phoneNumber) return res.status(400).json({ error: 'Nomor WhatsApp wajib diisi' });
-  res.json(await wahaService.requestPairingCode(phoneNumber));
+router.get('/whatsapp/status', async (req, res) => {
+  res.json(fonnteService.getStatus());
 });
 
 router.get('/knowledge', async (req, res) => {

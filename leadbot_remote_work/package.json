@@ -1,7 +1,7 @@
 {
   "name": "leadbot",
   "version": "1.0.0",
-  "description": "AI owner-sales WhatsApp lead engine with WAHA integration",
+  "description": "AI owner-sales WhatsApp lead engine with Fonnte integration",
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
@@ -14,7 +14,7 @@
   },
   "keywords": [
     "ai-sales",
-    "waha",
+    "fonnte",
     "whatsapp",
     "lead"
   ],

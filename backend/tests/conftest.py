@@ -10,6 +10,7 @@ os.environ["JWT_SECRET"] = "test-jwt-secret-for-unit-tests-minimum-32-bytes"
 os.environ["ENV_FILE"] = ".env.test"
 os.environ["FONNTE_TOKEN"] = "test-fonnte-token"
 os.environ["ENABLE_BACKGROUND_SCHEDULER"] = "false"
+os.environ["AUTH_ALLOWED_EMAIL_DOMAINS"] = "example.test,test.com,test.example.com,example.com"
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(base_dir)

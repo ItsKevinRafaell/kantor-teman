@@ -105,7 +105,7 @@ if "mysql" in _db_url:
         ("users", "role", "ALTER TABLE users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT 'admin'"),
         ("ai_proxies", "feature", "ALTER TABLE ai_proxies ADD COLUMN feature VARCHAR(50) NULL"),
         ("contacts", "lead_id", "ALTER TABLE contacts ADD COLUMN lead_id INT NULL"),
-        ("ai_proxies", "provider", "ALTER TABLE ai_proxies ADD COLUMN provider VARCHAR(50) NOT NULL DEFAULT 'openai'"),
+        ("ai_proxies", "provider", "ALTER TABLE ai_proxies ADD COLUMN provider VARCHAR(50) NOT NULL DEFAULT '9router'"),
         ("brand_kits", "brand_name", "ALTER TABLE brand_kits ADD COLUMN brand_name VARCHAR(255) NOT NULL DEFAULT ''"),
         ("brand_kits", "tagline", "ALTER TABLE brand_kits ADD COLUMN tagline VARCHAR(255) NOT NULL DEFAULT ''"),
         ("brand_kits", "phone", "ALTER TABLE brand_kits ADD COLUMN phone VARCHAR(50) NOT NULL DEFAULT ''"),
@@ -139,12 +139,12 @@ if "mysql" in _db_url:
                 print(f"  Linked contact {contact_id} -> lead {lead_row[0]}")
     print("= contacts.lead_id backfill done")
 
-    # Backfill ai_proxies.provider = 'openai' if NULL/empty
+    # Backfill ai_proxies.provider = '9router' for old or empty values.
     if _table_exists("ai_proxies") and _col_exists("ai_proxies", "provider"):
-        _cur.execute("UPDATE ai_proxies SET provider = 'openai' WHERE provider IS NULL OR provider = ''")
+        _cur.execute("UPDATE ai_proxies SET provider = '9router' WHERE provider IS NULL OR provider = '' OR provider != '9router'")
         affected = _cur.rowcount
         if affected > 0:
-            print(f"  Set provider=openai for {affected} ai_proxies")
+            print(f"  Set provider=9router for {affected} ai_proxies")
         print("= ai_proxies.provider backfill done")
     elif _table_exists("ai_proxies"):
         print("= ai_proxies.provider belum ada, skip backfill")
@@ -665,25 +665,11 @@ if not cur.fetchone():
     )
     """)
     cur.execute("INSERT INTO provider_configs VALUES ('FONNTE', 'Fonnte WhatsApp', 10000, 6.6, 0, 0)")
-    cur.execute("INSERT INTO provider_configs VALUES ('WAHA', 'WAHA WhatsApp', 0, 0, 0, 0)")
-    cur.execute("INSERT INTO provider_configs VALUES ('AUTOLEAD', 'AutoLead Bridge', 0, 0, 0, 0)")
-    cur.execute("INSERT INTO provider_configs VALUES ('GEMINI', 'Gemini 2.5 Flash', 0, 0, 0.000075, 0.0003)")
-    cur.execute("INSERT INTO provider_configs VALUES ('CLAUDE', 'Claude 4.5 Haiku', 0, 0, 0.00025, 0.0125)")
-    cur.execute("INSERT INTO provider_configs VALUES ('OPENAI', 'GPT-5', 0, 0, 0.0025, 0.010)")
+    cur.execute("INSERT INTO provider_configs VALUES ('9ROUTER', '9router AI', 0, 0, 0, 0)")
     conn.commit()
     print("+ tabel provider_configs dibuat dengan seed data")
 else:
     print("= provider_configs sudah ada, skip")
-    cur.execute("SELECT 1 FROM provider_configs WHERE id='WAHA'")
-    if not cur.fetchone():
-        cur.execute("INSERT INTO provider_configs VALUES ('WAHA', 'WAHA WhatsApp', 0, 0, 0, 0)")
-        conn.commit()
-        print("+ provider_config WAHA ditambahkan")
-    cur.execute("SELECT 1 FROM provider_configs WHERE id='AUTOLEAD'")
-    if not cur.fetchone():
-        cur.execute("INSERT INTO provider_configs VALUES ('AUTOLEAD', 'AutoLead Bridge', 0, 0, 0, 0)")
-        conn.commit()
-        print("+ provider_config AUTOLEAD ditambahkan")
 
 # ---------------------------------------------------------------------------
 # Migrasi proposals: tambah kolom slug
@@ -1728,14 +1714,14 @@ if cur.fetchone():
     cur.execute("PRAGMA table_info(ai_proxies)")
     proxy_cols2 = {row[1] for row in cur.fetchall()}
     if "provider" not in proxy_cols2:
-        cur.execute("ALTER TABLE ai_proxies ADD COLUMN provider VARCHAR(50) NOT NULL DEFAULT 'openai'")
+        cur.execute("ALTER TABLE ai_proxies ADD COLUMN provider VARCHAR(50) NOT NULL DEFAULT '9router'")
         print("+ kolom provider ditambahkan ke ai_proxies")
     else:
         print("= ai_proxies.provider sudah ada, skip")
-    # Backfill NULL/empty provider
-    cur.execute("UPDATE ai_proxies SET provider = 'openai' WHERE provider IS NULL OR provider = ''")
+    # Backfill NULL/empty/legacy provider
+    cur.execute("UPDATE ai_proxies SET provider = '9router' WHERE provider IS NULL OR provider = '' OR provider != '9router'")
     if cur.rowcount > 0:
-        print(f"  Set provider=openai untuk {cur.rowcount} rows")
+        print(f"  Set provider=9router untuk {cur.rowcount} rows")
     print("= ai_proxies.provider backfill done")
 else:
     print("= ai_proxies belum ada, akan dibuat oleh SQLAlchemy")

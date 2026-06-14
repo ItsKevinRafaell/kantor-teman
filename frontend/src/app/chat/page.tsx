@@ -50,7 +50,7 @@ export default function ChatPage() {
   // ─── SWR data ───────────────────────────────────────────────────────────────
   const { data: projectsData = [] } = useApi<ChatProject[]>("/api/chat/projects");
   const { data: modelsData } = useApi<{ models: ChatModel[] }>("/api/chat/models");
-  const { data: settingsData } = useApi<{ openai_api_key: string; ai_base_url: string }>("/api/settings");
+  const { data: settingsData } = useApi<{ ai_api_key: string; ai_base_url: string }>("/api/settings");
 
   // ─── Local state ──────────────────────────────────────────────────────────
   const [projects, setProjects] = useState<ChatProject[]>(projectsData);
@@ -60,7 +60,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [memories, setMemories] = useState<ChatMemory[]>([]);
   const [models, setModels] = useState<ChatModel[]>(DEFAULT_MODELS);
-  const [selectedModel, setSelectedModel] = useState("glm-5");
+  const [selectedModel, setSelectedModel] = useState("combo-genflow");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
@@ -91,7 +91,7 @@ export default function ChatPage() {
   // ─── Sync SWR → local ────────────────────────────────────────────────────
   useEffect(() => { setProjects(projectsData); }, [projectsData]);
   useEffect(() => { if (modelsData?.models?.length) setModels(modelsData.models); }, [modelsData]);
-  useEffect(() => { if (settingsData) { setApiKey(settingsData.openai_api_key || ""); setApiBaseUrl(settingsData.ai_base_url || ""); } }, [settingsData]);
+  useEffect(() => { if (settingsData) { setApiKey(settingsData.ai_api_key || ""); setApiBaseUrl(settingsData.ai_base_url || ""); } }, [settingsData]);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -112,7 +112,7 @@ export default function ChatPage() {
     setSelectedProject(p);
     setSelectedConversation(null);
     setMessages([]);
-    setSelectedModel(p.default_model || "glm-5");
+    setSelectedModel(p.default_model || "combo-genflow");
     loadMemories(p.id);
     try {
       const data = await apiFetch<ChatConversation[]>(`/api/chat/projects/${p.id}/conversations`);
@@ -274,7 +274,7 @@ export default function ChatPage() {
 
   async function saveApiSettings() {
     setSavingApiSettings(true);
-    try { await apiFetch("/api/settings", { method: "PUT", body: JSON.stringify({ openai_api_key: apiKey, ai_base_url: apiBaseUrl }) }); showToast("API settings disimpan"); setShowApiSettings(false); }
+    try { await apiFetch("/api/settings", { method: "PUT", body: JSON.stringify({ ai_api_key: apiKey, ai_base_url: apiBaseUrl, ai_provider: "9router" }) }); showToast("Settings 9router disimpan"); setShowApiSettings(false); }
     catch (e: any) { showToast("Gagal: " + e.message); }
     finally { setSavingApiSettings(false); }
   }

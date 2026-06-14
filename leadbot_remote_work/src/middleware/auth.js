@@ -1,15 +1,16 @@
 const crypto = require('crypto');
 const config = require('../config');
+const dashboardAuthService = require('../services/dashboardAuthService');
 
 const SESSION_COOKIE = 'leadbot_session';
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
 
 function isDashboardAuthEnabled() {
-  return Boolean(config.security.dashboardUser && config.security.dashboardPassword);
+  return !config.security.dashboardAuthDisabled;
 }
 
 function getSessionSecret() {
-  return process.env.DASHBOARD_SESSION_SECRET || config.security.dashboardPassword || 'leadbot-dashboard';
+  return config.security.dashboardSessionSecret || config.security.dashboardPassword || 'leadbot-dashboard';
 }
 
 function safeEqual(left, right) {
@@ -44,7 +45,7 @@ function createSessionValue(user) {
   return [user, expiresAt, signSession(user, expiresAt)].join('.');
 }
 
-function verifySession(req) {
+async function verifySession(req) {
   const value = parseCookies(req)[SESSION_COOKIE];
   if (!value) return false;
 
@@ -54,16 +55,13 @@ function verifySession(req) {
   const [user, expiresAtRaw, signature] = parts;
   const expiresAt = Number(expiresAtRaw);
   if (!user || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) return false;
-  if (!safeEqual(user, config.security.dashboardUser)) return false;
+  const dashboardUser = await dashboardAuthService.getUserById(user);
+  if (!dashboardUser || !dashboardUser.active) return false;
 
   return safeEqual(signature, signSession(user, expiresAt));
 }
 
-function verifyCredentials(user, password) {
-  return safeEqual(user, config.security.dashboardUser) && safeEqual(password, config.security.dashboardPassword);
-}
-
-function verifyBasicAuth(req) {
+async function verifyBasicAuth(req) {
   const header = req.get('authorization') || '';
   if (!header.startsWith('Basic ')) return false;
 
@@ -75,9 +73,9 @@ function verifyBasicAuth(req) {
   }
 
   const sep = decoded.indexOf(':');
-  const user = sep >= 0 ? decoded.slice(0, sep) : '';
+  const email = sep >= 0 ? decoded.slice(0, sep) : '';
   const password = sep >= 0 ? decoded.slice(sep + 1) : '';
-  return verifyCredentials(user, password);
+  return Boolean(await dashboardAuthService.authenticate(email, password));
 }
 
 function wantsHtml(req) {
@@ -97,13 +95,18 @@ function unauthorized(req, res) {
   return res.status(401).json({ error: 'Autentikasi dibutuhkan' });
 }
 
-function requireDashboardAuth(req, res, next) {
-  if (!isDashboardAuthEnabled()) return next();
+async function requireDashboardAuth(req, res, next) {
+  try {
+    if (!isDashboardAuthEnabled()) return next();
 
-  if (verifySession(req)) return next();
-  if (allowsBasicAuth(req) && verifyBasicAuth(req)) return next();
+    if (await verifySession(req)) return next();
+    if (allowsBasicAuth(req) && await verifyBasicAuth(req)) return next();
 
-  return unauthorized(req, res);
+    return unauthorized(req, res);
+  } catch (error) {
+    console.error('[Auth] Dashboard auth check failed:', error.message);
+    return res.status(503).json({ error: 'Autentikasi sementara tidak tersedia' });
+  }
 }
 
 function sanitizeNext(nextPath) {
@@ -113,11 +116,11 @@ function sanitizeNext(nextPath) {
   return nextPath;
 }
 
-function setSessionCookie(res, user) {
+function setSessionCookie(res, userId) {
   const secure = process.env.DASHBOARD_COOKIE_SECURE === 'true' ? '; Secure' : '';
   res.setHeader(
     'Set-Cookie',
-    SESSION_COOKIE + '=' + encodeURIComponent(createSessionValue(user)) + '; HttpOnly; SameSite=Lax; Path=/; Max-Age=' + SESSION_MAX_AGE_SECONDS + secure
+    SESSION_COOKIE + '=' + encodeURIComponent(createSessionValue(userId)) + '; HttpOnly; SameSite=Lax; Path=/; Max-Age=' + SESSION_MAX_AGE_SECONDS + secure
   );
 }
 
@@ -125,25 +128,36 @@ function clearSessionCookie(res) {
   res.setHeader('Set-Cookie', SESSION_COOKIE + '=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
 }
 
-function redirectIfAuthenticated(req, res, next) {
-  if (!isDashboardAuthEnabled()) return res.redirect('/');
-  if (verifySession(req)) return res.redirect('/');
-  return next();
+async function redirectIfAuthenticated(req, res, next) {
+  try {
+    if (!isDashboardAuthEnabled()) return res.redirect('/');
+    if (await verifySession(req)) return res.redirect('/');
+    return next();
+  } catch (error) {
+    console.error('[Auth] Session check failed:', error.message);
+    return next();
+  }
 }
 
-function handleLogin(req, res) {
-  if (!isDashboardAuthEnabled()) return res.redirect('/');
+async function handleLogin(req, res) {
+  try {
+    if (!isDashboardAuthEnabled()) return res.redirect('/');
 
-  const user = req.body?.username || '';
-  const password = req.body?.password || '';
-  const nextPath = sanitizeNext(req.body?.next || req.query?.next);
+    const email = req.body?.email || req.body?.username || '';
+    const password = req.body?.password || '';
+    const nextPath = sanitizeNext(req.body?.next || req.query?.next);
+    const user = await dashboardAuthService.authenticate(email, password).catch(() => null);
 
-  if (!verifyCredentials(user, password)) {
-    return res.redirect('/login?error=1&next=' + encodeURIComponent(nextPath));
+    if (!user) {
+      return res.redirect('/login?error=1&next=' + encodeURIComponent(nextPath));
+    }
+
+    setSessionCookie(res, user.id);
+    return res.redirect(nextPath);
+  } catch (error) {
+    console.error('[Auth] Login failed:', error.message);
+    return res.redirect('/login?error=1');
   }
-
-  setSessionCookie(res, user);
-  return res.redirect(nextPath);
 }
 
 function handleLogout(req, res) {

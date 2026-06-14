@@ -17,7 +17,7 @@ interface RouterModel {
 }
 
 const PROVIDER_OPTIONS = [
-  { value: "custom", label: "9router (OpenAI-compatible)" },
+  { value: "9router", label: "9router" },
 ];
 
 const PROXY_FEATURES = [
@@ -37,14 +37,14 @@ interface ProxiesSectionProps {
 export default function ProxiesSection({ proxies, routerModels, onFetchProxies, showToast, onConfirmDelete }: ProxiesSectionProps) {
   const [proxyModal, setProxyModal] = useState(false);
   const [editingProxy, setEditingProxy] = useState<AIProxy | null>(null);
-  const [proxyForm, setProxyForm] = useState({ name: "", base_url: "http://9router.kantorteman.my.id/v1", api_key: "", model: "combo-genflow", feature: "", provider: "custom" });
+  const [proxyForm, setProxyForm] = useState({ name: "", base_url: "http://9router.kantorteman.my.id/v1", api_key: "", model: "combo-genflow", feature: "", provider: "9router" });
   const [activatingProxy, setActivatingProxy] = useState<string | null>(null);
   const comboModels = routerModels.filter((model) => model.type === "combo" || model.id.startsWith("combo-"));
   const regularModels = routerModels.filter((model) => !comboModels.includes(model));
 
   function openProxyModal(p: AIProxy | null) {
     setEditingProxy(p);
-    setProxyForm(p ? { name: p.name, base_url: p.base_url, api_key: "", model: p.model, feature: p.feature || "", provider: "custom" } : { name: "9router", base_url: "http://9router.kantorteman.my.id/v1", api_key: "", model: comboModels[0]?.id || "combo-genflow", feature: "", provider: "custom" });
+    setProxyForm(p ? { name: p.name, base_url: p.base_url, api_key: "", model: p.model, feature: p.feature || "", provider: "9router" } : { name: "9router", base_url: "http://9router.kantorteman.my.id/v1", api_key: "", model: comboModels[0]?.id || "combo-genflow", feature: "", provider: "9router" });
     setProxyModal(true);
   }
 
@@ -89,8 +89,8 @@ export default function ProxiesSection({ proxies, routerModels, onFetchProxies, 
       <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-5 space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Provider AI ({proxies.length})</h2>
-            <p className="text-xs text-neutral-500 mt-0.5">Semua AI KantorTeman diarahkan ke 9router OpenAI-compatible.</p>
+            <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Endpoint 9router ({proxies.length})</h2>
+            <p className="text-xs text-neutral-500 mt-0.5">Semua AI KantorTeman diarahkan ke 9router VPS. Pilih combo/model dari registry realtime.</p>
           </div>
           <button onClick={() => openProxyModal(null)} className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-yellow hover:bg-amber-600 text-white text-xs font-semibold rounded-xl transition-colors">
             <Plus size={14} /> Tambah
@@ -98,7 +98,7 @@ export default function ProxiesSection({ proxies, routerModels, onFetchProxies, 
         </div>
 
         {proxies.length === 0 ? (
-          <p className="text-sm text-neutral-400 text-center py-4">Belum ada provider. Tambahkan koneksi 9router terlebih dulu.</p>
+          <p className="text-sm text-neutral-400 text-center py-4">Belum ada endpoint. Tambahkan koneksi 9router terlebih dulu.</p>
         ) : (
           <div className="space-y-2">
             {proxies.map(p => (
@@ -133,14 +133,12 @@ export default function ProxiesSection({ proxies, routerModels, onFetchProxies, 
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setProxyModal(false)} />
           <div className="relative bg-[var(--bg-surface)] rounded-2xl shadow-2xl border border-[var(--border-default)] w-full max-w-md p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-neutral-900 dark:text-neutral-50">{editingProxy ? "Edit Provider AI" : "Tambah Provider AI"}</h3>
+              <h3 className="font-bold text-neutral-900 dark:text-neutral-50">{editingProxy ? "Edit Endpoint 9router" : "Tambah Endpoint 9router"}</h3>
               <button onClick={() => setProxyModal(false)} className="text-neutral-400 hover:text-neutral-700"><X size={18} /></button>
             </div>
             <div className="space-y-3">
-              <input value={proxyForm.name} onChange={e => setProxyForm({...proxyForm, name: e.target.value})} placeholder="Nama provider" className={inputCls} />
-              <select value={proxyForm.provider} onChange={e => setProxyForm({...proxyForm, provider: e.target.value})} className={inputCls}>
-                {PROVIDER_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-              </select>
+              <input value={proxyForm.name} onChange={e => setProxyForm({...proxyForm, name: e.target.value})} placeholder="Nama endpoint" className={inputCls} />
+              <input value="9router" disabled className={inputCls} />
               <input value={proxyForm.base_url} onChange={e => setProxyForm({...proxyForm, base_url: e.target.value})} placeholder="http://9router.kantorteman.my.id/v1" className={inputCls} />
               <input value={proxyForm.api_key} onChange={e => setProxyForm({...proxyForm, api_key: e.target.value})} placeholder={editingProxy ? "API Key 9router (kosongkan jika tidak berubah)" : "API Key 9router (opsional jika VPS lokal tidak butuh key)"} type="password" className={inputCls} />
               {routerModels.length > 0 ? (

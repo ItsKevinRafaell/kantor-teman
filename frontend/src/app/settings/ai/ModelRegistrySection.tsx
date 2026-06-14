@@ -60,7 +60,7 @@ export default function ModelRegistrySection({
         {loading ? (
           <div className="p-8 text-center text-sm text-neutral-400">Memuat...</div>
         ) : models.length === 0 ? (
-          <div className="p-8 text-center text-sm text-neutral-400">Belum ada model override. Default pakai provider aktif.</div>
+          <div className="p-8 text-center text-sm text-neutral-400">Belum ada model override. Default pakai endpoint 9router aktif.</div>
         ) : (
           <div className="divide-y divide-[var(--border-subtle)]">
             {models.map(m => (
@@ -108,7 +108,7 @@ export default function ModelRegistrySection({
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Nama Display</label>
-                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder="Claude Haiku 4.5" />
+                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder="combo-genflow" />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Model ID</label>

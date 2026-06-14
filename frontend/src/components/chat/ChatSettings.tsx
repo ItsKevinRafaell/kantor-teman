@@ -106,21 +106,21 @@ export default function ChatSettings({
         </div>
       )}
 
-      {/* API Settings */}
+      {/* 9router Settings */}
       {showApiSettings && (
         <div className="absolute right-4 top-[60px] w-80 bg-white dark:bg-neutral-900 border border-[var(--border-subtle)] rounded-lg shadow-lg z-40">
           <div className="p-3 border-b border-[var(--border-subtle)] flex items-center justify-between">
-            <h3 className="font-medium text-sm">API Settings</h3>
+            <h3 className="font-medium text-sm">9router Settings</h3>
             <button onClick={onCloseApiSettings} className="text-neutral-400 hover:text-neutral-600">×</button>
           </div>
           <div className="p-4 space-y-3">
             <div>
-              <label className="text-xs text-neutral-500 block mb-1">API Key</label>
+              <label className="text-xs text-neutral-500 block mb-1">9router API Key</label>
               <input type="password" value={apiKey} onChange={e => onApiKeyChange(e.target.value)}
-                placeholder="sk-..." className="w-full text-sm border border-[var(--border-subtle)] rounded px-3 py-2" />
+                placeholder="9router key" className="w-full text-sm border border-[var(--border-subtle)] rounded px-3 py-2" />
             </div>
             <div>
-              <label className="text-xs text-neutral-500 block mb-1">API Base URL</label>
+              <label className="text-xs text-neutral-500 block mb-1">9router Base URL</label>
               <input type="text" value={apiBaseUrl} onChange={e => onApiBaseUrlChange(e.target.value)}
                 placeholder="http://localhost:20128/v1" className="w-full text-sm border border-[var(--border-subtle)] rounded px-3 py-2" />
             </div>

@@ -87,9 +87,9 @@ transactions_data = [
     ("2026-05-08", "expense", 272100,  "Infrastruktur",         "Keyboard Robot KL150"),
     ("2026-05-17", "expense", 20450,   "Operasional",           ""),
     ("2026-05-20", "expense", 200000,  "Hosting & Domain",      "DEVELOPER HOSTING ANYMHOST - 1 TAHUN"),
-    ("2026-05-20", "expense", 60000,   "Tools & Langganan",    "API KEY AIMURAH"),
+    ("2026-05-20", "expense", 60000,   "Tools & Langganan",    "API 9router"),
     ("2026-05-20", "expense", 75000,   "Tools & Langganan",    "1 Bulan API Key SEMUTSSH"),
-    ("2026-05-23", "expense", 20000,   "Tools & Langganan",    "AI MURAH"),
+    ("2026-05-23", "expense", 20000,   "Tools & Langganan",    "API 9router"),
     ("2026-05-23", "expense", 60000,   "Hosting & Domain",      "upgrade hosting teman umkm kita ke paket hosting newbie"),
     ("2026-05-23", "expense", 21000,   "Tools & Langganan",    "Telegram"),
 ]

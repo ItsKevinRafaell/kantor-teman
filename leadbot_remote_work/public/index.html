@@ -4,6 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LeadBot</title>
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" href="/brand/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/brand/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -72,7 +75,8 @@
       gap: 18px;
     }
     .brand { padding: 4px 6px 16px; border-bottom: 1px solid rgba(255,255,255,.14); }
-    .brand h1 { margin: 0; font-size: 22px; letter-spacing: 0; }
+    .brand img { display: block; width: 164px; max-width: 100%; height: auto; }
+    .brand h1 { margin: 12px 0 0; font-size: 20px; letter-spacing: 0; }
     .brand p { margin: 6px 0 0; color: #c9c3b6; font-size: 12px; }
     .nav { display: grid; gap: 8px; }
     .nav button {
@@ -286,6 +290,7 @@
   <div class="app">
     <aside class="sidebar">
       <div class="brand">
+        <img src="/brand/logo-secondary.png" alt="Teman UMKM Kita">
         <h1>LeadBot</h1>
         <p>AI owner-sales untuk WhatsApp UMKM</p>
       </div>
@@ -294,7 +299,6 @@
         <button data-view="setup">Data Usaha</button>
         <button data-view="docs">Dokumen</button>
         <button data-view="ai-test">AI Test</button>
-        <button data-view="whatsapp">WhatsApp</button>
       </nav>
       <form method="post" action="/logout">
         <button class="secondary" type="submit">Logout</button>
@@ -440,42 +444,6 @@
           </div>
         </div>
 
-        <div id="view-whatsapp" class="view">
-          <div class="grid-2">
-            <div class="panel">
-              <div class="panel-head">
-                <h3>Status WhatsApp</h3>
-                <div class="toolbar">
-                  <button class="secondary" id="checkWaBtn">Cek</button>
-                  <button class="success" id="startWaBtn">Start</button>
-                </div>
-              </div>
-              <div class="panel-body">
-                <div class="result" id="waStatus">Belum dicek.</div>
-              </div>
-            </div>
-            <div class="panel">
-              <div class="panel-head">
-                <h3>Login</h3>
-                <button class="secondary" id="getQrBtn">QR</button>
-              </div>
-              <div class="panel-body">
-                <div class="form-grid">
-                  <div>
-                    <label>Nomor pairing</label>
-                    <input id="pairingPhone" placeholder="628xxxxxxxxxx">
-                  </div>
-                  <div style="align-self:end">
-                    <button class="warning" id="pairingBtn">Pairing Code</button>
-                  </div>
-                </div>
-                <div style="height:14px"></div>
-                <div class="qr-box" id="qrBox"></div>
-                <div class="result" id="pairingResult">Belum ada kode.</div>
-              </div>
-            </div>
-          </div>
-        </div>
       </section>
     </main>
   </div>
@@ -495,7 +463,6 @@
       setup: 'Data Usaha',
       docs: 'Dokumen',
       'ai-test': 'AI Test',
-      whatsapp: 'WhatsApp',
     };
 
     function $(id) { return document.getElementById(id); }
@@ -553,8 +520,8 @@
       $('statToday').textContent = stats.messagesToday || 0;
       $('statRate').textContent = (stats.autoReplyRate || 0) + '%';
       const ai = stats.ai?.configured ? 'AI aktif' : 'AI belum siap';
-      const waha = stats.waha?.session ? 'WAHA ' + stats.waha.session : 'WAHA belum siap';
-      $('systemMeta').textContent = ai + ' · ' + waha + ' · ' + shortDate(stats.updatedAt);
+      const whatsapp = stats.whatsapp?.configured ? 'Fonnte aktif' : 'Fonnte belum siap';
+      $('systemMeta').textContent = ai + ' · ' + whatsapp + ' · ' + shortDate(stats.updatedAt);
     }
 
     function renderConversations() {
@@ -755,42 +722,6 @@
       }
     }
 
-    async function checkWhatsapp() {
-      $('waStatus').textContent = 'Mengecek WAHA...';
-      try {
-        $('waStatus').textContent = JSON.stringify(await fetchJson('/api/dashboard/whatsapp/session'), null, 2);
-      } catch (error) {
-        $('waStatus').textContent = error.message;
-      }
-    }
-
-    async function startWhatsapp() {
-      $('waStatus').textContent = 'Memulai session...';
-      $('waStatus').textContent = JSON.stringify(await fetchJson('/api/dashboard/whatsapp/start', { method: 'POST' }), null, 2);
-    }
-
-    async function getQr() {
-      const result = await fetchJson('/api/dashboard/whatsapp/qr');
-      const data = result.data || result;
-      const box = $('qrBox');
-      if (typeof data === 'string' && data.startsWith('data:image')) {
-        box.innerHTML = `<img alt="QR WhatsApp" src="${data}">`;
-      } else if (typeof data === 'string' && data.includes('<svg')) {
-        box.innerHTML = data;
-      } else {
-        box.textContent = JSON.stringify(data);
-      }
-    }
-
-    async function getPairingCode() {
-      const phoneNumber = $('pairingPhone').value.trim();
-      if (!phoneNumber) return toast('Isi nomor pairing dulu.');
-      $('pairingResult').textContent = JSON.stringify(await fetchJson('/api/dashboard/whatsapp/pairing-code', {
-        method: 'POST',
-        body: JSON.stringify({ phoneNumber }),
-      }), null, 2);
-    }
-
     function escapeHtml(value) {
       return String(value || '').replace(/[&<>"']/g, (char) => ({
         '&': '&amp;',
@@ -828,10 +759,6 @@
     $('uploadForm').addEventListener('submit', uploadDocument);
     $('loadUploadsBtn').addEventListener('click', loadUploads);
     $('runAiTestBtn').addEventListener('click', runAiTest);
-    $('checkWaBtn').addEventListener('click', checkWhatsapp);
-    $('startWaBtn').addEventListener('click', startWhatsapp);
-    $('getQrBtn').addEventListener('click', getQr);
-    $('pairingBtn').addEventListener('click', getPairingCode);
 
     Promise.all([loadStats(), loadConversations(), loadKnowledgeItems(), loadUploads()]).catch((error) => toast(error.message));
     startEvents();

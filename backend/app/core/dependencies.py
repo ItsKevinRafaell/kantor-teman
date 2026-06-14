@@ -59,10 +59,8 @@ GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
 USD_TO_IDR = 17000
 
 SENSITIVE_SETTING_KEYS = {
-    "fonnte_token", "gemini_api_key", "claude_api_key", "openai_api_key",
-    "ai_api_key", "google_api_key", "google_service_account_json",
+    "fonnte_token", "ai_api_key", "google_api_key", "google_service_account_json",
     "cms_api_token", "external_lead_api_key", "smtp_password",
-    "waha_api_key", "waha_webhook_secret", "autolead_api_key",
 }
 
 # ─── Database ─────────────────────────────────────────────────────────────────
@@ -435,9 +433,7 @@ def log_outreach_cost(db: Session, campaign_id: str, messages_count: int):
     db.commit()
 
 def log_ai_cost(db: Session, campaign_id: str | None, model_name: str, input_tokens: int, output_tokens: int):
-    provider_map = {"gemini": "GEMINI", "claude": "CLAUDE", "anthropic": "CLAUDE", "openai": "OPENAI"}
-    provider_id = provider_map.get(model_name, model_name.upper())
-    provider = db.query(ProviderConfig).filter_by(id=provider_id).first()
+    provider = db.query(ProviderConfig).filter_by(id="9ROUTER").first()
     if not provider:
         return
     cost_usd = (provider.price_input_token_usd * input_tokens / 1000) + (provider.price_output_token_usd * output_tokens / 1000)
@@ -859,14 +855,7 @@ def seed_data(db: Session):
         db.add(SystemSettings(key="fonnte_token", value=os.getenv("FONNTE_TOKEN", "")))
         db.commit()
     default_settings = {
-        "whatsapp_provider": os.getenv("WHATSAPP_PROVIDER", "fonnte"),
-        "waha_base_url": os.getenv("WAHA_BASE_URL", "http://127.0.0.1:3000"),
-        "waha_api_key": os.getenv("WAHA_API_KEY", ""),
-        "waha_session": os.getenv("WAHA_SESSION", "default"),
-        "waha_webhook_secret": os.getenv("WAHA_WEBHOOK_SECRET", ""),
-        "autolead_base_url": os.getenv("AUTOLEAD_BASE_URL", ""),
-        "autolead_api_key": os.getenv("AUTOLEAD_API_KEY", ""),
-        "autolead_demo": os.getenv("AUTOLEAD_DEMO", "true"),
+        "whatsapp_provider": "fonnte",
         "whatsapp_blast_delay_seconds": os.getenv("WHATSAPP_BLAST_DELAY_SECONDS", "5"),
     }
     for key, value in default_settings.items():
@@ -876,19 +865,9 @@ def seed_data(db: Session):
     if not db.query(ProviderConfig).first():
         providers = [
             ProviderConfig(id="FONNTE", provider_name="Fonnte WhatsApp", remaining_quota=10000, price_per_unit_idr=6.6, price_input_token_usd=0, price_output_token_usd=0),
-            ProviderConfig(id="WAHA", provider_name="WAHA WhatsApp", remaining_quota=0, price_per_unit_idr=0, price_input_token_usd=0, price_output_token_usd=0),
-            ProviderConfig(id="AUTOLEAD", provider_name="AutoLead Bridge", remaining_quota=0, price_per_unit_idr=0, price_input_token_usd=0, price_output_token_usd=0),
-            ProviderConfig(id="GEMINI", provider_name="Gemini 2.5 Flash", remaining_quota=0, price_per_unit_idr=0, price_input_token_usd=0.000075, price_output_token_usd=0.0003),
-            ProviderConfig(id="CLAUDE", provider_name="Claude 4.5 Haiku", remaining_quota=0, price_per_unit_idr=0, price_input_token_usd=0.00025, price_output_token_usd=0.0125),
-            ProviderConfig(id="OPENAI", provider_name="GPT-5", remaining_quota=0, price_per_unit_idr=0, price_input_token_usd=0.0025, price_output_token_usd=0.010),
+            ProviderConfig(id="9ROUTER", provider_name="9router AI", remaining_quota=0, price_per_unit_idr=0, price_input_token_usd=0, price_output_token_usd=0),
         ]
         db.add_all(providers)
-        db.commit()
-    elif not db.query(ProviderConfig).filter_by(id="WAHA").first():
-        db.add(ProviderConfig(id="WAHA", provider_name="WAHA WhatsApp", remaining_quota=0, price_per_unit_idr=0, price_input_token_usd=0, price_output_token_usd=0))
-        db.commit()
-    if not db.query(ProviderConfig).filter_by(id="AUTOLEAD").first():
-        db.add(ProviderConfig(id="AUTOLEAD", provider_name="AutoLead Bridge", remaining_quota=0, price_per_unit_idr=0, price_input_token_usd=0, price_output_token_usd=0))
         db.commit()
     if not db.query(DynamicTemplate).filter_by(type="TIMELINE_TEMPLATE").first():
         timeline_templates = [

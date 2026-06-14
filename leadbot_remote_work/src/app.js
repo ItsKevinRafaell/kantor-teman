@@ -6,6 +6,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const db = require('./db');
 const runMigrations = require('./migrate');
 const telegramPolling = require('./services/telegramPolling');
+const dashboardAuthService = require('./services/dashboardAuthService');
 const {
   requireDashboardAuth,
   isDashboardAuthEnabled,
@@ -25,12 +26,35 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use('/brand', express.static(path.join(publicDir, 'brand'), { index: false }));
+app.get('/favicon.ico', (req, res) => {
+  res.sendFile(path.join(publicDir, 'favicon.ico'));
+});
+
 app.use('/api', webhookRoutes);
 app.get('/login', redirectIfAuthenticated, (req, res) => {
   res.sendFile(path.join(publicDir, 'login.html'));
 });
 app.post('/login', handleLogin);
 app.post('/logout', handleLogout);
+app.get('/reset-password', (req, res) => {
+  res.sendFile(path.join(publicDir, 'reset-password.html'));
+});
+app.post('/api/auth/password/forgot', async (req, res) => {
+  try {
+    const baseUrl = req.protocol + '://' + req.get('host');
+    res.json(await dashboardAuthService.requestPasswordReset(req.body?.email, baseUrl));
+  } catch (error) {
+    res.status(400).json({ error: error.message || 'Reset password gagal' });
+  }
+});
+app.post('/api/auth/password/reset', async (req, res) => {
+  try {
+    res.json(await dashboardAuthService.resetPassword(req.body?.token, req.body?.password));
+  } catch (error) {
+    res.status(400).json({ error: error.message || 'Reset password gagal' });
+  }
+});
 app.use('/api/dashboard', requireDashboardAuth, dashboardRoutes);
 app.use(requireDashboardAuth, express.static(publicDir, { index: false }));
 
@@ -76,6 +100,7 @@ async function start() {
   try {
     await testConnection();
     await runMigrations();
+    await dashboardAuthService.ensureBootstrapUser();
   } catch (error) {
     console.error('[Bootstrap] Failed:', error.message);
     process.exit(1);

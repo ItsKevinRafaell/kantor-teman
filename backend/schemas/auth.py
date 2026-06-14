@@ -93,6 +93,7 @@ class UserAdminUpdate(BaseModel):
 
 class PasswordResetRequest(BaseModel):
     email: str
+    frontend_url: Optional[str] = None
 
     @field_validator("email")
     @classmethod
@@ -102,6 +103,18 @@ class PasswordResetRequest(BaseModel):
             raise ValueError("Format email tidak valid")
         if len(v) > 254:
             raise ValueError("Email terlalu panjang")
+        return v
+
+    @field_validator("frontend_url")
+    @classmethod
+    def validate_frontend_url(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        v = v.strip().rstrip("/")
+        if not v:
+            return None
+        if not re.match(r"^https://[a-zA-Z0-9.-]+(?::\d+)?$", v):
+            raise ValueError("URL frontend tidak valid")
         return v
 
 

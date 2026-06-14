@@ -37,6 +37,7 @@ from app.services.scoring_service import (
 from app.services.notification_service import create_notification
 from app.constants import CLIENT_STATUS_VALUES
 from app.core.cache import cached, clear_cache_prefix
+from app.core.config import PLACES_NEW_SEARCH_URL
 
 router = APIRouter()
 

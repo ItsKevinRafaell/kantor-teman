@@ -1,11 +1,11 @@
 # KantorTeman Bridge
 
-Bridge ini dipakai saat KantorTeman berjalan di shared hosting dan WAHA berjalan di VPS bersama AutoLead.
+Bridge ini dipakai saat KantorTeman perlu mencatat atau mengirim WhatsApp outbound lewat AutoLead/Fonnte.
 
 ```text
 KantorTeman shared hosting
 -> public AutoLead Bridge
--> local WAHA container
+-> Fonnte API
 -> WhatsApp
 ```
 
@@ -28,7 +28,7 @@ Demo mode:
 KANTORTEMAN_BRIDGE_DEMO=true
 ```
 
-Saat demo mode aktif, request outbound dari KantorTeman akan disimpan ke tabel conversation/messages dengan responder `kantorteman_bridge`, tetapi tidak dikirim ke WhatsApp.
+Saat demo mode aktif, request outbound dari KantorTeman disimpan ke tabel conversation/messages dengan responder `kantorteman_bridge`, tetapi tidak dikirim ke WhatsApp.
 Tetap kirim payload demo dengan `dry_run: true` saat smoke test, supaya test tidak bergantung pada mode global.
 
 Payload:
@@ -44,10 +44,16 @@ Payload:
 }
 ```
 
-Public reverse proxy masih perlu disiapkan agar shared hosting bisa memanggil app ini. Target internal app:
+Target internal app:
 
 ```text
 127.0.0.1:3000
+```
+
+Public production route:
+
+```text
+https://autolead.kantorteman.my.id
 ```
 
 ## Smoke Test
@@ -61,7 +67,7 @@ npm run smoke:kantorteman-bridge
 Env minimal untuk smoke:
 
 ```env
-AUTOLEAD_BRIDGE_URL=https://<public-autolead-domain>
+AUTOLEAD_BRIDGE_URL=https://autolead.kantorteman.my.id
 KANTORTEMAN_BRIDGE_TOKEN=<bridge-token>
 AUTOLEAD_SMOKE_SEND=false
 ```
@@ -70,7 +76,7 @@ Demo send hanya boleh dijalankan setelah approval eksplisit karena tetap mencata
 
 ```env
 AUTOLEAD_SMOKE_SEND=true
-AUTOLEAD_SMOKE_TARGET=081234567890
+AUTOLEAD_SMOKE_TARGET=081549401504
 ```
 
 Lalu jalankan:
@@ -87,6 +93,6 @@ Expected demo result:
   "success": true,
   "action": "demo_recorded",
   "dryRun": true,
-  "provider": "autolead_bridge"
+  "provider": "fonnte"
 }
 ```

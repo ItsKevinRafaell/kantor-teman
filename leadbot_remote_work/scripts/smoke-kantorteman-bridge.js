@@ -47,7 +47,7 @@ async function main() {
     status: health.status,
     demo: health.demo,
     bridgeTokenConfigured: health.bridgeTokenConfigured,
-    wahaConfigured: Boolean(health.waha?.configured),
+    whatsappConfigured: Boolean(health.whatsapp?.configured || health.fonnte?.configured),
   }, null, 2));
 
   if (!shouldSend) {

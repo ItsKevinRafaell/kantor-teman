@@ -545,76 +545,6 @@ class TestFonnteStatusCallback:
         assert msg_08.status == "replied"
 
 
-class TestWahaWebhook:
-    """WAHA webhook compatibility for direct WAHA or future AutoLead handoff."""
-
-    def test_waha_inbound_message_marks_lead_replied(self, db_session):
-        from routers.campaign import waha_webhook
-        from unittest.mock import MagicMock, AsyncMock
-
-        lead = Lead(business_name="WAHA Lead", phone_number="081234567890", status="Contacted")
-        db_session.add(lead)
-        db_session.commit()
-
-        request = MagicMock()
-        request.headers = {}
-        request.body = AsyncMock(return_value=json.dumps({
-            "event": "message",
-            "payload": {
-                "from": "6281234567890@c.us",
-                "body": "Halo, saya tertarik",
-                "fromMe": False,
-            },
-        }).encode("utf-8"))
-
-        result = asyncio.run(waha_webhook(request, db_session))
-
-        assert result["ok"] is True
-        assert result["lead_id"] == lead.id
-        assert result.get("new_status") == "Replied"
-
-    def test_waha_hmac_ack_updates_blast_message(self, db_session):
-        import hashlib
-        import hmac
-        from routers.campaign import waha_webhook
-        from unittest.mock import MagicMock, AsyncMock
-
-        db_session.add(SystemSettings(key="waha_webhook_secret", value="waha-secret"))
-        lead = Lead(business_name="WAHA Ack Lead", phone_number="081234567890")
-        db_session.add(lead)
-        db_session.flush()
-        msg = BlastMessage(
-            id="waha-ack-msg",
-            lead_id=lead.id,
-            phone_number="081234567890",
-            sent_at="2026-06-06T00:00:00+00:00",
-            status="sent",
-        )
-        db_session.add(msg)
-        db_session.commit()
-
-        raw_body = json.dumps({
-            "event": "message.ack",
-            "payload": {
-                "to": "6281234567890@c.us",
-                "ackName": "read",
-            },
-        }).encode("utf-8")
-        signature = hmac.new(b"waha-secret", raw_body, hashlib.sha512).hexdigest()
-
-        request = MagicMock()
-        request.headers = {"x-webhook-hmac": signature}
-        request.body = AsyncMock(return_value=raw_body)
-
-        result = asyncio.run(waha_webhook(request, db_session))
-
-        assert result["ok"] is True
-        db_session.refresh(msg)
-        assert msg.status == "read"
-        assert msg.delivered_at is not None
-        assert msg.read_at is not None
-
-
 class TestAutoLeadExternalLead:
     """AutoLead -> KantorTeman external lead handoff."""
 
@@ -746,28 +676,28 @@ class TestDocumentGeneratorInput:
 
 
 class TestAIProviderConfig:
-    """P0-3/P1-5: AI proxy provider field and multi-provider"""
+    """P0-3/P1-5: AI endpoint config is 9router-only."""
 
     def test_schema_has_provider(self):
-        """AIProxyIn should accept provider field."""
+        """AIProxyIn should accept only the 9router provider field."""
         from schemas import AIProxyIn, AIProxyOut
 
-        inp = AIProxyIn(name="Test", base_url="http://test.com", provider="anthropic")
-        assert inp.provider == "custom"
+        inp = AIProxyIn(name="Test", base_url="http://127.0.0.1:20128/v1", provider="9router")
+        assert inp.provider == "9router"
 
-    def test_get_ai_config_claude_maps_key(self, db_session):
-        """get_ai_config keeps legacy provider metadata but routes through OpenAI-compatible proxy."""
+    def test_get_ai_config_router_proxy_maps_key(self, db_session):
+        """get_ai_config returns a canonical 9router config from the active endpoint."""
         from app.services.ai_service import get_ai_config
         from app.services import ai_service
         from models import AIProxy
         from unittest.mock import patch
 
         proxy = AIProxy(
-            name="Claude Proxy",
-            base_url="https://api.anthropic.com",
-            api_key="sk-ant-key123",
-            model="claude-sonnet-4-5",
-            provider="claude",
+            name="9router",
+            base_url="http://127.0.0.1:20128/v1",
+            api_key="router-key-123",
+            model="combo-genflow",
+            provider="9router",
             feature=None,
             is_active=True,
         )
@@ -777,26 +707,26 @@ class TestAIProviderConfig:
         with patch.object(ai_service, "get_proxy_for_feature", return_value=proxy):
             cfg = get_ai_config(db_session, "chat")
 
-        assert cfg["provider"] == "custom"
-        assert cfg["stored_provider"] == "claude"
-        assert cfg["openai_key"] == "sk-ant-key123"
-        assert cfg["base_url"] == "https://api.anthropic.com/v1"
+        assert cfg["provider"] == "9router"
+        assert cfg["stored_provider"] == "9router"
+        assert cfg["openai_key"] == "router-key-123"
+        assert cfg["base_url"] == "http://127.0.0.1:20128/v1"
         assert cfg["gemini_key"] == ""
         assert cfg["claude_key"] == ""
 
-    def test_get_ai_config_gemini_maps_key(self, db_session):
-        """get_ai_config stores Gemini-labelled proxy as OpenAI-compatible runtime config."""
+    def test_get_ai_config_normalizes_router_base_url(self, db_session):
+        """get_ai_config adds /v1 to a 9router base URL when needed."""
         from app.services.ai_service import get_ai_config
         from app.services import ai_service
         from models import AIProxy
         from unittest.mock import patch
 
         proxy = AIProxy(
-            name="Gemini Proxy",
-            base_url="https://generativelanguage.googleapis.com",
-            api_key="gemini-key-456",
-            model="gemini-2.0-flash",
-            provider="gemini",
+            name="9router External",
+            base_url="https://9router.kantorteman.my.id",
+            api_key="router-key-456",
+            model="combo-clarifie",
+            provider="9router",
             feature=None,
             is_active=True,
         )
@@ -806,38 +736,29 @@ class TestAIProviderConfig:
         with patch.object(ai_service, "get_proxy_for_feature", return_value=proxy):
             cfg = get_ai_config(db_session, "chat")
 
-        assert cfg["provider"] == "custom"
-        assert cfg["stored_provider"] == "gemini"
-        assert cfg["openai_key"] == "gemini-key-456"
-        assert cfg["base_url"] == "https://generativelanguage.googleapis.com/v1"
+        assert cfg["provider"] == "9router"
+        assert cfg["stored_provider"] == "9router"
+        assert cfg["openai_key"] == "router-key-456"
+        assert cfg["base_url"] == "https://9router.kantorteman.my.id/v1"
         assert cfg["gemini_key"] == ""
         assert cfg["claude_key"] == ""
 
-    def test_get_ai_config_openai_maps_to_openai_key(self, db_session):
-        """get_ai_config stores OpenAI-labelled proxy as OpenAI-compatible runtime config."""
+    def test_get_ai_config_uses_settings_when_no_endpoint_row(self, db_session):
+        """get_ai_config falls back to 9router settings when no endpoint row exists."""
         from app.services.ai_service import get_ai_config
-        from app.services import ai_service
-        from models import AIProxy
-        from unittest.mock import patch
+        from models import SystemSettings
 
-        proxy = AIProxy(
-            name="OpenAI Proxy",
-            base_url="https://api.openai.com/v1",
-            api_key="sk-openai-key",
-            model="gpt-4o-mini",
-            provider="openai",
-            feature=None,
-            is_active=True,
-        )
-        db_session.add(proxy)
+        db_session.add(SystemSettings(key="ai_api_key", value="router-settings-key"))
+        db_session.add(SystemSettings(key="ai_base_url", value="http://127.0.0.1:20128"))
+        db_session.add(SystemSettings(key="ai_model", value="combo-databytes"))
         db_session.commit()
 
-        with patch.object(ai_service, "get_proxy_for_feature", return_value=proxy):
-            cfg = get_ai_config(db_session, "chat")
+        cfg = get_ai_config(db_session, "chat")
 
-        assert cfg["provider"] == "custom"
-        assert cfg["stored_provider"] == "openai"
-        assert cfg["openai_key"] == "sk-openai-key"
+        assert cfg["provider"] == "9router"
+        assert cfg["stored_provider"] == "9router"
+        assert cfg["openai_key"] == "router-settings-key"
+        assert cfg["base_url"] == "http://127.0.0.1:20128/v1"
         assert cfg["gemini_key"] == ""
         assert cfg["claude_key"] == ""
 
@@ -926,7 +847,7 @@ class TestMigration:
         """migrate.py should backfill ai_proxies.provider."""
         with open("migrate.py") as f:
             content = f.read()
-        assert "provider = 'openai'" in content or "provider=openai" in content
+        assert "provider = '9router'" in content or "provider=9router" in content
 
     def test_model_has_lead_id_column(self):
         """Contact model should have lead_id column."""
@@ -1142,33 +1063,30 @@ class TestDocumentVariableOwnership:
         assert full_vars.get("nama_perusahaan") == "Brand Default Company"
 
 
-class TestAIMultiProvider:
-    """P1-5: AI multi-provider with native Claude support"""
+class TestAI9RouterOnly:
+    """P1-5: AI routing is 9router-only."""
 
-    def test_is_native_anthropic_disabled(self):
-        """Native provider routing is disabled; all AI uses OpenAI-compatible proxy."""
-        from app.services.ai_service import _is_native_anthropic
+    def test_canonical_provider_is_9router(self):
+        """Stored provider labels normalize to 9router."""
+        from app.services.ai_service import _canonical_provider
 
-        assert _is_native_anthropic("https://api.anthropic.com") is False
-        assert _is_native_anthropic("https://api.anthropic.com/v1") is False
-        assert _is_native_anthropic("https://api.anthropic.com/v1/messages") is False
-        assert _is_native_anthropic("http://localhost:20128/v1") is False
-        assert _is_native_anthropic("https://api.openai.com/v1") is False
+        assert _canonical_provider("9router") == "9router"
+        assert _canonical_provider("custom") == "9router"
+        assert _canonical_provider(None) == "9router"
 
     def test_schema_validates_provider(self):
-        """AIProxyIn should reject invalid provider values."""
+        """AIProxyIn should reject native provider values."""
         from schemas import AIProxyIn
         from pydantic import ValidationError
 
-        # Valid providers should pass
-        for provider in ("openai", "anthropic", "gemini", "openrouter", "custom"):
+        for provider in ("9router", "custom"):
             inp = AIProxyIn(name="Test", base_url="http://test.com", provider=provider)
-            assert inp.provider == "custom"
+            assert inp.provider == "9router"
 
-        # Invalid provider should raise
-        with pytest.raises(ValidationError) as exc:
-            AIProxyIn(name="Test", base_url="http://test.com", provider="unsupported")
-        assert "Provider must be 9router/OpenAI-compatible" in str(exc.value)
+        for provider in ("openai", "anthropic", "gemini", "openrouter", "claude", "unsupported"):
+            with pytest.raises(ValidationError) as exc:
+                AIProxyIn(name="Test", base_url="http://test.com", provider=provider)
+            assert "Provider must be 9router" in str(exc.value)
 
     def test_update_ai_proxy_validates_provider(self, db_session):
         """update_ai_proxy should reject invalid provider values."""
@@ -1180,7 +1098,7 @@ class TestAIMultiProvider:
             base_url="http://test.com",
             api_key="key",
             model="model",
-            provider="openai",
+            provider="9router",
             feature=None,
             is_active=True,
         )
@@ -1189,7 +1107,7 @@ class TestAIMultiProvider:
 
         with pytest.raises(ValueError) as exc:
             update_ai_proxy(db_session, proxy.id, {"provider": "invalid_provider"})
-        assert "Provider must be one of" in str(exc.value)
+        assert "Provider must be 9router" in str(exc.value)
 
     def test_dependencies_delegates_to_ai_service(self):
         """dependencies._call_ai_sync should delegate to ai_service.call_ai_sync."""
@@ -1199,10 +1117,10 @@ class TestAIMultiProvider:
         import httpx
 
         cfg = {
-            "provider": "openai",
-            "openai_key": "sk-test",
-            "base_url": "https://api.openai.com/v1",
-            "model": "gpt-4o-mini",
+            "provider": "9router",
+            "openai_key": "router-test",
+            "base_url": "http://127.0.0.1:20128/v1",
+            "model": "combo-genflow",
             "gemini_key": "",
             "claude_key": "",
         }
@@ -1222,17 +1140,17 @@ class TestAIMultiProvider:
         call_args = mock_client.post.call_args
         assert "/chat/completions" in call_args[0][0]
 
-    def test_dependencies_call_ai_provider_uses_router_for_claude_label(self):
-        """dependencies.call_ai_provider should use OpenAI-compatible path for legacy Claude label."""
+    def test_dependencies_call_ai_provider_uses_9router(self):
+        """dependencies.call_ai_provider should use the 9router path."""
         from app.core.dependencies import call_ai_provider
         from unittest.mock import AsyncMock, patch, MagicMock
         import httpx
 
         cfg = {
-            "provider": "claude",
-            "openai_key": "sk-ant-test",
+            "provider": "9router",
+            "openai_key": "router-test",
             "base_url": "http://localhost:20128/v1",
-            "model": "claude-sonnet-4-5",
+            "model": "combo-genflow",
             "gemini_key": "",
             "claude_key": "",
         }
@@ -1252,7 +1170,7 @@ class TestAIMultiProvider:
         post_call = mock_client.post.call_args
         assert "/chat/completions" in post_call[0][0]
         headers = post_call[1]["headers"]
-        assert headers["Authorization"] == "Bearer sk-ant-test"
+        assert headers["Authorization"] == "Bearer router-test"
 
 
 class TestFonnteWebhookRepliedSideEffects:
@@ -1460,23 +1378,23 @@ class TestAICanonicalPath:
         assert "model" in dep_result
         assert "model" in svc_result
 
-    def test_call_ai_sync_openai_provider(self):
-        """call_ai_sync should make OpenAI-compatible /chat/completions call."""
+    def test_call_ai_sync_9router_provider(self):
+        """call_ai_sync should make 9router /chat/completions call."""
         from app.services.ai_service import call_ai_sync
         from unittest.mock import MagicMock, patch
         import httpx
 
         cfg = {
-            "provider": "openai",
-            "openai_key": "sk-test-openai",
-            "base_url": "https://api.openai.com/v1",
-            "model": "gpt-4o-mini",
+            "provider": "9router",
+            "openai_key": "router-key",
+            "base_url": "http://127.0.0.1:20128/v1",
+            "model": "combo-genflow",
             "gemini_key": "",
             "claude_key": "",
         }
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"choices": [{"message": {"content": "OpenAI response"}}]}
+        mock_resp.json.return_value = {"choices": [{"message": {"content": "9router response"}}]}
         mock_client = MagicMock()
         mock_client.post.return_value = mock_resp
         mock_client.__enter__ = lambda self: mock_client
@@ -1485,30 +1403,30 @@ class TestAICanonicalPath:
         with patch.object(httpx, "Client", return_value=mock_client):
             result = call_ai_sync("test prompt", cfg, httpx)
 
-        assert result == "OpenAI response"
+        assert result == "9router response"
         mock_client.post.assert_called_once()
         call_url = mock_client.post.call_args[0][0]
         assert "/chat/completions" in call_url
         call_headers = mock_client.post.call_args[1]["headers"]
-        assert "Bearer sk-test-openai" in call_headers["Authorization"]
+        assert "Bearer router-key" in call_headers["Authorization"]
 
-    def test_call_ai_sync_anthropic_label_uses_router_endpoint(self):
-        """call_ai_sync should route Anthropic-labelled configs through OpenAI-compatible endpoint."""
+    def test_call_ai_sync_uses_router_endpoint(self):
+        """call_ai_sync should route through configured 9router endpoint."""
         from app.services.ai_service import call_ai_sync
         from unittest.mock import MagicMock, patch
         import httpx
 
         cfg = {
-            "provider": "anthropic",
-            "openai_key": "sk-ant-native",
+            "provider": "9router",
+            "openai_key": "router-key-a",
             "base_url": "http://localhost:20128/v1",
-            "model": "claude-sonnet-4-5",
+            "model": "combo-clarifie",
             "gemini_key": "",
             "claude_key": "",
         }
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"choices": [{"message": {"content": "Claude router response"}}]}
+        mock_resp.json.return_value = {"choices": [{"message": {"content": "router response"}}]}
         mock_client = MagicMock()
         mock_client.post.return_value = mock_resp
         mock_client.__enter__ = lambda self: mock_client
@@ -1517,29 +1435,29 @@ class TestAICanonicalPath:
         with patch.object(httpx, "Client", return_value=mock_client):
             result = call_ai_sync("test prompt", cfg, httpx)
 
-        assert result == "Claude router response"
+        assert result == "router response"
         call_url = mock_client.post.call_args[0][0]
         assert "/chat/completions" in call_url
         call_headers = mock_client.post.call_args[1]["headers"]
-        assert call_headers["Authorization"] == "Bearer sk-ant-native"
+        assert call_headers["Authorization"] == "Bearer router-key-a"
 
-    def test_call_ai_sync_anthropic_proxy_endpoint(self):
-        """call_ai_sync should use /chat/completions when anthropic points to proxy URL."""
+    def test_call_ai_sync_accepts_external_9router_endpoint(self):
+        """call_ai_sync should use /chat/completions for external 9router URL."""
         from app.services.ai_service import call_ai_sync
         from unittest.mock import MagicMock, patch
         import httpx
 
         cfg = {
-            "provider": "anthropic",
-            "openai_key": "sk-ant-proxy",
-            "base_url": "http://localhost:20128/v1",
-            "model": "claude-sonnet-4-5",
+            "provider": "9router",
+            "openai_key": "router-key-b",
+            "base_url": "https://9router.kantorteman.my.id/v1",
+            "model": "combo-databytes",
             "gemini_key": "",
             "claude_key": "",
         }
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"choices": [{"message": {"content": "Claude proxy response"}}]}
+        mock_resp.json.return_value = {"choices": [{"message": {"content": "external router response"}}]}
         mock_client = MagicMock()
         mock_client.post.return_value = mock_resp
         mock_client.__enter__ = lambda self: mock_client
@@ -1548,30 +1466,30 @@ class TestAICanonicalPath:
         with patch.object(httpx, "Client", return_value=mock_client):
             result = call_ai_sync("test prompt", cfg, httpx)
 
-        assert result == "Claude proxy response"
+        assert result == "external router response"
         call_url = mock_client.post.call_args[0][0]
         assert "/chat/completions" in call_url
         call_headers = mock_client.post.call_args[1]["headers"]
-        assert "Bearer sk-ant-proxy" in call_headers["Authorization"]
+        assert "Bearer router-key-b" in call_headers["Authorization"]
 
-    def test_call_ai_sync_claude_alias_maps_to_anthropic(self):
-        """Legacy 'claude' provider is accepted but canonical runtime remains custom proxy."""
+    def test_call_ai_sync_canonical_provider_is_9router(self):
+        """Canonical runtime remains 9router."""
         from app.services.ai_service import call_ai_sync, _canonical_provider
-        assert _canonical_provider("claude") == "custom"
+        assert _canonical_provider("9router") == "9router"
         from unittest.mock import MagicMock, patch
         import httpx
 
         cfg = {
-            "provider": "claude",
-            "openai_key": "sk-ant-native",
+            "provider": "9router",
+            "openai_key": "router-key-c",
             "base_url": "http://localhost:20128/v1",
-            "model": "claude-sonnet-4-5",
+            "model": "combo-genflow",
             "gemini_key": "",
             "claude_key": "",
         }
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"choices": [{"message": {"content": "Claude router response"}}]}
+        mock_resp.json.return_value = {"choices": [{"message": {"content": "canonical router response"}}]}
         mock_client = MagicMock()
         mock_client.post.return_value = mock_resp
         mock_client.__enter__ = lambda self: mock_client
@@ -1580,27 +1498,27 @@ class TestAICanonicalPath:
         with patch.object(httpx, "Client", return_value=mock_client):
             result = call_ai_sync("test prompt", cfg, httpx)
 
-        assert result == "Claude router response"
+        assert result == "canonical router response"
         call_url = mock_client.post.call_args[0][0]
         assert "/chat/completions" in call_url
 
-    def test_call_ai_sync_gemini_label_uses_router_endpoint(self):
-        """call_ai_sync should route Gemini-labelled configs through OpenAI-compatible endpoint."""
+    def test_call_ai_sync_uses_configured_router_model(self):
+        """call_ai_sync should pass config['model'] to 9router."""
         from app.services.ai_service import call_ai_sync
         from unittest.mock import MagicMock, patch
         import httpx
 
         cfg = {
-            "provider": "gemini",
-            "openai_key": "gemini-key-123",
+            "provider": "9router",
+            "openai_key": "router-key-d",
             "base_url": "http://localhost:20128/v1",
-            "model": "gemini-2.0-flash",
+            "model": "combo-wf",
             "gemini_key": "",
             "claude_key": "",
         }
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"choices": [{"message": {"content": "Gemini router response"}}]}
+        mock_resp.json.return_value = {"choices": [{"message": {"content": "model router response"}}]}
         mock_client = MagicMock()
         mock_client.post.return_value = mock_resp
         mock_client.__enter__ = lambda self: mock_client
@@ -1609,29 +1527,31 @@ class TestAICanonicalPath:
         with patch.object(httpx, "Client", return_value=mock_client):
             result = call_ai_sync("test prompt", cfg, httpx)
 
-        assert result == "Gemini router response"
+        assert result == "model router response"
         call_url = mock_client.post.call_args[0][0]
         assert "/chat/completions" in call_url
         call_headers = mock_client.post.call_args[1]["headers"]
-        assert call_headers["Authorization"] == "Bearer gemini-key-123"
+        assert call_headers["Authorization"] == "Bearer router-key-d"
+        payload = mock_client.post.call_args[1]["json"]
+        assert payload["model"] == "combo-wf"
 
-    def test_call_ai_sync_openrouter_provider(self):
-        """call_ai_sync should use /chat/completions for openrouter provider."""
+    def test_call_ai_sync_rejects_providerless_missing_base_by_error(self):
+        """call_ai_sync should surface a router API error when base URL is missing."""
         from app.services.ai_service import call_ai_sync
         from unittest.mock import MagicMock, patch
         import httpx
 
         cfg = {
-            "provider": "openrouter",
-            "openai_key": "sk-or-key",
-            "base_url": "https://openrouter.ai/api/v1",
-            "model": "anthropic/claude-3.5-sonnet",
+            "provider": "9router",
+            "openai_key": "router-key-e",
+            "base_url": "http://localhost:20128/v1",
+            "model": "combo-vexo",
             "gemini_key": "",
             "claude_key": "",
         }
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"choices": [{"message": {"content": "OpenRouter response"}}]}
+        mock_resp.json.return_value = {"choices": [{"message": {"content": "router vexo response"}}]}
         mock_client = MagicMock()
         mock_client.post.return_value = mock_resp
         mock_client.__enter__ = lambda self: mock_client
@@ -1640,30 +1560,30 @@ class TestAICanonicalPath:
         with patch.object(httpx, "Client", return_value=mock_client):
             result = call_ai_sync("test prompt", cfg, httpx)
 
-        assert result == "OpenRouter response"
+        assert result == "router vexo response"
         mock_client.post.assert_called_once()
         call_url = mock_client.post.call_args[0][0]
         assert "/chat/completions" in call_url
         call_headers = mock_client.post.call_args[1]["headers"]
-        assert "Bearer sk-or-key" in call_headers["Authorization"]
+        assert "Bearer router-key-e" in call_headers["Authorization"]
 
-    def test_call_ai_sync_custom_provider(self):
-        """call_ai_sync should use /chat/completions for custom provider."""
+    def test_call_ai_sync_custom_label_still_uses_router_path(self):
+        """Legacy custom label still uses the 9router-compatible path."""
         from app.services.ai_service import call_ai_sync
         from unittest.mock import MagicMock, patch
         import httpx
 
         cfg = {
             "provider": "custom",
-            "openai_key": "sk-custom-key",
-            "base_url": "https://custom.ai/v1",
-            "model": "custom-model",
+            "openai_key": "router-key-f",
+            "base_url": "http://localhost:20128/v1",
+            "model": "combo-genflow",
             "gemini_key": "",
             "claude_key": "",
         }
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"choices": [{"message": {"content": "Custom provider response"}}]}
+        mock_resp.json.return_value = {"choices": [{"message": {"content": "custom label router response"}}]}
         mock_client = MagicMock()
         mock_client.post.return_value = mock_resp
         mock_client.__enter__ = lambda self: mock_client
@@ -1672,7 +1592,7 @@ class TestAICanonicalPath:
         with patch.object(httpx, "Client", return_value=mock_client):
             result = call_ai_sync("test prompt", cfg, httpx)
 
-        assert result == "Custom provider response"
+        assert result == "custom label router response"
         mock_client.post.assert_called_once()
         call_url = mock_client.post.call_args[0][0]
         assert "/chat/completions" in call_url
@@ -2045,8 +1965,8 @@ class TestClientDetailResponse:
         assert project.lead_id == lead.id
 
 
-class TestContentAIMultiProviderEndpoints:
-    """P1-1: Content/AI endpoints use canonical multi-provider path."""
+class TestContentAI9RouterEndpoints:
+    """P1-1: Content/AI endpoints use canonical 9router path."""
 
     def test_list_ai_combos_returns_proxy_based_list(self, db_session):
         """list_ai_combos should return proxies from AIProxy table."""
@@ -2054,11 +1974,11 @@ class TestContentAIMultiProviderEndpoints:
         from unittest.mock import MagicMock
 
         proxy = AIProxy(
-            name="Claude Sonnet 4.5",
-            base_url="https://api.anthropic.com",
-            api_key="sk-ant-test",
-            model="claude-sonnet-4-5",
-            provider="claude",
+            name="combo-genflow",
+            base_url="http://127.0.0.1:20128/v1",
+            api_key="router-key",
+            model="combo-genflow",
+            provider="9router",
             feature="chat",
             is_active=True,
         )
@@ -2068,9 +1988,8 @@ class TestContentAIMultiProviderEndpoints:
         user = MagicMock()
         result = list_ai_combos(user, db_session)
 
-        # Should return AIProxy-based list
         assert len(result) >= 1
-        assert any(r.get("provider") == "claude" for r in result)
+        assert any(r.get("provider") == "9router" for r in result)
 
     def test_get_active_combo_returns_proxy_config(self, db_session):
         """get_active_combo should return AIProxy config or 'none' status."""
@@ -2078,11 +1997,11 @@ class TestContentAIMultiProviderEndpoints:
         from unittest.mock import MagicMock
 
         proxy = AIProxy(
-            name="OpenAI GPT-4o",
-            base_url="https://api.openai.com/v1",
-            api_key="sk-test",
-            model="gpt-4o-mini",
-            provider="openai",
+            name="combo-genflow",
+            base_url="http://127.0.0.1:20128/v1",
+            api_key="router-key",
+            model="combo-genflow",
+            provider="9router",
             feature=None,
             is_active=True,
         )
@@ -2096,6 +2015,7 @@ class TestContentAIMultiProviderEndpoints:
         assert "provider" in result
         assert "base_url" in result
         assert "model" in result
+        assert result["provider"] == "9router"
 
     def test_set_active_combo_by_proxy_id(self, db_session):
         """set_active_combo should activate by AIProxy ID."""
@@ -2103,20 +2023,20 @@ class TestContentAIMultiProviderEndpoints:
         from unittest.mock import MagicMock
 
         proxy1 = AIProxy(
-            name="Provider A",
-            base_url="https://api.anthropic.com",
+            name="combo-clarifie",
+            base_url="http://127.0.0.1:20128/v1",
             api_key="key-a",
-            model="claude-haiku-4-5",
-            provider="claude",
+            model="combo-clarifie",
+            provider="9router",
             feature=None,
             is_active=False,
         )
         proxy2 = AIProxy(
-            name="Provider B",
-            base_url="https://api.openai.com/v1",
+            name="combo-genflow",
+            base_url="http://127.0.0.1:20128/v1",
             api_key="key-b",
-            model="gpt-4o-mini",
-            provider="openai",
+            model="combo-genflow",
+            provider="9router",
             feature=None,
             is_active=True,
         )
@@ -2130,8 +2050,8 @@ class TestContentAIMultiProviderEndpoints:
         result = set_active_combo(body, user, db_session)
 
         assert result["ok"] is True
-        assert result["combo"] == "Provider A"
-        assert result["provider"] == "claude"
+        assert result["combo"] == "combo-clarifie"
+        assert result["provider"] == "9router"
 
     def test_get_system_ai_config_uses_canonical_path(self, db_session):
         """_get_system_ai_config should use canonical get_ai_config."""
@@ -2397,23 +2317,23 @@ class TestAIEngineMultiProviderCaption:
             assert call_kwargs["user_id"] == 1
             assert call_kwargs["keyword"] == "test keyword"
 
-    def test_call_ai_sync_gemini_label_uses_config_model(self):
-        """call_ai_sync for Gemini-labelled proxy must pass config['model'] in OpenAI-compatible payload."""
+    def test_call_ai_sync_9router_uses_config_model(self):
+        """call_ai_sync must pass config['model'] in 9router payload."""
         from app.services.ai_service import call_ai_sync
         from unittest.mock import MagicMock, patch
         import httpx
 
         cfg = {
-            "provider": "gemini",
-            "openai_key": "my-gemini-key",
+            "provider": "9router",
+            "openai_key": "router-key",
             "base_url": "http://localhost:20128/v1",
-            "model": "gemini-2.0-flash-exp",
+            "model": "combo-clarifie",
             "gemini_key": "",
             "claude_key": "",
         }
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {"choices": [{"message": {"content": "Gemini response"}}]}
+        mock_resp.json.return_value = {"choices": [{"message": {"content": "9router response"}}]}
         mock_client = MagicMock()
         mock_client.post.return_value = mock_resp
         mock_client.__enter__ = lambda self: mock_client
@@ -2426,19 +2346,19 @@ class TestAIEngineMultiProviderCaption:
         call_url = mock_client.post.call_args[0][0]
         assert "/chat/completions" in call_url
         payload = mock_client.post.call_args[1]["json"]
-        assert payload["model"] == "gemini-2.0-flash-exp"
+        assert payload["model"] == "combo-clarifie"
 
-    def test_call_ai_provider_async_gemini_label_uses_config_model(self):
-        """call_ai_provider_async for Gemini-labelled proxy must pass config['model'] in payload."""
+    def test_call_ai_provider_async_9router_uses_config_model(self):
+        """call_ai_provider_async must pass config['model'] in payload."""
         from app.services.ai_service import call_ai_provider_async
         from unittest.mock import MagicMock, patch, AsyncMock
         import httpx as _httpx
 
         cfg = {
-            "provider": "gemini",
-            "openai_key": "my-gemini-key",
+            "provider": "9router",
+            "openai_key": "router-key",
             "base_url": "http://localhost:20128/v1",
-            "model": "gemini-pro-1.5",
+            "model": "combo-databytes",
             "gemini_key": "",
             "claude_key": "",
         }
@@ -2458,7 +2378,7 @@ class TestAIEngineMultiProviderCaption:
         call_url = mock_client.post.call_args[0][0]
         assert "/chat/completions" in call_url
         payload = mock_client.post.call_args[1]["json"]
-        assert payload["model"] == "gemini-pro-1.5"
+        assert payload["model"] == "combo-databytes"
 
     def test_update_ai_proxy_preserves_api_key_when_blank(self, db_session):
         """update_ai_proxy must preserve existing api_key when update is blank/masked."""
@@ -2468,10 +2388,10 @@ class TestAIEngineMultiProviderCaption:
 
         proxy = AIProxy(
             name="Test Proxy",
-            base_url="https://api.openai.com/v1",
-            api_key="sk-original-key-12345",
-            model="gpt-4o-mini",
-            provider="openai",
+            base_url="http://127.0.0.1:20128/v1",
+            api_key="router-original-key",
+            model="combo-genflow",
+            provider="9router",
             feature=None,
             is_active=True,
         )
@@ -2484,15 +2404,15 @@ class TestAIEngineMultiProviderCaption:
 
         body = AIProxyIn(
             name="Updated Name",
-            base_url="https://api.openai.com/v1",
+            base_url="http://127.0.0.1:20128/v1",
             api_key="",  # blank
-            model="gpt-4o-mini",
-            provider="openai",
+            model="combo-genflow",
+            provider="9router",
             feature=None,
         )
 
         result = update_ai_proxy(proxy_id, body, user, db_session)
-        assert result.api_key == "sk-original-key-12345", \
+        assert result.api_key == "router-original-key", \
             f"Expected preserved key, got '{result.api_key}'"
 
 

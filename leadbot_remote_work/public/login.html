@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Masuk - Teman UMKM Kita</title>
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" href="/brand/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/brand/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -68,13 +71,9 @@
       display: grid;
       width: 46px;
       height: 46px;
-      place-items: center;
       border-radius: 8px;
       background: var(--yellow);
-      color: #fff;
-      font-family: "Poppins", sans-serif;
-      font-size: 18px;
-      line-height: 1;
+      object-fit: cover;
     }
 
     h1, h2 {
@@ -237,7 +236,7 @@
   <main class="page">
     <section class="brand-panel" aria-label="Informasi produk">
       <div class="brand-mark">
-        <div class="brand-logo">KT</div>
+        <img class="brand-logo" src="/brand/favicon.png" alt="Teman UMKM Kita">
         <div>
           <strong>Teman UMKM Kita</strong><br>
           <span>Sahabat Digital, UMKM Makin Maju.</span>
@@ -261,18 +260,19 @@
     <section class="login-panel" aria-label="Form masuk">
       <form class="login-card" method="POST" action="/login">
         <h2>Masuk</h2>
-        <p>Gunakan akun admin untuk membuka pusat balasan WhatsApp.</p>
-        <div id="errorBox" class="notice">Username atau password belum cocok.</div>
+        <p>Gunakan email admin untuk membuka pusat balasan WhatsApp.</p>
+        <div id="errorBox" class="notice">Email atau password belum cocok.</div>
         <div id="logoutBox" class="notice success">Berhasil keluar. Silakan masuk lagi kalau perlu membuka dasbor.</div>
         <input id="nextInput" type="hidden" name="next" value="/">
 
-        <label for="username">Username</label>
-        <input id="username" name="username" autocomplete="username" autofocus required>
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="email" autofocus required>
 
         <label for="password">Password</label>
         <input id="password" name="password" type="password" autocomplete="current-password" required>
 
         <button class="login-button" type="submit">Masuk ke Dasbor</button>
+        <div class="helper"><a href="/reset-password">Lupa password?</a></div>
         <div class="helper">Session aktif 12 jam di browser ini.</div>
       </form>
     </section>
