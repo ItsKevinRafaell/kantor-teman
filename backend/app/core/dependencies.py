@@ -676,6 +676,11 @@ def _ensure_board(project: Project, db: Session) -> Optional[Board]:
     db.flush()
     return board
 
+def _valid_lead_id(lead_id: Optional[int], db: Session) -> Optional[int]:
+    if not lead_id:
+        return None
+    return lead_id if db.query(Lead.id).filter(Lead.id == lead_id).first() else None
+
 def _default_board_column(board: Board, db: Session, data: dict) -> Optional[BoardColumn]:
     columns = db.query(BoardColumn).filter(BoardColumn.board_id == board.id).order_by(BoardColumn.position).all()
     if not columns:
@@ -738,7 +743,7 @@ def sync_row_to_board(row_id: str, db: Session):
             title=str(_first_present(data, _TITLE_KEYS) or "Untitled Task"),
             due_date=str(due_date) if due_date else None,
             position=db.query(BoardCard).filter(BoardCard.column_id == default_col.id, BoardCard.is_archived == False).count(),
-            lead_id=project.lead_id,
+            lead_id=_valid_lead_id(project.lead_id, db),
             color=getattr(project, "color", None) or "gray",
         )
         db.add(card)
@@ -758,12 +763,15 @@ def _sync_one_card(card, data: dict, db: Session):
         return
     board_cols = db.query(BoardColumn).filter(BoardColumn.board_id == board.id).order_by(BoardColumn.position).all()
     col_map = {c.name.lower(): c for c in board_cols}
+    done_value = data.get("done")
+    matched_status_col = None
     for key, val in data.items():
         keyl = key.lower()
         if keyl == "status" and val:
             status_val = str(val).strip()
             for col_name, col_obj in col_map.items():
                 if col_name in status_val.lower() or status_val.lower() in col_name:
+                    matched_status_col = col_obj
                     card.column_id = col_obj.id
                     break
             mapped = title_overrides.get(status_val)
@@ -774,6 +782,13 @@ def _sync_one_card(card, data: dict, db: Session):
             if done_col:
                 card.column_id = done_col.id
                 card.is_archived = False
+        elif keyl == "done" and val is False:
+            done_col = next((col for name, col in col_map.items() if "done" in name), None)
+            if done_col and card.column_id == done_col.id:
+                fallback_col = matched_status_col or next((col for col in board_cols if "done" not in (col.name or "").lower()), None)
+                if fallback_col:
+                    card.column_id = fallback_col.id
+                    card.is_archived = False
     if new_title:
         card.title = str(new_title)
     if new_due:
@@ -838,7 +853,7 @@ def _ads_out(c: AdsCampaign):
 
 def seed_data(db: Session):
     if not db.query(User).first():
-        db.add(User(name="Admin", email="admin@kantorteman.com", hashed_password=hash_password("admin123")))
+        db.add(User(name="Admin", email="admin@temanumkmkita.com", hashed_password=hash_password("admin123")))
         db.commit()
     if not db.query(SystemSettings).filter_by(key="fonnte_token").first():
         db.add(SystemSettings(key="fonnte_token", value=os.getenv("FONNTE_TOKEN", "")))

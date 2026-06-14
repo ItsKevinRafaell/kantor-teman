@@ -66,7 +66,7 @@ def get_settings(current_user: User = Depends(require_admin), db: Session = Depe
     if not result.get("waha_session"):
         result["waha_session"] = "default"
     if not result.get("autolead_demo"):
-        result["autolead_demo"] = "true"
+        result["autolead_demo"] = os.getenv("AUTOLEAD_DEMO", "false" if IS_PRODUCTION else "true")
     if not result.get("whatsapp_blast_delay_seconds"):
         result["whatsapp_blast_delay_seconds"] = "5"
     return result

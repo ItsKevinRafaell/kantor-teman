@@ -9,6 +9,7 @@ from typing import Any, Optional
 import httpx
 from sqlalchemy.orm import Session
 
+from app.core.config import IS_PRODUCTION
 from models import SystemSettings
 
 
@@ -66,7 +67,7 @@ def get_whatsapp_config(db: Session) -> WhatsAppConfig:
         waha_session=_get_setting(db, "waha_session", os.getenv("WAHA_SESSION", "default")) or "default",
         autolead_base_url=_clean_base_url(_get_setting(db, "autolead_base_url", os.getenv("AUTOLEAD_BASE_URL", ""))),
         autolead_api_key=_get_setting(db, "autolead_api_key", os.getenv("AUTOLEAD_API_KEY", "")),
-        autolead_demo=(_get_setting(db, "autolead_demo", os.getenv("AUTOLEAD_DEMO", "true")) or "true").lower() == "true",
+        autolead_demo=(_get_setting(db, "autolead_demo", os.getenv("AUTOLEAD_DEMO", "false" if IS_PRODUCTION else "true")) or "true").lower() == "true",
         blast_delay_seconds=_safe_int(
             _get_setting(db, "whatsapp_blast_delay_seconds", os.getenv("WHATSAPP_BLAST_DELAY_SECONDS", "5")),
             default=5,

@@ -434,6 +434,10 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
         topMargin=16 * mm,
         bottomMargin=16 * mm,
     )
+    doc.title = parts.get("invoice_num") or parts.get("title") or "Kantor Teman Document"
+    doc.author = parts.get("brand") or "Kantor Teman"
+    doc.creator = "Kantor Teman"
+    doc.subject = f"Dokumen untuk {parts.get('client') or 'Klien'}"
     styles = getSampleStyleSheet()
 
     # Brand colors

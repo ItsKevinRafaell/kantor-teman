@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from models import (
     BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist,
-    BoardCardActivity, BoardCardAttachment, WorkspaceRow, Board,
+    BoardCardActivity, BoardCardAttachment, WorkspaceRow, Board, Lead,
 )
 
 
@@ -37,6 +37,12 @@ def _labels_to_list(raw_labels) -> list[str]:
         return parsed if isinstance(parsed, list) else []
     except Exception:
         return []
+
+
+def _valid_lead_id(db: Session, lead_id: Optional[int]) -> Optional[int]:
+    if not lead_id:
+        return None
+    return lead_id if db.query(Lead.id).filter(Lead.id == lead_id).first() else None
 
 
 def card_to_out(card, workspace_linked_ids: Optional[set] = None) -> dict:
@@ -197,7 +203,7 @@ def create_board_card(
         due_date=due_date,
         labels=json.dumps(labels) if labels else None,
         position=max_pos,
-        lead_id=lead_id,
+        lead_id=_valid_lead_id(db, lead_id),
         color=color or "gray",
     )
     db.add(card)
@@ -250,7 +256,7 @@ def update_board_card(db: Session, card_id: str, updates: dict, actor: str) -> d
     if "position" in updates:
         card.position = updates["position"]
     if "lead_id" in updates:
-        card.lead_id = updates["lead_id"]
+        card.lead_id = _valid_lead_id(db, updates["lead_id"])
     if "color" in updates:
         card.color = updates["color"]
     if "is_archived" in updates:

@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const STATIC_LOGO = "/logo-secondary.png";
+const STATIC_API_LOGO = `${API_BASE}/uploads/brand/logo-secondary.png`;
 
 interface NavItem {
   href: string;
@@ -176,7 +178,7 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
   const { isAdmin } = useAuth();
   const [customizing, setCustomizing] = useState(false);
   const [hiddenItems, setHiddenItems] = useState<Set<string>>(new Set());
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string>(STATIC_LOGO);
 
   useEffect(() => {
     try {
@@ -190,10 +192,11 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data?.assets) return;
-        const logo = data.assets.find((a: { asset_type: string }) => a.asset_type === "logo_primary");
-        if (logo?.file_url) setLogoUrl(`${API_BASE}${logo.file_url}`);
+        const logo = data.assets.find((a: { asset_type: string; file_url?: string }) => a.asset_type === "logo_secondary");
+        const nextLogo = logo?.file_url ? `${API_BASE}${logo.file_url}` : STATIC_API_LOGO;
+        setLogoUrl(nextLogo);
       })
-      .catch(() => {});
+      .catch(() => setLogoUrl(STATIC_API_LOGO));
   }, []);
 
   function toggleItem(href: string) {
@@ -214,13 +217,7 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-60 shrink-0 bg-[var(--bg-surface)] dark:bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] flex flex-col h-full transform transition-transform duration-200 ease-in-out ${open ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}>
         <div className="px-6 py-5 border-b border-[var(--border-subtle)] flex items-center justify-between">
           <div>
-            {logoUrl ? (
-              <img src={logoUrl} alt="Teman UMKM Kita" className="h-8 w-auto object-contain" />
-            ) : (
-              <span className="text-lg font-bold text-brand-yellow tracking-tight">
-                Teman UMKM Kita
-              </span>
-            )}
+            <img src={logoUrl} alt="Teman UMKM Kita" className="h-8 w-auto object-contain" onError={() => setLogoUrl(STATIC_LOGO)} />
             <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 font-medium uppercase tracking-widest">CRM Internal</p>
           </div>
           <div className="relative flex items-center gap-1">

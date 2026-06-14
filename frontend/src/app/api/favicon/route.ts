@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const STATIC_BRANDMARK = "/uploads/brand/logo-brandmark.png";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 300;
 
 function fallbackSvg(): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#f5a700"/>
-  <text x="32" y="42" text-anchor="middle" font-family="system-ui,sans-serif" font-size="26" font-weight="900" fill="#242423">TUK</text>
+  <rect width="64" height="64" rx="12" fill="#f5a700"/>
+  <path d="M10 39.5 32 27.5l22 12-22-7.2-22 7.2Z" fill="#fff"/>
+  <rect x="13" y="27" width="5" height="13" fill="#fff"/>
+  <path d="M39 22c5 1 9 5 10 10M39 27c3 1 5 3 6 6" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
 </svg>`;
 }
 
@@ -28,6 +31,17 @@ export async function GET() {
           });
         }
       }
+    }
+  } catch {}
+
+  try {
+    const fileRes = await fetch(`${API_BASE}${STATIC_BRANDMARK}`);
+    if (fileRes.ok) {
+      const buf = await fileRes.arrayBuffer();
+      const ct = fileRes.headers.get("content-type") || "image/png";
+      return new NextResponse(buf, {
+        headers: { "Content-Type": ct, "Cache-Control": "public, max-age=300" },
+      });
     }
   } catch {}
 

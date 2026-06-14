@@ -102,12 +102,13 @@ export default function BoardPage() {
     try {
       const res = await apiFetch(`/api/board-columns/${columnId}/cards`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: cardForm.title, description: cardForm.description || null, due_date: cardForm.due_date || null, labels: cardForm.labels, assignee: cardForm.assignee || undefined, lead_id: effectiveLeadId, color: cardForm.color }) });
       if (res.ok) { const newCard = await res.json(); setBoard(prev => prev ? { ...prev, columns: prev.columns.map(col => col.id === columnId ? { ...col, cards: [...(col.cards || []), newCard] } : col) } : prev); setCardForm({ title: "", description: "", due_date: "", labels: [], assignee: "", lead_id: null, color: "gray" }); setCardModal({ open: false, card: null, columnId: "" }); setToast({ message: "Card dibuat", type: "success" }); }
+      else { const err = await res.json().catch(() => ({})); setToast({ message: err.detail || "Gagal membuat card", type: "error" }); }
     } catch { setToast({ message: "Gagal membuat card", type: "error" }); } finally { setSaving(false); }
   }
 
   async function updateCard(cardId: string) {
     const effectiveLeadId = currentProject?.lead_id ?? cardForm.lead_id;
-    try { const res = await apiFetch(`/api/board-cards/${cardId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: cardForm.title, description: cardForm.description || null, due_date: cardForm.due_date || null, labels: cardForm.labels, assignee: cardForm.assignee || null, lead_id: effectiveLeadId, color: cardForm.color }) }); if (res.ok) { const updated = await res.json(); setBoard(prev => prev ? { ...prev, columns: prev.columns.map(col => ({ ...col, cards: (col.cards || []).map(c => c.id === cardId ? { ...c, ...updated } : c) })) } : prev); setCardModal({ open: false, card: null, columnId: "" }); setToast({ message: "Card diupdate", type: "success" }); } }
+    try { const res = await apiFetch(`/api/board-cards/${cardId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: cardForm.title, description: cardForm.description || null, due_date: cardForm.due_date || null, labels: cardForm.labels, assignee: cardForm.assignee || null, lead_id: effectiveLeadId, color: cardForm.color }) }); if (res.ok) { const updated = await res.json(); setBoard(prev => prev ? { ...prev, columns: prev.columns.map(col => ({ ...col, cards: (col.cards || []).map(c => c.id === cardId ? { ...c, ...updated } : c) })) } : prev); setCardModal({ open: false, card: null, columnId: "" }); setToast({ message: "Card diupdate", type: "success" }); } else { const err = await res.json().catch(() => ({})); setToast({ message: err.detail || "Gagal update card", type: "error" }); } }
     catch { setToast({ message: "Gagal update card", type: "error" }); }
   }
 

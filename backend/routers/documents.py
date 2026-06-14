@@ -546,6 +546,9 @@ def _build_brand_context(db: Session) -> dict:
             ctx["phone_perusahaan"] = a.value
         elif a.asset_type == "company_email" and a.value:
             ctx["email_perusahaan"] = a.value
+    if not ctx["logo"]:
+        api_base = _get_setting("app_base_url", "") or os.getenv("APP_BASE_URL", "https://api.kantorteman.my.id")
+        ctx["logo"] = f'<img src="{api_base.rstrip()}/uploads/brand/logo-primary.png" alt="logo" style="max-height:60px"/>'
     return ctx
 
 
