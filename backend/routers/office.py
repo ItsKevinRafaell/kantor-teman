@@ -47,7 +47,7 @@ async def office_status(current_user: User = Depends(get_current_user)):
         return {}
     async with httpx.AsyncClient(timeout=10) as client:
         try:
-            resp = await client.get(f"{HERMES_GATEWAY_URL}/status", headers=_hermes_headers())
+            resp = await client.get(f"{HERMES_GATEWAY_URL}/api/office/status", headers=_hermes_headers())
             return resp.json()
         except Exception:
             return {}
@@ -147,6 +147,51 @@ def _require_gateway():
         raise HTTPException(status_code=503, detail="Hermes gateway not configured")
 
 
+def _office_proxy_requires_admin(method: str, path: str) -> bool:
+    if method.upper() in {"GET", "HEAD", "OPTIONS"}:
+        return False
+    admin_prefixes = (
+        "agents/",
+        "hermes/agents/",
+    )
+    return any(path == prefix.rstrip("/") or path.startswith(prefix) for prefix in admin_prefixes)
+
+
+async def _office_proxy(request: Request, path: str, timeout: float = 60.0) -> Response:
+    _require_gateway()
+    body = await request.body() if request.method.upper() not in {"GET", "HEAD"} else None
+    headers = _hermes_headers()
+    content_type = request.headers.get("content-type")
+    if content_type:
+        headers["Content-Type"] = content_type
+    upstream = f"{HERMES_GATEWAY_URL}/api/office/{path}"
+    params = dict(request.query_params)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        try:
+            resp = await client.request(
+                request.method,
+                upstream,
+                params=params,
+                headers=headers,
+                content=body,
+            )
+        except httpx.RequestError as exc:
+            raise HTTPException(status_code=502, detail=f"Hermes gateway unreachable: {exc}") from exc
+
+    excluded = {"connection", "content-length", "content-encoding", "transfer-encoding"}
+    response_headers = {
+        name: value
+        for name, value in resp.headers.items()
+        if name.lower() not in excluded
+    }
+    return Response(
+        content=resp.content,
+        status_code=resp.status_code,
+        headers=response_headers,
+        media_type=resp.headers.get("content-type"),
+    )
+
+
 
 @router.get("/api/office/agents")
 async def office_list_agents(current_user: User = Depends(get_current_user)):
@@ -231,3 +276,18 @@ async def office_update_config(profile: str, body: OfficeConfigUpdate, current_u
     if resp.status_code != 200:
         raise HTTPException(status_code=resp.status_code, detail=resp.text[:300])
     return resp.json()
+
+
+@router.api_route(
+    "/api/office/{path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+)
+async def office_gateway_proxy(
+    path: str,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    if _office_proxy_requires_admin(request.method, path) and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Akses ditolak: hanya admin")
+    timeout = 130.0 if path.startswith("chat/") else 60.0
+    return await _office_proxy(request, path, timeout=timeout)
