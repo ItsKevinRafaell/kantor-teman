@@ -78,6 +78,7 @@ RUN_EVENT_OFFSETS: dict[str, int] = {}
 RUN_PARTIALS: dict[str, str] = {}
 RUN_SEGMENTS: dict[str, int] = {}
 RUN_AUDITS: dict[str, str] = {}
+RUN_CONTEXTS: dict[str, dict] = {}
 QUEUED_CHATS: dict[str, dict] = {}
 QUEUED_RUNS: dict[str, dict] = {}
 RUN_LOCK = threading.Lock()
@@ -233,6 +234,7 @@ def _init_sync_db() -> None:
             metadata TEXT NOT NULL DEFAULT '{}',
             source TEXT NOT NULL,
             session_id TEXT,
+            room_key TEXT,
             source_key TEXT NOT NULL UNIQUE,
             created_at REAL NOT NULL
         );
@@ -298,6 +300,7 @@ def _init_sync_db() -> None:
             profile TEXT NOT NULL,
             channel TEXT NOT NULL,
             session_id TEXT,
+            room_key TEXT,
             messages TEXT NOT NULL DEFAULT '[]',
             attachments TEXT NOT NULL DEFAULT '[]',
             status TEXT NOT NULL DEFAULT 'queued',
@@ -318,9 +321,12 @@ def _init_sync_db() -> None:
     _ensure_column(con, "timeline_events", "message_id", "TEXT")
     _ensure_column(con, "timeline_events", "message_thread_id", "TEXT")
     _ensure_column(con, "timeline_events", "topic_title", "TEXT")
+    _ensure_column(con, "timeline_events", "room_key", "TEXT")
     _ensure_column(con, "telegram_outbox", "chat_id", "TEXT")
     _ensure_column(con, "telegram_outbox", "message_thread_id", "TEXT")
     _ensure_column(con, "telegram_outbox", "reply_to_message_id", "TEXT")
+    _ensure_column(con, "chat_queue", "room_key", "TEXT")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_timeline_room_key ON timeline_events(room_key, id)")
     con.commit()
     con.close()
 
@@ -360,6 +366,48 @@ def _metadata_string(metadata: Optional[dict], *keys: str) -> str:
         if text:
             return text
     return ""
+
+
+OFFICE_TOPIC_NAMES = [
+    "general",
+    "strategy",
+    "errors",
+    "approvals",
+    "tech",
+    "creative",
+    "content",
+    "growth",
+    "projects",
+    "inbox",
+]
+
+
+def _office_topic_from_room_key(room_key: Optional[str]) -> str:
+    room_key = _string_value(room_key)
+    return room_key.removeprefix("office:").strip().lower() if room_key.startswith("office:") else ""
+
+
+def _office_room_key_from_topic(topic_title: Optional[str]) -> str:
+    normalized = _string_value(topic_title).strip().lower()
+    return f"office:{normalized}" if normalized in OFFICE_TOPIC_NAMES else ""
+
+
+def _canonical_room_key(
+    profile: str,
+    chat_id: Optional[str],
+    message_thread_id: Optional[str],
+    session_id: Optional[str],
+    *,
+    room_key: Optional[str] = None,
+    topic_title: Optional[str] = None,
+) -> str:
+    explicit = _string_value(room_key)
+    if explicit:
+        return explicit
+    office_key = _office_room_key_from_topic(topic_title)
+    if office_key:
+        return office_key
+    return _room_key(profile, chat_id, message_thread_id, session_id)
 
 
 SENSITIVE_KEYS = re.compile(r"(key|token|secret|password|authorization|cookie)", re.I)
@@ -606,6 +654,9 @@ def _enqueue_chat(profile: str, req: "ChatRequest") -> dict:
     profile = resolve_profile(profile)
     full_message = req.message or ""
     attachments = list(req.attachments or [])
+    room_key = _string_value(getattr(req, "room_key", None))
+    topic_title = _string_value(getattr(req, "topic_title", None), _office_topic_from_room_key(room_key))
+    metadata = dict(getattr(req, "metadata", None) or {})
     cleaned_message, flush_now = _strip_now_command(full_message)
     now = time.time()
     flush_at = now if flush_now or _queue_wait_seconds() == 0 else now + _queue_wait_seconds()
@@ -617,9 +668,10 @@ def _enqueue_chat(profile: str, req: "ChatRequest") -> dict:
                     """
                     SELECT * FROM chat_queue
                     WHERE profile = ? AND channel = 'web' AND status = 'queued'
+                      AND COALESCE(room_key, '') = COALESCE(?, '')
                     ORDER BY updated_at DESC LIMIT 1
                     """,
-                    (profile,),
+                    (profile, room_key or None),
                 ).fetchone()
                 if not row:
                     raise HTTPException(status_code=400, detail="No queued message to flush")
@@ -637,7 +689,11 @@ def _enqueue_chat(profile: str, req: "ChatRequest") -> dict:
         "text": cleaned_message,
         "created_at": now,
         "attachment_count": len(attachments),
+        "room_key": room_key,
+        "topic_title": topic_title,
     }
+    if metadata:
+        message_entry["metadata"] = metadata
     pending_audit: Optional[tuple[str, int, int]] = None
     con = _sync_db()
     try:
@@ -645,9 +701,10 @@ def _enqueue_chat(profile: str, req: "ChatRequest") -> dict:
             """
             SELECT * FROM chat_queue
             WHERE profile = ? AND channel = 'web' AND status = 'queued'
+              AND COALESCE(room_key, '') = COALESCE(?, '')
             ORDER BY updated_at DESC LIMIT 1
             """,
-            (profile,),
+            (profile, room_key or None),
         ).fetchone()
         if row:
             queue_id = row["id"]
@@ -658,14 +715,16 @@ def _enqueue_chat(profile: str, req: "ChatRequest") -> dict:
             con.execute(
                 """
                 UPDATE chat_queue
-                SET messages = ?, attachments = ?, session_id = COALESCE(?, session_id),
-                    last_message_at = ?, flush_at = ?, updated_at = ?
-                WHERE id = ?
+                    SET messages = ?, attachments = ?, session_id = COALESCE(?, session_id),
+                        room_key = COALESCE(?, room_key),
+                        last_message_at = ?, flush_at = ?, updated_at = ?
+                    WHERE id = ?
                 """,
                 (
                     json.dumps(messages, ensure_ascii=False),
                     json.dumps(queued_attachments, ensure_ascii=False),
                     req.session_id,
+                    room_key or None,
                     now,
                     flush_at,
                     now,
@@ -678,14 +737,15 @@ def _enqueue_chat(profile: str, req: "ChatRequest") -> dict:
             con.execute(
                 """
                 INSERT INTO chat_queue
-                    (id, profile, channel, session_id, messages, attachments, status,
+                    (id, profile, channel, session_id, room_key, messages, attachments, status,
                      last_message_at, flush_at, audit_id, created_at, updated_at)
-                VALUES (?, ?, 'web', ?, ?, ?, 'queued', ?, ?, ?, ?, ?)
+                VALUES (?, ?, 'web', ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?)
                 """,
                 (
                     queue_id,
                     profile,
                     req.session_id,
+                    room_key or None,
                     json.dumps([message_entry], ensure_ascii=False),
                     json.dumps(attachments, ensure_ascii=False),
                     now,
@@ -766,6 +826,8 @@ def _start_chat_run_now(
     audit_id: str,
     channel: str = "web",
     mirror_user_to_telegram: bool = True,
+    room_key: Optional[str] = None,
+    topic_title: Optional[str] = None,
 ) -> dict:
     profile = resolve_profile(profile)
     with RUN_LOCK:
@@ -776,7 +838,17 @@ def _start_chat_run_now(
             raise HTTPException(status_code=409, detail="Agent masih mengerjakan pesan sebelumnya")
 
     target_session = _get_latest_session(profile) or session_id
-    telegram_destination = _telegram_destination(profile, target_session)
+    context_room_key = _string_value(room_key)
+    context_topic_title = _string_value(
+        topic_title,
+        _office_topic_from_room_key(context_room_key),
+    )
+    telegram_destination = _room_telegram_destination(
+        profile,
+        room_key=context_room_key,
+        topic_title=context_topic_title,
+        session_id=target_session,
+    )
     context_limit = _context_limit_for_message(full_message)
     payload = {
         "input": full_message,
@@ -813,6 +885,12 @@ def _start_chat_run_now(
     with RUN_LOCK:
         ACTIVE_RUNS[profile] = run_id
         RUN_AUDITS[run_id] = audit_id
+        RUN_CONTEXTS[run_id] = {
+            "room_key": context_room_key,
+            "topic_title": context_topic_title,
+            "chat_id": telegram_destination.get("chat_id"),
+            "message_thread_id": telegram_destination.get("message_thread_id"),
+        }
     created_at = time.time()
     _append_timeline(
         profile,
@@ -826,7 +904,8 @@ def _start_chat_run_now(
         created_at=created_at,
         chat_id=telegram_destination.get("chat_id"),
         message_thread_id=telegram_destination.get("message_thread_id"),
-        topic_title=telegram_destination.get("topic_title"),
+        topic_title=context_topic_title,
+        room_key=context_room_key,
     )
     _persist_web_message_to_profile(
         profile,
@@ -844,6 +923,7 @@ def _start_chat_run_now(
             session_id=target_session,
             chat_id=telegram_destination.get("chat_id"),
             message_thread_id=telegram_destination.get("message_thread_id"),
+            room_key=context_room_key,
         )
     _start_run_event_capture(profile, run_id)
     return {**run, "session_id": target_session or run_id, "profile": profile}
@@ -880,6 +960,8 @@ def _start_queued_chat(row: sqlite3.Row) -> dict:
         audit_id=audit_id,
         channel=row["channel"] or "web",
         mirror_user_to_telegram=True,
+        room_key=row["room_key"],
+        topic_title=_office_topic_from_room_key(row["room_key"]),
     )
     con = _sync_db()
     con.execute(
@@ -995,6 +1077,7 @@ def _append_timeline(
     message_id: Optional[str] = None,
     message_thread_id: Optional[str] = None,
     topic_title: Optional[str] = None,
+    room_key: Optional[str] = None,
 ) -> Optional[int]:
     created_at = float(created_at or time.time())
     metadata = metadata or {}
@@ -1004,7 +1087,20 @@ def _append_timeline(
         message_thread_id,
         _metadata_string(metadata, "message_thread_id", "thread_id", "topic_id", "forum_topic_id"),
     )
-    topic_title = _string_value(topic_title, _metadata_string(metadata, "topic_title", "topic_name", "thread_title"))
+    room_key = _string_value(room_key, _metadata_string(metadata, "room_key"))
+    topic_title = _string_value(
+        topic_title,
+        _metadata_string(metadata, "topic_title", "topic_name", "thread_title"),
+        _office_topic_from_room_key(room_key),
+    )
+    canonical_room_key = _canonical_room_key(
+        profile,
+        chat_id,
+        message_thread_id,
+        session_id,
+        room_key=room_key,
+        topic_title=topic_title,
+    )
     con = _sync_db()
     try:
         if dedupe_content and content:
@@ -1031,13 +1127,13 @@ def _append_timeline(
             """
             INSERT OR IGNORE INTO timeline_events
                 (profile, kind, role, content, metadata, source, session_id, source_key,
-                 created_at, chat_id, message_id, message_thread_id, topic_title)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 created_at, chat_id, message_id, message_thread_id, topic_title, room_key)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 profile, kind, role, content, json.dumps(metadata or {}, ensure_ascii=False),
                 source, session_id, source_key, created_at, chat_id or None, message_id or None,
-                message_thread_id or None, topic_title or None,
+                message_thread_id or None, topic_title or None, canonical_room_key or None,
             ),
         )
         con.commit()
@@ -1057,7 +1153,20 @@ def _serialize_timeline(row: sqlite3.Row) -> dict:
         row["message_thread_id"],
         _metadata_string(metadata, "message_thread_id", "thread_id", "topic_id", "forum_topic_id"),
     )
-    topic_title = _string_value(row["topic_title"], _metadata_string(metadata, "topic_title", "topic_name", "thread_title"))
+    room_key = _string_value(row["room_key"], _metadata_string(metadata, "room_key"))
+    topic_title = _string_value(
+        row["topic_title"],
+        _metadata_string(metadata, "topic_title", "topic_name", "thread_title"),
+        _office_topic_from_room_key(room_key),
+    )
+    canonical_room_key = _canonical_room_key(
+        row["profile"],
+        chat_id,
+        message_thread_id,
+        row["session_id"],
+        room_key=room_key,
+        topic_title=topic_title,
+    )
     return {
         "id": int(row["id"]),
         "profile": row["profile"],
@@ -1071,7 +1180,7 @@ def _serialize_timeline(row: sqlite3.Row) -> dict:
         "message_id": message_id or None,
         "message_thread_id": message_thread_id or None,
         "topic_title": topic_title or None,
-        "room_key": _room_key(row["profile"], chat_id, message_thread_id, row["session_id"]),
+        "room_key": canonical_room_key,
         "created_at": _ts_to_iso(row["created_at"]),
     }
 
@@ -1146,6 +1255,29 @@ def _telegram_destination(profile: str, session_id: Optional[str] = None) -> dic
     finally:
         con.close()
     return {}
+
+
+def _room_telegram_destination(profile: str, *, room_key: Optional[str] = None, topic_title: Optional[str] = None, session_id: Optional[str] = None) -> dict:
+    room_key = _string_value(room_key)
+    topic_title = _string_value(topic_title, _office_topic_from_room_key(room_key))
+    chat_id = ""
+    message_thread_id = ""
+    if room_key.startswith("office:"):
+        binding = _telegram_binding(profile, session_id=session_id)
+        identity = _telegram_identity_from_entry(binding) if binding else {}
+        chat_id = _string_value(identity.get("chat_id"))
+        message_thread_id = _string_value(identity.get("message_thread_id"))
+    if not chat_id:
+        destination = _telegram_destination(profile, session_id)
+        chat_id = _string_value(destination.get("chat_id"))
+        message_thread_id = _string_value(destination.get("message_thread_id"))
+        topic_title = _string_value(topic_title, destination.get("topic_title"))
+    return {
+        "chat_id": chat_id,
+        "message_thread_id": message_thread_id,
+        "topic_title": topic_title,
+        "room_key": room_key,
+    }
 
 
 def _telegram_binding_summary(profile: str, binding: Optional[dict] = None) -> dict:
@@ -1618,6 +1750,7 @@ def _timeline_event_from_run(profile: str, run_id: str, event: dict) -> Optional
         kind = "terminal"
     elif event_type == "approval.request":
         kind = "approval"
+    run_context = RUN_CONTEXTS.get(run_id, {})
     timeline_id = _append_timeline(
         profile,
         kind,
@@ -1627,6 +1760,10 @@ def _timeline_event_from_run(profile: str, run_id: str, event: dict) -> Optional
         f"run-event:{run_id}:{event_type}:{event.get('timestamp', time.time())}",
         session_id=event.get("session_id"),
         metadata={"event": event_type, "run_id": run_id, **metadata},
+        chat_id=run_context.get("chat_id"),
+        message_thread_id=run_context.get("message_thread_id"),
+        topic_title=run_context.get("topic_title"),
+        room_key=run_context.get("room_key"),
     )
     if event_type == "approval.request" and timeline_id:
         approval_id = f"approval:{run_id}:{timeline_id}"
@@ -1666,6 +1803,7 @@ def _flush_run_partial(profile: str, run_id: str, session_id: Optional[str] = No
         RUN_SEGMENTS[run_id] = segment + 1
     if not content:
         return None
+    run_context = RUN_CONTEXTS.get(run_id, {})
     return _append_timeline(
         profile,
         "message",
@@ -1675,6 +1813,10 @@ def _flush_run_partial(profile: str, run_id: str, session_id: Optional[str] = No
         f"run-segment:{run_id}:{segment}",
         session_id=session_id,
         dedupe_content=True,
+        chat_id=run_context.get("chat_id"),
+        message_thread_id=run_context.get("message_thread_id"),
+        topic_title=run_context.get("topic_title"),
+        room_key=run_context.get("room_key"),
     )
 
 
@@ -1704,7 +1846,13 @@ def _persist_run_final(profile: str, run_id: str, response: str, session_id: Opt
         )
     created_at = time.time()
     target_session_id = _get_latest_session(profile) or session_id
-    telegram_destination = _telegram_destination(profile, target_session_id)
+    run_context = RUN_CONTEXTS.get(run_id, {})
+    telegram_destination = _room_telegram_destination(
+        profile,
+        room_key=run_context.get("room_key"),
+        topic_title=run_context.get("topic_title"),
+        session_id=target_session_id,
+    )
     _append_timeline(
         profile,
         "message",
@@ -1715,9 +1863,10 @@ def _persist_run_final(profile: str, run_id: str, response: str, session_id: Opt
         session_id=target_session_id,
         dedupe_content=True,
         created_at=created_at,
-        chat_id=telegram_destination.get("chat_id"),
-        message_thread_id=telegram_destination.get("message_thread_id"),
-        topic_title=telegram_destination.get("topic_title"),
+        chat_id=run_context.get("chat_id") or telegram_destination.get("chat_id"),
+        message_thread_id=run_context.get("message_thread_id") or telegram_destination.get("message_thread_id"),
+        topic_title=run_context.get("topic_title") or telegram_destination.get("topic_title"),
+        room_key=run_context.get("room_key"),
     )
     _persist_web_message_to_profile(
         profile,
@@ -1732,8 +1881,9 @@ def _persist_run_final(profile: str, run_id: str, response: str, session_id: Opt
         f"[Web · {profile.title()}]\n{response}",
         f"run-final:{run_id}",
         session_id=target_session_id,
-        chat_id=telegram_destination.get("chat_id"),
-        message_thread_id=telegram_destination.get("message_thread_id"),
+        chat_id=run_context.get("chat_id") or telegram_destination.get("chat_id"),
+        message_thread_id=run_context.get("message_thread_id") or telegram_destination.get("message_thread_id"),
+        room_key=run_context.get("room_key"),
     )
 
 
@@ -1845,6 +1995,7 @@ def _queue_telegram(
     chat_id: Optional[str] = None,
     message_thread_id: Optional[str] = None,
     reply_to_message_id: Optional[str] = None,
+    room_key: Optional[str] = None,
 ) -> None:
     if not text.strip():
         return
@@ -1852,8 +2003,10 @@ def _queue_telegram(
     destination = _telegram_destination(profile, session_id)
     chat_id = _string_value(chat_id, destination.get("chat_id"))
     message_thread_id = _string_value(message_thread_id, destination.get("message_thread_id"))
+    room_key = _string_value(room_key)
     reply_to_message_id = _string_value(reply_to_message_id)
     con = _sync_db()
+    # room_key stays in timeline_events; delivery still uses Telegram chat/thread ids.
     con.execute(
         """
         INSERT OR IGNORE INTO telegram_outbox
@@ -2226,6 +2379,9 @@ class ChatRequest(BaseModel):
     message: str = ""
     session_id: Optional[str] = None
     attachments: Optional[list] = None
+    room_key: Optional[str] = None
+    topic_title: Optional[str] = None
+    metadata: Optional[dict] = None
 
 
 @app.post("/api/office/chat/{profile}")
@@ -2463,12 +2619,15 @@ class TelegramMirrorMessage(BaseModel):
     session_id: Optional[str] = None
     chat_id: Optional[str] = None
     message_thread_id: Optional[str] = None
+    topic_title: Optional[str] = None
+    attachments: Optional[list] = None
 
 
 @app.post("/api/office/telegram/mirror")
 def telegram_mirror_send(req: TelegramMirrorMessage, _: str = Depends(verify_auth)):
     content = req.message.strip()
-    if not content:
+    attachments = list(req.attachments or [])
+    if not content and not attachments:
         raise HTTPException(status_code=400, detail="Message kosong")
     targets = [resolve_profile(profile) for profile in (req.profiles or []) if profile]
     if not targets:
@@ -2484,7 +2643,21 @@ def telegram_mirror_send(req: TelegramMirrorMessage, _: str = Depends(verify_aut
                 message_thread_id=req.message_thread_id,
             )
         )
-        results.append(chat(target, ChatRequest(message=content, session_id=session_id), _))
+        topic_title = _string_value(req.topic_title, _office_topic_from_room_key(req.room_key))
+        results.append(chat(target, ChatRequest(
+            message=content,
+            session_id=session_id,
+            attachments=attachments,
+            room_key=req.room_key,
+            topic_title=topic_title,
+            metadata={
+                "room_key": req.room_key,
+                "chat_id": req.chat_id,
+                "message_thread_id": req.message_thread_id,
+                "topic_title": topic_title,
+                "source": "office-group",
+            },
+        ), _))
     return {"ok": True, "targets": targets, "results": results}
 
 
