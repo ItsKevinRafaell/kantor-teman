@@ -382,6 +382,10 @@ OFFICE_TOPIC_NAMES = [
 ]
 
 
+def _office_topic_title(topic: str) -> str:
+    return _string_value(topic).strip().lower()
+
+
 def _office_topic_from_room_key(room_key: Optional[str]) -> str:
     room_key = _string_value(room_key)
     return room_key.removeprefix("office:").strip().lower() if room_key.startswith("office:") else ""
@@ -408,6 +412,23 @@ def _canonical_room_key(
     if office_key:
         return office_key
     return _room_key(profile, chat_id, message_thread_id, session_id)
+
+
+def _office_topic_room(topic: str, profile_names: list[str]) -> dict:
+    topic = _office_topic_title(topic)
+    return {
+        "id": f"office:{topic}",
+        "room_key": f"office:{topic}",
+        "title": topic,
+        "topic_title": topic,
+        "chat_id": "",
+        "session_id": None,
+        "message_thread_id": None,
+        "profiles": list(profile_names),
+        "last_event_id": 0,
+        "last_event_at": "",
+        "source": "office",
+    }
 
 
 SENSITIVE_KEYS = re.compile(r"(key|token|secret|password|authorization|cookie)", re.I)
@@ -654,9 +675,18 @@ def _enqueue_chat(profile: str, req: "ChatRequest") -> dict:
     profile = resolve_profile(profile)
     full_message = req.message or ""
     attachments = list(req.attachments or [])
-    room_key = _string_value(getattr(req, "room_key", None))
-    topic_title = _string_value(getattr(req, "topic_title", None), _office_topic_from_room_key(room_key))
+    requested_room_key = _string_value(getattr(req, "room_key", None))
+    topic_title = _string_value(getattr(req, "topic_title", None), _office_topic_from_room_key(requested_room_key))
     metadata = dict(getattr(req, "metadata", None) or {})
+    room_key = _canonical_room_key(
+        profile,
+        _metadata_string(metadata, "chat_id", "telegram_chat_id"),
+        _metadata_string(metadata, "message_thread_id", "thread_id", "topic_id", "forum_topic_id"),
+        req.session_id,
+        room_key=requested_room_key,
+        topic_title=topic_title,
+    )
+    topic_title = _string_value(topic_title, _office_topic_from_room_key(room_key))
     cleaned_message, flush_now = _strip_now_command(full_message)
     now = time.time()
     flush_at = now if flush_now or _queue_wait_seconds() == 0 else now + _queue_wait_seconds()
@@ -697,6 +727,23 @@ def _enqueue_chat(profile: str, req: "ChatRequest") -> dict:
     pending_audit: Optional[tuple[str, int, int]] = None
     con = _sync_db()
     try:
+        timeline_source_key = f"queue-user:{profile}:{uuid.uuid4().hex}"
+        _append_timeline(
+            profile,
+            "message",
+            "user",
+            cleaned_message,
+            "web",
+            timeline_source_key,
+            session_id=req.session_id,
+            metadata=metadata,
+            dedupe_content=True,
+            created_at=now,
+            chat_id=_metadata_string(metadata, "chat_id", "telegram_chat_id"),
+            message_thread_id=_metadata_string(metadata, "message_thread_id", "thread_id", "topic_id", "forum_topic_id"),
+            topic_title=topic_title,
+            room_key=room_key,
+        )
         row = con.execute(
             """
             SELECT * FROM chat_queue
@@ -826,6 +873,7 @@ def _start_chat_run_now(
     audit_id: str,
     channel: str = "web",
     mirror_user_to_telegram: bool = True,
+    record_user_timeline: bool = True,
     room_key: Optional[str] = None,
     topic_title: Optional[str] = None,
 ) -> dict:
@@ -892,29 +940,30 @@ def _start_chat_run_now(
             "message_thread_id": telegram_destination.get("message_thread_id"),
         }
     created_at = time.time()
-    _append_timeline(
-        profile,
-        "message",
-        "user",
-        full_message.strip(),
-        channel,
-        source_key,
-        session_id=target_session,
-        dedupe_content=True,
-        created_at=created_at,
-        chat_id=telegram_destination.get("chat_id"),
-        message_thread_id=telegram_destination.get("message_thread_id"),
-        topic_title=context_topic_title,
-        room_key=context_room_key,
-    )
-    _persist_web_message_to_profile(
-        profile,
-        "user",
-        full_message.strip(),
-        source_key,
-        session_id=target_session,
-        created_at=created_at,
-    )
+    if record_user_timeline:
+        _append_timeline(
+            profile,
+            "message",
+            "user",
+            full_message.strip(),
+            channel,
+            source_key,
+            session_id=target_session,
+            dedupe_content=True,
+            created_at=created_at,
+            chat_id=telegram_destination.get("chat_id"),
+            message_thread_id=telegram_destination.get("message_thread_id"),
+            topic_title=context_topic_title,
+            room_key=context_room_key,
+        )
+        _persist_web_message_to_profile(
+            profile,
+            "user",
+            full_message.strip(),
+            source_key,
+            session_id=target_session,
+            created_at=created_at,
+        )
     if mirror_user_to_telegram:
         _queue_telegram(
             profile,
@@ -960,6 +1009,7 @@ def _start_queued_chat(row: sqlite3.Row) -> dict:
         audit_id=audit_id,
         channel=row["channel"] or "web",
         mirror_user_to_telegram=True,
+        record_user_timeline=False,
         room_key=row["room_key"],
         topic_title=_office_topic_from_room_key(row["room_key"]),
     )
@@ -1382,6 +1432,12 @@ def _merge_room_summary(current: dict, event: dict) -> dict:
     if int(event["id"]) >= int(current.get("last_event_id") or 0):
         current["last_event_id"] = event["id"]
         current["last_event_at"] = event["created_at"]
+        if event.get("session_id"):
+            current["session_id"] = event["session_id"]
+        if event.get("chat_id"):
+            current["chat_id"] = _string_value(event.get("chat_id"))[-6:]
+        if event.get("message_thread_id"):
+            current["message_thread_id"] = event["message_thread_id"]
     if event.get("topic_title") and not current.get("topic_title"):
         current["topic_title"] = event["topic_title"]
         current["title"] = event["topic_title"]
@@ -1389,7 +1445,10 @@ def _merge_room_summary(current: dict, event: dict) -> dict:
 
 
 def _rooms_for_events(events: list[dict], profile_names: list[str]) -> list[dict]:
-    rooms: dict[str, dict] = {}
+    rooms: dict[str, dict] = {
+        f"office:{topic}": _office_topic_room(topic, profile_names)
+        for topic in OFFICE_TOPIC_NAMES
+    }
     for event in events:
         summary = _room_summary_from_event(event)
         existing = rooms.get(summary["room_key"])
@@ -1426,7 +1485,16 @@ def _rooms_for_events(events: list[dict], profile_names: list[str]) -> list[dict
                 "last_event_at": "",
                 "source": "telegram" if binding.get("connected") else "profile",
             }
-    return sorted(rooms.values(), key=lambda room: (room.get("last_event_id") or 0, room.get("title") or ""), reverse=True)
+    office_order = {f"office:{topic}": index for index, topic in enumerate(OFFICE_TOPIC_NAMES)}
+    return sorted(
+        rooms.values(),
+        key=lambda room: (
+            0 if room.get("room_key") in office_order else 1,
+            office_order.get(room.get("room_key"), 999),
+            -(int(room.get("last_event_id") or 0)),
+            room.get("title") or "",
+        ),
+    )
 
 
 def _telegram_bindings(profile: str) -> list[dict]:
@@ -1465,17 +1533,20 @@ def _latest_session_for_room(
         clauses.append(
             """
             (
-              CASE
+              room_key = ?
+              OR (
+                CASE
                 WHEN chat_id IS NOT NULL AND chat_id != '' AND message_thread_id IS NOT NULL AND message_thread_id != ''
                   THEN 'telegram:' || chat_id || ':' || message_thread_id
                 WHEN chat_id IS NOT NULL AND chat_id != ''
                   THEN 'telegram:' || chat_id || ':main'
                 ELSE 'profile:' || profile || ':' || COALESCE(session_id, 'default')
-              END
-            ) = ?
+                END
+              ) = ?
+            )
             """
         )
-        params.append(room_key)
+        params.extend([room_key, room_key])
     else:
         if chat_id:
             clauses.append("chat_id = ?")
