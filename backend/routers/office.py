@@ -192,6 +192,96 @@ async def _office_proxy(request: Request, path: str, timeout: float = 60.0) -> R
     )
 
 
+async def _office_stream_proxy(request: Request, path: str) -> StreamingResponse:
+    _require_gateway()
+    body = await request.body() if request.method.upper() not in {"GET", "HEAD"} else None
+    headers = _hermes_headers()
+    content_type = request.headers.get("content-type")
+    if content_type:
+        headers["Content-Type"] = content_type
+    upstream = f"{HERMES_GATEWAY_URL}/api/office/{path}"
+    params = dict(request.query_params)
+    client = httpx.AsyncClient(timeout=httpx.Timeout(60.0, read=None))
+    stream = client.stream(
+        request.method,
+        upstream,
+        params=params,
+        headers=headers,
+        content=body,
+    )
+    try:
+        resp = await stream.__aenter__()
+    except httpx.RequestError as exc:
+        await client.aclose()
+        raise HTTPException(status_code=502, detail=f"Hermes gateway unreachable: {exc}") from exc
+
+    excluded = {"connection", "content-length", "content-encoding", "transfer-encoding"}
+    response_headers = {
+        name: value
+        for name, value in resp.headers.items()
+        if name.lower() not in excluded
+    }
+
+    async def event_chunks():
+        try:
+            async for chunk in resp.aiter_bytes():
+                if await request.is_disconnected():
+                    break
+                yield chunk
+        finally:
+            await stream.__aexit__(None, None, None)
+            await client.aclose()
+
+    return StreamingResponse(
+        event_chunks(),
+        status_code=resp.status_code,
+        headers=response_headers,
+        media_type=resp.headers.get("content-type", "text/event-stream"),
+    )
+
+
+async def _office_telegram_mirror_stream(request: Request) -> StreamingResponse:
+    _require_gateway()
+    params = dict(request.query_params)
+    after = int(params.get("after", 0) or 0)
+    limit = max(1, min(int(params.get("limit", 200) or 200), 500))
+    requested = params.get("profiles") or params.get("profile") or ""
+
+    async def stream():
+        cursor = after
+        while not await request.is_disconnected():
+            try:
+                mirror_params = {"after": cursor, "limit": limit}
+                if requested:
+                    key = "profiles" if "," in requested else "profile"
+                    mirror_params[key] = requested
+                async with httpx.AsyncClient(timeout=30) as client:
+                    resp = await client.get(
+                        f"{HERMES_GATEWAY_URL}/api/office/telegram/mirror",
+                        params=mirror_params,
+                        headers=_hermes_headers(),
+                    )
+                resp.raise_for_status()
+                payload = resp.json()
+                next_cursor = int(payload.get("next_cursor", cursor) or cursor)
+                events = payload.get("events") or []
+                if events:
+                    cursor = next_cursor
+                    yield f"id: {cursor}\nevent: mirror\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                else:
+                    cursor = next_cursor
+                    yield f": keepalive {int(time.time())}\n\n"
+            except Exception as exc:
+                yield f"event: error\ndata: {json.dumps({'detail': str(exc)[:500], 'next_cursor': cursor}, ensure_ascii=False)}\n\n"
+            await asyncio.sleep(0.8)
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 
 @router.get("/api/office/agents")
 async def office_list_agents(current_user: User = Depends(get_current_user)):
@@ -289,5 +379,7 @@ async def office_gateway_proxy(
 ):
     if _office_proxy_requires_admin(request.method, path) and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Akses ditolak: hanya admin")
+    if path == "telegram/mirror/stream":
+        return await _office_telegram_mirror_stream(request)
     timeout = 130.0 if path.startswith("chat/") else 60.0
     return await _office_proxy(request, path, timeout=timeout)
