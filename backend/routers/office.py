@@ -55,16 +55,19 @@ async def office_status(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/api/office/history/{profile}")
-async def office_history(profile: str, current_user: User = Depends(get_current_user)):
+async def office_history(profile: str, request: Request, current_user: User = Depends(get_current_user)):
     if not HERMES_GATEWAY_URL:
         return []
     profile = _office_profile(profile)
-    async with httpx.AsyncClient(timeout=10) as client:
-        try:
-            resp = await client.get(f"{HERMES_GATEWAY_URL}/api/office/history/{profile}", headers=_hermes_headers())
-            return resp.json()
-        except Exception:
-            return []
+    async with httpx.AsyncClient(timeout=120) as client:
+        resp = await client.get(
+            f"{HERMES_GATEWAY_URL}/api/office/history/{profile}",
+            params=dict(request.query_params),
+            headers=_hermes_headers(),
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"Hermes error: {resp.text[:200]}")
+    return resp.json()
 
 
 
@@ -381,5 +384,5 @@ async def office_gateway_proxy(
         raise HTTPException(status_code=403, detail="Akses ditolak: hanya admin")
     if path == "telegram/mirror/stream":
         return await _office_telegram_mirror_stream(request)
-    timeout = 130.0 if path.startswith("chat/") else 60.0
+    timeout = 180.0 if path == "telegram/mirror" else 130.0 if path.startswith("chat/") else 60.0
     return await _office_proxy(request, path, timeout=timeout)
