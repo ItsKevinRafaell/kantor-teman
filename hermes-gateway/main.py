@@ -244,6 +244,12 @@ def _init_sync_db() -> None:
             last_message_id INTEGER NOT NULL DEFAULT 0
         );
 
+        CREATE TABLE IF NOT EXISTS timeline_backfills (
+            profile TEXT PRIMARY KEY,
+            completed_at REAL NOT NULL,
+            last_message_id INTEGER NOT NULL DEFAULT 0
+        );
+
         CREATE TABLE IF NOT EXISTS telegram_outbox (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             profile TEXT NOT NULL,
@@ -1451,7 +1457,7 @@ def _get_session_history(profile: str, session_id: str, limit: Optional[int] = 4
 def _get_timeline_history(profile: str, limit: int = 500, session_id: Optional[str] = None) -> list:
     limit = max(1, min(int(limit or 500), 1000))
     try:
-        _ingest_profile_messages(profile)
+        _ensure_profile_timeline(profile, backfill=session_id is None)
     except Exception:
         pass
     con = _sync_db()
@@ -1464,7 +1470,7 @@ def _get_timeline_history(profile: str, limit: int = 500, session_id: Optional[s
         params.append(limit)
         rows = con.execute(
             f"""
-            SELECT role, content, created_at, id
+            SELECT *
             FROM timeline_events
             WHERE profile = ?
               AND kind = ?
@@ -1478,10 +1484,20 @@ def _get_timeline_history(profile: str, limit: int = 500, session_id: Optional[s
         ).fetchall()
     finally:
         con.close()
-    result = [
-        {"role": row["role"], "content": row["content"], "created_at": _ts_to_iso(row["created_at"])}
-        for row in rows
-    ]
+    result = []
+    for row in rows:
+        event = _serialize_timeline(row)
+        result.append({
+            "role": event["role"],
+            "content": event["content"],
+            "created_at": event["created_at"],
+            "session_id": event["session_id"],
+            "source": event["source"],
+            "room_key": event["room_key"],
+            "message_thread_id": event["message_thread_id"],
+            "topic_title": event["topic_title"],
+            "timeline_id": event["id"],
+        })
     result.reverse()
     return result
 
@@ -1955,6 +1971,94 @@ def _resolve_approval_rows(run_id: str, decision: str) -> None:
     con.close()
 
 
+def _iter_profile_telegram_messages(profile: str, after_id: int = 0, limit: int = 500) -> list[sqlite3.Row]:
+    db = _db_path(profile)
+    if not db:
+        return []
+    source = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    source.row_factory = sqlite3.Row
+    try:
+        return source.execute(
+            """
+            SELECT m.id, m.session_id, m.role, m.content, m.tool_name, m.tool_calls,
+                   m.timestamp, m.platform_message_id, s.source AS session_source
+            FROM messages m
+            JOIN sessions s ON s.id = m.session_id
+            WHERE m.id > ? AND s.source = 'telegram'
+              AND (
+                m.platform_message_id IS NULL
+                OR (
+                  m.platform_message_id NOT LIKE 'office:%'
+                  AND m.platform_message_id NOT LIKE 'office-backfill:%'
+                )
+              )
+            ORDER BY m.id
+            LIMIT ?
+            """,
+            (int(after_id or 0), max(1, int(limit or 500))),
+        ).fetchall()
+    finally:
+        source.close()
+
+
+def _append_profile_message_to_timeline(profile: str, row: sqlite3.Row) -> None:
+    content = str(row["content"] or "")
+    role = str(row["role"])
+    kind = "terminal" if role == "tool" else "message"
+    if not content.strip() and role != "tool":
+        return
+    telegram_destination = _telegram_destination(profile, row["session_id"])
+    _append_timeline(
+        profile,
+        kind,
+        "assistant" if role == "tool" else role,
+        content,
+        "telegram-db",
+        f"db-message:{profile}:{row['id']}",
+        session_id=row["session_id"],
+        metadata={
+            "db_message_id": int(row["id"]),
+            "tool": row["tool_name"],
+            "tool_calls": _json_dict(row["tool_calls"]) if row["tool_calls"] else None,
+            "platform_message_id": row["platform_message_id"],
+        },
+        dedupe_content=role in {"user", "assistant"},
+        dedupe_across_sessions=role == "assistant",
+        created_at=float(row["timestamp"]),
+        chat_id=telegram_destination.get("chat_id"),
+        message_id=row["platform_message_id"],
+        message_thread_id=telegram_destination.get("message_thread_id"),
+        topic_title=telegram_destination.get("topic_title"),
+    )
+
+
+def _max_profile_message_id(profile: str) -> int:
+    db = _db_path(profile)
+    if not db:
+        return 0
+    source = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    try:
+        row = source.execute("SELECT COALESCE(MAX(id), 0) FROM messages").fetchone()
+        return int(row[0] or 0)
+    finally:
+        source.close()
+
+
+def _mark_timeline_cursor(profile: str, last_id: int) -> None:
+    con = _sync_db()
+    try:
+        con.execute(
+            """
+            INSERT INTO timeline_cursors(profile, last_message_id) VALUES (?, ?)
+            ON CONFLICT(profile) DO UPDATE SET last_message_id = excluded.last_message_id
+            """,
+            (profile, int(last_id or 0)),
+        )
+        con.commit()
+    finally:
+        con.close()
+
+
 def _ingest_profile_messages(profile: str) -> None:
     db = _db_path(profile)
     if not db:
@@ -1964,94 +2068,76 @@ def _ingest_profile_messages(profile: str) -> None:
         "SELECT last_message_id FROM timeline_cursors WHERE profile = ?",
         (profile,),
     ).fetchone()
-    if not cursor:
-        source = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-        row = source.execute("SELECT COALESCE(MAX(id), 0) FROM messages").fetchone()
-        source.close()
-        con.execute(
-            "INSERT INTO timeline_cursors(profile, last_message_id) VALUES (?, ?)",
-            (profile, int(row[0] or 0)),
-        )
-        con.commit()
-        con.close()
-        return
-    last_id = int(cursor["last_message_id"])
+    last_id = int(cursor["last_message_id"]) if cursor else 0
     con.close()
 
-    source = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-    source.row_factory = sqlite3.Row
-    rows = source.execute(
-        """
-        SELECT m.id, m.session_id, m.role, m.content, m.tool_name, m.tool_calls,
-               m.timestamp, m.platform_message_id, s.source AS session_source
-        FROM messages m
-        JOIN sessions s ON s.id = m.session_id
-        WHERE m.id > ? AND s.source = 'telegram'
-          AND (
-            m.platform_message_id IS NULL
-            OR (
-              m.platform_message_id NOT LIKE 'office:%'
-              AND m.platform_message_id NOT LIKE 'office-backfill:%'
-            )
-          )
-        ORDER BY m.id
-        LIMIT 500
-        """,
-        (last_id,),
-    ).fetchall()
-    source.close()
+    rows = _iter_profile_telegram_messages(profile, last_id, 500)
     if not rows:
         return
 
     for row in rows:
-        content = str(row["content"] or "")
-        role = str(row["role"])
-        kind = "terminal" if role == "tool" else "message"
-        if not content.strip() and role != "tool":
-            last_id = int(row["id"])
-            continue
-        telegram_destination = _telegram_destination(profile, row["session_id"])
-        _append_timeline(
-            profile,
-            kind,
-            "assistant" if role == "tool" else role,
-            content,
-            "telegram-db",
-            f"db-message:{profile}:{row['id']}",
-            session_id=row["session_id"],
-            metadata={
-                "db_message_id": int(row["id"]),
-                "tool": row["tool_name"],
-                "tool_calls": _json_dict(row["tool_calls"]) if row["tool_calls"] else None,
-                "platform_message_id": row["platform_message_id"],
-            },
-            dedupe_content=role in {"user", "assistant"},
-            dedupe_across_sessions=role == "assistant",
-            created_at=float(row["timestamp"]),
-            chat_id=telegram_destination.get("chat_id"),
-            message_id=row["platform_message_id"],
-            message_thread_id=telegram_destination.get("message_thread_id"),
-            topic_title=telegram_destination.get("topic_title"),
-        )
+        _append_profile_message_to_timeline(profile, row)
         last_id = int(row["id"])
 
+    _mark_timeline_cursor(profile, last_id)
+
+
+def _backfill_profile_messages(profile: str) -> None:
     con = _sync_db()
-    con.execute(
-        """
-        INSERT INTO timeline_cursors(profile, last_message_id) VALUES (?, ?)
-        ON CONFLICT(profile) DO UPDATE SET last_message_id = excluded.last_message_id
-        """,
-        (profile, last_id),
-    )
-    con.commit()
-    con.close()
+    try:
+        marker = con.execute(
+            "SELECT last_message_id FROM timeline_backfills WHERE profile = ?",
+            (profile,),
+        ).fetchone()
+        if marker:
+            return
+    finally:
+        con.close()
+
+    last_id = 0
+    while True:
+        rows = _iter_profile_telegram_messages(profile, last_id, 1000)
+        if not rows:
+            break
+        for row in rows:
+            _append_profile_message_to_timeline(profile, row)
+            last_id = int(row["id"])
+
+    max_id = max(last_id, _max_profile_message_id(profile))
+    con = _sync_db()
+    try:
+        con.execute(
+            """
+            INSERT INTO timeline_backfills(profile, completed_at, last_message_id) VALUES (?, ?, ?)
+            ON CONFLICT(profile) DO UPDATE
+              SET completed_at = excluded.completed_at,
+                  last_message_id = excluded.last_message_id
+            """,
+            (profile, time.time(), max_id),
+        )
+        con.execute(
+            """
+            INSERT INTO timeline_cursors(profile, last_message_id) VALUES (?, ?)
+            ON CONFLICT(profile) DO UPDATE SET last_message_id = MAX(timeline_cursors.last_message_id, excluded.last_message_id)
+            """,
+            (profile, max_id),
+        )
+        con.commit()
+    finally:
+        con.close()
+
+
+def _ensure_profile_timeline(profile: str, backfill: bool = False) -> None:
+    if backfill:
+        _backfill_profile_messages(profile)
+    _ingest_profile_messages(profile)
 
 
 def _sync_worker() -> None:
     while not SYNC_STOP.is_set():
         try:
             for profile in _profiles_for_sync():
-                _ingest_profile_messages(profile)
+                _ensure_profile_timeline(profile)
             _drain_telegram_outbox()
         except Exception:
             pass
@@ -2258,7 +2344,7 @@ def _serialize_approval(row: sqlite3.Row) -> dict:
 def timeline(profile: str, after: int = 0, limit: int = 200, _: str = Depends(verify_auth)):
     requested_profile = validate_profile(profile)
     profile = resolve_profile(profile)
-    _ingest_profile_messages(profile)
+    _ensure_profile_timeline(profile, backfill=after < 0)
     limit = max(1, min(limit, 500))
     con = _sync_db()
     latest = con.execute(
@@ -2305,7 +2391,7 @@ def telegram_mirror(after: int = 0, limit: int = 200, profile: Optional[str] = N
     else:
         profile_names = [item[0] for item in _iter_agent_profiles()]
     for profile_name in profile_names:
-        _ingest_profile_messages(profile_name)
+        _ensure_profile_timeline(profile_name, backfill=after < 0)
     rows, cursor, has_more = _timeline_rows_for_profiles(profile_names, after, max(1, min(limit, 500)), source_filter=["telegram-db", "web", "web-run"])
     grouped: dict[str, list[dict]] = {}
     events = [_serialize_timeline(row) for row in rows]
@@ -2342,7 +2428,7 @@ async def telegram_mirror_stream(
         while not await request.is_disconnected():
             try:
                 for profile_name in profile_names:
-                    _ingest_profile_messages(profile_name)
+                    _ensure_profile_timeline(profile_name)
                 rows, next_cursor, has_more = _timeline_rows_for_profiles(profile_names, cursor, limit, source_filter=["telegram-db", "web", "web-run"])
                 events = [_serialize_timeline(row) for row in rows]
                 if events:
