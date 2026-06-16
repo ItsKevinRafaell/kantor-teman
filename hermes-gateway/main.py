@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import json
 import os
@@ -14,8 +15,9 @@ from pathlib import Path
 from typing import Optional
 
 import yaml
-from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi import Depends, FastAPI, HTTPException, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
@@ -235,6 +237,7 @@ def _init_sync_db() -> None:
             created_at REAL NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_timeline_profile_id ON timeline_events(profile, id);
+        CREATE INDEX IF NOT EXISTS idx_timeline_session_id ON timeline_events(session_id, id);
 
         CREATE TABLE IF NOT EXISTS timeline_cursors (
             profile TEXT PRIMARY KEY,
@@ -305,8 +308,21 @@ def _init_sync_db() -> None:
         """
     )
     con.execute("UPDATE telegram_outbox SET next_attempt = 0 WHERE status = 'pending'")
+    _ensure_column(con, "timeline_events", "chat_id", "TEXT")
+    _ensure_column(con, "timeline_events", "message_id", "TEXT")
+    _ensure_column(con, "timeline_events", "message_thread_id", "TEXT")
+    _ensure_column(con, "timeline_events", "topic_title", "TEXT")
+    _ensure_column(con, "telegram_outbox", "chat_id", "TEXT")
+    _ensure_column(con, "telegram_outbox", "message_thread_id", "TEXT")
+    _ensure_column(con, "telegram_outbox", "reply_to_message_id", "TEXT")
     con.commit()
     con.close()
+
+
+def _ensure_column(con: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    existing = {row["name"] for row in con.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in existing:
+        con.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def _json_dict(raw: str) -> dict:
@@ -315,6 +331,29 @@ def _json_dict(raw: str) -> dict:
         return value if isinstance(value, dict) else {}
     except Exception:
         return {}
+
+
+def _string_value(*values) -> str:
+    for value in values:
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return ""
+
+
+def _metadata_string(metadata: Optional[dict], *keys: str) -> str:
+    if not isinstance(metadata, dict):
+        return ""
+    for key in keys:
+        value = metadata.get(key)
+        if isinstance(value, dict):
+            continue
+        text = _string_value(value)
+        if text:
+            return text
+    return ""
 
 
 SENSITIVE_KEYS = re.compile(r"(key|token|secret|password|authorization|cookie)", re.I)
@@ -731,6 +770,7 @@ def _start_chat_run_now(
             raise HTTPException(status_code=409, detail="Agent masih mengerjakan pesan sebelumnya")
 
     target_session = _get_latest_session(profile) or session_id
+    telegram_destination = _telegram_destination(profile, target_session)
     context_limit = _context_limit_for_message(full_message)
     payload = {
         "input": full_message,
@@ -778,6 +818,9 @@ def _start_chat_run_now(
         session_id=target_session,
         dedupe_content=True,
         created_at=created_at,
+        chat_id=telegram_destination.get("chat_id"),
+        message_thread_id=telegram_destination.get("message_thread_id"),
+        topic_title=telegram_destination.get("topic_title"),
     )
     _persist_web_message_to_profile(
         profile,
@@ -788,7 +831,14 @@ def _start_chat_run_now(
         created_at=created_at,
     )
     if mirror_user_to_telegram:
-        _queue_telegram(profile, f"[Web · You]\n{full_message.strip()}", source_key)
+        _queue_telegram(
+            profile,
+            f"[Web · You]\n{full_message.strip()}",
+            source_key,
+            session_id=target_session,
+            chat_id=telegram_destination.get("chat_id"),
+            message_thread_id=telegram_destination.get("message_thread_id"),
+        )
     _start_run_event_capture(profile, run_id)
     return {**run, "session_id": target_session or run_id, "profile": profile}
 
@@ -935,8 +985,20 @@ def _append_timeline(
     dedupe_content: bool = False,
     dedupe_across_sessions: bool = False,
     created_at: Optional[float] = None,
+    chat_id: Optional[str] = None,
+    message_id: Optional[str] = None,
+    message_thread_id: Optional[str] = None,
+    topic_title: Optional[str] = None,
 ) -> Optional[int]:
     created_at = float(created_at or time.time())
+    metadata = metadata or {}
+    chat_id = _string_value(chat_id, _metadata_string(metadata, "chat_id", "telegram_chat_id"))
+    message_id = _string_value(message_id, _metadata_string(metadata, "message_id", "telegram_message_id", "platform_message_id"))
+    message_thread_id = _string_value(
+        message_thread_id,
+        _metadata_string(metadata, "message_thread_id", "thread_id", "topic_id", "forum_topic_id"),
+    )
+    topic_title = _string_value(topic_title, _metadata_string(metadata, "topic_title", "topic_name", "thread_title"))
     con = _sync_db()
     try:
         if dedupe_content and content:
@@ -962,12 +1024,14 @@ def _append_timeline(
         cur = con.execute(
             """
             INSERT OR IGNORE INTO timeline_events
-                (profile, kind, role, content, metadata, source, session_id, source_key, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (profile, kind, role, content, metadata, source, session_id, source_key,
+                 created_at, chat_id, message_id, message_thread_id, topic_title)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 profile, kind, role, content, json.dumps(metadata or {}, ensure_ascii=False),
-                source, session_id, source_key, created_at,
+                source, session_id, source_key, created_at, chat_id or None, message_id or None,
+                message_thread_id or None, topic_title or None,
             ),
         )
         con.commit()
@@ -980,28 +1044,119 @@ def _append_timeline(
 
 
 def _serialize_timeline(row: sqlite3.Row) -> dict:
+    metadata = _json_dict(row["metadata"])
+    chat_id = _string_value(row["chat_id"], _metadata_string(metadata, "chat_id", "telegram_chat_id"))
+    message_id = _string_value(row["message_id"], _metadata_string(metadata, "message_id", "telegram_message_id", "platform_message_id"))
+    message_thread_id = _string_value(
+        row["message_thread_id"],
+        _metadata_string(metadata, "message_thread_id", "thread_id", "topic_id", "forum_topic_id"),
+    )
+    topic_title = _string_value(row["topic_title"], _metadata_string(metadata, "topic_title", "topic_name", "thread_title"))
     return {
         "id": int(row["id"]),
         "profile": row["profile"],
         "kind": row["kind"],
         "role": row["role"],
         "content": row["content"],
-        "metadata": _json_dict(row["metadata"]),
+        "metadata": metadata,
         "source": row["source"],
         "session_id": row["session_id"],
+        "chat_id": chat_id or None,
+        "message_id": message_id or None,
+        "message_thread_id": message_thread_id or None,
+        "topic_title": topic_title or None,
+        "room_key": _room_key(row["profile"], chat_id, message_thread_id, row["session_id"]),
         "created_at": _ts_to_iso(row["created_at"]),
     }
 
 
-def _telegram_binding_summary(profile: str) -> dict:
-    binding = _telegram_binding(profile)
+def _room_key(profile: str, chat_id: Optional[str], message_thread_id: Optional[str], session_id: Optional[str]) -> str:
+    chat = _string_value(chat_id)
+    thread = _string_value(message_thread_id)
+    if chat and thread:
+        return f"telegram:{chat}:{thread}"
+    if chat:
+        return f"telegram:{chat}:main"
+    return f"profile:{profile}:{session_id or 'default'}"
+
+
+def _telegram_identity_from_entry(entry: dict) -> dict:
+    origin = entry.get("origin") or {}
+    chat_id = _string_value(origin.get("chat_id"), entry.get("chat_id"))
+    message_thread_id = _string_value(
+        origin.get("message_thread_id"),
+        origin.get("thread_id"),
+        origin.get("topic_id"),
+        origin.get("forum_topic_id"),
+        entry.get("message_thread_id"),
+        entry.get("thread_id"),
+        entry.get("topic_id"),
+        entry.get("forum_topic_id"),
+    )
+    topic_title = _string_value(
+        origin.get("topic_title"),
+        origin.get("topic_name"),
+        origin.get("thread_title"),
+        entry.get("topic_title"),
+        entry.get("topic_name"),
+        entry.get("thread_title"),
+    )
+    return {
+        "chat_id": chat_id,
+        "message_thread_id": message_thread_id,
+        "topic_title": topic_title,
+    }
+
+
+def _telegram_destination(profile: str, session_id: Optional[str] = None) -> dict:
+    binding = _telegram_binding(profile, session_id=session_id)
+    identity = _telegram_identity_from_entry(binding) if binding else {}
+    if identity.get("chat_id"):
+        return identity
+    con = _sync_db()
+    try:
+        params: list = [profile]
+        session_clause = ""
+        if session_id:
+            session_clause = "AND session_id = ?"
+            params.append(session_id)
+        row = con.execute(
+            f"""
+            SELECT chat_id, message_thread_id, topic_title
+            FROM timeline_events
+            WHERE profile = ?
+              {session_clause}
+              AND chat_id IS NOT NULL AND chat_id != ''
+            ORDER BY id DESC LIMIT 1
+            """,
+            params,
+        ).fetchone()
+        if row:
+            return {
+                "chat_id": _string_value(row["chat_id"]),
+                "message_thread_id": _string_value(row["message_thread_id"]),
+                "topic_title": _string_value(row["topic_title"]),
+            }
+    finally:
+        con.close()
+    return {}
+
+
+def _telegram_binding_summary(profile: str, binding: Optional[dict] = None) -> dict:
+    binding = binding or _telegram_binding(profile)
+    identity = _telegram_identity_from_entry(binding) if binding else {}
     origin = (binding or {}).get("origin") or {}
-    chat_id = str(origin.get("chat_id") or "")
+    chat_id = _string_value(identity.get("chat_id"), origin.get("chat_id"))
+    message_thread_id = _string_value(identity.get("message_thread_id"))
+    topic_title = _string_value(identity.get("topic_title"))
     return {
         "profile": profile,
         "display_name": _profile_display_name(profile),
         "session_id": (binding or {}).get("session_id"),
         "chat_id": chat_id[-6:] if chat_id else "",
+        "message_thread_id": message_thread_id or None,
+        "topic_title": topic_title or None,
+        "room_key": _room_key(profile, chat_id, message_thread_id, (binding or {}).get("session_id")),
         "connected": bool(binding),
     }
 
@@ -1058,14 +1213,88 @@ def _timeline_rows_for_profiles(profiles: list[str], after: int, limit: int, sou
         con.close()
 
 
-def _profiles_for_sync() -> list[str]:
-    return [profile for profile, _ in _iter_agent_profiles()]
+def _room_summary_from_event(event: dict) -> dict:
+    chat_id = _string_value(event.get("chat_id"))
+    message_thread_id = _string_value(event.get("message_thread_id"))
+    topic_title = _string_value(event.get("topic_title"))
+    room_key = event.get("room_key") or _room_key(event["profile"], chat_id, message_thread_id, event.get("session_id"))
+    title = topic_title or (
+        f"Telegram Topic #{message_thread_id}" if chat_id and message_thread_id
+        else "Telegram Main" if chat_id
+        else _profile_display_name(event["profile"])
+    )
+    return {
+        "id": room_key,
+        "room_key": room_key,
+        "title": title,
+        "topic_title": topic_title or None,
+        "chat_id": chat_id[-6:] if chat_id else "",
+        "session_id": event.get("session_id"),
+        "message_thread_id": message_thread_id or None,
+        "profiles": [event["profile"]],
+        "last_event_id": event["id"],
+        "last_event_at": event["created_at"],
+        "source": "telegram" if chat_id else "profile",
+    }
 
 
-def _telegram_binding(profile: str) -> Optional[dict]:
+def _merge_room_summary(current: dict, event: dict) -> dict:
+    if event["profile"] not in current["profiles"]:
+        current["profiles"].append(event["profile"])
+    if int(event["id"]) >= int(current.get("last_event_id") or 0):
+        current["last_event_id"] = event["id"]
+        current["last_event_at"] = event["created_at"]
+    if event.get("topic_title") and not current.get("topic_title"):
+        current["topic_title"] = event["topic_title"]
+        current["title"] = event["topic_title"]
+    return current
+
+
+def _rooms_for_events(events: list[dict], profile_names: list[str]) -> list[dict]:
+    rooms: dict[str, dict] = {}
+    for event in events:
+        summary = _room_summary_from_event(event)
+        existing = rooms.get(summary["room_key"])
+        rooms[summary["room_key"]] = _merge_room_summary(existing, event) if existing else summary
+    for profile in profile_names:
+        bindings = _telegram_bindings(profile) or [None]
+        for binding_entry in bindings:
+            binding = _telegram_binding_summary(profile, binding_entry)
+            room_key = binding.get("room_key") or f"profile:{profile}:default"
+            if room_key in rooms:
+                if profile not in rooms[room_key]["profiles"]:
+                    rooms[room_key]["profiles"].append(profile)
+                if not rooms[room_key].get("session_id") and binding.get("session_id"):
+                    rooms[room_key]["session_id"] = binding.get("session_id")
+                continue
+            rooms[room_key] = {
+                "id": room_key,
+                "room_key": room_key,
+                "title": (
+                    binding.get("topic_title")
+                    or (
+                        f"Telegram Topic #{binding.get('message_thread_id')}"
+                        if binding.get("chat_id") and binding.get("message_thread_id")
+                        else "Telegram Main" if binding.get("chat_id")
+                        else binding.get("display_name") or profile
+                    )
+                ),
+                "topic_title": binding.get("topic_title"),
+                "chat_id": binding.get("chat_id") or "",
+                "session_id": binding.get("session_id"),
+                "message_thread_id": binding.get("message_thread_id"),
+                "profiles": [profile],
+                "last_event_id": 0,
+                "last_event_at": "",
+                "source": "telegram" if binding.get("connected") else "profile",
+            }
+    return sorted(rooms.values(), key=lambda room: (room.get("last_event_id") or 0, room.get("title") or ""), reverse=True)
+
+
+def _telegram_bindings(profile: str) -> list[dict]:
     sessions_file = _existing_profile_dir(profile) / "sessions" / "sessions.json"
     if not sessions_file.exists():
-        return None
+        return []
     try:
         entries = json.loads(sessions_file.read_text(encoding="utf-8")).values()
         matches = []
@@ -1076,9 +1305,92 @@ def _telegram_binding(profile: str) -> Optional[dict]:
             if not origin.get("chat_id") or not entry.get("session_id"):
                 continue
             matches.append(entry)
-        return max(matches, key=lambda entry: entry.get("updated_at", "")) if matches else None
+        matches.sort(key=lambda entry: entry.get("updated_at", ""), reverse=True)
+        return matches
     except Exception:
-        return None
+        return []
+
+
+def _latest_session_for_room(
+    profile: str,
+    *,
+    room_key: Optional[str] = None,
+    chat_id: Optional[str] = None,
+    message_thread_id: Optional[str] = None,
+) -> Optional[str]:
+    profile = resolve_profile(profile)
+    clauses = ["profile = ?", "session_id IS NOT NULL", "session_id != ''"]
+    params: list = [profile]
+    chat_id = _string_value(chat_id)
+    message_thread_id = _string_value(message_thread_id)
+    if room_key:
+        clauses.append(
+            """
+            (
+              CASE
+                WHEN chat_id IS NOT NULL AND chat_id != '' AND message_thread_id IS NOT NULL AND message_thread_id != ''
+                  THEN 'telegram:' || chat_id || ':' || message_thread_id
+                WHEN chat_id IS NOT NULL AND chat_id != ''
+                  THEN 'telegram:' || chat_id || ':main'
+                ELSE 'profile:' || profile || ':' || COALESCE(session_id, 'default')
+              END
+            ) = ?
+            """
+        )
+        params.append(room_key)
+    else:
+        if chat_id:
+            clauses.append("chat_id = ?")
+            params.append(chat_id)
+        if message_thread_id:
+            clauses.append("message_thread_id = ?")
+            params.append(message_thread_id)
+    con = _sync_db()
+    try:
+        row = con.execute(
+            f"""
+            SELECT session_id
+            FROM timeline_events
+            WHERE {" AND ".join(clauses)}
+            ORDER BY id DESC LIMIT 1
+            """,
+            params,
+        ).fetchone()
+        if row:
+            return row["session_id"]
+    finally:
+        con.close()
+    for binding in _telegram_bindings(profile):
+        identity = _telegram_identity_from_entry(binding)
+        binding_room_key = _room_key(
+            profile,
+            identity.get("chat_id"),
+            identity.get("message_thread_id"),
+            binding.get("session_id"),
+        )
+        if room_key and binding_room_key == room_key:
+            return binding.get("session_id")
+        if chat_id and _string_value(identity.get("chat_id")) != chat_id:
+            continue
+        if message_thread_id and _string_value(identity.get("message_thread_id")) != message_thread_id:
+            continue
+        if chat_id or message_thread_id:
+            return binding.get("session_id")
+        if not room_key:
+            return binding.get("session_id")
+    return None
+
+
+def _profiles_for_sync() -> list[str]:
+    return [profile for profile, _ in _iter_agent_profiles()]
+
+
+def _telegram_binding(profile: str, session_id: Optional[str] = None) -> Optional[dict]:
+    matches = [
+        entry for entry in _telegram_bindings(profile)
+        if not session_id or entry.get("session_id") == session_id
+    ]
+    return matches[0] if matches else None
 
 
 def _get_latest_session(profile: str) -> Optional[str]:
@@ -1376,6 +1688,7 @@ def _persist_run_final(profile: str, run_id: str, response: str, session_id: Opt
         )
     created_at = time.time()
     target_session_id = _get_latest_session(profile) or session_id
+    telegram_destination = _telegram_destination(profile, target_session_id)
     _append_timeline(
         profile,
         "message",
@@ -1386,6 +1699,9 @@ def _persist_run_final(profile: str, run_id: str, response: str, session_id: Opt
         session_id=target_session_id,
         dedupe_content=True,
         created_at=created_at,
+        chat_id=telegram_destination.get("chat_id"),
+        message_thread_id=telegram_destination.get("message_thread_id"),
+        topic_title=telegram_destination.get("topic_title"),
     )
     _persist_web_message_to_profile(
         profile,
@@ -1399,6 +1715,9 @@ def _persist_run_final(profile: str, run_id: str, response: str, session_id: Opt
         profile,
         f"[Web · {profile.title()}]\n{response}",
         f"run-final:{run_id}",
+        session_id=target_session_id,
+        chat_id=telegram_destination.get("chat_id"),
+        message_thread_id=telegram_destination.get("message_thread_id"),
     )
 
 
@@ -1501,36 +1820,71 @@ def _load_profile_env(profile: str) -> dict[str, str]:
     return values
 
 
-def _queue_telegram(profile: str, text: str, dedupe_key: Optional[str] = None) -> None:
+def _queue_telegram(
+    profile: str,
+    text: str,
+    dedupe_key: Optional[str] = None,
+    *,
+    session_id: Optional[str] = None,
+    chat_id: Optional[str] = None,
+    message_thread_id: Optional[str] = None,
+    reply_to_message_id: Optional[str] = None,
+) -> None:
     if not text.strip():
         return
     dedupe_key = dedupe_key or f"telegram:{profile}:{uuid.uuid4().hex}"
+    destination = _telegram_destination(profile, session_id)
+    chat_id = _string_value(chat_id, destination.get("chat_id"))
+    message_thread_id = _string_value(message_thread_id, destination.get("message_thread_id"))
+    reply_to_message_id = _string_value(reply_to_message_id)
     con = _sync_db()
     con.execute(
         """
         INSERT OR IGNORE INTO telegram_outbox
-            (profile, text, dedupe_key, status, attempts, next_attempt, created_at)
-        VALUES (?, ?, ?, 'pending', 0, 0, ?)
+            (profile, text, dedupe_key, status, attempts, next_attempt, created_at,
+             chat_id, message_thread_id, reply_to_message_id)
+        VALUES (?, ?, ?, 'pending', 0, 0, ?, ?, ?, ?)
         """,
-        (profile, text, dedupe_key, time.time()),
+        (profile, text, dedupe_key, time.time(), chat_id or None, message_thread_id or None, reply_to_message_id or None),
     )
     con.commit()
     con.close()
     SYNC_WAKE.set()
 
 
-def _send_telegram(profile: str, text: str) -> None:
+def _send_telegram(
+    profile: str,
+    text: str,
+    *,
+    chat_id: Optional[str] = None,
+    message_thread_id: Optional[str] = None,
+    reply_to_message_id: Optional[str] = None,
+) -> None:
     binding = _telegram_binding(profile)
     profile_env = _load_profile_env(profile)
     token = profile_env.get("TELEGRAM_BOT_TOKEN")
-    chat_id = (binding.get("origin") or {}).get("chat_id") if binding else None
+    destination = _telegram_identity_from_entry(binding) if binding else {}
+    chat_id = _string_value(chat_id, destination.get("chat_id"))
+    message_thread_id = _string_value(message_thread_id, destination.get("message_thread_id"))
+    reply_to_message_id = _string_value(reply_to_message_id)
     if not chat_id:
         allowed_users = re.split(r"[\s,]+", profile_env.get("TELEGRAM_ALLOWED_USERS", "").strip())
         chat_id = next((user for user in allowed_users if user), None)
     if not token or not chat_id or not text.strip():
         raise RuntimeError(f"Telegram binding unavailable for {profile}")
     for offset in range(0, len(text), 3900):
-        payload = json.dumps({"chat_id": str(chat_id), "text": text[offset:offset + 3900]}).encode("utf-8")
+        payload_dict = {"chat_id": str(chat_id), "text": text[offset:offset + 3900]}
+        if message_thread_id:
+            try:
+                payload_dict["message_thread_id"] = int(message_thread_id)
+            except ValueError:
+                payload_dict["message_thread_id"] = message_thread_id
+        if reply_to_message_id:
+            try:
+                payload_dict["reply_to_message_id"] = int(reply_to_message_id)
+            except ValueError:
+                payload_dict["reply_to_message_id"] = reply_to_message_id
+        payload = json.dumps(payload_dict).encode("utf-8")
         request = urllib.request.Request(
             f"https://api.telegram.org/bot{token}/sendMessage",
             data=payload,
@@ -1548,7 +1902,7 @@ def _drain_telegram_outbox() -> None:
     con = _sync_db()
     rows = con.execute(
         """
-        SELECT id, profile, text, attempts FROM telegram_outbox
+        SELECT id, profile, text, attempts, chat_id, message_thread_id, reply_to_message_id FROM telegram_outbox
         WHERE status = 'pending' AND next_attempt <= ?
         ORDER BY id LIMIT 20
         """,
@@ -1557,7 +1911,13 @@ def _drain_telegram_outbox() -> None:
     con.close()
     for row in rows:
         try:
-            _send_telegram(row["profile"], row["text"])
+            _send_telegram(
+                row["profile"],
+                row["text"],
+                chat_id=row["chat_id"],
+                message_thread_id=row["message_thread_id"],
+                reply_to_message_id=row["reply_to_message_id"],
+            )
             con = _sync_db()
             con.execute(
                 "UPDATE telegram_outbox SET status = 'delivered', delivered_at = ?, last_error = NULL WHERE id = ?",
@@ -1650,6 +2010,7 @@ def _ingest_profile_messages(profile: str) -> None:
         if not content.strip() and role != "tool":
             last_id = int(row["id"])
             continue
+        telegram_destination = _telegram_destination(profile, row["session_id"])
         _append_timeline(
             profile,
             kind,
@@ -1667,6 +2028,10 @@ def _ingest_profile_messages(profile: str) -> None:
             dedupe_content=role in {"user", "assistant"},
             dedupe_across_sessions=role == "assistant",
             created_at=float(row["timestamp"]),
+            chat_id=telegram_destination.get("chat_id"),
+            message_id=row["platform_message_id"],
+            message_thread_id=telegram_destination.get("message_thread_id"),
+            topic_title=telegram_destination.get("topic_title"),
         )
         last_id = int(row["id"])
 
@@ -1943,20 +2308,75 @@ def telegram_mirror(after: int = 0, limit: int = 200, profile: Optional[str] = N
         _ingest_profile_messages(profile_name)
     rows, cursor, has_more = _timeline_rows_for_profiles(profile_names, after, max(1, min(limit, 500)), source_filter=["telegram-db", "web", "web-run"])
     grouped: dict[str, list[dict]] = {}
-    for row in rows:
-        grouped.setdefault(row["profile"], []).append(_serialize_timeline(row))
+    events = [_serialize_timeline(row) for row in rows]
+    for event in events:
+        grouped.setdefault(event["room_key"], []).append(event)
     return {
         "profiles": [_telegram_binding_summary(profile_name) for profile_name in profile_names],
-        "events": [_serialize_timeline(row) for row in rows],
+        "events": events,
         "groups": grouped,
+        "rooms": _rooms_for_events(events, profile_names),
         "next_cursor": cursor,
         "has_more": has_more,
     }
 
 
+@app.get("/api/office/telegram/mirror/stream")
+async def telegram_mirror_stream(
+    request: Request,
+    after: int = 0,
+    limit: int = 200,
+    profile: Optional[str] = None,
+    profiles: Optional[str] = None,
+    _: str = Depends(verify_auth),
+):
+    requested = profiles or profile
+    if requested:
+        profile_names = [resolve_profile(item.strip()) for item in requested.split(",") if item.strip()]
+    else:
+        profile_names = [item[0] for item in _iter_agent_profiles()]
+    limit = max(1, min(limit, 500))
+
+    async def stream():
+        cursor = after
+        while not await request.is_disconnected():
+            try:
+                for profile_name in profile_names:
+                    _ingest_profile_messages(profile_name)
+                rows, next_cursor, has_more = _timeline_rows_for_profiles(profile_names, cursor, limit, source_filter=["telegram-db", "web", "web-run"])
+                events = [_serialize_timeline(row) for row in rows]
+                if events:
+                    grouped: dict[str, list[dict]] = {}
+                    for event in events:
+                        grouped.setdefault(event["room_key"], []).append(event)
+                    payload = {
+                        "profiles": [_telegram_binding_summary(profile_name) for profile_name in profile_names],
+                        "events": events,
+                        "groups": grouped,
+                        "rooms": _rooms_for_events(events, profile_names),
+                        "next_cursor": next_cursor,
+                        "has_more": has_more,
+                    }
+                    cursor = next_cursor
+                    yield f"id: {cursor}\nevent: mirror\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                else:
+                    cursor = next_cursor
+                    yield f": keepalive {int(time.time())}\n\n"
+            except Exception as exc:
+                payload = {"detail": str(exc)[:500], "next_cursor": cursor}
+                yield f"event: error\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            await asyncio.sleep(0.8)
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
+
+
 class TelegramMirrorMessage(BaseModel):
     message: str
     profiles: Optional[list[str]] = None
+    room_key: Optional[str] = None
+    session_id: Optional[str] = None
+    chat_id: Optional[str] = None
+    message_thread_id: Optional[str] = None
 
 
 @app.post("/api/office/telegram/mirror")
@@ -1969,7 +2389,16 @@ def telegram_mirror_send(req: TelegramMirrorMessage, _: str = Depends(verify_aut
         targets = [profile for profile, _ in _iter_agent_profiles()]
     results = []
     for target in targets:
-        results.append(chat(target, ChatRequest(message=content), _))
+        session_id = (
+            req.session_id
+            or _latest_session_for_room(
+                target,
+                room_key=req.room_key,
+                chat_id=req.chat_id,
+                message_thread_id=req.message_thread_id,
+            )
+        )
+        results.append(chat(target, ChatRequest(message=content, session_id=session_id), _))
     return {"ok": True, "targets": targets, "results": results}
 
 
