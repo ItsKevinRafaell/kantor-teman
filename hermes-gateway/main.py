@@ -98,10 +98,13 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def verify_auth(
+    request: Request,
     key: Optional[str] = Security(api_key_header),
     bearer: Optional[HTTPAuthorizationCredentials] = Security(bearer_scheme),
 ) -> str:
+    # Check header-based auth first
     token = key or (bearer.credentials if bearer else None)
+
     if token and token == GATEWAY_TOKEN:
         return token
     raise HTTPException(status_code=401, detail="Unauthorized")
@@ -327,6 +330,18 @@ def _init_sync_db() -> None:
     _ensure_column(con, "telegram_outbox", "reply_to_message_id", "TEXT")
     _ensure_column(con, "chat_queue", "room_key", "TEXT")
     con.execute("CREATE INDEX IF NOT EXISTS idx_timeline_room_key ON timeline_events(room_key, id)")
+
+    # Create topic_bindings table for mapping Telegram topics to office rooms
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS topic_bindings (
+            chat_id TEXT NOT NULL,
+            message_thread_id TEXT NOT NULL,
+            topic_title TEXT NOT NULL,
+            room_key TEXT NOT NULL,
+            PRIMARY KEY (chat_id, message_thread_id)
+        )
+    """)
+
     con.commit()
     con.close()
 
@@ -1110,6 +1125,22 @@ def _audit_ai_request(
     con.close()
 
 
+def _sanitize_agent_output(content: str) -> str:
+    """Remove raw function call tags from agent output."""
+    if not content:
+        return content
+
+    import re
+    # More aggressive cleanup - remove anything that looks like these tags
+    # Match <｜...DSML...> or <｜...DSML... without closing >
+    content = re.sub(r'<｜+[^>]*DSML[^>]*>?', '', content)
+    # Also catch malformed tags without closing >
+    content = re.sub(r'<｜+[^>]*DSML.*$', '', content, flags=re.MULTILINE)
+    # Remove empty lines that result from tag removal
+    content = re.sub(r'\n{3,}', '\n\n', content)
+    return content.strip()
+
+
 def _append_timeline(
     profile: str,
     kind: str,
@@ -1130,6 +1161,9 @@ def _append_timeline(
     room_key: Optional[str] = None,
 ) -> Optional[int]:
     created_at = float(created_at or time.time())
+    # Sanitize agent output to remove raw function call tags
+    if role == 'assistant' and content:
+        content = _sanitize_agent_output(content)
     metadata = metadata or {}
     chat_id = _string_value(chat_id, _metadata_string(metadata, "chat_id", "telegram_chat_id"))
     message_id = _string_value(message_id, _metadata_string(metadata, "message_id", "telegram_message_id", "platform_message_id"))
@@ -1153,6 +1187,23 @@ def _append_timeline(
     )
     con = _sync_db()
     try:
+        # Deduplicate by platform_message_id for Telegram messages (prevents group message duplicates)
+        platform_msg_id = _string_value(
+            message_id,
+            _metadata_string(metadata, "message_id", "telegram_message_id", "platform_message_id"),
+        )
+        if platform_msg_id and source == "telegram-db":
+            row = con.execute(
+                """
+                SELECT id FROM timeline_events
+                WHERE message_id = ? AND source = ?
+                ORDER BY id DESC LIMIT 1
+                """,
+                (platform_msg_id, source),
+            ).fetchone()
+            if row:
+                return int(row["id"])
+
         if dedupe_content and content:
             session_clause = "" if dedupe_across_sessions else """
                   AND COALESCE(session_id, '') = COALESCE(?, '')
@@ -1243,6 +1294,40 @@ def _room_key(profile: str, chat_id: Optional[str], message_thread_id: Optional[
     if chat:
         return f"telegram:{chat}:main"
     return f"profile:{profile}:{session_id or 'default'}"
+
+
+def _lookup_topic_title(chat_id: Optional[str], message_thread_id: Optional[str]) -> str:
+    """Look up topic title from bindings table"""
+    if not chat_id or not message_thread_id:
+        return ""
+    con = _sync_db()
+    try:
+        row = con.execute(
+            "SELECT topic_title FROM topic_bindings WHERE chat_id = ? AND message_thread_id = ?",
+            (chat_id, message_thread_id)
+        ).fetchone()
+        return _string_value(row["topic_title"]) if row else ""
+    except sqlite3.OperationalError:
+        return ""
+    finally:
+        con.close()
+
+
+def _lookup_room_key(chat_id: Optional[str], message_thread_id: Optional[str]) -> str:
+    """Look up room_key from bindings table"""
+    if not chat_id or not message_thread_id:
+        return ""
+    con = _sync_db()
+    try:
+        row = con.execute(
+            "SELECT room_key FROM topic_bindings WHERE chat_id = ? AND message_thread_id = ?",
+            (chat_id, message_thread_id)
+        ).fetchone()
+        return _string_value(row["room_key"]) if row else ""
+    except sqlite3.OperationalError:
+        return ""
+    finally:
+        con.close()
 
 
 def _telegram_identity_from_entry(entry: dict) -> dict:
@@ -2232,6 +2317,13 @@ def _append_profile_message_to_timeline(profile: str, row: sqlite3.Row) -> None:
     if not content.strip() and role != "tool":
         return
     telegram_destination = _telegram_destination(profile, row["session_id"])
+    chat_id = telegram_destination.get("chat_id")
+    message_thread_id = telegram_destination.get("message_thread_id")
+
+    # Look up topic title and room key from bindings table
+    topic_title = telegram_destination.get("topic_title") or _lookup_topic_title(chat_id, message_thread_id)
+    room_key = _lookup_room_key(chat_id, message_thread_id)
+
     _append_timeline(
         profile,
         kind,
@@ -2249,10 +2341,11 @@ def _append_profile_message_to_timeline(profile: str, row: sqlite3.Row) -> None:
         dedupe_content=role in {"user", "assistant"},
         dedupe_across_sessions=role == "assistant",
         created_at=float(row["timestamp"]),
-        chat_id=telegram_destination.get("chat_id"),
+        chat_id=chat_id,
         message_id=row["platform_message_id"],
-        message_thread_id=telegram_destination.get("message_thread_id"),
-        topic_title=telegram_destination.get("topic_title"),
+        message_thread_id=message_thread_id,
+        topic_title=topic_title,
+        room_key=room_key,
     )
 
 
@@ -2730,6 +2823,70 @@ def telegram_mirror_send(req: TelegramMirrorMessage, _: str = Depends(verify_aut
             },
         ), _))
     return {"ok": True, "targets": targets, "results": results}
+
+
+class TopicBinding(BaseModel):
+    chat_id: str
+    message_thread_id: str
+    topic_title: str
+    room_key: str
+
+
+@app.get("/api/office/telegram/bindings")
+def list_topic_bindings(_: str = Depends(verify_auth)):
+    """List all topic bindings"""
+    con = _sync_db()
+    try:
+        rows = con.execute("""
+            SELECT chat_id, message_thread_id, topic_title, room_key
+            FROM topic_bindings
+            ORDER BY chat_id, message_thread_id
+        """).fetchall()
+        return {
+            "bindings": [
+                {
+                    "chat_id": row["chat_id"],
+                    "message_thread_id": row["message_thread_id"],
+                    "topic_title": row["topic_title"],
+                    "room_key": row["room_key"],
+                }
+                for row in rows
+            ]
+        }
+    finally:
+        con.close()
+
+
+@app.post("/api/office/telegram/bindings")
+def create_topic_binding(binding: TopicBinding, _: str = Depends(verify_auth)):
+    """Create or update a topic binding"""
+    con = _sync_db()
+    try:
+        con.execute("""
+            INSERT INTO topic_bindings (chat_id, message_thread_id, topic_title, room_key)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(chat_id, message_thread_id)
+            DO UPDATE SET topic_title = excluded.topic_title, room_key = excluded.room_key
+        """, (binding.chat_id, binding.message_thread_id, binding.topic_title, binding.room_key))
+        con.commit()
+        return {"ok": True, "binding": binding.dict()}
+    finally:
+        con.close()
+
+
+@app.delete("/api/office/telegram/bindings/{chat_id}/{message_thread_id}")
+def delete_topic_binding(chat_id: str, message_thread_id: str, _: str = Depends(verify_auth)):
+    """Delete a topic binding"""
+    con = _sync_db()
+    try:
+        con.execute("""
+            DELETE FROM topic_bindings
+            WHERE chat_id = ? AND message_thread_id = ?
+        """, (chat_id, message_thread_id))
+        con.commit()
+        return {"ok": True}
+    finally:
+        con.close()
 
 
 @app.get("/api/office/approvals")
