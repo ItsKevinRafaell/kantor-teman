@@ -957,8 +957,9 @@ async def analyze_batch(
         import time as _time
         from sqlalchemy import create_engine as _ce
         from sqlalchemy.orm import sessionmaker as _sm
+        from sqlalchemy.pool import NullPool
         _ca = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
-        _engine = _ce(DATABASE_URL, connect_args=_ca, pool_recycle=60, pool_pre_ping=True, pool_size=1, max_overflow=0)
+        _engine = _ce(DATABASE_URL, connect_args=_ca, poolclass=NullPool)
         _Session = _sm(bind=_engine)
         try:
             _db = _Session()
