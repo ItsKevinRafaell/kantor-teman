@@ -14,6 +14,7 @@ from app.core.dependencies import (get_current_user, require_admin, verify_passw
     seed_data, get_fonnte_token, _send_fonnte_sync, _normalize_phone,
     _ai_model_to_out, _mask_secret, SENSITIVE_SETTING_KEYS, ADMIN_WA,
     _get_google_calendar_service, _get_setting, get_ai_config, UPLOADS_DIR,
+    GOOGLE_CALENDAR_ID,
 )
 from app.core.config import DATABASE_URL, IS_PRODUCTION
 from app.services.ai_service import fetch_9router_models_async
@@ -574,8 +575,16 @@ def test_calendar_connection(current_user: User = Depends(get_current_user), db:
         calendar_id = _get_setting("google_calendar_id", GOOGLE_CALENDAR_ID)
         if not calendar_id:
             return {"success": False, "message": "google_calendar_id belum diisi di Settings."}
-        result = service.calendarList().get(calendarId=calendar_id).execute()
-        return {"success": True, "message": f"Terhubung ke kalender: {result.get('summary', calendar_id)}"}
+        probe = {
+            "summary": "KantorTeman calendar test",
+            "start": {"date": datetime.now(timezone.utc).date().isoformat()},
+            "end": {"date": (datetime.now(timezone.utc).date() + timedelta(days=1)).isoformat()},
+        }
+        created = service.events().insert(calendarId=calendar_id, body=probe).execute()
+        event_id = created.get("id")
+        if event_id:
+            service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
+        return {"success": True, "message": f"Terhubung dan bisa tulis ke kalender: {calendar_id}"}
     except Exception as e:
         return {"success": False, "message": f"Gagal: {str(e)[:200]}"}
 

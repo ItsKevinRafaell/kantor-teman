@@ -3,6 +3,7 @@ import json
 import os
 import uuid
 import re
+import time
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -12,6 +13,9 @@ from models import AIModel, SystemSettings, AIProxy, ContentProvider, ContentGen
 
 NINE_ROUTER_PUBLIC_BASE_URL = "https://9router.kantorteman.my.id/v1"
 NINE_ROUTER_DEFAULT_MODEL = "combo-genflow"
+AI_RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+AI_RETRY_DELAYS_SECONDS = (1, 3)
+AI_CHAT_TIMEOUT_SECONDS = int(os.getenv("AI_CHAT_TIMEOUT_SECONDS", "45"))
 
 
 def _ensure_v1_base_url(value: Optional[str]) -> str:
@@ -84,6 +88,33 @@ def _router_headers(api_key: Optional[str]) -> dict:
     return headers
 
 
+def _is_retryable_ai_exception(exc: Exception, httpx_module) -> bool:
+    retryable_names = {
+        "ConnectError",
+        "ConnectTimeout",
+        "NetworkError",
+        "PoolTimeout",
+        "ReadError",
+        "ReadTimeout",
+        "RemoteProtocolError",
+        "TimeoutException",
+        "TransportError",
+        "WriteError",
+        "WriteTimeout",
+    }
+    if exc.__class__.__name__ in retryable_names:
+        return True
+    for name in retryable_names:
+        cls = getattr(httpx_module, name, None)
+        if cls and isinstance(exc, cls):
+            return True
+    return False
+
+
+def _retry_delay(attempt: int) -> int:
+    return AI_RETRY_DELAYS_SECONDS[min(attempt - 1, len(AI_RETRY_DELAYS_SECONDS) - 1)]
+
+
 def _extract_router_models(payload: dict) -> list[dict]:
     raw_models = payload.get("data") if isinstance(payload, dict) else []
     if not isinstance(raw_models, list):
@@ -104,6 +135,69 @@ def _extract_router_models(payload: dict) -> list[dict]:
             "raw": item,
         })
     return result
+
+
+def _extract_chat_content(resp) -> str:
+    text = resp.text
+    try:
+        payload = resp.json()
+    except Exception:
+        payload = None
+
+    if isinstance(payload, dict):
+        choices = payload.get("choices")
+        if isinstance(choices, list) and choices:
+            message = choices[0].get("message") if isinstance(choices[0], dict) else None
+            if isinstance(message, dict):
+                return str(message.get("content") or "")
+
+    source = text
+    stripped = source.strip()
+    if stripped.startswith("{"):
+        marker = stripped.find("data:")
+        json_text = stripped[:marker].strip() if marker != -1 else stripped
+        try:
+            payload = json.loads(json_text)
+            choices = payload.get("choices") if isinstance(payload, dict) else None
+            if isinstance(choices, list) and choices:
+                message = choices[0].get("message") if isinstance(choices[0], dict) else None
+                if isinstance(message, dict):
+                    return str(message.get("content") or "")
+        except Exception:
+            pass
+
+    chunks: list[str] = []
+    if "data:" not in source:
+        raise Exception(f"9router response is not valid JSON: {text[:200]}")
+
+    for line in source.splitlines():
+        line = line.strip()
+        if not line.startswith("data:"):
+            continue
+        data = line[5:].strip()
+        if not data or data == "[DONE]":
+            continue
+        try:
+            event = json.loads(data)
+        except Exception:
+            continue
+        choices = event.get("choices") if isinstance(event, dict) else None
+        if not isinstance(choices, list) or not choices:
+            continue
+        choice = choices[0]
+        if not isinstance(choice, dict):
+            continue
+        message = choice.get("message")
+        if isinstance(message, dict) and message.get("content"):
+            chunks.append(str(message.get("content")))
+        delta = choice.get("delta")
+        if isinstance(delta, dict) and delta.get("content"):
+            chunks.append(str(delta.get("content")))
+
+    content = "".join(chunks).strip()
+    if content:
+        return content
+    raise Exception(f"9router response did not contain message content: {text[:200]}")
 
 
 def fetch_9router_models_sync(config: dict, httpx_module=None) -> dict:
@@ -249,6 +343,8 @@ def delete_ai_proxy(db: Session, proxy_id: str) -> None:
 
 def get_default_model(db: Session, capability: str) -> Optional[AIModel]:
     field = f"is_default_{capability}"
+    if not hasattr(AIModel, field):
+        return None
     return db.query(AIModel).filter(getattr(AIModel, field) == 1, AIModel.is_active == 1).first()
 
 
@@ -329,31 +425,58 @@ def call_ai_sync(prompt: str, config: dict, httpx_module) -> str:
     api_key = _router_api_key(config.get("openai_key") or config.get("api_key"))
     base_url = _router_base_url(config.get("base_url"))
     model = _router_model(config.get("model"))
-    with httpx_module.Client(timeout=120) as client:
-        resp = client.post(
-            f"{base_url}/chat/completions",
-            headers=_router_headers(api_key),
-            json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 1024},
-        )
-        if resp.status_code != 200:
-            raise Exception(f"9router API error: {resp.status_code} - {resp.text[:200]}")
-        return resp.json()["choices"][0]["message"]["content"]
+    last_error: Optional[Exception] = None
+    for attempt in range(1, len(AI_RETRY_DELAYS_SECONDS) + 2):
+        try:
+            with httpx_module.Client(timeout=AI_CHAT_TIMEOUT_SECONDS) as client:
+                resp = client.post(
+                    f"{base_url}/chat/completions",
+                    headers=_router_headers(api_key),
+                    json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 1024},
+                )
+                if resp.status_code == 200:
+                    return _extract_chat_content(resp)
+                message = f"9router API error: {resp.status_code} - {resp.text[:200]}"
+                if resp.status_code not in AI_RETRYABLE_STATUS_CODES:
+                    raise Exception(message)
+                last_error = Exception(message)
+        except Exception as exc:
+            if not _is_retryable_ai_exception(exc, httpx_module):
+                raise
+            last_error = exc
+        if attempt <= len(AI_RETRY_DELAYS_SECONDS):
+            time.sleep(_retry_delay(attempt))
+    raise last_error or Exception("9router API error: retry exhausted")
 
 async def call_ai_provider_async(prompt: str, config: dict) -> str:
     """Async AI call to 9router /chat/completions."""
     import httpx as _httpx
+    import asyncio as _asyncio
     api_key = _router_api_key(config.get("openai_key") or config.get("api_key"))
     base_url = _router_base_url(config.get("base_url"))
     model = _router_model(config.get("model"))
-    async with _httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(
-            f"{base_url}/chat/completions",
-            headers=_router_headers(api_key),
-            json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 1024},
-        )
-        if resp.status_code != 200:
-            raise Exception(f"9router API error: {resp.status_code} - {resp.text[:200]}")
-        return resp.json()["choices"][0]["message"]["content"]
+    last_error: Optional[Exception] = None
+    for attempt in range(1, len(AI_RETRY_DELAYS_SECONDS) + 2):
+        try:
+            async with _httpx.AsyncClient(timeout=AI_CHAT_TIMEOUT_SECONDS) as client:
+                resp = await client.post(
+                    f"{base_url}/chat/completions",
+                    headers=_router_headers(api_key),
+                    json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 1024},
+                )
+                if resp.status_code == 200:
+                    return _extract_chat_content(resp)
+                message = f"9router API error: {resp.status_code} - {resp.text[:200]}"
+                if resp.status_code not in AI_RETRYABLE_STATUS_CODES:
+                    raise Exception(message)
+                last_error = Exception(message)
+        except Exception as exc:
+            if not _is_retryable_ai_exception(exc, _httpx):
+                raise
+            last_error = exc
+        if attempt <= len(AI_RETRY_DELAYS_SECONDS):
+            await _asyncio.sleep(_retry_delay(attempt))
+    raise last_error or Exception("9router API error: retry exhausted")
 
 
 # ─── Prompt builders ─────────────────────────────────────────────────────────

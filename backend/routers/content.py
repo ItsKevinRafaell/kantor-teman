@@ -13,7 +13,7 @@ from schemas import *
 from app.core.dependencies import (get_current_user, require_admin,
     _ai_model_to_out, _get_google_calendar_service, _get_setting,
     _get_feature_defaults, get_proxy_for_feature,
-    get_default_model, get_ai_config,
+    get_default_model, get_ai_config, sync_to_google_calendar,
 )
 from app.services.ai_service import (
     _canonical_provider,

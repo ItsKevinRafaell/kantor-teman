@@ -17,6 +17,7 @@ from app.core.dependencies import (get_current_user, require_admin, FONNTE_WEBHO
     WORKSPACE_TEMPLATES, build_sheets_for_service, build_sheets_for_days,
     sync_row_to_board, sync_row_status_to_board, _check_simple_rate_limit,
     _run_async_job, process_pending_blasts, _blast_jobs,
+    sync_to_google_calendar,
 )
 from app.core.whatsapp_provider import send_whatsapp_message
 from app.constants import CLIENT_STATUS_VALUES, LeadStatus
@@ -476,33 +477,6 @@ def delete_ads_campaign(campaign_id: str, current_user: User = Depends(require_a
     log_audit(db, current_user.name, "DELETE", "ads_campaigns", campaign_id, {"name": campaign.name})
     db.delete(campaign)
     db.commit()
-
-
-
-
-def sync_to_google_calendar(title: str, date: str, event_id: str | None = None) -> str | None:
-    service = _get_google_calendar_service()
-    if not service:
-        return event_id
-
-    calendar_id = _get_setting("google_calendar_id", GOOGLE_CALENDAR_ID)
-
-    event_body = {
-        "summary": title,
-        "start": {"date": date},
-        "end": {"date": date},
-    }
-
-    try:
-        if event_id:
-            service.events().update(calendarId=calendar_id, eventId=event_id, body=event_body).execute()
-            return event_id
-        else:
-            result = service.events().insert(calendarId=calendar_id, body=event_body).execute()
-            return result.get("id")
-    except Exception:
-        return event_id
-
 
 
 @router.put("/api/blast-campaigns/{campaign_id}/conversions")

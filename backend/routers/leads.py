@@ -7,9 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks,
 from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import get_db, log_audit, User, Lead, Contact, Proposal, ProposalAnalytics, Product, FollowUpSequence, ScrapeHistory, LeadAnalysis
+from models import get_db, log_audit, DATABASE_URL, SessionLocal, User, Lead, Contact, Proposal, ProposalAnalytics, Product, FollowUpSequence, ScrapeHistory, LeadAnalysis
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, GOOGLE_API_KEY,
     JWT_SECRET,
@@ -114,6 +115,70 @@ def _sync_autolead_context(db: Session, lead: Lead, body: ExternalLeadIn, duplic
         target_id=lead.id,
         action_url="/leads",
     )
+
+
+def _fallback_analysis_payload(lead: Lead, error: Exception | None = None) -> dict:
+    category = lead.product_interest or "bisnis"
+    business = lead.business_name or "bisnis ini"
+    location = lead.address or "area sekitar"
+    pain_points = [
+        f"{business} perlu terlihat lebih kuat saat calon pelanggan mencari {category} di Google.",
+        f"Informasi online untuk {business} perlu dibuat lebih meyakinkan agar calon pelanggan tidak langsung pindah ke kompetitor.",
+        f"Area {location} punya peluang lead lokal yang bisa ditangkap lewat optimasi Google Maps dan follow-up WhatsApp yang rapi.",
+    ]
+    suggested_product = category if category else "SEO & Google Maps"
+    approach_message = (
+        f"Halo {business}, kami baru cek peluang digital bisnis Anda. Ada beberapa bagian yang bisa dirapikan "
+        f"supaya calon pelanggan di {location} lebih mudah menemukan dan percaya dengan bisnis Anda. "
+        "Boleh kami kirimkan ringkasan audit singkatnya?"
+    )
+    analysis = {
+        "pain_points": pain_points,
+        "suggested_product": suggested_product,
+        "approach_message": approach_message,
+    }
+    note = ""
+    if error:
+        note = f"\n\nCatatan sistem: AI upstream sedang lambat/terputus, analisis ini dibuat dari fallback rule internal. Detail: {str(error)[:160]}"
+    return {
+        "text": json.dumps(analysis, ensure_ascii=False) + note,
+        "parsed": analysis,
+        "fallback": True,
+    }
+
+
+def _save_lead_analysis(db: Session, lead: Lead, text: str, parsed: dict) -> LeadAnalysis:
+    analysis = LeadAnalysis(
+        lead_id=lead.id,
+        analysis=text,
+        pain_points=json.dumps(parsed.get("pain_points", [])),
+        suggested_product=parsed.get("suggested_product", ""),
+        analyzed_at=datetime.now(timezone.utc).isoformat(),
+    )
+    db.add(analysis)
+    db.commit()
+    db.refresh(analysis)
+    return analysis
+
+
+def _persist_lead_analysis_with_retry(session_factory, lead: Lead, text: str, parsed: dict, max_attempts: int = 2) -> LeadAnalysis:
+    last_error = None
+    for attempt in range(1, max_attempts + 1):
+        db = session_factory()
+        try:
+            return _save_lead_analysis(db, lead, text, parsed)
+        except OperationalError as exc:
+            db.rollback()
+            last_error = exc
+            if attempt >= max_attempts:
+                raise
+            time.sleep(0.5 * attempt)
+        finally:
+            try:
+                db.close()
+            except Exception:
+                pass
+    raise last_error or RuntimeError("Gagal menyimpan analisis lead")
 
 
 @router.post("/api/leads/external", status_code=201)
@@ -797,7 +862,7 @@ async def analyze_lead(lead_id: int, current_user: User = Depends(get_current_us
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
-    config = get_ai_config(db)
+    config = get_ai_config(db, "analysis")
     if config.get("provider") == "none":
         raise HTTPException(status_code=400, detail="AI provider belum dikonfigurasi. Silakan setup AI provider di Settings.")
 
@@ -806,38 +871,43 @@ async def analyze_lead(lead_id: int, current_user: User = Depends(get_current_us
 
     prompt = build_analysis_prompt(lead, product_list)
 
+    db.close()
+    fallback_used = False
     try:
         text = await call_ai_provider(prompt, config)
         parsed = parse_ai_response(text)
 
         input_tokens = len(prompt) // 4
         output_tokens = len(text) // 4
-        log_ai_cost(db, None, config["provider"], input_tokens, output_tokens)
-
-        analysis = LeadAnalysis(
-            lead_id=lead_id,
-            analysis=text,
-            pain_points=json.dumps(parsed.get("pain_points", [])),
-            suggested_product=parsed.get("suggested_product", ""),
-            analyzed_at=datetime.now(timezone.utc).isoformat(),
-        )
-        db.add(analysis)
-        db.commit()
-        db.refresh(analysis)
-
-        return {
-            "id": analysis.id,
-            "lead_id": lead_id,
-            "analysis": text,
-            "pain_points": parsed.get("pain_points", []),
-            "suggested_product": parsed.get("suggested_product", ""),
-            "approach_message": parsed.get("approach_message", ""),
-            "analyzed_at": analysis.analyzed_at,
-        }
-    except HTTPException:
-        raise
+        try:
+            cost_db = SessionLocal()
+            log_ai_cost(cost_db, None, config["provider"], input_tokens, output_tokens)
+        except Exception as cost_error:
+            print(f"[AI ANALYZE COST WARN] lead={lead_id} error={cost_error}", flush=True)
+        finally:
+            try:
+                cost_db.close()
+            except Exception:
+                pass
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gagal menganalisa: {str(e)}")
+        payload = _fallback_analysis_payload(lead, e)
+        text = payload["text"]
+        parsed = payload["parsed"]
+        fallback_used = True
+        print(f"[AI ANALYZE FALLBACK] lead={lead_id} error={e}", flush=True)
+
+    analysis = _persist_lead_analysis_with_retry(SessionLocal, lead, text, parsed)
+
+    return {
+        "id": analysis.id,
+        "lead_id": lead_id,
+        "analysis": text,
+        "pain_points": parsed.get("pain_points", []),
+        "suggested_product": parsed.get("suggested_product", ""),
+        "approach_message": parsed.get("approach_message", ""),
+        "fallback": fallback_used,
+        "analyzed_at": analysis.analyzed_at,
+    }
 
 
 
@@ -865,7 +935,7 @@ async def analyze_batch(
     db: Session = Depends(get_db),
     background_tasks: BackgroundTasks = None,
 ):
-    config = get_ai_config(db)
+    config = get_ai_config(db, "analysis")
     leads = db.query(Lead).filter(Lead.batch_name == batch_name, Lead.is_archived == False).all()
     already_analyzed = {a.lead_id for a in db.query(LeadAnalysis.lead_id).all()}
     to_analyze = [l for l in leads if l.id not in already_analyzed]
@@ -873,7 +943,7 @@ async def analyze_batch(
     if not to_analyze:
         return {"message": "Semua lead di batch ini sudah dianalisa.", "analyzed": 0, "total": 0, "status": "done"}
 
-    config = get_ai_config(db)
+    config = get_ai_config(db, "analysis")
     if config.get("provider") == "none":
         raise HTTPException(status_code=400, detail="AI provider belum dikonfigurasi. Silakan setup AI provider di Settings.")
 
@@ -892,7 +962,7 @@ async def analyze_batch(
         _Session = _sm(bind=_engine)
         try:
             _db = _Session()
-            _config = get_ai_config(_db)
+            _config = get_ai_config(_db, "analysis")
             if _config.get("provider") == "none":
                 _db.close()
                 _analysis_jobs[job_id]["status"] = "error"
@@ -914,20 +984,20 @@ async def analyze_batch(
                         _db.close()
                         continue
                     prompt = build_analysis_prompt(lead, _product_list)
-                    text = _call_ai_sync(prompt, _config, _httpx)
-                    parsed = parse_ai_response(text)
-                    _db.add(LeadAnalysis(
-                        lead_id=lead.id,
-                        analysis=text,
-                        pain_points=json.dumps(parsed.get("pain_points", [])),
-                        suggested_product=parsed.get("suggested_product", ""),
-                        analyzed_at=datetime.now(timezone.utc).isoformat(),
-                    ))
-                    _db.commit()
                     _db.close()
+                    try:
+                        text = _call_ai_sync(prompt, _config, _httpx)
+                        parsed = parse_ai_response(text)
+                    except Exception as ai_error:
+                        payload = _fallback_analysis_payload(lead, ai_error)
+                        text = payload["text"]
+                        parsed = payload["parsed"]
+                        print(f"[AI ANALYZE FALLBACK] lead={lead.id} error={ai_error}", flush=True)
+                    analysis = _persist_lead_analysis_with_retry(_Session, lead, text, parsed)
+                    current_lead_id = lead.id
                     analyzed += 1
                     _analysis_jobs[job_id]["analyzed"] = analyzed
-                    print(f"[AI ANALYZE PROGRESS] {analyzed}/{len(lead_ids_to_analyze)} lead_id={lead.id}", flush=True)
+                    print(f"[AI ANALYZE PROGRESS] {analyzed}/{len(lead_ids_to_analyze)} lead_id={current_lead_id}", flush=True)
                     _time.sleep(1)
                 except Exception as e:
                     import traceback
@@ -967,8 +1037,20 @@ _blast_jobs: dict = {}
 def get_analyze_status(
     batch_name: str = Query(...),
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     job = _analysis_jobs.get(batch_name)
     if not job:
-        return {"status": "idle", "analyzed": 0, "total": 0}
+        lead_ids = [
+            row[0] for row in db.query(Lead.id)
+            .filter(Lead.batch_name == batch_name, Lead.is_archived == False)
+            .all()
+        ]
+        if not lead_ids:
+            return {"status": "idle", "analyzed": 0, "total": 0}
+        analyzed = db.query(LeadAnalysis.lead_id).filter(
+            LeadAnalysis.lead_id.in_(lead_ids)
+        ).distinct().count()
+        status = "done" if analyzed >= len(lead_ids) else "running"
+        return {"status": status, "analyzed": analyzed, "total": len(lead_ids), "batch_name": batch_name}
     return job

@@ -814,6 +814,36 @@ def _get_google_calendar_service():
     except Exception:
         return None
 
+
+def _build_google_calendar_event_body(title: str, date_value: str) -> dict:
+    start_date = datetime.fromisoformat(str(date_value)[:10]).date()
+    end_date = start_date + timedelta(days=1)
+    return {
+        "summary": title,
+        "start": {"date": start_date.isoformat()},
+        "end": {"date": end_date.isoformat()},
+    }
+
+
+def sync_to_google_calendar(title: str, date: str, event_id: str | None = None) -> str | None:
+    service = _get_google_calendar_service()
+    if not service:
+        return event_id
+
+    calendar_id = _get_setting("google_calendar_id", GOOGLE_CALENDAR_ID)
+    if not calendar_id:
+        return event_id
+
+    try:
+        event_body = _build_google_calendar_event_body(title, date)
+        if event_id:
+            service.events().update(calendarId=calendar_id, eventId=event_id, body=event_body).execute()
+            return event_id
+        result = service.events().insert(calendarId=calendar_id, body=event_body).execute()
+        return result.get("id")
+    except Exception:
+        return event_id
+
 # ─── Hermes helpers ───────────────────────────────────────────────────────────
 
 def _hermes_headers() -> dict:

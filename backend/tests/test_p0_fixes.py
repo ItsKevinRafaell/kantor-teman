@@ -1378,6 +1378,15 @@ class TestAICanonicalPath:
         assert "model" in dep_result
         assert "model" in svc_result
 
+    def test_get_ai_config_ignores_unknown_default_capability(self, db_session):
+        """Capabilities without a default-model column should still resolve config."""
+        from app.services.ai_service import get_ai_config
+
+        cfg = get_ai_config(db_session, "caption")
+
+        assert cfg["provider"] == "9router"
+        assert "model" in cfg
+
     def test_call_ai_sync_9router_provider(self):
         """call_ai_sync should make 9router /chat/completions call."""
         from app.services.ai_service import call_ai_sync
@@ -1534,6 +1543,68 @@ class TestAICanonicalPath:
         assert call_headers["Authorization"] == "Bearer router-key-d"
         payload = mock_client.post.call_args[1]["json"]
         assert payload["model"] == "combo-wf"
+
+    def test_call_ai_sync_retries_transient_disconnect(self):
+        """call_ai_sync should retry transient 9router transport disconnects."""
+        from app.services.ai_service import call_ai_sync
+        from unittest.mock import MagicMock, patch
+        import httpx
+
+        cfg = {
+            "provider": "9router",
+            "openai_key": "router-key-retry",
+            "base_url": "http://localhost:20128/v1",
+            "model": "combo-genflow",
+            "gemini_key": "",
+            "claude_key": "",
+        }
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"choices": [{"message": {"content": "retry success"}}]}
+        mock_client = MagicMock()
+        mock_client.post.side_effect = [
+            httpx.RemoteProtocolError("Server disconnected without sending a response."),
+            mock_resp,
+        ]
+        mock_client.__enter__ = lambda self: mock_client
+        mock_client.__exit__ = lambda self, *a: False
+
+        with patch.object(httpx, "Client", return_value=mock_client), patch("app.services.ai_service.time.sleep"):
+            result = call_ai_sync("test prompt", cfg, httpx)
+
+        assert result == "retry success"
+        assert mock_client.post.call_count == 2
+
+    def test_call_ai_sync_retries_retryable_status(self):
+        """call_ai_sync should retry short upstream 5xx responses."""
+        from app.services.ai_service import call_ai_sync
+        from unittest.mock import MagicMock, patch
+        import httpx
+
+        cfg = {
+            "provider": "9router",
+            "openai_key": "router-key-502",
+            "base_url": "http://localhost:20128/v1",
+            "model": "combo-genflow",
+            "gemini_key": "",
+            "claude_key": "",
+        }
+        failed_resp = MagicMock()
+        failed_resp.status_code = 502
+        failed_resp.text = "temporary upstream failure"
+        ok_resp = MagicMock()
+        ok_resp.status_code = 200
+        ok_resp.json.return_value = {"choices": [{"message": {"content": "status retry success"}}]}
+        mock_client = MagicMock()
+        mock_client.post.side_effect = [failed_resp, ok_resp]
+        mock_client.__enter__ = lambda self: mock_client
+        mock_client.__exit__ = lambda self, *a: False
+
+        with patch.object(httpx, "Client", return_value=mock_client), patch("app.services.ai_service.time.sleep"):
+            result = call_ai_sync("test prompt", cfg, httpx)
+
+        assert result == "status retry success"
+        assert mock_client.post.call_count == 2
 
     def test_call_ai_sync_rejects_providerless_missing_base_by_error(self):
         """call_ai_sync should surface a router API error when base URL is missing."""
