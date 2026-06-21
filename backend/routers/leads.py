@@ -998,6 +998,7 @@ async def analyze_batch(
                     current_lead_id = lead.id
                     analyzed += 1
                     _analysis_jobs[job_id]["analyzed"] = analyzed
+                    _save_job_state()
                     print(f"[AI ANALYZE PROGRESS] {analyzed}/{len(lead_ids_to_analyze)} lead_id={current_lead_id}", flush=True)
                     _time.sleep(1)
                 except Exception as e:
@@ -1013,6 +1014,7 @@ async def analyze_batch(
                     continue
             _analysis_jobs[job_id]["status"] = "done"
             _analysis_jobs[job_id]["analyzed"] = analyzed
+            _save_job_state()
             print(f"[AI ANALYZE DONE] analyzed={analyzed}/{len(lead_ids_to_analyze)} failed={_analysis_jobs[job_id].get('failed', 0)}", flush=True)
         except Exception as e:
             import traceback
@@ -1020,17 +1022,39 @@ async def analyze_batch(
             traceback.print_exc()
             _analysis_jobs[job_id]["status"] = "error"
             _analysis_jobs[job_id]["error"] = str(e)
+            _save_job_state()
         finally:
             _engine.dispose()
 
     import threading
-    threading.Thread(target=run_analysis_sync, daemon=True).start()
+    threading.Thread(target=run_analysis_sync, daemon=False).start()
     return {"message": f"Analisa dimulai untuk {len(lead_ids_to_analyze)} leads.", "analyzed": 0, "total": len(lead_ids_to_analyze), "status": "running", "job_id": job_id}
 
 
-# In-memory job tracker
+# In-memory job tracker with file persistence
+import json as _json, os as _os
+_JOB_STATE_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "analysis_jobs.json")
+
+def _load_jobs():
+    global _analysis_jobs
+    try:
+        if _os.path.exists(_JOB_STATE_FILE):
+            with open(_JOB_STATE_FILE) as f:
+                _analysis_jobs.update(_json.load(f))
+    except:
+        pass
+    return _analysis_jobs
+
+def _save_job_state():
+    try:
+        with open(_JOB_STATE_FILE, "w") as f:
+            _json.dump(_analysis_jobs, f)
+    except:
+        pass
+
 _analysis_jobs: dict = {}
 _blast_jobs: dict = {}
+_load_jobs()
 
 
 
