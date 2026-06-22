@@ -82,6 +82,20 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
     setWaPreview({ open: true, lead, message: msg, reportLink });
   }
 
+  async function handleViewReport(lead: any) {
+    try {
+      const reportRes = await apiFetch(`/api/leads/${lead.id}/generate-report`, { method: "POST" });
+      if (reportRes.ok) {
+        const d = await reportRes.json();
+        if (d.report_url) {
+          window.open(d.report_url, "_blank");
+        }
+      } else {
+        showToast("Gagal generate report.", "error");
+      }
+    } catch { showToast("Gagal generate report.", "error"); }
+  }
+
   async function sendWaPreview() {
     if (!waPreview.lead) return;
     try {
@@ -508,7 +522,8 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
                 blastCategories={blastCategories} updating={updating}
                 page={leadsPage} pageSize={LEADS_PAGE_SIZE}
                 onUpdateStatus={handleUpdateStatus} onUpdateProduct={handleUpdateProduct}
-                onChatWA={handleChatWA} onFollowUp={handleFollowUp} onStartSequence={startSequence}
+                onChatWA={handleChatWA} onViewReport={handleViewReport}
+                onFollowUp={handleFollowUp} onStartSequence={startSequence}
                 onOpenSales={openSalesModal} onConvert={lead => setConvertModal({ open: true, lead })}
                 onAdjustScore={openScoreModal}
                 onEdit={openEditLead} onArchive={lead => setDeleteModal({ open: true, id: lead.id, name: lead.business_name })}

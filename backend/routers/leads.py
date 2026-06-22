@@ -1065,14 +1065,17 @@ def get_analyze_status(
     db: Session = Depends(get_db),
 ):
     job = _analysis_jobs.get(batch_name)
-    # If not in memory, try loading from file (different WSGI worker may have written it)
-    if not job and _os.path.exists(_JOB_STATE_FILE):
+    # Always try loading from file for cross-worker visibility
+    if _os.path.exists(_JOB_STATE_FILE):
         try:
             with open(_JOB_STATE_FILE) as f:
                 all_jobs = _json.load(f)
-                job = all_jobs.get(batch_name)
-                if job:
-                    _analysis_jobs[batch_name] = job  # cache in memory
+            file_job = all_jobs.get(batch_name)
+            if file_job:
+                # File has newer data — prefer "done" status from file over stale in-memory
+                if not job or (file_job.get("status") == "done" and job.get("status") != "done"):
+                    _analysis_jobs[batch_name] = file_job
+                    job = file_job
         except Exception:
             pass
     if not job:
