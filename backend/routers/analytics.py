@@ -445,9 +445,22 @@ def export_finance_csv(current_user: User = Depends(require_admin), db: Session 
 
 @router.get("/api/background-jobs")
 def get_all_background_jobs(current_user: User = Depends(require_admin)):
+    import os, json as _json
     jobs = []
+    # Read from file for cross-worker visibility (different WSGI worker may have written it)
+    job_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "analysis_jobs.json")
+    if os.path.exists(job_file):
+        try:
+            with open(job_file) as f:
+                all_jobs = _json.load(f)
+            for name, job in all_jobs.items():
+                jobs.append({**job, "type": "analysis", "batch_name": name})
+        except Exception:
+            pass
+    # Fallback to in-memory
     for name, job in _analysis_jobs.items():
-        jobs.append({**job, "type": "analysis", "batch_name": name})
+        if not any(j["batch_name"] == name for j in jobs):
+            jobs.append({**job, "type": "analysis", "batch_name": name})
     for name, job in _blast_jobs.items():
         jobs.append({**job, "type": "blast", "batch_name": name})
     return jobs
