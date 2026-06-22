@@ -1065,6 +1065,16 @@ def get_analyze_status(
     db: Session = Depends(get_db),
 ):
     job = _analysis_jobs.get(batch_name)
+    # If not in memory, try loading from file (different WSGI worker may have written it)
+    if not job and _os.path.exists(_JOB_STATE_FILE):
+        try:
+            with open(_JOB_STATE_FILE) as f:
+                all_jobs = _json.load(f)
+                job = all_jobs.get(batch_name)
+                if job:
+                    _analysis_jobs[batch_name] = job  # cache in memory
+        except Exception:
+            pass
     if not job:
         lead_ids = [
             row[0] for row in db.query(Lead.id)
@@ -1079,3 +1089,27 @@ def get_analyze_status(
         status = "done" if analyzed >= len(lead_ids) else "running"
         return {"status": status, "analyzed": analyzed, "total": len(lead_ids), "batch_name": batch_name}
     return job
+
+
+@router.get("/api/leads/analyze-cancel")
+def cancel_analyze(
+    batch_name: str = Query(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Mark analysis job as cancelled so progress widget stops polling."""
+    job = _analysis_jobs.get(batch_name)
+    if job and job.get("status") == "running":
+        job["status"] = "cancelled"
+        _save_job_state()
+    # Also clear from file so stale state doesn't persist
+    try:
+        if _os.path.exists(_JOB_STATE_FILE):
+            with open(_JOB_STATE_FILE) as f:
+                all_jobs = _json.load(f)
+            all_jobs.pop(batch_name, None)
+            with open(_JOB_STATE_FILE, "w") as f:
+                _json.dump(all_jobs, f)
+            _analysis_jobs.pop(batch_name, None)
+    except Exception:
+        pass
+    return {"status": "cancelled", "batch_name": batch_name}
