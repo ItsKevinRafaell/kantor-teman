@@ -25,6 +25,8 @@ export default function ProgressWidget() {
   useEffect(() => {
     const analysisBatch = localStorage.getItem("analyze_batch");
     if (analysisBatch) {
+      // Stale job: if backend has no state file after restart, the job is dead
+      // Poll once and if it returns idle/error, clear it. Otherwise start polling.
       pollAnalysis(analysisBatch);
     }
 
@@ -45,8 +47,49 @@ export default function ProgressWidget() {
     };
   }, []);
 
+  function cancelAnalysis() {
+    if (analysisInterval.current) clearInterval(analysisInterval.current);
+    setAnalysisJob(null);
+    if (analysisJob?.batch_name) {
+      localStorage.removeItem("analyze_batch");
+      // Also clear server-side batch reference
+      apiFetch(`/api/leads/analyze-cancel?batch_name=${encodeURIComponent(analysisJob.batch_name)}`).catch(() => {});
+    }
+  }
+
+  function cancelBlast() {
+    if (blastInterval.current) clearInterval(blastInterval.current);
+    setBlastJob(null);
+    if (blastJob?.batch_name) localStorage.removeItem("blast_batch");
+  }
+
+  function cancelScrape() {
+    if (scrapeInterval.current) clearInterval(scrapeInterval.current);
+    setScrapeJob(null);
+    if (scrapeJob?.batch_name) localStorage.removeItem("scrape_batch");
+  }
+
   function pollAnalysis(batchName: string) {
-    setAnalysisJob({ status: "running", analyzed: 0, total: 0, batch_name: batchName });
+    // First call immediately to get real progress, don't show fake 0/0
+    apiFetch(`/api/leads/analyze-status?batch_name=${encodeURIComponent(batchName)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((data) => {
+        if (!data || data.status === "idle" || (data.status === "done" && data.analyzed === 0)) {
+          // Dead/stale job — clear immediately
+          localStorage.removeItem("analyze_batch");
+          setAnalysisJob(null);
+          return;
+        }
+        setAnalysisJob(data);
+        if (data.status === "done") {
+          localStorage.removeItem("analyze_batch");
+        }
+      })
+      .catch(() => {
+        localStorage.removeItem("analyze_batch");
+        setAnalysisJob(null);
+      });
+
     analysisInterval.current = setInterval(async () => {
       try {
         const res = await apiFetch(`/api/leads/analyze-status?batch_name=${encodeURIComponent(batchName)}`);
@@ -59,7 +102,7 @@ export default function ProgressWidget() {
           }
         }
       } catch { /* silent */ }
-    }, 10000);
+    }, 5000);
   }
 
   function pollBlast(batchName: string) {
@@ -140,7 +183,7 @@ export default function ProgressWidget() {
                 ? `AI Analisa: ${analysisJob.analyzed || 0}/${analysisJob.total} leads`
                 : `Analisa selesai: ${analysisJob.analyzed || 0}/${analysisJob.total} leads`}
             </span>
-            <button onClick={() => setAnalysisJob(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none">&times;</button>
+            <button onClick={cancelAnalysis} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none" title={analysisJob.status === "running" ? "Batalkan" : "Tutup"}>&times;</button>
           </div>
           {analysisJob.status === "running" && analysisJob.total > 0 && (
             <div className="w-full h-1.5 bg-amber-100 dark:bg-amber-900/50 rounded-full overflow-hidden mt-2">
@@ -163,7 +206,7 @@ export default function ProgressWidget() {
                 ? `Blast selesai: ${blastJob.sent || 0}/${blastJob.total} terkirim`
                 : `Blast error: ${blastJob.error || "Unknown"}`}
             </span>
-            <button onClick={() => setBlastJob(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none">&times;</button>
+            <button onClick={cancelBlast} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none" title={blastJob.status === "running" ? "Batalkan" : "Tutup"}>&times;</button>
           </div>
           {blastJob.status === "running" && blastJob.total > 0 && (
             <div className="w-full h-1.5 bg-blue-100 dark:bg-blue-900/50 rounded-full overflow-hidden mt-2">
@@ -189,7 +232,7 @@ export default function ProgressWidget() {
                 ? `Scrape selesai: ${scrapeJob.scraped || 0}/${scrapeJob.total}`
                 : `Scrape error: ${scrapeJob.error || "Unknown"}`}
             </span>
-            <button onClick={() => setScrapeJob(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none">&times;</button>
+            <button onClick={cancelScrape} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none" title={scrapeJob.status === "running" ? "Batalkan" : "Tutup"}>&times;</button>
           </div>
           {scrapeJob.status === "running" && scrapeJob.total > 0 && (
             <div className="w-full h-1.5 bg-purple-100 dark:bg-purple-900/50 rounded-full overflow-hidden mt-2">
