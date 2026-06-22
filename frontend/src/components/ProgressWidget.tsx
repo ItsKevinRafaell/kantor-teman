@@ -80,6 +80,8 @@ export default function ProgressWidget() {
           setAnalysisJob(null);
           return;
         }
+        // When done, always show full count
+        if (data.status === "done") data.analyzed = data.total;
         setAnalysisJob(data);
         if (data.status === "done") {
           localStorage.removeItem("analyze_batch");
@@ -95,6 +97,8 @@ export default function ProgressWidget() {
         const res = await apiFetch(`/api/leads/analyze-status?batch_name=${encodeURIComponent(batchName)}`);
         if (res.ok) {
           const data: JobStatus = await res.json();
+          // When done, always show full count (analyzed may lag behind total)
+          if (data.status === "done") data.analyzed = data.total;
           setAnalysisJob(data);
           if (data.status === "done" || data.status === "idle") {
             clearInterval(analysisInterval.current!);
