@@ -44,7 +44,7 @@ interface UseLeadsTableReturn {
 }
 
 export function useLeadsTable(initialBatch?: string): UseLeadsTableReturn {
-  // SWR hooks
+  // SWR hooks — dedupingInterval already 30s globally (swr.ts), data cached across page navs
   const { data: leadsData = [], mutate: refreshLeads } = useApi<Lead[]>("/api/leads");
   const { data: batchesData = [] } = useApi<string[]>("/api/leads/batches");
   const { data: templatesData = [] } = useApi<BlastTemplate[]>("/api/dynamic-templates?type=WA_BLAST");

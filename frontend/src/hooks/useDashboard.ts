@@ -55,7 +55,8 @@ export function useDashboardData(): UseDashboardDataReturn {
   const { data: boardOverview = [] } = useApi<BoardOverview[]>("/api/boards/overview");
   const { data: financeOverview } = useApi<FinanceOverview>("/api/finance/reports");
 
-  const isLoading = !analytics && !hotLeads;
+  // Non-blocking: let each section render as data arrives instead of gating on all 7 endpoints
+  const isLoading = false;
 
   return {
     analytics,

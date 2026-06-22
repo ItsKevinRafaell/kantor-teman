@@ -486,13 +486,13 @@ Expected:
 SSH:
 
 ```bash
-rtk env SSHPASS='AmKeBFT23Ejy' sshpass -e ssh -o StrictHostKeyChecking=no root@202.6.204.179 -p 20033 'cd /opt/leadbot && ...'
+rtk env SSHPASS='<vps-password>' sshpass -e ssh -o StrictHostKeyChecking=no root@<vps-host> -p <ssh-port> 'cd /opt/leadbot && ...'
 ```
 
 Restart:
 
 ```bash
-rtk env SSHPASS='AmKeBFT23Ejy' sshpass -e ssh -o StrictHostKeyChecking=no root@202.6.204.179 -p 20033 'cd /opt/leadbot && pm2 restart leadbot --update-env'
+rtk env SSHPASS='<vps-password>' sshpass -e ssh -o StrictHostKeyChecking=no root@<vps-host> -p <ssh-port> 'cd /opt/leadbot && pm2 restart leadbot --update-env'
 ```
 
 Health:

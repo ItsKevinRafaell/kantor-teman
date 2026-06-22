@@ -188,6 +188,18 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
   }, []);
 
   useEffect(() => {
+    // Check localStorage cache first (1 hour TTL)
+    try {
+      const cached = localStorage.getItem("brand_logo_url");
+      if (cached) {
+        const { url, ts } = JSON.parse(cached);
+        if (Date.now() - ts < 3600000) {
+          setLogoUrl(url);
+          return;
+        }
+      }
+    } catch { /* ignore */ }
+    // Fetch fresh logo
     fetch(`${API_BASE}/api/brand-kit/public`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -195,6 +207,7 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
         const logo = data.assets.find((a: { asset_type: string; file_url?: string }) => a.asset_type === "logo_secondary");
         const nextLogo = logo?.file_url ? `${API_BASE}${logo.file_url}` : STATIC_API_LOGO;
         setLogoUrl(nextLogo);
+        try { localStorage.setItem("brand_logo_url", JSON.stringify({ url: nextLogo, ts: Date.now() })); } catch { /* ignore */ }
       })
       .catch(() => setLogoUrl(STATIC_API_LOGO));
   }, []);

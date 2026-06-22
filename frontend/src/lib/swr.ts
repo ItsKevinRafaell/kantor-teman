@@ -8,13 +8,13 @@ export type { SWRConfiguration };
 /**
  * SWR-based data fetching hook with automatic JSON parsing
  */
-export function useApi<T>(path: string | null, config?: SWRConfiguration<T>) {
+export function useApi<T>(path: string | null, config?: Partial<SWRConfiguration<T>>) {
   const url = path ? `${API_BASE}${path}` : null;
 
   return useSWR<T>(url, (url) => apiFetchJson<T>(url), {
     revalidateOnFocus: false,
     revalidateOnReconnect: true,
-    dedupingInterval: 5000,
+    dedupingInterval: 30000,
     ...config,
   });
 }

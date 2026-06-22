@@ -2793,9 +2793,36 @@ def telegram_mirror_send(req: TelegramMirrorMessage, _: str = Depends(verify_aut
     attachments = list(req.attachments or [])
     if not content and not attachments:
         raise HTTPException(status_code=400, detail="Message kosong")
-    targets = [resolve_profile(profile) for profile in (req.profiles or []) if profile]
-    if not targets:
-        targets = [profile for profile, _ in _iter_agent_profiles()]
+
+    # Parse @mentions from message content
+    mentioned_profiles = set()
+    if content:
+        mention_pattern = re.compile(r'@(\w+)', re.IGNORECASE)
+        mentions = mention_pattern.findall(content)
+        for mention in mentions:
+            mention_lower = mention.lower()
+            # Check if mention matches any agent profile or display name
+            for profile, _ in _iter_agent_profiles():
+                if profile == mention_lower:
+                    mentioned_profiles.add(profile)
+                    break
+                # Also check display_name
+                profile_dir = _existing_profile_dir(profile)
+                cfg = _read_config(profile_dir)
+                display_name = cfg.get("display_name", profile) if cfg else profile
+                if display_name.lower() == mention_lower:
+                    mentioned_profiles.add(profile)
+                    break
+
+    # Determine targets: if @mentions found, only send to mentioned agents
+    if mentioned_profiles:
+        targets = list(mentioned_profiles)
+    else:
+        # No mentions, send to all specified profiles or all agents
+        targets = [resolve_profile(profile) for profile in (req.profiles or []) if profile]
+        if not targets:
+            targets = [profile for profile, _ in _iter_agent_profiles()]
+
     results = []
     for target in targets:
         session_id = (
