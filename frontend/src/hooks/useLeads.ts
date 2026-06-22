@@ -44,8 +44,8 @@ interface UseLeadsTableReturn {
 }
 
 export function useLeadsTable(initialBatch?: string): UseLeadsTableReturn {
-  // SWR hooks — dedupingInterval already 30s globally (swr.ts), data cached across page navs
-  const { data: leadsData = [], mutate: refreshLeads } = useApi<Lead[]>("/api/leads");
+  // SWR hooks — server-side pagination (limit 500) protects against large datasets
+  const { data: leadsData = [], mutate: refreshLeads } = useApi<Lead[]>("/api/leads?limit=500&offset=0");
   const { data: batchesData = [] } = useApi<string[]>("/api/leads/batches");
   const { data: templatesData = [] } = useApi<BlastTemplate[]>("/api/dynamic-templates?type=WA_BLAST");
   const { data: followUpData = [] } = useApi<BlastTemplate[]>("/api/dynamic-templates?type=FOLLOW_UP");

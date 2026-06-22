@@ -413,13 +413,17 @@ def list_leads(
     batch_name: Optional[str] = Query(None),
     include_archived: bool = Query(False),
     archived_only: bool = Query(False),
+    limit: int = Query(500, ge=1, le=5000, description="Max leads to return (default 500)"),
+    offset: int = Query(0, ge=0, description="Skip first N leads"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return get_leads_with_ghost_viewer_flag(
+    leads = get_leads_with_ghost_viewer_flag(
         db, status=status, batch_name=batch_name,
         include_archived=include_archived, archived_only=archived_only,
     )
+    # Server-side pagination to avoid returning thousands of records at once
+    return leads[offset:offset + limit]
 
 
 
@@ -951,51 +955,101 @@ async def analyze_batch(
     job_id = batch_name
     _analysis_jobs[job_id] = {"status": "running", "total": len(lead_ids_to_analyze), "analyzed": 0, "failed": 0, "batch_name": batch_name}
 
+    # Cancel flag — checked each iteration so user can stop running jobs
+    _cancel_flags[job_id] = False
+
     # Run in background thread (WSGI kills event loop after response)
     def run_analysis_sync():
         import httpx as _httpx
         import time as _time
         from sqlalchemy import create_engine as _ce
         from sqlalchemy.orm import sessionmaker as _sm
-        from sqlalchemy.pool import NullPool
+        from sqlalchemy.pool import QueuePool
         _ca = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
-        _engine = _ce(DATABASE_URL, connect_args=_ca, poolclass=NullPool)
+        _engine = _ce(DATABASE_URL, connect_args=_ca, poolclass=QueuePool, pool_size=2, max_overflow=1, pool_recycle=300)
         _Session = _sm(bind=_engine)
         try:
             _db = _Session()
-            _config = get_ai_config(_db, "analysis")
-            if _config.get("provider") == "none":
+            try:
+                _config = get_ai_config(_db, "analysis")
+                if _config.get("provider") == "none":
+                    _db.close()
+                    _analysis_jobs[job_id]["status"] = "error"
+                    _analysis_jobs[job_id]["error"] = "AI provider belum dikonfigurasi"
+                    _save_job_state()
+                    return
+                _products = _db.query(Product).filter(Product.is_active == True).all()
+                _product_list = "\n".join([f"- {p.name}: {p.description or ''}" for p in _products]) if _products else "- SEO\n- Web Development"
+            finally:
                 _db.close()
-                _analysis_jobs[job_id]["status"] = "error"
-                _analysis_jobs[job_id]["error"] = "AI provider belum dikonfigurasi"
-                return
-            _products = _db.query(Product).filter(Product.is_active == True).all()
-            _product_list = "\n".join([f"- {p.name}: {p.description or ''}" for p in _products]) if _products else "- SEO\n- Web Development"
-            _db.close()
             analyzed = 0
             for lead_id in lead_ids_to_analyze:
+                # Check cancel flag before processing each lead
+                if _cancel_flags.get(job_id, False):
+                    _analysis_jobs[job_id]["status"] = "cancelled"
+                    _analysis_jobs[job_id]["analyzed"] = analyzed
+                    _save_job_state()
+                    print(f"[AI ANALYZE CANCELLED] {analyzed}/{len(lead_ids_to_analyze)}", flush=True)
+                    return
                 _db = _Session()
                 try:
+                    # Re-query lead by ID — never use detached ORM objects from request session
                     lead = _db.query(Lead).filter(Lead.id == lead_id, Lead.is_archived == False).first()
                     if not lead:
                         _db.close()
                         continue
+                    # Capture lead info before closing session (avoids DetachedInstanceError)
+                    lead_business_name = lead.business_name
+                    lead_phone = lead.phone_number
+                    lead_address = lead.address or ""
+                    lead_rating = lead.rating or 0
+                    lead_google_rating = lead.google_rating or 0
+                    lead_review_count = lead.review_count or 0
+                    lead_website_url = lead.website_url or ""
+                    lead_batch_name = lead.batch_name or ""
+                    lead_product_interest = lead.product_interest or ""
+
                     existing = _db.query(LeadAnalysis.id).filter(LeadAnalysis.lead_id == lead.id).first()
                     if existing:
                         _db.close()
                         continue
-                    prompt = build_analysis_prompt(lead, _product_list)
-                    _db.close()
+
+                    # Build a minimal lead-like dict for prompt builder and fallback
+                    lead_obj = type("LeadProxy", (), {
+                        "id": lead_id,
+                        "business_name": lead_business_name,
+                        "phone_number": lead_phone,
+                        "address": lead_address,
+                        "rating": lead_rating,
+                        "google_rating": lead_google_rating,
+                        "review_count": lead_review_count,
+                        "website_url": lead_website_url,
+                        "batch_name": lead_batch_name,
+                        "product_interest": lead_product_interest,
+                    })()
+
+                    prompt = build_analysis_prompt(lead_obj, _product_list)
+                    _db.close()  # Close BEFORE AI call (long-running, no DB needed)
                     try:
                         text = _call_ai_sync(prompt, _config, _httpx)
                         parsed = parse_ai_response(text)
                     except Exception as ai_error:
-                        payload = _fallback_analysis_payload(lead, ai_error)
+                        payload = _fallback_analysis_payload(lead_obj, ai_error)
                         text = payload["text"]
                         parsed = payload["parsed"]
-                        print(f"[AI ANALYZE FALLBACK] lead={lead.id} error={ai_error}", flush=True)
-                    analysis = _persist_lead_analysis_with_retry(_Session, lead, text, parsed)
-                    current_lead_id = lead.id
+                        print(f"[AI ANALYZE FALLBACK] lead={lead_id} error={ai_error}", flush=True)
+                    # Re-open session for persistence
+                    _db = _Session()
+                    try:
+                        # Re-fetch lead for persistence (FK constraint)
+                        lead_ref = _db.query(Lead).filter(Lead.id == lead_id).first()
+                        if not lead_ref:
+                            _db.close()
+                            continue
+                        analysis = _persist_lead_analysis_with_retry(_Session, lead_ref, text, parsed)
+                    finally:
+                        _db.close()
+                    current_lead_id = lead_id
                     analyzed += 1
                     _analysis_jobs[job_id]["analyzed"] = analyzed
                     _save_job_state()
@@ -1054,6 +1108,7 @@ def _save_job_state():
 
 _analysis_jobs: dict = {}
 _blast_jobs: dict = {}
+_cancel_flags: dict = {}  # job_id -> bool, checked each iteration in background thread
 _load_jobs()
 
 
@@ -1099,20 +1154,10 @@ def cancel_analyze(
     batch_name: str = Query(...),
     current_user: User = Depends(get_current_user),
 ):
-    """Mark analysis job as cancelled so progress widget stops polling."""
+    """Signal background thread to stop — thread checks cancel flag each iteration."""
+    _cancel_flags[batch_name] = True
     job = _analysis_jobs.get(batch_name)
     if job and job.get("status") == "running":
         job["status"] = "cancelled"
         _save_job_state()
-    # Also clear from file so stale state doesn't persist
-    try:
-        if _os.path.exists(_JOB_STATE_FILE):
-            with open(_JOB_STATE_FILE) as f:
-                all_jobs = _json.load(f)
-            all_jobs.pop(batch_name, None)
-            with open(_JOB_STATE_FILE, "w") as f:
-                _json.dump(all_jobs, f)
-            _analysis_jobs.pop(batch_name, None)
-    except Exception:
-        pass
     return {"status": "cancelled", "batch_name": batch_name}
