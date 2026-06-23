@@ -26,6 +26,7 @@ from app.core.dependencies import (
     build_sheets_for_service,
     get_fonnte_token,
     sync_row_to_board,
+    _detect_service_types,
 )
 from app.services.proposal_service import (
     detect_contract_months,
@@ -242,6 +243,8 @@ def create_project_board_workspace(
     services = json.loads(proposal.services_detail) if proposal.services_detail else []
     project_type = detect_project_type(services)
     service_type = detect_service_type(services)
+    service_types_all = _detect_service_types(services)
+    service_type_combined = ",".join(service_types_all) if service_types_all else service_type
     months = detect_contract_months(proposal, services, _now()[:10], None)
     active_price = proposal.discount_price or proposal.total_price
     service_names = ", ".join(s.get("name", "") for s in services[:2])
@@ -256,7 +259,7 @@ def create_project_board_workspace(
         nominal=active_price,
         start_date=_now()[:10],
         color="gray",
-        service_type=service_type,
+        service_type=service_type_combined,
         contract_months=months,
         dp_percent=get_default_dp_percent(db),
         monthly_invoice_enabled=(project_type == "RETAINER"),
@@ -412,8 +415,14 @@ def generate_acceptance_documents(
     if mou:
         generated.append(mou)
 
-    # Pick service-specific contract template based on project.service_type
-    service_type = getattr(project, "service_type", None) or ""
+    # Pick service-specific contract template(s) based on project.service_type
+    # service_type can be comma-separated (e.g. "maintenance,seo_gmaps")
+    service_type_raw = getattr(project, "service_type", None) or ""
+    service_types = (
+        [s.strip() for s in service_type_raw.split(",") if s.strip()]
+        if "," in service_type_raw else [service_type_raw]
+    )
+
     kontrak_type_map = {
         "web_dev": "kontrak_web_dev",
         "web_dev_bulanan": "kontrak_web_dev",
@@ -423,32 +432,76 @@ def generate_acceptance_documents(
         "branding": "kontrak_branding",
         "RETAINER": "kontrak_retainer",
     }
-    kontrak_type = kontrak_type_map.get(service_type, "kontrak")
     kontrak_label_map = {
         "kontrak_web_dev": "Draft Kontrak — Website Development",
-        "kontrak_seo": "Draft Kontrak — SEO & Google Business",
+        "kontrak_seo": "Draft Kontrak — SEO &amp; Google Business",
         "kontrak_sosmed": "Draft Kontrak — Social Media Management",
-        "kontrak_maintenance": "Draft Kontrak — Maintenance & Support",
-        "kontrak_branding": "Draft Kontrak — Branding & Visual Identity",
+        "kontrak_maintenance": "Draft Kontrak — Maintenance &amp; Support",
+        "kontrak_branding": "Draft Kontrak — Branding &amp; Visual Identity",
         "kontrak_retainer": "Draft Kontrak — Paket Retainer Bulanan",
     }
 
-    kontrak_vars = {
-        **common,
-        "nilai_kontrak": _format_idr(active_price or 0),
-        "deliverables": "\n".join(f"- {s.get('name', '')}" for s in services if s.get("name")),
-        "payment_schedule": f"DP {dp_percent:.0f}% saat penandatanganan kontrak. Pelunasan saat serah terima.",
-        "out_of_scope": "Pengembangan fitur baru dan perubahan di luar lingkup memerlukan addendum terpisah.",
-    }
+    # Import service descriptions for professional wording
+    try:
+        from document_template_library import get_service_description
+    except ImportError:
+        def get_service_description(st):
+            return {}
 
-    kontrak = _generate_workflow_document(
-        db, kontrak_type, "project", project.id,
-        kontrak_vars,
-        actor, DocumentStatus.DRAFT, None,
-        kontrak_label_map.get(kontrak_type, "Draft Kontrak"), client_name, project.name, "Kontrak",
-    )
-    if kontrak:
-        generated.append(kontrak)
+    if not service_types:
+        service_types = ["kontrak"]
+
+    for stype in service_types:
+        kontrak_type = kontrak_type_map.get(stype, "kontrak")
+        kontrak_label = kontrak_label_map.get(kontrak_type, "Draft Kontrak")
+
+        # Get professional description for this service type
+        svc_desc = get_service_description(stype)
+
+        # Start with common vars + service-specific layanan name
+        kontrak_vars = {
+            **common,
+            "nilai_kontrak": _format_idr(active_price or 0),
+            "layanan": svc_desc.get("layanan", service_label),
+        }
+
+        # Override defaults with professional descriptions
+        desc_keys = [
+            "scope", "deliverables", "terms", "out_of_scope", "revision_limit",
+            "payment_schedule", "bug_warranty", "ip_rights", "domain_hosting",
+            "milestones", "target_keywords", "success_metrics", "disclaimer",
+            "reporting", "scope_change", "platforms", "approval_flow",
+            "content_ownership", "platform_rules", "escalation",
+            "scope_included", "sla_metrics", "coverage_hours",
+            "emergency_escalation", "ticket_resolution", "concept_count",
+            "moodboard_approval", "color_standards", "file_usage_rights",
+            "scope_monthly", "hour_allocation", "addon_rate",
+            "change_request_process", "termination_notice",
+        ]
+        for dk in desc_keys:
+            if dk in svc_desc:
+                kontrak_vars[dk] = svc_desc[dk]
+
+        # Fallbacks
+        if "out_of_scope" not in kontrak_vars:
+            kontrak_vars["out_of_scope"] = (
+                "Pengembangan fitur baru dan perubahan di luar lingkup "
+                "memerlukan addendum terpisah."
+            )
+        if "payment_schedule" not in kontrak_vars:
+            kontrak_vars["payment_schedule"] = (
+                f"DP {dp_percent:.0f}% saat penandatanganan kontrak. "
+                f"Pelunasan saat serah terima."
+            )
+
+        kontrak = _generate_workflow_document(
+            db, kontrak_type, "project", project.id,
+            kontrak_vars,
+            actor, DocumentStatus.DRAFT, None,
+            kontrak_label, client_name, project.name, "Kontrak",
+        )
+        if kontrak:
+            generated.append(kontrak)
 
     return generated
 

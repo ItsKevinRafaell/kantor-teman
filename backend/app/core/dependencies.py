@@ -566,6 +566,7 @@ def _detect_project_type(services: list) -> str:
     return "FIXED"
 
 def _detect_service_type(services: list) -> Optional[str]:
+    """Detect FIRST matching service type (legacy, single-type)."""
     for s in services:
         name = (s.get("name") or "").lower()
         if "web" in name or "website" in name or "landing page" in name or "company profile" in name:
@@ -579,6 +580,48 @@ def _detect_service_type(services: list) -> Optional[str]:
         if any(k in name for k in ["logo", "branding", "desain", "identitas visual"]):
             return "branding"
     return None
+
+
+def _detect_service_types(services: list) -> list[str]:
+    """Detect ALL service types from a multi-service proposal. Returns deduplicated list."""
+    seen: set[str] = set()
+    for s in services:
+        name = (s.get("name") or "").lower()
+        if "web" in name or "website" in name or "landing page" in name or "company profile" in name:
+            seen.add("web_dev_bulanan" if "bulanan" in name else "web_dev")
+        if any(k in name for k in ["seo", "google maps", "gmaps", "google business"]):
+            seen.add("seo_gmaps")
+        if any(k in name for k in ["sosial media", "sosmed", "kelola", "instagram", "tiktok", "facebook"]):
+            seen.add("sosmed")
+        if "maintenance" in name:
+            seen.add("maintenance")
+        if any(k in name for k in ["logo", "branding", "desain", "identitas visual"]):
+            seen.add("branding")
+    return sorted(seen)
+
+
+def _detect_service_type_from_name(name: str) -> Optional[str]:
+    """Detect service type from a single name string (lead product_interest or contact purchased_product)."""
+    if not name:
+        return None
+    n = name.lower()
+    if "web" in n or "website" in n or "landing page" in n or "company profile" in n:
+        return "web_dev_bulanan" if "bulanan" in n else "web_dev"
+    if any(k in n for k in ["seo", "google maps", "gmaps", "google business"]):
+        return "seo_gmaps"
+    if any(k in n for k in ["sosial media", "sosmed", "kelola", "instagram", "tiktok", "facebook"]):
+        return "sosmed"
+    if "maintenance" in n:
+        return "maintenance"
+    if any(k in n for k in ["logo", "branding", "desain", "identitas visual"]):
+        return "branding"
+    return None
+
+
+def _detect_service_type_single_lead(entity) -> Optional[str]:
+    """Detect service type from a Lead or Contact entity (uses product_interest or purchased_product)."""
+    name = getattr(entity, "product_interest", None) or getattr(entity, "purchased_product", None) or ""
+    return _detect_service_type_from_name(name)
 
 def _months_between_dates(start_date: Optional[str], end_date: Optional[str]) -> Optional[int]:
     if not start_date or not end_date:

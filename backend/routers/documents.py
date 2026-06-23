@@ -25,10 +25,11 @@ from app.services.pdf_renderer import inject_pdf_font as _inject_pdf_font
 from app.services.pdf_renderer import render_pdf_from_html
 from app.services.archive_service import parent_creates_cycle as _archive_parent_creates_cycle
 from app.core.dependencies import (get_current_user, require_admin, UPLOADS_DIR,
-    _cors_list, _get_setting, HERMES_GATEWAY_URL, _hermes_headers, _office_profile, _ads_out)
+    _cors_list, _get_setting, HERMES_GATEWAY_URL, _hermes_headers, _office_profile, _ads_out,
+    _detect_service_type, _detect_service_type_single_lead)
 from app.constants import CLIENT_STATUS_VALUES, DOCUMENT_STATUSES, PAYMENT_STATUSES, DocumentStatus
 from app.services.sales_workflow_service import archive_generated_document
-from document_template_library import get_document_template_starters
+from document_template_library import get_document_template_starters, get_service_description, SERVICE_DESCRIPTIONS
 
 DOCUMENTS_DIR = os.path.join(UPLOADS_DIR, "generated_documents")
 os.makedirs(DOCUMENTS_DIR, exist_ok=True)
@@ -847,6 +848,29 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
         defaults["reporting"] = "Laporan progress bulanan dikirimkan via email sebelum tanggal 5 bulan berikutnya."
 
     # Add default items_rows for document types that need it
+    # Resolve service type from project or lead for smart defaults
+    service_type = ""
+    if project:
+        st_raw = getattr(project, "service_type", "") or ""
+        service_types = [s.strip() for s in st_raw.split(",") if s.strip()]
+        service_type = service_types[0] if service_types else ""
+    elif lead:
+        st = _detect_service_type_single_lead(lead)
+        service_type = st if st else ""
+    elif contact:
+        st = _detect_service_type_single_lead(contact)
+        service_type = st if st else ""
+
+    # Apply service descriptions as defaults for contract/proposal templates
+    if service_type and template_type.startswith("kontrak"):
+        svc_desc = get_service_description(service_type)
+        if svc_desc:
+            for k, v in svc_desc.items():
+                if k in defaults and not defaults[k]:
+                    defaults[k] = v
+                elif k not in defaults:
+                    defaults[k] = v
+
     if template_type in ["invoice", "receipt", "surat_penawaran", "proposal_pdf", "kontrak"]:
         if "items_rows" not in defaults or not defaults.get("items_rows"):
             defaults["items_rows"] = '<tr><td colspan="4" style="text-align:center;color:#999;">Tidak ada item</td></tr>'
