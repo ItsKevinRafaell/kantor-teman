@@ -657,24 +657,27 @@ export default function VariableInputForm({
               );
             }
 
-            // Layanan field
+            // Layanan field — single input with datalist (no separate picker button)
             if (isLayananKey(key)) {
               const datalistId = `layanan-${key}`;
+              const hasProducts = products.length > 0;
               return (
                 <div key={key}>
                   <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
                   <input type="text" list={datalistId} value={val}
                     onChange={e => setVariables(prev => ({ ...prev, [key]: e.target.value }))}
-                    placeholder="Ketik manual atau pilih dari paket"
+                    placeholder={hasProducts ? "Ketik manual atau pilih dari dropdown paket" : "Ketik jenis layanan"}
                     className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800" />
-                  <datalist id={datalistId}>
-                    {products.map((p: any) => <option key={p.id} value={p.name}>{formatRupiah(p.base_price)}</option>)}
-                  </datalist>
-                  <button type="button" onClick={() => { setProductPickerMode("single"); setProductPickerForKey(key); }}
-                    className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/20">
-                    <Plus size={13} /> Pilih paket layanan
-                  </button>
-                  <p className="text-[11px] text-gray-400 mt-1">{FIELD_HINTS[key.toLowerCase()] || "Ketik atau pilih dari paket yang tersedia"}</p>
+                  {hasProducts && (
+                    <datalist id={datalistId}>
+                      {products.map((p: any) => <option key={p.id} value={p.name}>{formatRupiah(p.base_price)}</option>)}
+                    </datalist>
+                  )}
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    {hasProducts
+                      ? `Pilih dari ${products.length} paket tersedia, atau ketik manual.`
+                      : FIELD_HINTS[key.toLowerCase()] || "Ketik jenis layanan"}
+                  </p>
                 </div>
               );
             }
