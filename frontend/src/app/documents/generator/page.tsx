@@ -32,6 +32,12 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   invoice: "Invoice",
   receipt: "Kwitansi",
   kontrak: "Kontrak",
+  kontrak_web_dev: "Kontrak — Website Dev",
+  kontrak_seo: "Kontrak — SEO",
+  kontrak_sosmed: "Kontrak — Sosmed",
+  kontrak_maintenance: "Kontrak — Maintenance",
+  kontrak_branding: "Kontrak — Branding",
+  kontrak_retainer: "Kontrak — Retainer",
   mou: "MOU",
   surat_penawaran: "Surat Penawaran",
   custom: "Custom",
@@ -44,7 +50,15 @@ function normalizeDocType(doc: GeneratedDoc) {
   const name = (doc.template_name || doc.display_filename || "").toLowerCase();
   if (name.includes("invoice")) return "invoice";
   if (name.includes("kwitansi") || name.includes("receipt")) return "receipt";
-  if (name.includes("kontrak")) return "kontrak";
+  if (name.includes("kontrak")) {
+    if (name.includes("website") || name.includes("web dev")) return "kontrak_web_dev";
+    if (name.includes("seo") || name.includes("google business")) return "kontrak_seo";
+    if (name.includes("sosmed") || name.includes("social media") || name.includes("socialmedia")) return "kontrak_sosmed";
+    if (name.includes("maintenance") || name.includes("support")) return "kontrak_maintenance";
+    if (name.includes("branding") || name.includes("brand kit") || name.includes("visual identity")) return "kontrak_branding";
+    if (name.includes("retainer")) return "kontrak_retainer";
+    return "kontrak";
+  }
   if (name.includes("mou")) return "mou";
   if (name.includes("penawaran")) return "surat_penawaran";
   if (name.includes("proposal")) return "proposal_pdf";

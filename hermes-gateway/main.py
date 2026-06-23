@@ -325,6 +325,7 @@ def _init_sync_db() -> None:
     _ensure_column(con, "timeline_events", "message_thread_id", "TEXT")
     _ensure_column(con, "timeline_events", "topic_title", "TEXT")
     _ensure_column(con, "timeline_events", "room_key", "TEXT")
+    _ensure_column(con, "timeline_events", "chat_type", "TEXT")
     _ensure_column(con, "telegram_outbox", "chat_id", "TEXT")
     _ensure_column(con, "telegram_outbox", "message_thread_id", "TEXT")
     _ensure_column(con, "telegram_outbox", "reply_to_message_id", "TEXT")
@@ -338,6 +339,7 @@ def _init_sync_db() -> None:
             message_thread_id TEXT NOT NULL,
             topic_title TEXT NOT NULL,
             room_key TEXT NOT NULL,
+            chat_type TEXT NOT NULL DEFAULT 'private',
             PRIMARY KEY (chat_id, message_thread_id)
         )
     """)
@@ -419,6 +421,7 @@ def _canonical_room_key(
     *,
     room_key: Optional[str] = None,
     topic_title: Optional[str] = None,
+    chat_type: Optional[str] = None,
 ) -> str:
     explicit = _string_value(room_key)
     if explicit:
@@ -426,7 +429,20 @@ def _canonical_room_key(
     office_key = _office_room_key_from_topic(topic_title)
     if office_key:
         return office_key
-    return _room_key(profile, chat_id, message_thread_id, session_id)
+    return _room_key(profile, chat_id, message_thread_id, session_id, chat_type)
+
+
+def _room_key(profile: str, chat_id: Optional[str], message_thread_id: Optional[str], session_id: Optional[str], chat_type: Optional[str] = None) -> str:
+    chat = _string_value(chat_id)
+    thread = _string_value(message_thread_id)
+    ct = _normalize_chat_type(_string_value(chat_type))
+    if chat and thread:
+        prefix = "dm" if ct == "private" else "group"
+        return f"telegram:{prefix}:{chat}:{thread}"
+    if chat:
+        prefix = "dm" if ct == "private" else "group"
+        return f"telegram:{prefix}:{chat}:main"
+    return f"profile:{profile}:{session_id or 'default'}"
 
 
 def _office_topic_room(topic: str, profile_names: list[str]) -> dict:
@@ -1159,6 +1175,7 @@ def _append_timeline(
     message_thread_id: Optional[str] = None,
     topic_title: Optional[str] = None,
     room_key: Optional[str] = None,
+    chat_type: Optional[str] = None,
 ) -> Optional[int]:
     created_at = float(created_at or time.time())
     # Sanitize agent output to remove raw function call tags
@@ -1177,6 +1194,8 @@ def _append_timeline(
         _metadata_string(metadata, "topic_title", "topic_name", "thread_title"),
         _office_topic_from_room_key(room_key),
     )
+    chat_type = _string_value(chat_type, _metadata_string(metadata, "chat_type", "type"))
+    canonical_chat_type = _normalize_chat_type(chat_type)
     canonical_room_key = _canonical_room_key(
         profile,
         chat_id,
@@ -1184,6 +1203,7 @@ def _append_timeline(
         session_id,
         room_key=room_key,
         topic_title=topic_title,
+        chat_type=canonical_chat_type,
     )
     con = _sync_db()
     try:
@@ -1228,13 +1248,14 @@ def _append_timeline(
             """
             INSERT OR IGNORE INTO timeline_events
                 (profile, kind, role, content, metadata, source, session_id, source_key,
-                 created_at, chat_id, message_id, message_thread_id, topic_title, room_key)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 created_at, chat_id, message_id, message_thread_id, topic_title, room_key, chat_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 profile, kind, role, content, json.dumps(metadata or {}, ensure_ascii=False),
                 source, session_id, source_key, created_at, chat_id or None, message_id or None,
                 message_thread_id or None, topic_title or None, canonical_room_key or None,
+                canonical_chat_type or None,
             ),
         )
         con.commit()
@@ -1255,6 +1276,7 @@ def _serialize_timeline(row: sqlite3.Row) -> dict:
         _metadata_string(metadata, "message_thread_id", "thread_id", "topic_id", "forum_topic_id"),
     )
     room_key = _string_value(row["room_key"], _metadata_string(metadata, "room_key"))
+    chat_type = _string_value(row["chat_type"], _metadata_string(metadata, "chat_type", "type"))
     topic_title = _string_value(
         row["topic_title"],
         _metadata_string(metadata, "topic_title", "topic_name", "thread_title"),
@@ -1267,6 +1289,7 @@ def _serialize_timeline(row: sqlite3.Row) -> dict:
         row["session_id"],
         room_key=room_key,
         topic_title=topic_title,
+        chat_type=_normalize_chat_type(chat_type),
     )
     return {
         "id": int(row["id"]),
@@ -1282,18 +1305,9 @@ def _serialize_timeline(row: sqlite3.Row) -> dict:
         "message_thread_id": message_thread_id or None,
         "topic_title": topic_title or None,
         "room_key": canonical_room_key,
+        "chat_type": _normalize_chat_type(chat_type) or None,
         "created_at": _ts_to_iso(row["created_at"]),
     }
-
-
-def _room_key(profile: str, chat_id: Optional[str], message_thread_id: Optional[str], session_id: Optional[str]) -> str:
-    chat = _string_value(chat_id)
-    thread = _string_value(message_thread_id)
-    if chat and thread:
-        return f"telegram:{chat}:{thread}"
-    if chat:
-        return f"telegram:{chat}:main"
-    return f"profile:{profile}:{session_id or 'default'}"
 
 
 def _lookup_topic_title(chat_id: Optional[str], message_thread_id: Optional[str]) -> str:
@@ -1330,6 +1344,14 @@ def _lookup_room_key(chat_id: Optional[str], message_thread_id: Optional[str]) -
         con.close()
 
 
+def _normalize_chat_type(chat_type: str) -> str:
+    """Normalize Telegram chat.type to a canonical value: 'private', 'group', 'supergroup', 'channel'."""
+    ct = chat_type.lower().strip() if chat_type else ""
+    if ct in ("private", "group", "supergroup", "channel"):
+        return ct
+    return "private"  # default fallback
+
+
 def _telegram_identity_from_entry(entry: dict) -> dict:
     origin = entry.get("origin") or {}
     chat_id = _string_value(origin.get("chat_id"), entry.get("chat_id"))
@@ -1351,10 +1373,17 @@ def _telegram_identity_from_entry(entry: dict) -> dict:
         entry.get("topic_name"),
         entry.get("thread_title"),
     )
+    chat_type = _string_value(
+        origin.get("chat_type"),
+        origin.get("type"),
+        entry.get("chat_type"),
+        entry.get("type"),
+    )
     return {
         "chat_id": chat_id,
         "message_thread_id": message_thread_id,
         "topic_title": topic_title,
+        "chat_type": _normalize_chat_type(chat_type),
     }
 
 
@@ -1490,7 +1519,8 @@ def _room_summary_from_event(event: dict) -> dict:
     chat_id = _string_value(event.get("chat_id"))
     message_thread_id = _string_value(event.get("message_thread_id"))
     topic_title = _string_value(event.get("topic_title"))
-    room_key = event.get("room_key") or _room_key(event["profile"], chat_id, message_thread_id, event.get("session_id"))
+    chat_type = _normalize_chat_type(_string_value(event.get("chat_type")))
+    room_key = event.get("room_key") or _room_key(event["profile"], chat_id, message_thread_id, event.get("session_id"), chat_type)
     title = topic_title or (
         f"Telegram Topic #{message_thread_id}" if chat_id and message_thread_id
         else "Telegram Main" if chat_id
@@ -1504,6 +1534,7 @@ def _room_summary_from_event(event: dict) -> dict:
         "chat_id": chat_id[-6:] if chat_id else "",
         "session_id": event.get("session_id"),
         "message_thread_id": message_thread_id or None,
+        "chat_type": chat_type or None,
         "profiles": [event["profile"]],
         "last_event_id": event["id"],
         "last_event_at": event["created_at"],

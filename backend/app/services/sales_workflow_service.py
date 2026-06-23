@@ -412,11 +412,40 @@ def generate_acceptance_documents(
     if mou:
         generated.append(mou)
 
+    # Pick service-specific contract template based on project.service_type
+    service_type = getattr(project, "service_type", None) or ""
+    kontrak_type_map = {
+        "web_dev": "kontrak_web_dev",
+        "web_dev_bulanan": "kontrak_web_dev",
+        "seo_gmaps": "kontrak_seo",
+        "sosmed": "kontrak_sosmed",
+        "maintenance": "kontrak_maintenance",
+        "branding": "kontrak_branding",
+        "RETAINER": "kontrak_retainer",
+    }
+    kontrak_type = kontrak_type_map.get(service_type, "kontrak")
+    kontrak_label_map = {
+        "kontrak_web_dev": "Draft Kontrak — Website Development",
+        "kontrak_seo": "Draft Kontrak — SEO & Google Business",
+        "kontrak_sosmed": "Draft Kontrak — Social Media Management",
+        "kontrak_maintenance": "Draft Kontrak — Maintenance & Support",
+        "kontrak_branding": "Draft Kontrak — Branding & Visual Identity",
+        "kontrak_retainer": "Draft Kontrak — Paket Retainer Bulanan",
+    }
+
+    kontrak_vars = {
+        **common,
+        "nilai_kontrak": _format_idr(active_price or 0),
+        "deliverables": "\n".join(f"- {s.get('name', '')}" for s in services if s.get("name")),
+        "payment_schedule": f"DP {dp_percent:.0f}% saat penandatanganan kontrak. Pelunasan saat serah terima.",
+        "out_of_scope": "Pengembangan fitur baru dan perubahan di luar lingkup memerlukan addendum terpisah.",
+    }
+
     kontrak = _generate_workflow_document(
-        db, "kontrak", "project", project.id,
-        {**common, "nilai_kontrak": _format_idr(active_price or 0)},
+        db, kontrak_type, "project", project.id,
+        kontrak_vars,
         actor, DocumentStatus.DRAFT, None,
-        "Draft Kontrak", client_name, project.name, "Kontrak",
+        kontrak_label_map.get(kontrak_type, "Draft Kontrak"), client_name, project.name, "Kontrak",
     )
     if kontrak:
         generated.append(kontrak)

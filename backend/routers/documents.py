@@ -306,7 +306,9 @@ def get_document_template(tid: str, current_user: User = Depends(get_current_use
 
 @router.post("/api/document-templates", status_code=201)
 def create_document_template(body: DocumentTemplateIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    valid_types = {"proposal_pdf", "invoice", "receipt", "kontrak", "mou", "surat_penawaran", "custom"}
+    valid_types = {"proposal_pdf", "invoice", "receipt", "kontrak", "mou", "surat_penawaran", "custom",
+                  "kontrak_web_dev", "kontrak_seo", "kontrak_sosmed",
+                  "kontrak_maintenance", "kontrak_branding", "kontrak_retainer"}
     if body.type not in valid_types:
         raise HTTPException(status_code=400, detail=f"Type harus salah satu: {', '.join(valid_types)}")
     t = DocumentTemplate(
@@ -601,13 +603,44 @@ def _apply_target_company_aliases(defaults: dict, company_name: str) -> None:
 
 
 def _document_number(db: Session, template_type: str, reserve: bool = False) -> str:
-    prefixes = {"invoice": "INV", "receipt": "RCPT", "surat_penawaran": "SP", "mou": "MOU"}
+    prefixes = {"invoice": "INV", "receipt": "RCPT", "surat_penawaran": "SP", "mou": "MOU",
+               "kontrak": "KONTRAK", "kontrak_web_dev": "KONTRAK-WD", "kontrak_seo": "KONTRAK-SEO",
+               "kontrak_sosmed": "KONTRAK-SM", "kontrak_maintenance": "KONTRAK-MTN",
+               "kontrak_branding": "KONTRAK-BRAND", "kontrak_retainer": "KONTRAK-RET"}
     prefix = prefixes.get(template_type)
     if not prefix:
         return ""
     seq = _next_doc_sequence(db, "GLOBAL", template_type) if reserve else _peek_doc_sequence(db, "GLOBAL", template_type)
     yyyymm = datetime.now(timezone.utc).strftime("%Y%m")
     return f"{prefix}/{yyyymm}/{seq:03d}"
+
+
+def _apply_kontrak_dates(defaults: dict, project, today: datetime, default_months: int = 2) -> None:
+    """Apply date defaults for contract templates."""
+    defaults["tanggal_mulai"] = _format_date_id(today)
+    defaults.setdefault("tanggal_akhir", "")
+    durasi_months = default_months
+    if project:
+        durasi_months = project.contract_months or default_months
+        defaults["nilai_kontrak"] = f"Rp {project.nominal:,.0f}" if project.nominal else ""
+    defaults["durasi"] = f"{durasi_months} bulan"
+    defaults.setdefault("nilai_kontrak", "")
+    if project and project.start_date:
+        try:
+            defaults["tanggal_mulai"] = _format_date_id(datetime.fromisoformat(project.start_date))
+        except ValueError:
+            pass
+    if project and project.end_date:
+        try:
+            defaults["tanggal_akhir"] = _format_date_id(datetime.fromisoformat(project.end_date))
+        except ValueError:
+            pass
+    if not defaults.get("tanggal_akhir"):
+        end_month = (today.month - 1 + durasi_months) % 12 + 1
+        end_year = today.year + (today.month - 1 + durasi_months) // 12
+        from calendar import monthrange
+        end_day = min(today.day, monthrange(end_year, end_month)[1])
+        defaults["tanggal_akhir"] = _format_date_id(today.replace(year=end_year, month=end_month, day=end_day))
 
 
 def _build_default_vars(db: Session, template_type: str, target_type: Optional[str], target_id: Optional[str]) -> dict:
@@ -636,8 +669,20 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
     lead = None
     contact = None
     project = None
+    services = []
     if target_id and target_type == "project":
         project = db.query(Project).filter(Project.id == target_id).first()
+        if project:
+            # Fetch services from the lead's most recent accepted proposal
+            proposal = db.query(Proposal).filter(
+                Proposal.lead_id == project.lead_id,
+                Proposal.status == "accepted"
+            ).order_by(Proposal.accepted_at.desc()).first()
+            if proposal and proposal.services_detail:
+                try:
+                    services = json.loads(proposal.services_detail)
+                except Exception:
+                    services = []
         if project and project.lead_id:
             lead = db.query(Lead).filter(Lead.id == project.lead_id).first()
             if lead:
@@ -708,7 +753,7 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
         defaults.setdefault("scope", "")
 
     elif template_type == "kontrak":
-        defaults["tanggal_mulai"] = _format_date_id(today)
+        _apply_kontrak_dates(defaults, project, today, 1)
         defaults["scope"] = ""
         defaults["terms"] = (
             "1. Pembayaran dilakukan sesuai termin yang disepakati kedua pihak.\n"
@@ -716,29 +761,6 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
             "3. Perubahan lingkup pekerjaan harus disepakati secara tertulis.\n"
             "4. Data dan informasi bisnis klien dijaga kerahasiaannya selama dan setelah kerja sama."
         )
-        durasi_months = 1
-        if project:
-            durasi_months = project.contract_months or 1
-            defaults["nilai_kontrak"] = f"Rp {project.nominal:,.0f}" if project.nominal else ""
-        defaults["durasi"] = f"{durasi_months} bulan"
-        defaults.setdefault("nilai_kontrak", "")
-        if project and project.start_date:
-            try:
-                defaults["tanggal_mulai"] = _format_date_id(datetime.fromisoformat(project.start_date))
-            except ValueError:
-                pass
-        if project and project.end_date:
-            try:
-                defaults["tanggal_akhir"] = _format_date_id(datetime.fromisoformat(project.end_date))
-            except ValueError:
-                pass
-        if "tanggal_akhir" not in defaults:
-            # tanggal_akhir = tanggal_mulai + durasi months
-            end_month = (today.month - 1 + durasi_months) % 12 + 1
-            end_year = today.year + (today.month - 1 + durasi_months) // 12
-            from calendar import monthrange
-            end_day = min(today.day, monthrange(end_year, end_month)[1])
-            defaults["tanggal_akhir"] = _format_date_id(today.replace(year=end_year, month=end_month, day=end_day))
 
     elif template_type == "mou":
         defaults["nomor"] = _document_number(db, "mou")
@@ -754,6 +776,75 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
         defaults["nomor"] = _document_number(db, "surat_penawaran")
         defaults["perihal"] = f"Penawaran Jasa {service_name}".strip()
         defaults["terms"] = "Penawaran ini berlaku 14 hari sejak tanggal surat. Harga belum termasuk pajak kecuali disebutkan lain."
+
+    # ─── Service-Specific Contract Defaults ─────────────────────────────────────
+    elif template_type == "kontrak_web_dev":
+        _apply_kontrak_dates(defaults, project, today, 2)
+        defaults["tech_spec"] = "Domain, hosting, tech stack, dan browser support akan disesuaikan dengan kebutuhan proyek."
+        defaults["deliverables"] = "\n".join(f"- {s.get('name', '')}" for s in services) if services else "Website sesuai spesifikasi yang disepakati."
+        defaults["revision_limit"] = "Maksimal 2 (dua) kali revisi gratis. Revisi tambahan akan dikenakan biaya tambahan per sesi."
+        defaults["payment_schedule"] = f"DP 50% saat penandatanganan kontrak. Pelunasan saat serah terima akhir."
+        defaults["milestones"] = "1. Konsep & wireframe → approval.\n2. Development sprint → demo.\n3. Testing & review.\n4. Serah terima final."
+        defaults["domain_hosting"] = "Domain milik klien. Hosting dikelola oleh Pihak Pertama selama masa kontrak kecuali disepakati lain."
+        defaults["bug_warranty"] = "Bug fixing gratis selama 30 hari setelah serah terima final. Keluhan di luar bug akan dikenakan biaya tambahan."
+        defaults["ip_rights"] = "Semua source code dan aset desain menjadi milik klien setelah pelunasan pembayaran."
+        defaults["out_of_scope"] = "Pengembangan fitur baru, redesign besar, dan integrasi pihak ketiga tidak termasuk dalam kontrak ini."
+
+    elif template_type == "kontrak_seo":
+        _apply_kontrak_dates(defaults, project, today, 6)
+        defaults["target_keywords"] = "Keyword target akan disesuaikan berdasarkan riset dan disepakati kedua belah pihak."
+        defaults["success_metrics"] = "Peningkatan visibilitas dan ranking untuk keyword target dalam periode kontrak. Metrik keberhasilan akan dimonitor via Google Search Console dan Google Analytics."
+        defaults["disclaimer"] = "Hasil SEO bergantung pada banyak faktor eksternal (algoritma mesin pencari, kompetitor, dll). Pihak Pertama tidak menjamin ranking #1 atau hasil spesifik lainnya."
+        defaults["deliverables"] = "\n".join(f"- {s.get('name', '')}" for s in services) if services else "Optimasi on-page, off-page, dan laporan bulanan."
+        defaults["reporting"] = "Laporan progress bulanan dikirimkan via email. Laporan mencakup ranking keyword, traffic, dan aktivitas yang dilakukan."
+        defaults["payment_schedule"] = f"Pembayaran bulanan di awal bulan. Total kontrak {defaults.get('durasi', '6 bulan')}."
+        defaults["scope_change"] = "Perubahan keyword target atau arah optimasi memerlukan addendum tertulis dan penyesuaian biaya."
+        defaults["out_of_scope"] = "Google Ads management, content writing untuk website, dan development tidak termasuk."
+
+    elif template_type == "kontrak_sosmed":
+        _apply_kontrak_dates(defaults, project, today, 3)
+        defaults["platforms"] = "Platform yang akan dikelola akan disepakati saat kick-off. Umumnya: Instagram, TikTok, Facebook, atau sesuai kebutuhan."
+        defaults["deliverables"] = "\n".join(f"- {s.get('name', '')}" for s in services) if services else "Konten feed, story, dan laporan bulanan."
+        defaults["revision_limit"] = "Maksimal 1 (satu) kali revisi per konten sebelum scheduling. Revisi tambahan dikenakan biaya Rp 50.000/sesi."
+        defaults["approval_flow"] = "Content calendar dikirim H-3 sebelum minggu berjalan. Klien wajib memberikan approval maximal H-1. Konten yang tidak di-approve akan di-skip."
+        defaults["content_ownership"] = "Konten (caption, desain, video) menjadi milik klien setelah pembayaran. Pihak Pertama boleh menggunakan sebagai portofolio dengan izin klien."
+        defaults["payment_schedule"] = f"Pembayaran bulanan di muka. Total kontrak {defaults.get('durasi', '3 bulan')}."
+        defaults["platform_rules"] = "Pihak Pertama tidak bertanggung jawab atas penangguhan/penonaktifan akun akibat pelanggaran kebijakan platform oleh klien."
+        defaults["escalation"] = "Untuk konten urgent (campaign, promo), klien harus inform Max H+4 jam sebelum posting. Di luar jam kerja (18.00-09.00) dan weekend, hanya untuk kondisi darurat."
+        defaults["out_of_scope"] = "Pembelian ads, respond DM/chat, dan content photography/videography tidak termasuk."
+
+    elif template_type == "kontrak_maintenance":
+        _apply_kontrak_dates(defaults, project, today, 1)
+        defaults["scope_included"] = "\n".join(f"- {s.get('name', '')}" for s in services) if services else "Update plugin/theme, backup mingguan, security monitoring, dan support teknis."
+        defaults["sla_metrics"] = "Critical (situs down): 4 jam kerja.\nNormal (fungsi terganggu): 1x24 jam kerja.\nLow (kosmetik/minor): 3x24 jam kerja."
+        defaults["coverage_hours"] = "Jam kerja: Senin-Jumat, 09.00-18.00 WIB. Di luar jam kerja hanya untuk kondisi emergency yang mempengaruhi operasional bisnis."
+        defaults["payment_schedule"] = f"Pembayaran bulanan di muka."
+        defaults["reporting"] = "Laporan maintenance bulanan mencakup: status backup, update yang dilakukan, dan kondisi keamanan."
+        defaults["out_of_scope"] = "Website development baru, redesign, konten writing, dan hosting upgrade memerlukan addendum terpisah."
+        defaults["emergency_escalation"] = "Kontak emergency: WhatsApp/SMS ke nomor yang dicantumkan saat kick-off. Emergency di luar jam kerja hanya untuk critical issues."
+        defaults["ticket_resolution"] = "Issue dianggap resolved ketika klien memberikan sign-off. Jika tidak ada respon dalam 5 hari kerja, ticket akan di-closed."
+
+    elif template_type == "kontrak_branding":
+        _apply_kontrak_dates(defaults, project, today, 1)
+        defaults["deliverables"] = "\n".join(f"- {s.get('name', '')}" for s in services) if services else "Logo (AI, PNG, SVG), brand guide, dan aset pendukung sesuai kesepakatan."
+        defaults["concept_count"] = "3 (tiga) arah konsep awal. Klien memilih 1 arah untuk dikembangkan lebih lanjut."
+        defaults["revision_limit"] = "Maksimal 3 (tiga) kali revisi gratis per konsep. Revisi di luar batas akan dikenakan biaya tambahan."
+        defaults["moodboard_approval"] = "Moodboard dan brief visual harus di-approve oleh klien sebelum desain dimulai. Klien dianggap menyetujui brief apabila tidak ada Koreksi dalam 3 hari kerja."
+        defaults["color_standards"] = "Standar warna akan disediakan dalam format Pantone, CMYK, HEX, dan RGB. Format final sesuai kebutuhan cetak dan digital."
+        defaults["file_usage_rights"] = "File final diberikan setelah pelunasan. Hak penggunaan komersial milik klien. Pihak Pertama berhak menggunakan sebagai portofolio."
+        defaults["payment_schedule"] = "DP 50% saat kick-off. Pelunasan saat serah terima final file."
+        defaults["out_of_scope"] = "Website, social media management, dan material cetak tambahan memerlukan addendum terpisah."
+
+    elif template_type == "kontrak_retainer":
+        _apply_kontrak_dates(defaults, project, today, 3)
+        defaults["scope_monthly"] = "\n".join(f"- {s.get('name', '')}" for s in services) if services else "Layanan retainer sesuai paket yang disepakati per bulan."
+        defaults["hour_allocation"] = "Slot/jam yang tidak digunakan dalam bulan berjalan tidak dapat di akumulasi ke bulan berikutnya dan tidak dapat diuangkan."
+        defaults["payment_schedule"] = f"Pembayaran bulanan di muka, sebelum tanggal 10 setiap bulannya."
+        defaults["addon_rate"] = "Layanan di luar paket akan dikenakan biaya tambahan per jam atau per proyek sesuai kesepakatan."
+        defaults["scope_change"] = "Penambahan atau pengurangan cakupan layanan harus disepakati melalui addendum tertulis minimal 14 hari sebelum berlakunya perubahan."
+        defaults["change_request_process"] = "Permintaan layanan dikirim via email atau task board. Permintaan akan di-acknowledge dalam 1x24 jam kerja."
+        defaults["termination_notice"] = "Penghentian layanan harus disampaikan secara tertulis minimal 30 (tiga puluh) hari kalender sebelum akhir bulan berjalan."
+        defaults["reporting"] = "Laporan progress bulanan dikirimkan via email sebelum tanggal 5 bulan berikutnya."
 
     # Add default items_rows for document types that need it
     if template_type in ["invoice", "receipt", "surat_penawaran", "proposal_pdf", "kontrak"]:
@@ -874,6 +965,13 @@ _BUILTIN_DOCUMENT_TEMPLATE_TYPES = {
     "Kontrak / MoU": "kontrak",
     "Kontrak Kerja Sama": "kontrak",
     "MOU Kerja Sama": "mou",
+    # Service-specific contract addendum templates
+    "Kontrak — Website Development": "kontrak_web_dev",
+    "Kontrak — SEO & Google Business": "kontrak_seo",
+    "Kontrak — Social Media Management": "kontrak_sosmed",
+    "Kontrak — Maintenance & Support": "kontrak_maintenance",
+    "Kontrak — Branding & Visual Identity": "kontrak_branding",
+    "Kontrak — Paket Retainer Bulanan": "kontrak_retainer",
 }
 
 _LEGACY_DOCUMENT_TEMPLATE_MARKERS = {

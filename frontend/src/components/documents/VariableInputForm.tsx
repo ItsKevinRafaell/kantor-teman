@@ -14,6 +14,40 @@ const FIELD_LABELS: Record<string, string> = {
   nilai_kontrak: "Nilai Kontrak",
   tanggal_mulai: "Tanggal Mulai",
   tanggal_akhir: "Tanggal Selesai",
+  // Service-specific contract variables
+  tech_spec: "Spesifikasi Teknis",
+  deliverables: "Lingkup Deliverables",
+  revision_limit: "Batas Revisi",
+  milestones: "Milestone & Serah Terima",
+  domain_hosting: "Kepemilikan Domain & Hosting",
+  bug_warranty: "Garansi Bug Fixing",
+  ip_rights: "Hak atas Kekayaan Intelektual",
+  out_of_scope: "Di Luar Lingkup",
+  payment_schedule: "Jadwal Pembayaran",
+  target_keywords: "Keyword Target",
+  success_metrics: "Metrik Keberhasilan",
+  disclaimer: "Batasan Ekspektasi",
+  reporting: "Laporan & Reporting",
+  scope_change: "Perubahan Keyword / Arah",
+  platforms: "Platform",
+  approval_flow: "Proses Approval Konten",
+  content_ownership: "Hak Kepemilikan Konten",
+  platform_rules: "Kepatuhan Aturan Platform",
+  escalation: "Escalation & Urgent Content",
+  scope_included: "Cakupan Layanan",
+  sla_metrics: "SLA Response Time",
+  coverage_hours: "Jam Coverage",
+  emergency_escalation: "Escalation Darurat",
+  ticket_resolution: "Penyelesaian Ticket",
+  concept_count: "Jumlah Konsep Awal",
+  moodboard_approval: "Moodboard & Brief Approval",
+  color_standards: "Standar Warna & Tipografi",
+  file_usage_rights: "Format File & Hak Penggunaan",
+  scope_monthly: "Cakupan per Bulan",
+  hour_allocation: "Penggunaan Jam/Slot Bulanan",
+  addon_rate: "Rate Add-on",
+  change_request_process: "Proses Change Request",
+  termination_notice: "Pemberitahuan Penghentian",
 };
 
 const DATE_KEY_PATTERNS = ["tanggal", "due_date", "valid_until", "tanggal_mulai", "tanggal_akhir", "expired", "expiry"];
@@ -21,7 +55,7 @@ const INVOICE_NUMBER_KEYS = ["nomor_invoice", "no_invoice", "nomor"];
 const LINE_ITEM_KEYS = ["items_rows", "items_table", "line_items", "items"];
 const TOTAL_KEYS = ["total", "total_harga", "grand_total", "total_bayar", "total_amount", "jumlah_total", "total_tagihan"];
 const LOGO_KEYS = ["logo", "logo_perusahaan", "company_logo"];
-const LARGE_TEXT_PATTERNS = ["html", "body", "scope", "terms", "rows", "alamat", "payment_info", "catatan", "keterangan"];
+const LARGE_TEXT_PATTERNS = ["html", "body", "scope", "terms", "rows", "alamat", "payment_info", "catatan", "keterangan", "deliverables", "out_of_scope", "payment_schedule", "tech_spec", "milestones", "ip_rights", "bug_warranty", "domain_hosting", "revision_limit", "sla_metrics", "coverage_hours", "scope_included", "emergency_escalation", "ticket_resolution", "target_keywords", "success_metrics", "disclaimer", "reporting", "scope_change", "platforms", "approval_flow", "content_ownership", "platform_rules", "escalation", "concept_count", "moodboard_approval", "color_standards", "file_usage_rights", "scope_monthly", "hour_allocation", "addon_rate", "change_request_process", "termination_notice"];
 const RUPIAH_PATTERNS = ["nilai", "harga", "amount", "nominal", "bayar", "biaya", "tarif", "fee", "price", "cost"];
 const PHONE_PATTERNS = ["phone", "telepon", "telp", "hp", "whatsapp", "wa"];
 const EMAIL_PATTERNS = ["email", "mail"];
@@ -53,6 +87,44 @@ const FIELD_HINTS: Record<string, string> = {
   payment_info: "Rekening atau metode pembayaran yang tampil di invoice",
   catatan: "Catatan tambahan untuk penerima invoice",
   keterangan: "Keterangan pembayaran, misalnya termin pertama atau pelunasan",
+  // Website Development
+  tech_spec: "Domain, hosting, tech stack, browser support (pisahkan baris per item)",
+  deliverables: "Daftar file/output yang diserahkan ke klien (pisahkan baris per item)",
+  revision_limit: "Contoh: Maksimal 2 kali revisi gratis. Revisi tambahan berbayar.",
+  milestones: "Daftar milestone: 1. Kick-off, 2. Development, 3. Testing, 4. Serah terima",
+  domain_hosting: "Siapa punya domain, siapa manage hosting",
+  bug_warranty: "Contoh: Bug fixing gratis 30 hari setelah serah terima",
+  ip_rights: "Contoh: Source code milik klien setelah pelunasan",
+  payment_schedule: "Jadwal termin: DP %, Approval %, Serah terima %",
+  // SEO
+  target_keywords: "Daftar keyword yang dijanjikan (pisahkan baris per keyword)",
+  success_metrics: "Metrik keberhasilan: ranking, traffic, dll",
+  disclaimer: "Batasan: Tidak menjamin ranking #1, hasil bergantung algoritma",
+  reporting: "Frekuensi & format laporan bulanan",
+  scope_change: "Contoh: Perubahan keyword memerlukan addendum + penyesuaian biaya",
+  // Sosmed
+  platforms: "Platform yang dikelola: Instagram, TikTok, Facebook, dll",
+  approval_flow: "Proses approval konten: calendar H-3, approval H-1",
+  content_ownership: "Hak milik konten setelah pembayaran; boleh untuk portofolio",
+  platform_rules: "Klien bertanggung jawab atas kepatuhan aturan platform",
+  escalation: "Kontak di luar jam kerja untuk konten urgent",
+  // Maintenance
+  scope_included: "Daftar yang termasuk: update plugin, backup, security scan, dll",
+  sla_metrics: "Critical: 4 jam. Normal: 1x24 jam. Low: 3x24 jam",
+  coverage_hours: "Contoh: Senin-Jumat 09.00-18.00 WIB",
+  emergency_escalation: "Kontak WA/SMS untuk kondisi darurat di luar jam kerja",
+  ticket_resolution: "Contoh: Issue resolved saat klien berikan sign-off",
+  // Branding
+  concept_count: "Contoh: 3 arah konsep awal, pilih 1 untuk dikembangkan",
+  moodboard_approval: "Brief visual harus di-approve sebelum desain dimulai",
+  color_standards: "Format warna: Pantone, CMYK, HEX, RGB sesuai kebutuhan",
+  file_usage_rights: "Hak penggunaan komersial, excl. resale; portofolio dengan izin",
+  // Retainer
+  scope_monthly: "Daftar layanan per bulan (jam dev, konten, support, dll)",
+  hour_allocation: "Contoh: Slot tak terpakai tidak dapat di-akumulasi",
+  addon_rate: "Contoh: Rp 150.000/jam untuk add-on di luar paket",
+  change_request_process: "Proses permintaan perubahan via email atau task board",
+  termination_notice: "Contoh: Minimal 30 hari kalender sebelum akhir bulan berjalan",
 };
 
 const TEMPLATE_STORAGE_PREFIX = "kt_field_templates_";

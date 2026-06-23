@@ -30,6 +30,12 @@ _DOC_TYPE_PREFIX = {
     "receipt": "RCPT",
     "proposal_pdf": "PROP",
     "kontrak": "KTR",
+    "kontrak_web_dev": "KTR-WD",
+    "kontrak_seo": "KTR-SEO",
+    "kontrak_sosmed": "KTR-SM",
+    "kontrak_maintenance": "KTR-MTN",
+    "kontrak_branding": "KTR-BRAND",
+    "kontrak_retainer": "KTR-RET",
     "mou": "MOU",
     "surat_penawaran": "SP",
     "custom": "DOC",
@@ -137,6 +143,13 @@ def get_document_template_type(template: DocumentTemplate) -> str:
         "Kontrak / MoU": "kontrak",
         "Kontrak Kerja Sama": "kontrak",
         "MOU Kerja Sama": "mou",
+        # Service-specific contract addendum templates
+        "Kontrak — Website Development": "kontrak_web_dev",
+        "Kontrak — SEO & Google Business": "kontrak_seo",
+        "Kontrak — Social Media Management": "kontrak_sosmed",
+        "Kontrak — Maintenance & Support": "kontrak_maintenance",
+        "Kontrak — Branding & Visual Identity": "kontrak_branding",
+        "Kontrak — Paket Retainer Bulanan": "kontrak_retainer",
     }
     return _BUILTIN_DOCUMENT_TEMPLATE_TYPES.get(
         getattr(template, "name", ""),
@@ -739,7 +752,10 @@ def generate_document_pdf(
 
 
 def _document_number(db: Session, template_type: str, reserve: bool = False) -> str:
-    prefixes = {"invoice": "INV", "receipt": "RCPT", "surat_penawaran": "SP", "mou": "MOU"}
+    prefixes = {"invoice": "INV", "receipt": "RCPT", "surat_penawaran": "SP", "mou": "MOU",
+               "kontrak": "KONTRAK", "kontrak_web_dev": "KONTRAK-WD", "kontrak_seo": "KONTRAK-SEO",
+               "kontrak_sosmed": "KONTRAK-SM", "kontrak_maintenance": "KONTRAK-MTN",
+               "kontrak_branding": "KONTRAK-BRAND", "kontrak_retainer": "KONTRAK-RET"}
     prefix = prefixes.get(template_type)
     if not prefix:
         return ""
