@@ -116,6 +116,18 @@ async def _global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"detail": detail}, headers=headers)
 
 
+# ── Health / warm-up endpoint ──────────────────────────────────────────────────
+@app.get("/api/health")
+async def health_check() -> dict:
+    """Lightweight endpoint for load-balancer / warm-up pings.
+
+    Intentionally avoids database access so it only measures worker process
+    responsiveness and keeps the LSAPI worker warm without holding DB
+    connections.
+    """
+    return {"status": "ok"}
+
+
 # ── Static files ───────────────────────────────────────────────────────────────
 
 # Canonical uploads dir lives at backend/app/uploads via app.core.dependencies.
