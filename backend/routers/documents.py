@@ -1192,11 +1192,14 @@ def download_document(did: str, current_user: User = Depends(get_current_user), 
     if not fpath:
         raise HTTPException(status_code=404, detail="File tidak ada di disk")
     if doc.target_id and doc.target_id.isdigit():
-        try:
-            db.add(LeadActivityLog(id=str(uuid.uuid4()), lead_id=int(doc.target_id), activity_type="pdf_downloaded"))
-            db.commit()
-        except Exception:
-            pass
+        lead_id = int(doc.target_id)
+        # Check if lead exists before logging activity
+        if db.query(Lead).filter(Lead.id == lead_id).first():
+            try:
+                db.add(LeadActivityLog(id=str(uuid.uuid4()), lead_id=lead_id, activity_type="pdf_downloaded"))
+                db.commit()
+            except Exception:
+                db.rollback()
     from fastapi.responses import FileResponse
     fname = doc.display_filename or (doc.template_name or "document")
     return FileResponse(fpath, media_type="application/pdf", filename=f"{fname}.pdf")
