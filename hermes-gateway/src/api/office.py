@@ -1,4 +1,5 @@
 """Workspace/office API endpoints — memory, cron, tasks, files, notifications, docs, activity."""
+import hmac
 import json
 import re
 import sqlite3
@@ -67,7 +68,10 @@ class LoginRequest(BaseModel):
 def login(req: LoginRequest):
     if not config.OFFICE_EMAIL or not config.OFFICE_PASSWORD:
         raise HTTPException(status_code=503, detail="Auth not configured on server")
-    if req.email != config.OFFICE_EMAIL or req.password != config.OFFICE_PASSWORD:
+    # Use timing-safe comparison to prevent timing attacks
+    email_ok = hmac.compare_digest(req.email, config.OFFICE_EMAIL)
+    password_ok = hmac.compare_digest(req.password, config.OFFICE_PASSWORD)
+    if not (email_ok and password_ok):
         raise HTTPException(status_code=401, detail="Email atau password salah")
     return {
         "access_token": config.GATEWAY_TOKEN,

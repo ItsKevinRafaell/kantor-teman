@@ -9,10 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 import config
 from src.services.timeline_service import init_sync_db, SYNC_STOP, SYNC_WAKE
 from src.api import chat, health, office, profiles, timeline
+from src.util.rate_limiter import RateLimitMiddleware
 
 # ── App setup ─────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="Hermes Office API", version="2.0.0")
+
+# Rate limiting middleware (before CORS)
+app.add_middleware(RateLimitMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
