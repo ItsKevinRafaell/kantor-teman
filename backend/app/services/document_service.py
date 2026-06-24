@@ -65,9 +65,13 @@ TRACKING_PIXEL_PNG = (
 # ─── Brand Kit ────────────────────────────────────────────────────────────────
 
 def _get_active_kit(db: Session) -> BrandKit:
-    kit = db.query(BrandKit).filter(BrandKit.is_active == True).first()
+    # Multiple active kits can exist if seeded/imported. Pick deterministically
+    # by most recently created so the chosen kit is stable across requests.
+    kit = db.query(BrandKit).filter(BrandKit.is_active == True).order_by(
+        BrandKit.created_at.desc()
+    ).first()
     if not kit:
-        kit = db.query(BrandKit).first()
+        kit = db.query(BrandKit).order_by(BrandKit.created_at.desc()).first()
     if not kit:
         raise ValueError("Brand kit tidak ditemukan")
     return kit
@@ -98,7 +102,9 @@ def serialize_brand_kit(kit: BrandKit, db: Session) -> dict:
 
 
 def build_brand_context(db: Session) -> dict:
-    kit = db.query(BrandKit).filter(BrandKit.is_active == True).first() or db.query(BrandKit).first()
+    # Deterministic pick across multiple active kits: most recently created.
+    kit = db.query(BrandKit).filter(BrandKit.is_active == True).order_by(BrandKit.created_at.desc()).first() \
+        or db.query(BrandKit).order_by(BrandKit.created_at.desc()).first()
     ctx = {
         "logo": "", "colors": {}, "fonts": {}, "tagline": "",
         "nama_perusahaan": "", "brand_name": "", "alamat_perusahaan": "", "phone_perusahaan": "", "email_perusahaan": "",
@@ -272,10 +278,16 @@ def _apply_placeholders(html: str, full_vars: dict) -> str:
     {{key}} as variables, so single-brace tokens pass through raw. Replace them
     explicitly for every known variable, using negative lookarounds so we never
     touch the inner {key} of a {{key}} token.
+
+    For text values containing newlines, convert \\n to <br> so they render
+    correctly in PDF. Skip this for HTML values (detected by presence of < tag).
     """
     for k, v in full_vars.items():
         if not isinstance(v, str):
             continue
+        # Convert newlines to <br> for text values (but not HTML)
+        if "\n" in v and "<" not in v:
+            v = v.replace("\n", "<br>")
         html = html.replace("{{" + k + "}}", v)
         html = re.sub(r"(?<!\{)\{" + re.escape(k) + r"\}(?!\})", lambda _: v, html)
     return html

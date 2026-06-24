@@ -229,9 +229,13 @@ def _serialize_kit(kit: BrandKit, db: Session) -> dict:
 
 
 def _get_active_kit(db: Session) -> BrandKit:
-    kit = db.query(BrandKit).filter(BrandKit.is_active == True).first()
+    # Multiple active kits can exist if seeded/imported. Pick deterministically
+    # by most recently created so the chosen kit is stable across requests.
+    kit = db.query(BrandKit).filter(BrandKit.is_active == True).order_by(
+        BrandKit.created_at.desc()
+    ).first()
     if not kit:
-        kit = db.query(BrandKit).first()
+        kit = db.query(BrandKit).order_by(BrandKit.created_at.desc()).first()
     if not kit:
         kit = BrandKit(
             id=str(uuid.uuid4()),
@@ -516,7 +520,9 @@ def set_invoice_sequence(body: InvoiceSequenceIn, current_user: User = Depends(r
 
 
 def _build_brand_context(db: Session) -> dict:
-    kit = db.query(BrandKit).filter(BrandKit.is_active == True).first() or db.query(BrandKit).first()
+    # Deterministic pick across multiple active kits: most recently created.
+    kit = db.query(BrandKit).filter(BrandKit.is_active == True).order_by(BrandKit.created_at.desc()).first() \
+        or db.query(BrandKit).order_by(BrandKit.created_at.desc()).first()
     ctx = {
         "logo": "", "colors": {}, "fonts": {},
         "tagline": "", "nama_perusahaan": "", "brand_name": "",
@@ -1036,10 +1042,16 @@ def _apply_placeholders(html: str, full_vars: dict) -> str:
     single-brace tokens survive untouched and appear raw in the output. Replace
     every known variable's single-brace token explicitly (negative lookarounds
     so the inner {key} of a {{key}} token is left alone).
+
+    For text values containing newlines, convert \\n to <br> so they render
+    correctly in PDF. Skip this for HTML values (detected by presence of < tag).
     """
     for k, v in full_vars.items():
         if not isinstance(v, str):
             continue
+        # Convert newlines to <br> for text values (but not HTML)
+        if "\n" in v and "<" not in v:
+            v = v.replace("\n", "<br>")
         html = html.replace("{{" + k + "}}", v)
         html = re.sub(r"(?<!\{)\{" + re.escape(k) + r"\}(?!\})", lambda _: v, html)
     return html
