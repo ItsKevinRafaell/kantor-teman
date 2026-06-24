@@ -289,6 +289,19 @@ export default function VariableInputForm({
 }: VariableInputFormProps) {
   const [fieldTemplateOpen, setFieldTemplateOpen] = useState<string | null>(null);
   const [fieldTemplates, setFieldTemplates] = useState<Record<string, string[]>>({});
+  const [layananOpenKey, setLayananOpenKey] = useState<string | null>(null);
+  const [layananSearch, setLayananSearch] = useState("");
+  const layananRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (layananRef.current && !layananRef.current.contains(e.target as Node)) {
+        setLayananOpenKey(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   const updateLineItem = (key: string, id: string, patch: Partial<LineItem>) => {
     setLineItems(prev => {
@@ -657,25 +670,44 @@ export default function VariableInputForm({
               );
             }
 
-            // Layanan field — single input with datalist (no separate picker button)
+            // Layanan field — custom combobox (searchable dropdown of packages + manual typing)
             if (isLayananKey(key)) {
-              const datalistId = `layanan-${key}`;
               const hasProducts = products.length > 0;
+              const isOpen = layananOpenKey === key;
+              const q = layananSearch.toLowerCase().trim();
+              const candidates = hasProducts
+                ? products
+                    .map((p: any) => ({ p, sub: formatRupiah(p.base_price) }))
+                    .filter(x => !q || x.p.name.toLowerCase().includes(q) || String(x.p.description || "").toLowerCase().includes(q))
+                    .slice(0, 30)
+                : [];
               return (
-                <div key={key}>
+                <div key={key} ref={layananRef}>
                   <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</label>
-                  <input type="text" list={datalistId} value={val}
-                    onChange={e => setVariables(prev => ({ ...prev, [key]: e.target.value }))}
-                    placeholder={hasProducts ? "Ketik manual atau pilih dari dropdown paket" : "Ketik jenis layanan"}
-                    className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800" />
-                  {hasProducts && (
-                    <datalist id={datalistId}>
-                      {products.map((p: any) => <option key={p.id} value={p.name}>{formatRupiah(p.base_price)}</option>)}
-                    </datalist>
-                  )}
+                  <div className="relative mt-1">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    <input type="text" value={isOpen ? layananSearch : val}
+                      onFocus={() => { setLayananSearch(val); setLayananOpenKey(key); }}
+                      onChange={e => { setLayananSearch(e.target.value); setVariables(prev => ({ ...prev, [key]: e.target.value })); if (!isOpen) setLayananOpenKey(key); }}
+                      onBlur={() => setTimeout(() => setLayananOpenKey(null), 150)}
+                      placeholder={hasProducts ? "Ketik atau pilih paket layanan..." : "Ketik jenis layanan"}
+                      className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800" />
+                    {isOpen && candidates.length > 0 && (
+                      <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 rounded-xl shadow-lg max-h-56 overflow-y-auto">
+                        {candidates.map(({ p, sub }: any) => (
+                          <button key={p.id} type="button"
+                            onMouseDown={() => { setVariables(prev => ({ ...prev, [key]: p.name })); setLayananOpenKey(null); setLayananSearch(""); }}
+                            className="w-full text-left px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-colors">
+                            <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{p.name}</p>
+                            <p className="text-xs text-gray-400">{sub}</p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <p className="text-[11px] text-gray-400 mt-1">
                     {hasProducts
-                      ? `Pilih dari ${products.length} paket tersedia, atau ketik manual.`
+                      ? `Pilih dari ${products.length} paket, atau ketik manual.`
                       : FIELD_HINTS[key.toLowerCase()] || "Ketik jenis layanan"}
                   </p>
                 </div>
