@@ -1156,7 +1156,7 @@ def generate_document(request: Request, body: DocumentGenerateIn, current_user: 
 
         # Filename: prefer document number + client name when available
         display_name = _build_pdf_display_name(db, _document_template_type(template), body.target_type, body.target_id, full_vars)
-        file_url = pdf_filename
+        file_url = f"/uploads/generated_documents/{pdf_filename}"
         doc = GeneratedDocument(
             id=file_id,
             template_id=template.id,
@@ -1619,12 +1619,18 @@ def _archive_doc_to_dict(doc: Document) -> dict:
         tags = json.loads(doc.tags) if doc.tags else []
     except Exception:
         tags = []
+    # Normalize legacy URLs: generated documents were stored as bare filenames
+    # (e.g. "uuid.pdf") instead of full paths. Rewrite them so the frontend
+    # links resolve to the correct API-served file.
+    url = doc.url
+    if url and not url.startswith(("http://", "https://", "/uploads/")) and url.lower().endswith(".pdf"):
+        url = f"/uploads/generated_documents/{url}"
     return {
         "id": doc.id,
         "folder_id": doc.folder_id,
         "title": doc.title,
         "body": doc.body,
-        "url": doc.url,
+        "url": url,
         "tags": tags,
         "status": getattr(doc, "status", DocumentStatus.DRAFT),
         "review_notes": getattr(doc, "review_notes", None),

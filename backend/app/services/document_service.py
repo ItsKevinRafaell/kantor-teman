@@ -22,7 +22,7 @@ except ImportError:
     get_document_template_starters = lambda: {}
 
 
-DOCUMENTS_DIR = os.path.join(UPLOADS_DIR, "documents")
+DOCUMENTS_DIR = os.path.join(UPLOADS_DIR, "generated_documents")
 os.makedirs(DOCUMENTS_DIR, exist_ok=True)
 
 _DOC_TYPE_PREFIX = {
@@ -751,7 +751,7 @@ def generate_document_pdf(
     else:
         display_name = _generate_document_filename(db, template_type, target_type, target_id)
 
-    file_url = f"/uploads/documents/{pdf_filename}"
+    file_url = f"/uploads/generated_documents/{pdf_filename}"
     doc = GeneratedDocument(
         id=file_id,
         template_id=template.id,
