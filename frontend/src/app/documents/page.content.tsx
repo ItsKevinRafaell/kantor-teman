@@ -71,6 +71,8 @@ export default function DocumentsContent() {
   const [folderModal, setFolderModal] = useState(false);
   const [editingFolder, setEditingFolder] = useState<DocumentFolder | null>(null);
   const [folderForm, setFolderForm] = useState({ name: "", color: "#6B7280", parent_id: "" });
+  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
+  const [dragOverRoot, setDragOverRoot] = useState(false);
 
   const showUnfoldered = searchParams.get("unfoldered") === "1";
   const selectedFolder = searchParams.get("folder") || null;
@@ -242,6 +244,53 @@ export default function DocumentsContent() {
     else { setToast({ message: "Gagal menghapus folder", type: "error" }); }
   }
 
+  async function moveDocument(docId: string, targetFolderId: string | null) {
+    try {
+      const res = await apiFetch(`/api/archive/${docId}`, {
+        method: "PUT",
+        body: JSON.stringify({ folder_id: targetFolderId })
+      });
+      if (res.ok) {
+        setToast({ message: "Dokumen dipindahkan", type: "success" });
+        fetchDocs();
+      } else {
+        setToast({ message: "Gagal memindahkan dokumen", type: "error" });
+      }
+    } catch (err) {
+      setToast({ message: "Gagal memindahkan dokumen", type: "error" });
+    }
+  }
+
+  function handleDragOver(e: React.DragEvent, folderId: string) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverFolder(folderId);
+  }
+
+  function handleDragOverRoot(e: React.DragEvent) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverRoot(true);
+  }
+
+  function handleDropOnFolder(e: React.DragEvent, folderId: string) {
+    e.preventDefault();
+    setDragOverFolder(null);
+    const docId = e.dataTransfer.getData("text/plain");
+    if (docId) {
+      moveDocument(docId, folderId);
+    }
+  }
+
+  function handleDropOnRoot(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOverRoot(false);
+    const docId = e.dataTransfer.getData("text/plain");
+    if (docId) {
+      moveDocument(docId, null);
+    }
+  }
+
   function renderFolderTree(parentId: string | null = null, depth = 0): ReactNode {
     return folders
       .filter(folder => folder.parent_id === parentId)
@@ -250,10 +299,15 @@ export default function DocumentsContent() {
         const hasChildren = folders.some(f => f.parent_id === folder.id);
         const bgClass = folderBgClass(folder.color);
         const textClass = folderTextClass(folder.color);
+        const isDragOver = dragOverFolder === folder.id;
         return (
-          <div key={folder.id}>
+          <div key={folder.id}
+            draggable={false}
+            onDragOver={e => handleDragOver(e, folder.id)}
+            onDragLeave={() => setDragOverFolder(null)}
+            onDrop={e => handleDropOnFolder(e, folder.id)}>
             <div onClick={() => selectFolder(folder.id)}
-              className={`group flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${isSelected ? `${bgClass} ${textClass} font-semibold` : "text-neutral-600 dark:text-neutral-400 hover:bg-amber-50/70 dark:hover:bg-amber-950/20"}`}
+              className={`group flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${isSelected ? `${bgClass} ${textClass} font-semibold` : "text-neutral-600 dark:text-neutral-400 hover:bg-amber-50/70 dark:hover:bg-amber-950/20"} ${isDragOver ? "ring-2 ring-amber-400 bg-amber-50 dark:bg-amber-950/30" : ""}`}
               style={{ paddingLeft: `${12 + depth * 14}px` }}>
               {hasChildren ? <ChevronRight size={12} className="shrink-0 text-neutral-400" /> : <span className="w-3 shrink-0" />}
               <span className="w-2.5 h-2.5 rounded-full shrink-0 mt-px" style={{ backgroundColor: folder.color }} />
@@ -287,11 +341,17 @@ export default function DocumentsContent() {
       {/* Sidebar */}
       <aside className="flex w-full shrink-0 flex-col gap-1 rounded-2xl border border-amber-100 bg-white p-3 shadow-sm md:w-52 dark:border-amber-900/40 dark:bg-[var(--bg-surface)]">
         <button onClick={selectAll}
-          className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium transition-colors ${!showUnfoldered && selectedFolder === null ? "bg-amber-50 text-amber-800 dark:bg-amber-950/20 dark:text-amber-300 font-semibold" : "text-neutral-600 dark:text-neutral-400 hover:bg-amber-50/70 dark:hover:bg-amber-950/20"}`}>
+          onDragOver={handleDragOverRoot}
+          onDragLeave={() => setDragOverRoot(false)}
+          onDrop={handleDropOnRoot}
+          className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium transition-colors ${!showUnfoldered && selectedFolder === null ? "bg-amber-50 text-amber-800 dark:bg-amber-950/20 dark:text-amber-300 font-semibold" : "text-neutral-600 dark:text-neutral-400 hover:bg-amber-50/70 dark:hover:bg-amber-950/20"} ${dragOverRoot ? "ring-2 ring-amber-400 bg-amber-50 dark:bg-amber-950/30" : ""}`}>
           <FileText size={15} /> Semua Dokumen
         </button>
         <button onClick={selectUnfoldered}
-          className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium transition-colors ${showUnfoldered ? "bg-amber-50 text-amber-800 dark:bg-amber-950/20 dark:text-amber-300 font-semibold" : "text-neutral-600 dark:text-neutral-400 hover:bg-amber-50/70 dark:hover:bg-amber-950/20"}`}>
+          onDragOver={handleDragOverRoot}
+          onDragLeave={() => setDragOverRoot(false)}
+          onDrop={handleDropOnRoot}
+          className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium transition-colors ${showUnfoldered ? "bg-amber-50 text-amber-800 dark:bg-amber-950/20 dark:text-amber-300 font-semibold" : "text-neutral-600 dark:text-neutral-400 hover:bg-amber-50/70 dark:hover:bg-amber-950/20"} ${dragOverRoot ? "ring-2 ring-amber-400 bg-amber-50 dark:bg-amber-950/30" : ""}`}>
           <FileText size={15} /> Tanpa Folder
         </button>
         <div className="my-1 border-t border-neutral-100 dark:border-neutral-800" />
