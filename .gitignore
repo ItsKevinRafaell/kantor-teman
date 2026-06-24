@@ -23,3 +23,11 @@ frontend/playwright-report/
 frontend/qa-artifacts/
 backend/uploads/
 *.pdf
+.tools/
+*.log
+*.pem
+hermes-gateway/test-vexo-brutal.py
+.tools/
+*.log
+*.pem
+hermes-gateway/test-vexo-brutal.py
