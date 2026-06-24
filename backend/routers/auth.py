@@ -16,8 +16,8 @@ from urllib.parse import urlparse
 from models import get_db, log_audit, PasswordResetToken, SystemSettings, User
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, hash_password,
-    verify_password, _check_login_rate_limit, _record_login_failure, _record_login_success,
-    create_token, _mask_secret, SENSITIVE_SETTING_KEYS, _check_simple_rate_limit)
+    verify_password, check_login_rate_limit, record_login_failure, record_login_success,
+    create_token, _mask_secret, SENSITIVE_SETTING_KEYS, check_simple_rate_limit)
 from app.core.config import AUTH_ALLOWED_EMAIL_DOMAINS
 
 router = APIRouter()
@@ -107,7 +107,7 @@ def _auth_cookie_options():
     return {
         "httponly": True,
         "secure": secure,
-        "samesite": "none" if secure else "lax",
+        "samesite": "lax",  # P1-5: was "none" — requires CSRF tokens to be safe
         "path": "/",
         "domain": cookie_domain or None,
     }
@@ -116,13 +116,13 @@ def _auth_cookie_options():
 def login(body: LoginIn, request: Request, response: Response, db: Session = Depends(get_db)):
     ip = _client_ip(request)
     _ensure_allowed_email(body.email)
-    _check_login_rate_limit(ip)
+    check_login_rate_limit(ip, db)
     user = db.query(User).filter(User.email == body.email).first()
     if not user or not verify_password(body.password, user.hashed_password):
-        _record_login_failure(ip)
+        record_login_failure(ip, db)
         raise HTTPException(status_code=401, detail="Email atau password salah")
-    _record_login_success(ip)
-    token = create_token(user.id, user.email)
+    record_login_success(ip, db)
+    token = create_token(user.id, user.email, getattr(user, "token_version", 1))
     response.set_cookie(
         key="kt_token",
         value=token,
@@ -140,7 +140,7 @@ def login(body: LoginIn, request: Request, response: Response, db: Session = Dep
 @router.post("/api/auth/password/forgot")
 def request_password_reset(body: PasswordResetRequest, request: Request, db: Session = Depends(get_db)):
     ip = _client_ip(request)
-    _check_simple_rate_limit(f"password-reset:{ip}", 5, 300)
+    check_simple_rate_limit(f"password-reset:{ip}", 5, 300, db)
     if AUTH_ALLOWED_EMAIL_DOMAINS and _email_domain(body.email) not in AUTH_ALLOWED_EMAIL_DOMAINS:
         return {"ok": True, "message": "Jika email terdaftar dan SMTP aktif, instruksi reset password akan dikirim."}
     user = db.query(User).filter(User.email == body.email).first()
@@ -191,10 +191,18 @@ def reset_password(body: PasswordResetConfirm, db: Session = Depends(get_db)):
 
 
 @router.post("/api/auth/logout")
-def logout(response: Response):
+def logout(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # P1-4: invalidate token by incrementing version
+    if hasattr(current_user, "token_version"):
+        current_user.token_version += 1
+        db.commit()
     response.delete_cookie(key="kt_token", **_auth_cookie_options())
     # Also clear legacy production and localhost cookies during rollout.
-    response.delete_cookie(key="kt_token", path="/", samesite="none", domain=".kantorteman.my.id", secure=True)
+    response.delete_cookie(key="kt_token", path="/", samesite="lax", domain=".kantorteman.my.id", secure=True)
     response.delete_cookie(key="kt_token", path="/", samesite="lax")
     return {"ok": True}
 
@@ -289,6 +297,15 @@ def update_me(body: UserUpdate, current_user: User = Depends(get_current_user), 
     if body.new_password:
         if not body.current_password or not verify_password(body.current_password, user.hashed_password):
             raise HTTPException(status_code=400, detail="Password lama tidak cocok")
-        user.hashed_password = hash_password(body.new_password)
+        import re as _re
+        pw = body.new_password
+        if len(pw) < 8:
+            raise HTTPException(status_code=400, detail="Password minimal 8 karakter")
+        if not _re.search(r"[A-Z]", pw) or not _re.search(r"[0-9]", pw):
+            raise HTTPException(status_code=400, detail="Password harus mengandung huruf besar dan angka")
+        user.hashed_password = hash_password(pw)
+        # P1-4: invalidate old tokens after password change
+        if hasattr(user, "token_version"):
+            user.token_version += 1
     db.commit()
     return {"id": user.id, "name": user.name, "email": user.email}

@@ -9,6 +9,7 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=False)
     role = Column(String(50), nullable=False, default="admin")  # admin / member
+    token_version = Column(Integer, nullable=False, default=1)  # P1-4: JWT revocation
 
 
 class PasswordResetToken(Base):

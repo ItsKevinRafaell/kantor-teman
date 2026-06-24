@@ -3,6 +3,16 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 
 
+def _password_strength(v: str) -> str:
+    if len(v) < 8:
+        raise ValueError("Password minimal 8 karakter")
+    if not re.search(r"[A-Z]", v):
+        raise ValueError("Password harus mengandung huruf besar")
+    if not re.search(r"[0-9]", v):
+        raise ValueError("Password harus mengandung angka")
+    return v
+
+
 class LoginIn(BaseModel):
     email: str
     password: str
@@ -20,8 +30,7 @@ class LoginIn(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
-        if len(v) < 8:
-            raise ValueError("Password minimal 8 karakter")
+        v = _password_strength(v)
         if len(v) > 128:
             raise ValueError("Password terlalu panjang")
         return v
@@ -44,8 +53,13 @@ class UserUpdate(BaseModel):
 class UserCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=255)
     email: str
-    password: str = Field(..., min_length=8, max_length=128)
+    password: str = Field(..., max_length=128)
     role: str = "member"
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        return _password_strength(v)
 
     @field_validator("email")
     @classmethod
@@ -68,8 +82,15 @@ class UserCreate(BaseModel):
 class UserAdminUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=255)
     email: Optional[str] = None
-    password: Optional[str] = Field(None, min_length=8, max_length=128)
+    password: Optional[str] = Field(None, max_length=128)
     role: Optional[str] = None
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            return _password_strength(v)
+        return v
 
     @field_validator("email")
     @classmethod
@@ -120,4 +141,9 @@ class PasswordResetRequest(BaseModel):
 
 class PasswordResetConfirm(BaseModel):
     token: str = Field(..., min_length=32, max_length=256)
-    password: str = Field(..., min_length=8, max_length=128)
+    password: str = Field(..., max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        return _password_strength(v)

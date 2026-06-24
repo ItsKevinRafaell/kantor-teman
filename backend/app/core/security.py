@@ -36,11 +36,12 @@ def verify_password(plain: str, hashed: str) -> bool:
     return _bcrypt.checkpw(plain.encode(), hashed.encode())
 
 
-def create_token(user_id: int, email: str) -> str:
+def create_token(user_id: int, email: str, token_version: int = 1) -> str:
     payload = {
         "sub": str(user_id),
         "email": email,
         "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRE_HOURS),
+        "v": token_version,
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 

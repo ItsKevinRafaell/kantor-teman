@@ -28,6 +28,7 @@ from .document import (
     DocumentFolder, Document, BrandKit, BrandAsset,
     DocumentTemplate, GeneratedDocument, ReportSnapshot, DocumentSequence
 )
+from .rate_limit import RateLimit
 
 __all__ = [
     # base
@@ -61,4 +62,6 @@ __all__ = [
     # document
     "DocumentFolder", "Document", "BrandKit", "BrandAsset",
     "DocumentTemplate", "GeneratedDocument", "ReportSnapshot", "DocumentSequence",
+    # rate_limit
+    "RateLimit",
 ]

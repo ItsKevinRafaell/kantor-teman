@@ -19,8 +19,8 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=False)
 # ── Re-export everything from dependencies for backward compat ─────────────────
 from app.core.dependencies import *  # noqa: F401, F403, E402
 from app.core.dependencies import (_run_async_job, process_pending_blasts,  # noqa: E402
-    scheduled_followup_processor, _acquire_scheduler_lock, _deduct_due_subscriptions,
-    _cors_list)
+    scheduled_followup_processor, _acquire_scheduler_lock, _deduct_due_subscriptions)
+from app.core.config import IS_PRODUCTION, CORS_LIST
 
 # ── Lifespan: run schema migrations on startup ────────────────────────────────
 @asynccontextmanager
@@ -48,7 +48,7 @@ app = FastAPI(title="Kantor Teman API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_list,
+    allow_origins=CORS_LIST,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
@@ -74,7 +74,9 @@ async def query_timing_middleware(request: Request, call_next):
     process_time = _time.time() - start_time
     if process_time > 1.0:
         print(f"SLOW REQUEST: {request.method} {request.url.path} took {process_time:.2f}s")
-    response.headers["X-Process-Time"] = f"{process_time:.3f}"
+    # P1-7: hide X-Process-Time in production
+    if not IS_PRODUCTION:
+        response.headers["X-Process-Time"] = f"{process_time:.3f}"
     return response
 
 
@@ -98,7 +100,11 @@ async def cors_error_safety(request: Request, call_next):
             headers["Access-Control-Allow-Origin"] = origin
             headers["Access-Control-Allow-Credentials"] = "true"
             headers["Vary"] = "Origin"
-        detail = f"{type(e).__name__}: {str(e) or 'unknown error'}"
+        # P0-2: generic message in production
+        if IS_PRODUCTION:
+            detail = "Terjadi kesalahan internal server"
+        else:
+            detail = f"{type(e).__name__}: {str(e) or 'unknown error'}"
         return JSONResponse(status_code=500, content={"detail": detail}, headers=headers)
 
 
@@ -112,7 +118,11 @@ async def _global_exception_handler(request: Request, exc: Exception):
         headers["Vary"] = "Origin"
     import traceback
     traceback.print_exc()
-    detail = f"{type(exc).__name__}: {str(exc) or 'unknown error'}"
+    # P0-2: generic message in production; stack trace only in dev
+    if IS_PRODUCTION:
+        detail = "Terjadi kesalahan internal server"
+    else:
+        detail = f"{type(exc).__name__}: {str(exc) or 'unknown error'}"
     return JSONResponse(status_code=500, content={"detail": detail}, headers=headers)
 
 
