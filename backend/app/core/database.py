@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import sessionmaker, Session
 
@@ -33,3 +34,38 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def run_with_db_retry(fn, *args, retries: int = 2, **kwargs):
+    """Run fn(db, *args, **kwargs) with automatic re-creation of a fresh DB
+    session on transient MySQL operational errors.
+
+    For background/scheduled jobs that create their own SessionLocal — request
+    paths should use the get_db dependency instead. On OperationalError the
+    engine pool is disposed so the next attempt checks out a fresh connection.
+    """
+    last_exc = None
+    for attempt in range(1, max(retries, 1) + 1):
+        db = SessionLocal()
+        try:
+            return fn(db, *args, **kwargs)
+        except OperationalError as exc:
+            last_exc = exc
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            try:
+                engine.dispose()
+            except Exception:
+                pass
+            if attempt >= max(retries, 1):
+                raise
+            import time as _time
+            _time.sleep(0.5 * attempt)
+        finally:
+            try:
+                db.close()
+            except Exception:
+                pass
+    raise last_exc or RuntimeError("DB retry failed")
