@@ -30,7 +30,7 @@ async def start_blast(
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    _check_simple_rate_limit(f"blast:{current_user.id}", 10, 60)
+    _check_simple_rate_limit(f"blast:{current_user.id}", 10, 60, db)
     import threading
     incoming_criteria = body.filter_criteria or {}
     batch_name = body.batch_name or incoming_criteria.get("batch_name")
@@ -202,7 +202,7 @@ async def fonnte_incoming(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/api/followup/start")
 def start_followup(body: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    _check_simple_rate_limit(f"followup_start:{current_user.id}", 10, 60)
+    _check_simple_rate_limit(f"followup_start:{current_user.id}", 10, 60, db)
     lead_id = body.get("lead_id")
     template_ids = body.get("template_ids", [])
     delays = body.get("delays", [1, 3, 7])
@@ -277,7 +277,7 @@ def get_active_followups(current_user: User = Depends(get_current_user), db: Ses
 
 @router.post("/api/followup/process")
 async def process_followups(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    _check_simple_rate_limit(f"followup_process:{current_user.id}", 10, 60)
+    _check_simple_rate_limit(f"followup_process:{current_user.id}", 10, 60, db)
     now = datetime.now(timezone.utc)
     sequences = db.query(FollowUpSequence).filter(
         FollowUpSequence.status == "ACTIVE",

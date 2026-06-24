@@ -78,6 +78,7 @@ from app.core.services.phone_service import (  # noqa: E402, F403
     normalize_phone_storage,
     make_wa_url,
 )
+_normalize_phone = normalize_phone  # noqa: E402  # backward compat alias
 
 # WhatsApp
 from app.core.services.whatsapp_service import (  # noqa: E402, F403

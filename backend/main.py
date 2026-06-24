@@ -86,7 +86,7 @@ async def cors_error_safety(request: Request, call_next):
         response = await call_next(request)
         # Add CORS headers to all responses
         origin = request.headers.get("origin", "")
-        if origin in _cors_list:
+        if origin in CORS_LIST:
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Credentials"] = "true"
             response.headers["Vary"] = "Origin"
@@ -96,7 +96,7 @@ async def cors_error_safety(request: Request, call_next):
         traceback.print_exc()
         origin = request.headers.get("origin", "")
         headers = {}
-        if origin in _cors_list:
+        if origin in CORS_LIST:
             headers["Access-Control-Allow-Origin"] = origin
             headers["Access-Control-Allow-Credentials"] = "true"
             headers["Vary"] = "Origin"
@@ -112,7 +112,7 @@ async def cors_error_safety(request: Request, call_next):
 async def _global_exception_handler(request: Request, exc: Exception):
     origin = request.headers.get("origin", "")
     headers = {}
-    if origin in _cors_list:
+    if origin in CORS_LIST:
         headers["Access-Control-Allow-Origin"] = origin
         headers["Access-Control-Allow-Credentials"] = "true"
         headers["Vary"] = "Origin"

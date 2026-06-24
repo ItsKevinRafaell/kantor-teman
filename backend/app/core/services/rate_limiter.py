@@ -1,8 +1,9 @@
 """
 DB-backed rate limiter — replaces in-memory dicts in app/core/security.py.
+Uses naive UTC datetimes for SQLite compatibility.
 """
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -15,18 +16,27 @@ from app.core.config import (
 )
 
 
+def _now_naive() -> datetime:
+    """Return naive UTC datetime for SQLite compatibility."""
+    return datetime.utcnow()
+
+
 def check_login_rate_limit(ip: str, db: Session):
-    now = datetime.now(timezone.utc)
+    now = _now_naive()
     cutoff = now - timedelta(seconds=LOGIN_RATE_WINDOW)
 
     # Check for active lockout
     lockout = db.query(RateLimit).filter(
         RateLimit.ip == ip,
         RateLimit.key == "lockout",
-        RateLimit.ts > now,
+        RateLimit.ts > cutoff,
     ).first()
     if lockout:
-        retry = int((lockout.ts - now).total_seconds())
+        # lockout.ts is stored as naive UTC
+        lockout_ts = lockout.ts
+        if hasattr(lockout_ts, 'tzinfo') and lockout_ts.tzinfo is not None:
+            lockout_ts = lockout_ts.replace(tzinfo=None)
+        retry = max(1, int((lockout_ts - now).total_seconds()))
         raise HTTPException(
             status_code=429,
             detail=f"Terlalu banyak percobaan login. Coba lagi dalam {retry} detik.",
@@ -43,7 +53,7 @@ def check_login_rate_limit(ip: str, db: Session):
 
 
 def record_login_failure(ip: str, db: Session):
-    now = datetime.now(timezone.utc)
+    now = _now_naive()
     # Remove old attempts
     cutoff = now - timedelta(seconds=LOGIN_RATE_WINDOW)
     db.query(RateLimit).filter(
@@ -77,7 +87,7 @@ def record_login_success(ip: str, db: Session):
 
 
 def check_simple_rate_limit(key: str, max_requests: int, window_seconds: int, db: Session):
-    now = datetime.now(timezone.utc)
+    now = _now_naive()
     cutoff = now - timedelta(seconds=window_seconds)
 
     db.query(RateLimit).filter(
@@ -95,8 +105,11 @@ def check_simple_rate_limit(key: str, max_requests: int, window_seconds: int, db
             RateLimit.key == key,
         ).order_by(RateLimit.ts.asc()).first()
         if oldest:
-            elapsed = (now - oldest.ts).total_seconds()
-            retry = int(window_seconds - elapsed)
+            oldest_ts = oldest.ts
+            if hasattr(oldest_ts, 'tzinfo') and oldest_ts.tzinfo is not None:
+                oldest_ts = oldest_ts.replace(tzinfo=None)
+            elapsed = (now - oldest_ts).total_seconds()
+            retry = max(1, int(window_seconds - elapsed))
         else:
             retry = window_seconds
         raise HTTPException(

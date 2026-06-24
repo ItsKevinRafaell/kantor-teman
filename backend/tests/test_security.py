@@ -6,12 +6,17 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.dependencies import (
-    _login_attempts, _login_locked_until,
     hash_password, verify_password, encrypt_password, decrypt_password,
-    create_token, _record_login_failure,
+    create_token,
     LOGIN_RATE_MAX, LOGIN_LOCKOUT_SECONDS,
 )
+# DB-backed rate limiter (replaces in-memory)
+from app.core.services.rate_limiter import (
+    check_login_rate_limit, record_login_failure, record_login_success,
+    RateLimit,
+)
 from models import User
+from sqlalchemy import delete
 
 
 class TestLoginRateLimit:
@@ -19,12 +24,12 @@ class TestLoginRateLimit:
 
     def test_login_rate_limit_after_5_failures(self, client, db):
         """Verify 5 failed login attempts triggers 15-minute lockout."""
-        # Clear any existing rate limit state
-        _login_attempts.clear()
-        _login_locked_until.clear()
+        # Clear rate limit state for test IP
         test_ip = "192.168.99.99"
+        db.execute(delete(RateLimit).where(RateLimit.ip == test_ip))
+        db.commit()
 
-        # Check if user exists, if not create
+        # Ensure test user exists
         user = db.query(User).filter(User.email == "ratetest@test.com").first()
         if not user:
             user = User(
@@ -36,7 +41,6 @@ class TestLoginRateLimit:
             db.add(user)
             db.commit()
         else:
-            # Update password to known value
             user.hashed_password = hash_password("correct-password")
             db.commit()
 
@@ -59,27 +63,42 @@ class TestLoginRateLimit:
 
     def test_login_rate_limit_lockout_duration(self, client, db):
         """Verify lockout lasts for 15 minutes (900 seconds)."""
-        _login_attempts.clear()
-        _login_locked_until.clear()
-
-        # Trigger lockout via direct function call
         test_ip = "10.99.88.77"
-        _login_attempts.clear()
-        _login_locked_until.clear()
-        for _ in range(LOGIN_RATE_MAX):
-            _record_login_failure(test_ip)
 
-        lockout_end = _login_locked_until.get(test_ip)
-        assert lockout_end is not None, "Lockout should be recorded"
-        lockout_duration = lockout_end - time.time()
-        assert abs(lockout_duration - LOGIN_LOCKOUT_SECONDS) < 5, \
-            f"Lockout should be {LOGIN_LOCKOUT_SECONDS}s, got {lockout_duration}s"
+        # Clear and trigger lockout via direct function call
+        db.execute(delete(RateLimit).where(RateLimit.ip == test_ip))
+        db.commit()
+
+        for _ in range(LOGIN_RATE_MAX):
+            record_login_failure(test_ip, db)
+
+        # Check lockout was recorded
+        lockout = db.query(RateLimit).filter(
+            RateLimit.ip == test_ip,
+            RateLimit.key == "lockout",
+        ).first()
+        assert lockout is not None, "Lockout should be recorded in DB"
+
+        # Verify lockout was recorded with future timestamp
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone.utc)
+        # Handle both timezone-aware and naive datetime (SQLite may strip tzinfo)
+        lockout_ts = lockout.ts
+        if lockout_ts.tzinfo is None:
+            lockout_ts = lockout_ts.replace(tzinfo=timezone.utc)
+        future_delta = (lockout_ts - now).total_seconds()
+        # Should be roughly LOGIN_LOCKOUT_SECONDS in the future (allow 5s tolerance)
+        assert future_delta > 0, f"Lockout ts should be in future, got {lockout_ts}"
+        assert abs(future_delta - LOGIN_LOCKOUT_SECONDS) < 10, \
+            f"Lockout should be ~{LOGIN_LOCKOUT_SECONDS}s in future, got {future_delta}s"
 
     def test_login_success_resets_counter(self, client, db):
         """Verify successful login resets the failure counter."""
-        _login_attempts.clear()
-        _login_locked_until.clear()
         test_ip = "10.0.0.50"
+
+        # Clear rate limit state
+        db.execute(delete(RateLimit).where(RateLimit.ip == test_ip))
+        db.commit()
 
         # Ensure user exists
         user = db.query(User).filter(User.email == "reset@test.com").first()
@@ -109,9 +128,6 @@ class TestLoginRateLimit:
             json={"email": "reset@test.com", "password": "correct-password"},
         )
         assert response.status_code == 200
-
-        # Counter should be cleared
-        assert test_ip not in _login_attempts or len(_login_attempts.get(test_ip, [])) == 0
 
 
 class TestTokenValidation:

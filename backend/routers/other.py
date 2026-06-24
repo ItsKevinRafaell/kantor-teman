@@ -37,7 +37,7 @@ def _raise_board_http_error(exc: Exception) -> None:
 
 @router.post("/api/wa/send")
 def send_wa_manual(body: WaSendIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    _check_simple_rate_limit(f"wa_send:{current_user.id}", 20, 60)
+    _check_simple_rate_limit(f"wa_send:{current_user.id}", 20, 60, db)
     print(f"[WA SEND] lead_id={body.lead_id}", flush=True)
     lead = db.query(Lead).filter(Lead.id == body.lead_id).first()
     if not lead:

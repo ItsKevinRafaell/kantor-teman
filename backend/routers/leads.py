@@ -198,7 +198,7 @@ def create_external_lead(request: Request, body: ExternalLeadIn, background_task
     if not stored_key or not hmac.compare_digest(api_key, stored_key):
         raise HTTPException(status_code=401, detail="Invalid API key")
 
-    _check_simple_rate_limit(f"external_lead:{api_key[:16]}", 30, 60)
+    _check_simple_rate_limit(f"external_lead:{api_key[:16]}", 30, 60, db)
 
     phone = normalize_phone_storage(body.phone_number)
     if not phone:

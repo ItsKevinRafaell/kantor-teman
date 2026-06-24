@@ -30,7 +30,8 @@ class LoginIn(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
-        v = _password_strength(v)
+        # Password strength is validated on USER CREATION, not on login.
+        # Allow any password for login — auth failure is the gatekeeper.
         if len(v) > 128:
             raise ValueError("Password terlalu panjang")
         return v
