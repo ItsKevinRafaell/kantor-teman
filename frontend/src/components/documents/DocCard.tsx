@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Edit2, Trash2 } from "lucide-react";
+import { ExternalLink, Edit2, Trash2, GripVertical } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -35,7 +35,14 @@ export function DocCard({ doc, folderColor, folderName, onEdit, onDelete }: DocC
   const linkLabel = doc.url ? (isLocalFile ? "File tersimpan" : doc.url.replace(/^https?:\/\//, "")) : "";
 
   return (
-    <div className="group relative flex flex-col gap-2 rounded-2xl border border-amber-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-amber-900/40 dark:bg-[var(--bg-surface)]">
+    <div
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/plain", doc.id);
+        e.dataTransfer.effectAllowed = "move";
+      }}
+      className="group relative flex flex-col gap-2 rounded-2xl border border-amber-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-amber-900/40 dark:bg-[var(--bg-surface)] cursor-move"
+    >
       {folderColor && (
         <div className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl" style={{ backgroundColor: folderColor }} />
       )}

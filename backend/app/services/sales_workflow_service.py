@@ -120,12 +120,16 @@ def ensure_archive_folder_tree(
     doc_type: str,
     user_id: Optional[int] = None,
 ) -> Optional[DocumentFolder]:
+    """Return a flat top-level folder based on document type only.
+
+    Previously generated a deep 3-level tree (Client -> Project -> Type).
+    Now archives go directly into root-level folders like Invoice, Kontrak,
+    Proposal, etc. so the structure is shallow and easier for drag-and-drop.
+    """
     uid = user_id or _first_admin_user_id(db)
     if not uid:
         return None
-    client_folder = _get_or_create_folder(db, uid, client_name or "Klien", None, "#F59E0B")
-    project_folder = _get_or_create_folder(db, uid, project_name or "Project", client_folder.id, "#6B7280")
-    return _get_or_create_folder(db, uid, doc_type, project_folder.id, "#9CA3AF")
+    return _get_or_create_folder(db, uid, doc_type, None, "#6B7280")
 
 
 def archive_generated_document(
