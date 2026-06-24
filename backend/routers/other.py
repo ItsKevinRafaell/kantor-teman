@@ -20,6 +20,7 @@ from app.core.dependencies import (get_current_user, require_admin, UPLOADS_DIR,
 from app.core.whatsapp_provider import send_whatsapp_message_sync
 from app.constants import LeadStatus
 from app.services import board_service
+from app.services.document_service import _get_active_kit
 
 router = APIRouter()
 
