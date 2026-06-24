@@ -265,18 +265,29 @@ def _generate_document_filename(db: Session, template_type: str, target_type: Op
 
 # ─── HTML rendering ────────────────────────────────────────────────────────────
 
+def _apply_placeholders(html: str, full_vars: dict) -> str:
+    """Substitute both {{key}} and single-brace {key} placeholders with values.
+
+    Starter templates store placeholders as single-brace {key}; Jinja2 only treats
+    {{key}} as variables, so single-brace tokens pass through raw. Replace them
+    explicitly for every known variable, using negative lookarounds so we never
+    touch the inner {key} of a {{key}} token.
+    """
+    for k, v in full_vars.items():
+        if not isinstance(v, str):
+            continue
+        html = html.replace("{{" + k + "}}", v)
+        html = re.sub(r"(?<!\{)\{" + re.escape(k) + r"\}(?!\})", lambda _: v, html)
+    return html
+
+
 def render_document_html(html_template: str, full_vars: dict) -> str:
     try:
         from jinja2 import Template as JinjaTemplate
         rendered_html = JinjaTemplate(html_template).render(**full_vars)
-        for k, v in full_vars.items():
-            if isinstance(v, str):
-                rendered_html = rendered_html.replace(f"{{{{{k}}}}}", v)
+        rendered_html = _apply_placeholders(rendered_html, full_vars)
     except ImportError:
-        rendered_html = html_template
-        for k, v in full_vars.items():
-            if isinstance(v, str):
-                rendered_html = rendered_html.replace(f"{{{{{k}}}}}", v)
+        rendered_html = _apply_placeholders(html_template, full_vars)
     except Exception as e:
         raise ValueError(f"Render template gagal: {e}")
     return rendered_html

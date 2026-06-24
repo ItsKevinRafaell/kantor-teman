@@ -170,6 +170,14 @@ def _persist_lead_analysis_with_retry(session_factory, lead: Lead, text: str, pa
         except OperationalError as exc:
             db.rollback()
             last_error = exc
+            # Stale/"gone away" connection: recycle the pool so the next session
+            # checks out a fresh connection instead of reusing the dead one.
+            try:
+                bind = getattr(getattr(session_factory, "kw", {}), "get", lambda *a: None)("bind")
+                if bind is not None and hasattr(bind, "dispose"):
+                    bind.dispose()
+            except Exception:
+                pass
             if attempt >= max_attempts:
                 raise
             time.sleep(0.5 * attempt)
@@ -966,7 +974,9 @@ async def analyze_batch(
         from sqlalchemy.orm import sessionmaker as _sm
         from sqlalchemy.pool import QueuePool
         _ca = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
-        _engine = _ce(DATABASE_URL, connect_args=_ca, poolclass=QueuePool, pool_size=2, max_overflow=1, pool_recycle=300)
+        # pool_pre_ping replaces stale/"gone away" connections before each checkout.
+        # pool_recycle must stay well below MySQL wait_timeout on shared hosting.
+        _engine = _ce(DATABASE_URL, connect_args=_ca, poolclass=QueuePool, pool_size=2, max_overflow=1, pool_recycle=120, pool_pre_ping=True)
         _Session = _sm(bind=_engine)
         try:
             _db = _Session()

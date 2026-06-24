@@ -1029,6 +1029,22 @@ def _document_template_html(template: DocumentTemplate) -> str:
     return html_template
 
 
+def _apply_placeholders(html: str, full_vars: dict) -> str:
+    """Substitute both {{key}} and single-brace {key} placeholders.
+
+    Starter templates use single-brace {key}; Jinja2 only renders {{key}}, so
+    single-brace tokens survive untouched and appear raw in the output. Replace
+    every known variable's single-brace token explicitly (negative lookarounds
+    so the inner {key} of a {{key}} token is left alone).
+    """
+    for k, v in full_vars.items():
+        if not isinstance(v, str):
+            continue
+        html = html.replace("{{" + k + "}}", v)
+        html = re.sub(r"(?<!\{)\{" + re.escape(k) + r"\}(?!\})", lambda _: v, html)
+    return html
+
+
 def _render_document_html(html_template: str, full_vars: dict) -> str:
     try:
         from jinja2.sandbox import SandboxedEnvironment
@@ -1043,17 +1059,9 @@ def _render_document_html(html_template: str, full_vars: dict) -> str:
         env = SandboxedEnvironment(undefined=SilentUndefined)
         template = env.from_string(html_template)
         rendered_html = template.render(**full_vars)
-        # Fallback: catch any remaining {{key}} that Jinja2 left as literal text
-        for k, v in full_vars.items():
-            if isinstance(v, str):
-                placeholder = "{{" + k + "}}"
-                rendered_html = rendered_html.replace(placeholder, v)
+        rendered_html = _apply_placeholders(rendered_html, full_vars)
     except ImportError:
-        rendered_html = html_template
-        for k, v in full_vars.items():
-            if isinstance(v, str):
-                placeholder = "{{" + k + "}}"
-                rendered_html = rendered_html.replace(placeholder, v)
+        rendered_html = _apply_placeholders(html_template, full_vars)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Render template gagal: {e}")
     return rendered_html
