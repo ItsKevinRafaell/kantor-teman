@@ -8,10 +8,20 @@ export interface Lead { id: number; business_name: string; phone_number: string;
 export interface Contact { id: number; business_name: string; owner_name: string | null; phone_number: string; purchased_product: string | null; }
 export interface Product { id: string; name: string; description: string | null; base_price: number; features: string[]; }
 export interface Project { id: string; lead_id: number | null; name: string; nominal: number; start_date: string | null; end_date: string | null; service_type: string | null; contract_months: number | null; }
-export interface GeneratedDoc { id: string; file_url: string; template_name: string; display_filename?: string; }
+export interface GeneratedDoc { id: string; file_url: string; template_name: string; display_filename?: string; is_edited?: boolean; }
 export interface LineItem { id: string; name: string; description: string; qty: number; price: number; }
 export interface PaymentMethod { id: number; name: string; account_number: string; account_name: string; notes: string | null; is_active: boolean; }
 export interface Toast { message: string; type: "success" | "error"; }
+export interface Draft {
+  id: string; template_id: string | null; template_name: string | null;
+  target_type: string | null; target_id: string | null;
+  variables_json: Record<string, string>; line_items_json: Record<string, LineItem[]>;
+  created_at: string; updated_at: string | null;
+}
+export interface DocumentVersion {
+  id: string; version_number: number; variables_json: Record<string, string>;
+  html_content: string | null; change_summary: string; created_at: string; created_by: string | null;
+}
 
 const LINE_ITEM_KEYS = ["items_rows", "items_table", "line_items", "items"];
 const TOTAL_KEYS = ["total", "total_harga", "grand_total", "total_bayar", "total_amount", "jumlah_total", "total_tagihan"];
@@ -81,6 +91,45 @@ export function useDocumentGenerator() {
   const [klienDropdownOpen, setKlienDropdownOpen] = useState(false);
   const klienRef = useRef<HTMLDivElement>(null);
 
+  // ── Draft auto-save refs (avoid stale closures) ──
+  const draftStateRef = useRef({
+    selectedTemplate: null as DocTemplate | null,
+    step: 0,
+    selectedProject: null as Project | null,
+    selectedLead: null as Lead | null,
+    selectedContact: null as Contact | null,
+    variables: {} as Record<string, string>,
+    lineItems: {} as Record<string, LineItem[]>,
+  });
+
+  // Keep refs in sync
+  useEffect(() => {
+    draftStateRef.current.selectedTemplate = selectedTemplate;
+    draftStateRef.current.step = step;
+    draftStateRef.current.selectedProject = selectedProject;
+    draftStateRef.current.selectedLead = selectedLead;
+    draftStateRef.current.selectedContact = selectedContact;
+    draftStateRef.current.variables = variables;
+    draftStateRef.current.lineItems = lineItems;
+  });
+
+  // ── Draft state ──
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<Draft[]>([]);
+  const [showDraftLoader, setShowDraftLoader] = useState(false);
+  const [draftSaving, setDraftSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasUnsavedChangesRef = useRef(false);
+
+  // ── Version history state ──
+  const [versions, setVersions] = useState<DocumentVersion[]>([]);
+  const [showVersions, setShowVersions] = useState(false);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+
+  // ── Edit mode ──
+  const [editDocId, setEditDocId] = useState<string | null>(null);
+
   // Load data
   useEffect(() => {
     async function loadData() {
@@ -92,6 +141,21 @@ export function useDocumentGenerator() {
       try { const r = await apiFetch("/api/finance/payment-methods"); if (r.ok) { const d: PaymentMethod[] = await r.json(); setPaymentMethods(d.filter(m => m.is_active)); } } catch {}
     }
     loadData();
+  }, []);
+
+  // Load drafts on mount
+  useEffect(() => {
+    async function loadDrafts() {
+      try {
+        const r = await apiFetch("/api/document-drafts");
+        if (r.ok) {
+          const data: Draft[] = await r.json();
+          setDrafts(data);
+          if (data.length > 0) setShowDraftLoader(true);
+        }
+      } catch {}
+    }
+    loadDrafts();
   }, []);
 
   // Cleanup preview URL
@@ -107,6 +171,111 @@ export function useDocumentGenerator() {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
+
+  // ── Draft auto-save ──
+  function markUnsaved() {
+    hasUnsavedChangesRef.current = true;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      saveDraft();
+    }, 5000);
+  }
+
+  async function saveDraft() {
+    const ctx = draftStateRef.current;
+    // SKIP auto-save in edit mode
+    if (editDocId) return;
+    if (!ctx.selectedTemplate || ctx.step < 1 || ctx.step > 2) return;
+    setDraftSaving(true);
+    const ttype = ctx.selectedProject ? "project" : ctx.selectedLead ? "lead" : ctx.selectedContact ? "contact" : "empty";
+    const tid = ctx.selectedProject?.id ?? ctx.selectedLead?.id ?? ctx.selectedContact?.id ?? null;
+    try {
+      const liJson: Record<string, unknown> = {};
+      for (const [key, items] of Object.entries(ctx.lineItems)) {
+        liJson[key] = items.map(it => ({ id: it.id, name: it.name, description: it.description, qty: it.qty, price: it.price }));
+      }
+      const body = {
+        template_id: ctx.selectedTemplate.id,
+        template_name: ctx.selectedTemplate.name,
+        target_type: ttype !== "empty" ? ttype : null,
+        target_id: tid,
+        variables_json: ctx.variables,
+        line_items_json: Object.keys(liJson).length > 0 ? liJson : null,
+      };
+      console.log('[Draft] Saving:', JSON.stringify(body, null, 2));
+      const res = await apiFetch("/api/document-drafts", { method: "POST", body: JSON.stringify(body) });
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error('[Draft] Save failed:', res.status, errText);
+      }
+      if (res.ok) {
+        const data = await res.json();
+        setDraftId(data.id);
+        setLastSaved(new Date());
+        hasUnsavedChangesRef.current = false;
+        const lr = await apiFetch("/api/document-drafts");
+        if (lr.ok) setDrafts(await lr.json());
+      }
+    } catch {}
+    finally { setDraftSaving(false); }
+  }
+
+  async function loadDraft(draft: Draft) {
+    setSelectedTemplate({ id: draft.template_id!, name: draft.template_name || "", type: "", variables: [] });
+    setVariables(draft.variables_json || {});
+    if (draft.line_items_json) {
+      setLineItems(draft.line_items_json);
+    }
+    setDraftId(draft.id);
+    setShowDraftLoader(false);
+    setStep(2); // Jump to form step
+    setToast({ message: "Draft dimuat", type: "success" });
+  }
+
+  async function deleteDraft(draftIdToDelete: string) {
+    try { await apiFetch(`/api/document-drafts/${draftIdToDelete}`, { method: "DELETE" }); } catch {}
+    setDrafts(prev => prev.filter(d => d.id !== draftIdToDelete));
+    if (draftId === draftIdToDelete) setDraftId(null);
+  }
+
+  async function deleteCurrentDraft() {
+    if (draftId) {
+      await deleteDraft(draftId);
+    }
+  }
+
+  // ── Version history ──
+  async function loadVersions(docId: string) {
+    setVersionsLoading(true);
+    try {
+      const r = await apiFetch(`/api/documents/generated/${docId}/versions`);
+      if (r.ok) setVersions(await r.json());
+    } catch {}
+    finally { setVersionsLoading(false); }
+  }
+
+  async function rollbackVersion(docId: string, versionId: string) {
+    const res = await apiFetch(`/api/documents/generated/${docId}/versions/${versionId}/rollback`, { method: "POST" });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.detail || "Gagal rollback");
+    }
+    // Refresh versions list
+    await loadVersions(docId);
+  }
+
+  // ── Edit document ──
+  async function editDocument(docId: string, updatedVariables: Record<string, string>, changeSummary: string) {
+    const res = await apiFetch(`/api/documents/generated/${docId}/edit`, {
+      method: "POST",
+      body: JSON.stringify({ variables: updatedVariables, change_summary: changeSummary }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.detail || "Gagal edit dokumen");
+    }
+    return await res.json();
+  }
 
   // --- Filtered lists ---
   const filteredLeads = useMemo(() => {
@@ -195,12 +364,14 @@ export function useDocumentGenerator() {
   const pickLead = useCallback((lead: Lead) => {
     setSelectedLead(lead); setSelectedContact(null); setSelectedProject(null);
     setVariables(prev => ({ ...prev, klien: lead.business_name, nama: lead.business_name, alamat: lead.address || "", layanan: lead.product_interest || "", phone: lead.phone_number }));
+    markUnsaved();
     if (selectedTemplate) fetchAndApplyDefaults(selectedTemplate, "lead", lead.id);
   }, [selectedTemplate]);
 
   const pickContact = useCallback((contact: Contact) => {
     setSelectedContact(contact); setSelectedLead(null); setSelectedProject(null);
     setVariables(prev => ({ ...prev, klien: contact.business_name, nama: contact.business_name, phone: contact.phone_number, layanan: contact.purchased_product || "" }));
+    markUnsaved();
     if (selectedTemplate) fetchAndApplyDefaults(selectedTemplate, "contact", contact.id);
   }, [selectedTemplate]);
 
@@ -216,6 +387,7 @@ export function useDocumentGenerator() {
       tanggal_mulai: formatDate(project.start_date || ""), tanggal_akhir: formatDate(project.end_date || ""),
       durasi: project.contract_months ? `${project.contract_months} bulan` : prev.durasi || "",
     }));
+    markUnsaved();
     if (selectedTemplate) fetchAndApplyDefaults(selectedTemplate, "project", project.id);
   }, [leads, selectedTemplate]);
 
@@ -228,11 +400,13 @@ export function useDocumentGenerator() {
       syncTotalVariable(variables, items, setVariables);
       return { ...prev, [key]: items };
     });
+    markUnsaved();
     setProductPickerForKey(null); setProductSearch("");
   }, [variables]);
 
   const pickProductForSingleField = useCallback((key: string, product: Product) => {
     setVariables(prev => ({ ...prev, [key]: product.name, scope: key === "layanan" && !prev.scope ? (product.description || product.features?.join("\n") || "") : prev.scope }));
+    markUnsaved();
     setProductPickerForKey(null); setProductSearch("");
   }, []);
 
@@ -284,11 +458,56 @@ export function useDocumentGenerator() {
     if (!selectedTemplate) return;
     setGenerating(true);
     try {
+      // Edit mode: update existing document instead of creating new
+      if (editDocId) {
+        // Merge defaults before sending edit to ensure all template placeholders are filled
+        try {
+          const ttype = selectedProject ? "project" : selectedLead ? "lead" : selectedContact ? "contact" : "empty";
+          const tid = selectedProject?.id ?? selectedLead?.id ?? selectedContact?.id ?? null;
+          const defParams = new URLSearchParams();
+          if (ttype !== "empty") defParams.set("target_type", ttype);
+          if (tid !== null) defParams.set("target_id", String(tid));
+          const defRes = await apiFetch(`/api/document-templates/${selectedTemplate.id}/defaults?${defParams}`);
+          if (defRes.ok) {
+            const defData = await defRes.json();
+            const defaults = defData.defaults || {};
+            // Merge: user values override defaults
+            const merged = { ...defaults, ...variables };
+            const res = await apiFetch(`/api/documents/generated/${editDocId}/edit`, {
+              method: "POST",
+              body: JSON.stringify({ variables: merged, change_summary: "Edit via form generator" }),
+            });
+            if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || "Edit gagal"); }
+            const data = await res.json();
+            setGeneratedDoc({ id: data.id, file_url: data.file_url, template_name: selectedTemplate.name, display_filename: selectedTemplate.name });
+            setEditDocId(null);
+            setStep(4);
+            await deleteCurrentDraft();
+            return;
+          }
+        } catch (e) { /* fallback to raw variables */ }
+        // Fallback: send variables as-is if defaults fetch fails
+        const res = await apiFetch(`/api/documents/generated/${editDocId}/edit`, {
+          method: "POST",
+          body: JSON.stringify({ variables, change_summary: "Edit via form generator" }),
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || "Edit gagal"); }
+        const data = await res.json();
+        setGeneratedDoc({ id: data.id, file_url: data.file_url, template_name: selectedTemplate.name, display_filename: selectedTemplate.name });
+        setEditDocId(null);
+        setStep(4);
+        await deleteCurrentDraft();
+        return;
+      }
+
+      // Normal mode: create new document
       const res = await apiFetch("/api/documents/generate", { method: "POST", body: JSON.stringify(buildDocumentPayload()) });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || "Generate gagal"); }
       const data = await res.json();
       setGeneratedDoc({ id: data.document_id, file_url: data.file_url, template_name: data.template_name, display_filename: data.display_filename });
       setStep(4);
+      // Clean up current draft after successful generation
+      await deleteCurrentDraft();
     } catch (e: unknown) { setToast({ message: e instanceof Error ? e.message : "Generate gagal", type: "error" }); }
     finally { setGenerating(false); }
   }
@@ -305,13 +524,24 @@ export function useDocumentGenerator() {
     finally { setSendingEmail(false); }
   }
 
+  // Wrap setVariables to mark unsaved changes
+  const setVariablesAndMark = useCallback((updater: React.SetStateAction<Record<string, string>>) => {
+    setVariables(updater);
+    if (step >= 1 && step <= 2) markUnsaved();
+  }, [step]);
+
+  const setLineItemsAndMark = useCallback((updater: React.SetStateAction<Record<string, LineItem[]>>) => {
+    setLineItems(updater);
+    if (step >= 1 && step <= 2) markUnsaved();
+  }, [step]);
+
   return {
     // State
     step, setStep, templates, selectedTemplate, targetType, setTargetType,
     leads, contacts, products, projects,
     selectedLead, selectedContact, selectedProject,
     targetSearch, setTargetSearch,
-    variables, setVariables, lineItems, setLineItems,
+    variables, setVariables: setVariablesAndMark, lineItems, setLineItems: setLineItemsAndMark,
     productPickerForKey, setProductPickerForKey, productPickerMode, setProductPickerMode,
     productSearch, setProductSearch,
     showSeqEditor, setShowSeqEditor, seqStartFrom, setSeqStartFrom,
@@ -320,6 +550,8 @@ export function useDocumentGenerator() {
     emailModal, setEmailModal, emailTo, setEmailTo, emailSubject, setEmailSubject, sendingEmail,
     toast, setToast, paymentMethods,
     klienSearch, setKlienSearch, klienDropdownOpen, setKlienDropdownOpen, klienRef,
+    // Edit mode
+    editDocId, setEditDocId,
     // Filtered
     filteredLeads, filteredContacts, filteredProjects, filteredProducts, klienCandidates,
     // Actions
@@ -327,5 +559,11 @@ export function useDocumentGenerator() {
     addLineItemFromProduct, pickProductForSingleField,
     loadCurrentSequence, saveSequence, buildDocumentPayload,
     handlePreview, handleGenerate, handleSendEmail,
+    // Draft
+    draftId, drafts, showDraftLoader, setShowDraftLoader, draftSaving, lastSaved,
+    saveDraft, loadDraft, deleteDraft,
+    // Version history
+    versions, showVersions, setShowVersions, versionsLoading,
+    loadVersions, rollbackVersion, editDocument,
   };
 }

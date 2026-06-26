@@ -1726,5 +1726,62 @@ if cur.fetchone():
 else:
     print("= ai_proxies belum ada, akan dibuat oleh SQLAlchemy")
 
+# ---------------------------------------------------------------------------
+# Migrasi: document drafts, versions, editable columns
+# ---------------------------------------------------------------------------
+cur.execute("PRAGMA table_info(generated_documents)")
+gd_cols = {row[1] for row in cur.fetchall()}
+if "edited_html" not in gd_cols:
+    cur.execute("ALTER TABLE generated_documents ADD COLUMN edited_html TEXT")
+    print("+ kolom edited_html ditambahkan ke generated_documents")
+else:
+    print("= generated_documents.edited_html sudah ada, skip")
+
+if "is_edited" not in gd_cols:
+    cur.execute("ALTER TABLE generated_documents ADD COLUMN is_edited BOOLEAN DEFAULT FALSE")
+    print("+ kolom is_edited ditambahkan ke generated_documents")
+else:
+    print("= generated_documents.is_edited sudah ada, skip")
+
+cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='document_drafts'")
+if not cur.fetchone():
+    cur.execute("""
+        CREATE TABLE document_drafts (
+            id VARCHAR(36) PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            template_id VARCHAR(36),
+            template_name VARCHAR(255),
+            target_type VARCHAR(50),
+            target_id VARCHAR(255),
+            variables_json TEXT NOT NULL,
+            line_items_json TEXT,
+            created_at VARCHAR(255) NOT NULL,
+            updated_at VARCHAR(255)
+        )
+    """)
+    print("+ tabel document_drafts dibuat")
+else:
+    print("= document_drafts sudah ada, skip")
+
+cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='document_versions'")
+if not cur.fetchone():
+    cur.execute("""
+        CREATE TABLE document_versions (
+            id VARCHAR(36) PRIMARY KEY,
+            document_id VARCHAR(36) NOT NULL,
+            version_number INTEGER NOT NULL,
+            variables_json TEXT,
+            html_content TEXT,
+            change_summary VARCHAR(500),
+            created_at VARCHAR(255) NOT NULL,
+            created_by VARCHAR(255)
+        )
+    """)
+    print("+ tabel document_versions dibuat")
+else:
+    print("= document_versions sudah ada, skip")
+
+conn.commit()
+
 conn.close()
 print("Migrasi selesai.")

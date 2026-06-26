@@ -62,3 +62,41 @@ class DocumentWorkflowUpdate(BaseModel):
     status: str
     review_notes: Optional[str] = Field(None, max_length=2000)
     payment_status: Optional[str] = None
+
+
+class DocumentDraftIn(BaseModel):
+    template_id: Optional[str] = None
+    template_name: Optional[str] = None
+    target_type: Optional[str] = None
+    target_id: Optional[str] = None
+    variables_json: dict
+    line_items_json: Optional[dict] = None
+
+
+class DocumentDraftOut(BaseModel):
+    id: str
+    template_id: Optional[str]
+    template_name: Optional[str]
+    target_type: Optional[str]
+    target_id: Optional[str]
+    variables_json: dict
+    created_at: str
+    updated_at: Optional[str]
+    model_config = {"from_attributes": True}
+
+
+class DocumentEditIn(BaseModel):
+    variables: Optional[dict] = None
+    html_content: Optional[str] = None
+    change_summary: Optional[str] = None
+
+
+class DocumentVersionOut(BaseModel):
+    id: str
+    version_number: int
+    variables_json: Optional[dict]
+    html_content: Optional[str]
+    change_summary: Optional[str]
+    created_at: str
+    created_by: Optional[str]
+    model_config = {"from_attributes": True}

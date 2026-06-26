@@ -145,3 +145,33 @@ class DocumentSequence(Base):
     target_id = Column(String(255), nullable=False)
     template_type = Column(String(50), nullable=False)
     last_seq = Column(Integer, nullable=False, default=0)
+
+
+class DocumentDraft(Base):
+    """Pre-generate draft: saves form variables before PDF is generated."""
+    __tablename__ = "document_drafts"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    template_id = Column(String(36), ForeignKey("document_templates.id"), nullable=True)
+    template_name = Column(String(255), nullable=True)
+    target_type = Column(String(50), nullable=True)
+    target_id = Column(String(255), nullable=True)
+    variables_json = Column(Text, nullable=False)
+    line_items_json = Column(Text, nullable=True)
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at = Column(String(255), nullable=True)
+    user = relationship("User", backref="document_drafts")
+
+
+class DocumentVersion(Base):
+    """Snapshot of a generated document before each edit, for rollback."""
+    __tablename__ = "document_versions"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    document_id = Column(String(36), ForeignKey("generated_documents.id"), nullable=False)
+    version_number = Column(Integer, nullable=False)
+    variables_json = Column(Text, nullable=True)
+    html_content = Column(Text, nullable=True)
+    change_summary = Column(String(500), nullable=True)
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    created_by = Column(String(255), nullable=True)
+    document = relationship("GeneratedDocument", backref="versions")

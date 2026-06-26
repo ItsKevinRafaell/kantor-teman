@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { apiFetch } from "../../../lib/api";
-import { Download, Trash2, FileText, Plus, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Download, Trash2, FileText, Plus, Search, Pencil, Clock } from "lucide-react";
 import Link from "next/link";
 import Toast from "../../../components/Toast";
 import Modal from "../../../components/Modal";
 import Breadcrumb from "../../../components/Breadcrumb";
+import VersionHistoryPanel from "../../../components/documents/VersionHistoryPanel";
 
 interface GeneratedDoc {
   id: string;
@@ -71,6 +73,7 @@ function docTypeLabel(doc: GeneratedDoc) {
 }
 
 export default function DocumentGeneratorPage() {
+  const router = useRouter();
   const [docs, setDocs] = useState<GeneratedDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -80,6 +83,11 @@ export default function DocumentGeneratorPage() {
   const [dateTo, setDateTo] = useState("");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  // Version state
+  const [showVersions, setShowVersions] = useState(false);
+  const [versionDocId, setVersionDocId] = useState<string | null>(null);
+  const [versions, setVersions] = useState<any[]>([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
 
   const fetchDocs = useCallback(async () => {
     try {
@@ -111,6 +119,49 @@ export default function DocumentGeneratorPage() {
     }
     setDocs(prev => prev.map(item => item.id === doc.id ? { ...item, status, payment_status: paymentStatus } : item));
     setToast({ message: "Status dokumen diperbarui", type: "success" });
+  }
+
+  async function openEdit(doc: GeneratedDoc) {
+    // Fetch the document's variables first
+    try {
+      const res = await apiFetch(`/api/documents/generated/${doc.id}/versions`);
+      if (res.ok) {
+        const vers: any[] = await res.json();
+        const original = vers.find((v: any) => v.version_number === 0);
+        if (original) {
+          sessionStorage.setItem("kt_edit_context", JSON.stringify({
+            docId: doc.id,
+            templateId: doc.template_id,
+            templateName: doc.template_name,
+            variables: original.variables_json || {},
+          }));
+        }
+      }
+    } catch {}
+    router.push("/documents/generator/new?edit=true");
+  }
+
+  // handleSaveEdit is now done via the edit backend endpoint called from the generator page
+  // This function is kept for backward compat but not used
+  async function handleSaveEdit(_docId: string, _vars: Record<string, string>, _summary: string) {}
+
+  async function loadVersions(docId: string) {
+    setVersionsLoading(true);
+    try {
+      const res = await apiFetch(`/api/documents/generated/${docId}/versions`);
+      if (res.ok) setVersions(await res.json());
+    } catch {}
+    finally { setVersionsLoading(false); }
+  }
+
+  async function handleRollback(docId: string, versionId: string) {
+    const res = await apiFetch(`/api/documents/generated/${docId}/versions/${versionId}/rollback`, { method: "POST" });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.detail || "Gagal rollback");
+    }
+    await loadVersions(docId);
+    setToast({ message: "Berhasil rollback ke versi sebelumnya", type: "success" });
   }
 
   const filtered = useMemo(() => {
@@ -255,13 +306,21 @@ export default function DocumentGeneratorPage() {
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-2 ml-3">
+              <div className="flex items-center gap-1.5 ml-3">
                 {doc.file_url && (
                   <a href={`${API_BASE}/api/documents/${doc.id}/download`} target="_blank" rel="noopener noreferrer"
                     className="p-2 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-lg transition-colors" title="Download">
                     <Download size={14} className="text-gray-500" />
                   </a>
                 )}
+                <button onClick={() => openEdit(doc)}
+                  className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Edit">
+                  <Pencil size={14} className="text-blue-500" />
+                </button>
+                <button onClick={() => { setVersionDocId(doc.id); setShowVersions(true); loadVersions(doc.id); }}
+                  className="p-2 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors" title="Riwayat Versi">
+                  <Clock size={14} className="text-purple-500" />
+                </button>
                 <button onClick={() => setDeleteId(doc.id)}
                   className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Hapus">
                   <Trash2 size={14} className="text-red-400" />
@@ -281,6 +340,14 @@ export default function DocumentGeneratorPage() {
         confirmClass="bg-red-600 hover:bg-red-700"
         onConfirm={() => deleteId && deleteDoc(deleteId)}
         onCancel={() => setDeleteId(null)}
+      />
+
+      <VersionHistoryPanel
+        open={showVersions}
+        versions={versions}
+        loading={versionsLoading}
+        onRollback={(vid) => versionDocId ? handleRollback(versionDocId, vid) : Promise.resolve()}
+        onClose={() => { setShowVersions(false); setVersionDocId(null); }}
       />
     </div>
   );

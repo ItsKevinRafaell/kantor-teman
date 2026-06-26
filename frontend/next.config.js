@@ -10,8 +10,9 @@ const backendOrigin = (() => {
     return "https://api.kantorteman.my.id";
   }
 })();
-const connectSrc = ["'self'", backendOrigin, "wss:", "https://maps.googleapis.com", "https://maps.gstatic.com", "https://*.googleapis.com", "https://*.gstatic.com"];
-const imgSrc = ["'self'", "data:", backendOrigin, "blob:", "https://maps.googleapis.com", "https://maps.gstatic.com", "https://*.tile.openstreetmap.org", "https://*.openstreetmap.org", "https://*.gstatic.com", "https://*.google.com"];
+const FALLBACK_PROD = "https://api.kantorteman.my.id";
+const connectSrc = ["'self'", backendOrigin, FALLBACK_PROD, "wss:", "https://maps.googleapis.com", "https://maps.gstatic.com", "https://*.googleapis.com", "https://*.gstatic.com"];
+const imgSrc = ["'self'", "data:", backendOrigin, FALLBACK_PROD, "blob:", "https://maps.googleapis.com", "https://maps.gstatic.com", "https://*.tile.openstreetmap.org", "https://*.openstreetmap.org", "https://*.gstatic.com", "https://*.google.com"];
 const fontSrc = ["'self'", "https://fonts.gstatic.com", "https://*.gstatic.com"];
 const scriptSrc = ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://static.cloudflareinsights.com"];
 if (process.env.NODE_ENV === "development") {

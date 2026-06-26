@@ -1,4 +1,6 @@
 "use client";
+import { useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Toast from "../../../../components/Toast";
 import Breadcrumb from "../../../../components/Breadcrumb";
 import GeneratorSteps from "../../../../components/documents/GeneratorSteps";
@@ -10,21 +12,62 @@ import GeneratorSuccess from "../../../../components/documents/GeneratorSuccess"
 import ProductPicker from "../../../../components/documents/ProductPicker";
 import SequenceEditor from "../../../../components/documents/SequenceEditor";
 import EmailModal from "../../../../components/documents/EmailModal";
+import DraftSaveBar from "../../../../components/documents/DraftSaveBar";
+import DraftLoader from "../../../../components/documents/DraftLoader";
 import { useDocumentGenerator } from "../../../../hooks/useDocumentGenerator";
 
-export default function DocumentNewPage() {
+function DocumentNewPageInner() {
   const ctx = useDocumentGenerator();
+  const searchParams = useSearchParams();
+  const isEditMode = searchParams.get("edit") === "true";
+
+  // Detect edit mode: load variables from sessionStorage, find template, jump to step 2
+  useEffect(() => {
+    if (!isEditMode) return;
+    const raw = sessionStorage.getItem("kt_edit_context");
+    if (!raw) return;
+    try {
+      const editCtx = JSON.parse(raw);
+      if (editCtx.templateId) {
+        // Wait for templates to load, then set up the form
+        const tmpl = ctx.templates.find(t => t.id === editCtx.templateId);
+        if (tmpl) {
+          ctx.setEditDocId(editCtx.docId || null);
+          ctx.selectTemplate(tmpl);
+          ctx.setVariables(editCtx.variables || {});
+          ctx.setStep(2); // Jump directly to form step (fill variables)
+        }
+      }
+      sessionStorage.removeItem("kt_edit_context");
+    } catch { /* ignore parse errors */ }
+  }, [isEditMode, ctx.templates]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <Breadcrumb items={[
         { label: "Dokumen Resmi", href: "/documents/generator" },
-        { label: "Buat Dokumen" },
+        { label: isEditMode ? "Edit Dokumen" : "Buat Dokumen" },
       ]} showBack backHref="/documents/generator" />
-      <div>
-        <h1 className="text-2xl font-bold text-neutral-800 dark:text-neutral-100">Buat Dokumen Resmi</h1>
-        <p className="text-sm text-gray-500 mt-1">Pilih template formal, target, lalu generate PDF.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-neutral-800 dark:text-neutral-100">
+            {isEditMode ? "Edit Dokumen" : "Buat Dokumen Resmi"}
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {isEditMode ? "Ubah variabel lalu regenerate PDF." : "Pilih template formal, target, lalu generate PDF."}
+          </p>
+        </div>
+        <DraftSaveBar saving={ctx.draftSaving} lastSaved={ctx.lastSaved} hasDraft={ctx.step >= 1 && ctx.step <= 2 && !!ctx.selectedTemplate} />
       </div>
+
+      {/* Draft Loader */}
+      <DraftLoader
+        drafts={ctx.drafts}
+        loading={ctx.showDraftLoader && ctx.drafts.length === 0}
+        onResume={ctx.loadDraft}
+        onDelete={ctx.deleteDraft}
+        onDismiss={() => ctx.setShowDraftLoader(false)}
+      />
 
       <GeneratorSteps currentStep={ctx.step} />
 
@@ -164,5 +207,13 @@ export default function DocumentNewPage() {
 
       {ctx.toast && <Toast message={ctx.toast.message} type={ctx.toast.type} onClose={() => ctx.setToast(null)} />}
     </div>
+  );
+}
+
+export default function DocumentNewPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-gray-400">Memuat...</div>}>
+      <DocumentNewPageInner />
+    </Suspense>
   );
 }

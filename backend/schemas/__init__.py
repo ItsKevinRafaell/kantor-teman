@@ -43,7 +43,8 @@ from .credential import (
 from .document import (
     DocumentIn, DocumentOut, BrandKitUpdate, BrandAssetIn,
     DocumentTemplateIn, DocumentGenerateIn, DocumentEmailIn, InvoiceSequenceIn,
-    DocumentWorkflowUpdate,
+    DocumentWorkflowUpdate, DocumentDraftIn, DocumentDraftOut,
+    DocumentEditIn, DocumentVersionOut,
 )
 from .campaign import (
     AdsCampaignIn, AdsCampaignUpdate, AdsCampaignOut,
@@ -104,7 +105,8 @@ __all__ = [
     # document
     "DocumentIn", "DocumentOut", "BrandKitUpdate", "BrandAssetIn",
     "DocumentTemplateIn", "DocumentGenerateIn", "DocumentEmailIn", "InvoiceSequenceIn",
-    "DocumentWorkflowUpdate",
+    "DocumentWorkflowUpdate", "DocumentDraftIn", "DocumentDraftOut",
+    "DocumentEditIn", "DocumentVersionOut",
     # campaign
     "AdsCampaignIn", "AdsCampaignUpdate", "AdsCampaignOut",
     "BlastCampaignIn", "BlastCampaignOut", "FonnteWebhookIn",

@@ -26,7 +26,8 @@ from .content import (
 )
 from .document import (
     DocumentFolder, Document, BrandKit, BrandAsset,
-    DocumentTemplate, GeneratedDocument, ReportSnapshot, DocumentSequence
+    DocumentTemplate, GeneratedDocument, ReportSnapshot, DocumentSequence,
+    DocumentDraft, DocumentVersion
 )
 from .rate_limit import RateLimit
 
@@ -62,6 +63,7 @@ __all__ = [
     # document
     "DocumentFolder", "Document", "BrandKit", "BrandAsset",
     "DocumentTemplate", "GeneratedDocument", "ReportSnapshot", "DocumentSequence",
+    "DocumentDraft", "DocumentVersion",
     # rate_limit
     "RateLimit",
 ]

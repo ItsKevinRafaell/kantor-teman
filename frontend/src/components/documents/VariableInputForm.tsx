@@ -68,6 +68,13 @@ const DEDUP_PAIRS: [string, string][] = [
   ["klien", "nama"],
 ];
 
+// Keys that are server-generated aliases — always hide if their primary exists
+const SERVER_ALIAS_KEYS = new Set([
+  "nama_klien", "perusahaan_klien", "nama_perusahaan",
+  "alamat_perusahaan", "phone_perusahaan", "email_perusahaan",
+  "brand_name", "tagline",
+]);
+
 const FIELD_HINTS: Record<string, string> = {
   klien: "Nama klien / bisnis penerima dokumen",
   nama: "Nama lengkap penerima",
@@ -410,6 +417,8 @@ export default function VariableInputForm({
               suppressedKeys.add(secondary);
             }
           }
+          // Always suppress server alias keys — they're brand-owned or display-only
+          allKeys.forEach(k => { if (SERVER_ALIAS_KEYS.has(k)) suppressedKeys.add(k); });
 
           return Object.entries(variables).map(([key, val]) => {
             if (renderedKeys.has(key)) return null;

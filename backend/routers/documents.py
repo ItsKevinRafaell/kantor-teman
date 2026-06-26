@@ -10,7 +10,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import get_db, log_audit, BlastMessage, User, Lead, Contact, Project, Proposal, ProposalAnalytics, Transaction, ClientNote, ClientCredential, ClientDocument, DynamicTemplate, MessageTemplate, BrandKit, BrandAsset, Document, DocumentFolder, DocumentTemplate, GeneratedDocument, DocumentSequence, PaymentMethod, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, WorkspaceRow, LeadActivityLog
+from models import get_db, log_audit, BlastMessage, User, Lead, Contact, Project, Proposal, ProposalAnalytics, Transaction, ClientNote, ClientCredential, ClientDocument, DynamicTemplate, MessageTemplate, BrandKit, BrandAsset, Document, DocumentFolder, DocumentTemplate, GeneratedDocument, DocumentSequence, DocumentDraft, DocumentVersion, PaymentMethod, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, WorkspaceRow, LeadActivityLog
 from schemas import *  # noqa: F403
 from app.core.cache import cached, clear_cache_prefix
 from app.services import (
@@ -1184,6 +1184,18 @@ def generate_document(request: Request, body: DocumentGenerateIn, current_user: 
         except Exception as archive_err:
             print(f"[GENERATED_DOC_ARCHIVE] skip: {archive_err}", flush=True)
         db.commit()
+
+        # Clean up matching draft after successful generation
+        try:
+            db.query(DocumentDraft).filter(
+                DocumentDraft.user_id == current_user.id,
+                DocumentDraft.template_id == body.template_id,
+                DocumentDraft.target_type == body.target_type,
+                DocumentDraft.target_id == body.target_id,
+            ).delete(synchronize_session=False)
+            db.commit()
+        except Exception:
+            pass  # Draft cleanup is non-critical
     except HTTPException as e:
         db.rollback()
         raise HTTPException(status_code=e.status_code, detail=e.detail, headers=cors_h)
@@ -1266,6 +1278,431 @@ def email_document(did: str, body: DocumentEmailIn, current_user: User = Depends
         raise HTTPException(status_code=500, detail=f"SMTP send gagal: {e}")
 
     return {"success": True, "to": body.to_email}
+
+
+# ---------------------------------------------------------------------------
+# Document Drafts (pre-generate)
+# ---------------------------------------------------------------------------
+
+@router.get("/api/document-drafts")
+def list_document_drafts(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List current user's drafts."""
+    drafts = db.query(DocumentDraft).filter(
+        DocumentDraft.user_id == current_user.id
+    ).order_by(DocumentDraft.updated_at.desc() if DocumentDraft.updated_at is not None else DocumentDraft.created_at.desc()).all()
+    result = []
+    for d in drafts:
+        try:
+            vars_json = json.loads(d.variables_json) if d.variables_json else {}
+        except Exception:
+            vars_json = {}
+        try:
+            line_items = json.loads(d.line_items_json) if d.line_items_json else {}
+        except Exception:
+            line_items = {}
+        result.append({
+            "id": d.id,
+            "template_id": d.template_id,
+            "template_name": d.template_name,
+            "target_type": d.target_type,
+            "target_id": d.target_id,
+            "variables_json": vars_json,
+            "line_items_json": line_items,
+            "created_at": d.created_at,
+            "updated_at": d.updated_at,
+        })
+    return result
+
+
+@router.get("/api/document-drafts/{draft_id}")
+def get_document_draft(
+    draft_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get a single draft for resume."""
+    d = db.query(DocumentDraft).filter(
+        DocumentDraft.id == draft_id,
+        DocumentDraft.user_id == current_user.id,
+    ).first()
+    if not d:
+        raise HTTPException(status_code=404, detail="Draft tidak ditemukan")
+    try:
+        vars_json = json.loads(d.variables_json) if d.variables_json else {}
+    except Exception:
+        vars_json = {}
+    try:
+        line_items = json.loads(d.line_items_json) if d.line_items_json else {}
+    except Exception:
+        line_items = {}
+    return {
+        "id": d.id,
+        "template_id": d.template_id,
+        "template_name": d.template_name,
+        "target_type": d.target_type,
+        "target_id": d.target_id,
+        "variables_json": vars_json,
+        "line_items_json": line_items,
+        "created_at": d.created_at,
+        "updated_at": d.updated_at,
+    }
+
+
+@router.post("/api/document-drafts", status_code=201)
+def create_or_update_document_draft(
+    body: DocumentDraftIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Create or update a draft (upsert by template_id+target combo)."""
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Try to find existing draft for this user+template+target combo
+    existing = db.query(DocumentDraft).filter(
+        DocumentDraft.user_id == current_user.id,
+        DocumentDraft.template_id == body.template_id,
+        DocumentDraft.target_type == body.target_type,
+        DocumentDraft.target_id == body.target_id,
+    ).first()
+
+    if existing:
+        existing.variables_json = json.dumps(body.variables_json)
+        existing.line_items_json = json.dumps(body.line_items_json) if body.line_items_json else None
+        existing.updated_at = now
+        if body.template_name:
+            existing.template_name = body.template_name
+        draft = existing
+        log_audit(db, current_user.name, "UPDATE", "document_drafts", draft.id, {"template_name": draft.template_name})
+    else:
+        draft = DocumentDraft(
+            id=str(uuid.uuid4()),
+            user_id=current_user.id,
+            template_id=body.template_id,
+            template_name=body.template_name,
+            target_type=body.target_type,
+            target_id=body.target_id,
+            variables_json=json.dumps(body.variables_json),
+            line_items_json=json.dumps(body.line_items_json) if body.line_items_json else None,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(draft)
+        log_audit(db, current_user.name, "CREATE", "document_drafts", draft.id, {"template_name": draft.template_name})
+
+    db.commit()
+    try:
+        vars_json = json.loads(draft.variables_json) if draft.variables_json else {}
+    except Exception:
+        vars_json = {}
+    return {
+        "id": draft.id,
+        "template_id": draft.template_id,
+        "template_name": draft.template_name,
+        "target_type": draft.target_type,
+        "target_id": draft.target_id,
+        "variables_json": vars_json,
+        "created_at": draft.created_at,
+        "updated_at": draft.updated_at,
+    }
+
+
+@router.delete("/api/document-drafts/{draft_id}", status_code=204)
+def delete_document_draft(
+    draft_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete a draft."""
+    d = db.query(DocumentDraft).filter(
+        DocumentDraft.id == draft_id,
+        DocumentDraft.user_id == current_user.id,
+    ).first()
+    if not d:
+        raise HTTPException(status_code=404, detail="Draft tidak ditemukan")
+    db.delete(d)
+    db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Document Edit + Version History (post-generate)
+# ---------------------------------------------------------------------------
+
+@router.post("/api/documents/generated/{did}/edit")
+def edit_generated_document(
+    did: str,
+    body: DocumentEditIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Edit a generated document's variables and/or HTML content.
+    Creates a version snapshot before applying changes."""
+    doc = db.query(GeneratedDocument).filter(GeneratedDocument.id == did).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
+
+    if not body.variables and not body.html_content:
+        raise HTTPException(status_code=400, detail="Tidak ada perubahan yang diberikan")
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    # ── Step 1: Create version snapshot of current state ──
+    last_version = db.query(DocumentVersion).filter(
+        DocumentVersion.document_id == did
+    ).order_by(DocumentVersion.version_number.desc()).first()
+    next_version = (last_version.version_number + 1) if last_version else 1
+
+    current_vars = {}
+    try:
+        current_vars = json.loads(doc.variables_used) if doc.variables_used else {}
+    except Exception:
+        current_vars = {}
+
+    # Render current HTML for snapshot
+    current_html = None
+    if doc.template_id:
+        template = db.query(DocumentTemplate).filter(DocumentTemplate.id == doc.template_id).first()
+        if template:
+            try:
+                rendered = _render_document_html(_document_template_html(template), current_vars)
+                current_html = rendered
+            except Exception:
+                pass
+
+    version = DocumentVersion(
+        id=str(uuid.uuid4()),
+        document_id=did,
+        version_number=next_version,
+        variables_json=json.dumps(current_vars),
+        html_content=current_html,
+        change_summary=body.change_summary or "Edit dokumen",
+        created_at=now,
+        created_by=current_user.name,
+    )
+    db.add(version)
+
+    # ── Step 2: Apply variable changes ──
+    if body.variables:
+        old_vars = dict(current_vars)
+        current_vars.update(body.variables)
+        # Re-render PDF from template with new variables
+        if doc.template_id:
+            template = db.query(DocumentTemplate).filter(DocumentTemplate.id == doc.template_id).first()
+            if template:
+                try:
+                    pdf_bytes = _render_document_pdf(template, current_vars)
+                    pdf_filename = f"{str(uuid.uuid4())}.pdf"
+                    pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
+                    with open(pdf_path, "wb") as pdf_file:
+                        pdf_file.write(pdf_bytes)
+                    # Remove old PDF
+                    old_path = _resolve_generated_document_file(doc.file_url)
+                    if old_path and os.path.exists(old_path):
+                        try:
+                            os.remove(old_path)
+                        except Exception:
+                            pass
+                    doc.file_url = f"/uploads/generated_documents/{pdf_filename}"
+                    doc.variables_used = json.dumps(current_vars)
+                    doc.is_edited = True
+                except HTTPException as e:
+                    db.rollback()
+                    raise HTTPException(status_code=e.status_code, detail=e.detail)
+                except Exception as e:
+                    db.rollback()
+                    raise HTTPException(status_code=500, detail=f"Gagal regenerate PDF: {e}")
+
+    # ── Step 3: Apply direct HTML content edit ──
+    if body.html_content:
+        doc.edited_html = body.html_content
+        doc.is_edited = True
+        # Also regenerate PDF from edited HTML
+        try:
+            injected = _inject_pdf_font(body.html_content)
+            pdf_bytes = render_pdf_from_html(injected, UPLOADS_DIR)
+            pdf_filename = f"{str(uuid.uuid4())}.pdf"
+            pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
+            with open(pdf_path, "wb") as pdf_file:
+                pdf_file.write(pdf_bytes)
+            # Remove old PDF
+            old_path = _resolve_generated_document_file(doc.file_url)
+            if old_path and os.path.exists(old_path):
+                try:
+                    os.remove(old_path)
+                except Exception:
+                    pass
+            doc.file_url = f"/uploads/generated_documents/{pdf_filename}"
+        except HTTPException as e:
+            db.rollback()
+            raise HTTPException(status_code=e.status_code, detail=e.detail)
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Gagal regenerate PDF dari HTML: {e}")
+
+    doc.updated_at = now
+    db.commit()
+    log_audit(db, current_user.name, "EDIT", "generated_documents", did,
+              {"version": next_version, "change_summary": body.change_summary})
+
+    return {
+        "id": doc.id,
+        "file_url": doc.file_url,
+        "is_edited": doc.is_edited,
+        "version": next_version,
+    }
+
+
+@router.get("/api/documents/generated/{did}/versions")
+def list_document_versions(
+    did: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List version history for a generated document."""
+    doc = db.query(GeneratedDocument).filter(GeneratedDocument.id == did).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
+
+    versions = db.query(DocumentVersion).filter(
+        DocumentVersion.document_id == did
+    ).order_by(DocumentVersion.version_number.desc()).all()
+
+    result = []
+    for v in versions:
+        try:
+            vars_json = json.loads(v.variables_json) if v.variables_json else {}
+        except Exception:
+            vars_json = {}
+        result.append({
+            "id": v.id,
+            "version_number": v.version_number,
+            "variables_json": vars_json,
+            "html_content": v.html_content,
+            "change_summary": v.change_summary,
+            "created_at": v.created_at,
+            "created_by": v.created_by,
+        })
+
+    # Add v0 = original
+    try:
+        orig_vars = json.loads(doc.variables_used) if doc.variables_used else {}
+    except Exception:
+        orig_vars = {}
+    result.append({
+        "id": "original",
+        "version_number": 0,
+        "variables_json": orig_vars,
+        "html_content": None,
+        "change_summary": "Asli (saat generate)",
+        "created_at": doc.generated_at,
+        "created_by": doc.generated_by,
+    })
+    return result
+
+
+@router.post("/api/documents/generated/{did}/versions/{vid}/rollback")
+def rollback_document_version(
+    did: str,
+    vid: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Rollback a document to a previous version."""
+    doc = db.query(GeneratedDocument).filter(GeneratedDocument.id == did).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    if vid == "original":
+        # Rollback to original (re-generate from template with original variables)
+        if not doc.template_id:
+            raise HTTPException(status_code=400, detail="Tidak ada template untuk rollback")
+        template = db.query(DocumentTemplate).filter(DocumentTemplate.id == doc.template_id).first()
+        if not template:
+            raise HTTPException(status_code=400, detail="Template tidak ditemukan")
+
+        try:
+            orig_vars = json.loads(doc.variables_used) if doc.variables_used else {}
+        except Exception:
+            raise HTTPException(status_code=400, detail="Variabel tidak bisa dibaca")
+
+        try:
+            pdf_bytes = _render_document_pdf(template, orig_vars)
+            pdf_filename = f"{str(uuid.uuid4())}.pdf"
+            pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
+            with open(pdf_path, "wb") as pdf_file:
+                pdf_file.write(pdf_bytes)
+            doc.file_url = f"/uploads/generated_documents/{pdf_filename}"
+            doc.edited_html = None
+            doc.is_edited = False
+        except HTTPException as e:
+            db.rollback()
+            raise HTTPException(status_code=e.status_code, detail=e.detail)
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Gagal rollback: {e}")
+
+    else:
+        version = db.query(DocumentVersion).filter(
+            DocumentVersion.id == vid,
+            DocumentVersion.document_id == did,
+        ).first()
+        if not version:
+            raise HTTPException(status_code=404, detail="Versi tidak ditemukan")
+
+        try:
+            v_vars = json.loads(version.variables_json) if version.variables_json else {}
+        except Exception:
+            raise HTTPException(status_code=400, detail="Variabel versi tidak bisa dibaca")
+
+        if version.html_content:
+            # Rollback to HTML snapshot
+            try:
+                injected = _inject_pdf_font(version.html_content)
+                pdf_bytes = render_pdf_from_html(injected, UPLOADS_DIR)
+                pdf_filename = f"{str(uuid.uuid4())}.pdf"
+                pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
+                with open(pdf_path, "wb") as pdf_file:
+                    pdf_file.write(pdf_bytes)
+                doc.file_url = f"/uploads/generated_documents/{pdf_filename}"
+                doc.edited_html = version.html_content
+                doc.is_edited = True
+            except Exception as e:
+                db.rollback()
+                raise HTTPException(status_code=500, detail=f"Gagal rollback: {e}")
+        elif doc.template_id:
+            # Rollback to variables snapshot, re-render from template
+            template = db.query(DocumentTemplate).filter(DocumentTemplate.id == doc.template_id).first()
+            if not template:
+                raise HTTPException(status_code=400, detail="Template tidak ditemukan")
+            try:
+                pdf_bytes = _render_document_pdf(template, v_vars)
+                pdf_filename = f"{str(uuid.uuid4())}.pdf"
+                pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
+                with open(pdf_path, "wb") as pdf_file:
+                    pdf_file.write(pdf_bytes)
+                doc.file_url = f"/uploads/generated_documents/{pdf_filename}"
+                doc.variables_used = json.dumps(v_vars)
+                doc.edited_html = None
+                doc.is_edited = False
+            except Exception as e:
+                db.rollback()
+                raise HTTPException(status_code=500, detail=f"Gagal rollback: {e}")
+
+    doc.updated_at = now
+    db.commit()
+    log_audit(db, current_user.name, "ROLLBACK", "generated_documents", did,
+              {"rollback_to_version": vid})
+
+    return {
+        "id": doc.id,
+        "file_url": doc.file_url,
+        "is_edited": doc.is_edited,
+        "rollback_to": vid,
+    }
 
 
 # ---------------------------------------------------------------------------
