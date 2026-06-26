@@ -15,7 +15,7 @@ export interface Toast { message: string; type: "success" | "error"; }
 export interface Draft {
   id: string; template_id: string | null; template_name: string | null;
   target_type: string | null; target_id: string | null;
-  variables_json: Record<string, string>; line_items_json: Record<string, LineItem[]>;
+  variables_json: Record<string, string>; line_items_json?: Record<string, LineItem[]>;
   created_at: string; updated_at: string | null;
 }
 export interface DocumentVersion {
