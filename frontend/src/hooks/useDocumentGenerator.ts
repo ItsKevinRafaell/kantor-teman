@@ -121,6 +121,7 @@ export function useDocumentGenerator() {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasUnsavedChangesRef = useRef(false);
+  const saveDraftRef = useRef<(() => Promise<void>) | null>(null);
 
   // ── Version history state ──
   const [versions, setVersions] = useState<DocumentVersion[]>([]);
@@ -173,15 +174,7 @@ export function useDocumentGenerator() {
   }, []);
 
   // ── Draft auto-save ──
-  function markUnsaved() {
-    hasUnsavedChangesRef.current = true;
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = setTimeout(() => {
-      saveDraft();
-    }, 5000);
-  }
-
-  async function saveDraft() {
+  async function saveDraftFn() {
     const ctx = draftStateRef.current;
     // SKIP auto-save in edit mode
     if (editDocId) return;
@@ -207,6 +200,7 @@ export function useDocumentGenerator() {
       if (!res.ok) {
         const errText = await res.text();
         console.error('[Draft] Save failed:', res.status, errText);
+        setToast({ message: `Gagal simpan draft: ${res.status}`, type: "error" });
       }
       if (res.ok) {
         const data = await res.json();
@@ -216,9 +210,24 @@ export function useDocumentGenerator() {
         const lr = await apiFetch("/api/document-drafts");
         if (lr.ok) setDrafts(await lr.json());
       }
-    } catch {}
+    } catch (e: unknown) {
+      console.error('[Draft] Save error:', e);
+      setToast({ message: `Gagal simpan draft: ${e instanceof Error ? e.message : 'Unknown'}`, type: "error" });
+    }
     finally { setDraftSaving(false); }
   }
+
+  // Keep ref pointing to latest saveDraftFn
+  saveDraftRef.current = saveDraftFn;
+
+  // Stable markUnsaved — always calls latest saveDraftFn via ref
+  const markUnsaved = useCallback(() => {
+    hasUnsavedChangesRef.current = true;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      saveDraftRef.current?.();
+    }, 5000);
+  }, []);
 
   async function loadDraft(draft: Draft) {
     setSelectedTemplate({ id: draft.template_id!, name: draft.template_name || "", type: "", variables: [] });
@@ -561,7 +570,7 @@ export function useDocumentGenerator() {
     handlePreview, handleGenerate, handleSendEmail,
     // Draft
     draftId, drafts, showDraftLoader, setShowDraftLoader, draftSaving, lastSaved,
-    saveDraft, loadDraft, deleteDraft,
+    loadDraft, deleteDraft,
     // Version history
     versions, showVersions, setShowVersions, versionsLoading,
     loadVersions, rollbackVersion, editDocument,
