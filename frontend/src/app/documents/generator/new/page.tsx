@@ -16,6 +16,43 @@ import DraftSaveBar from "../../../../components/documents/DraftSaveBar";
 import DraftLoader from "../../../../components/documents/DraftLoader";
 import { useDocumentGenerator } from "../../../../hooks/useDocumentGenerator";
 
+interface LineItem {
+  id: string;
+  name: string;
+  description: string;
+  qty: number;
+  price: number;
+}
+
+function parseRupiah(value: string): number {
+  const cleaned = value.replace(/[^0-9]/g, "");
+  const parsed = parseInt(cleaned, 10);
+  return isNaN(parsed) ? 0 : parsed;
+}
+
+function parseLineItemsFromHtml(html: string): LineItem[] {
+  if (!html || !html.includes("<tr")) return [];
+  const items: LineItem[] = [];
+  const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/g;
+  let match;
+  while ((match = rowRegex.exec(html)) !== null) {
+    const rowHtml = match[1];
+    if (rowHtml.includes("<th") || rowHtml.includes("Total Tagihan") || rowHtml.includes("<tfoot")) continue;
+    const nameMatch = rowHtml.match(/<strong[^>]*>([\s\S]*?)<\/strong>/);
+    const descMatch = rowHtml.match(/<div[^>]*>([\s\S]*?)<\/div>/);
+    const qtyMatch = rowHtml.match(/text-align:center[^>]*>(\d+)/);
+    const priceMatches = [...rowHtml.matchAll(/text-align:right[^>]*>([\s\S]*?)</g)];
+    if (nameMatch) {
+      const name = nameMatch[1].trim();
+      const description = descMatch ? descMatch[1].replace(/<[^>]*>/g, "").trim() : "";
+      const qty = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
+      const price = priceMatches.length >= 1 ? parseRupiah(priceMatches[0][1]) : 0;
+      if (name) items.push({ id: `item-${items.length}`, name, description, qty, price });
+    }
+  }
+  return items;
+}
+
 function DocumentNewPageInner() {
   const ctx = useDocumentGenerator();
   const searchParams = useSearchParams();
@@ -48,7 +85,20 @@ function DocumentNewPageInner() {
       variables: Object.keys(editCtx.variables || {}),
     });
     ctx.setVariables(editCtx.variables || {});
-    if (editCtx.line_items_json) ctx.setLineItems(editCtx.line_items_json);
+    // Load line items: try stored JSON first, fallback to parsing HTML from variables
+    if (editCtx.line_items_json && Object.keys(editCtx.line_items_json).length > 0) {
+      ctx.setLineItems(editCtx.line_items_json);
+    } else {
+      const items: Record<string, any[]> = {};
+      const vars = editCtx.variables || {};
+      for (const key of ["items_rows", "items_table", "line_items", "items"]) {
+        if (vars[key] && typeof vars[key] === "string" && vars[key].includes("<tr")) {
+          const parsed = parseLineItemsFromHtml(vars[key]);
+          if (parsed.length > 0) items[key] = parsed;
+        }
+      }
+      if (Object.keys(items).length > 0) ctx.setLineItems(items);
+    }
     ctx.setStep(2); // Jump directly to form step
     sessionStorage.removeItem("kt_edit_context");
   }, [isEditMode, ctx.templates]); // eslint-disable-line react-hooks/exhaustive-deps

@@ -46,6 +46,39 @@ function lineItemsToHtml(items: LineItem[]): string {
   return `<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f3f4f6"><th style="padding:8px;text-align:left">Layanan</th><th style="padding:8px;text-align:center">Jumlah</th><th style="padding:8px;text-align:right">Harga</th><th style="padding:8px;text-align:right">Total</th></tr></thead><tbody>${rows}</tbody><tfoot><tr style="background:#fef3c7"><td colspan="3" style="padding:8px;text-align:right;font-weight:bold">Total Tagihan</td><td style="padding:8px;text-align:right;font-weight:bold">${formatRupiah(total)}</td></tr></tfoot></table>`;
 }
 
+function parseRupiah(value: string): number {
+  const cleaned = value.replace(/[^0-9]/g, "");
+  const parsed = parseInt(cleaned, 10);
+  return isNaN(parsed) ? 0 : parsed;
+}
+
+function parseLineItemsFromHtml(html: string): LineItem[] {
+  if (!html || !html.includes("<tr")) return [];
+  const items: LineItem[] = [];
+  const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/g;
+  let match;
+  while ((match = rowRegex.exec(html)) !== null) {
+    const rowHtml = match[1];
+    // Skip header and footer rows
+    if (rowHtml.includes("<th") || rowHtml.includes("Total Tagihan") || rowHtml.includes("<tfoot")) continue;
+    // Parse first <td> for name and description
+    const nameMatch = rowHtml.match(/<strong[^>]*>([\s\S]*?)<\/strong>/);
+    const descMatch = rowHtml.match(/<div[^>]*>([\s\S]*?)<\/div>/);
+    // Parse qty (second td with text-align:center)
+    const qtyMatch = rowHtml.match(/text-align:center[^>]*>(\d+)/);
+    // Parse price (third td with text-align:right)
+    const priceMatches = [...rowHtml.matchAll(/text-align:right[^>]*>([\s\S]*?)</g)];
+    if (nameMatch) {
+      const name = nameMatch[1].trim();
+      const description = descMatch ? descMatch[1].replace(/<[^>]*>/g, "").trim() : "";
+      const qty = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
+      const price = priceMatches.length >= 1 ? parseRupiah(priceMatches[0][1]) : 0;
+      if (name) items.push({ id: `item-${items.length}`, name, description, qty, price });
+    }
+  }
+  return items;
+}
+
 function syncTotalVariable(variables: Record<string, string>, items: LineItem[], setVariables: React.Dispatch<React.SetStateAction<Record<string, string>>>) {
   const total = items.reduce((s, it) => s + it.qty * it.price, 0);
   setVariables(prev => {
@@ -237,10 +270,20 @@ export function useDocumentGenerator() {
     setVariables(draft.variables_json || {});
     if (draft.line_items_json) {
       setLineItems(draft.line_items_json);
+    } else {
+      // Fallback: parse line items from HTML in variables (for backward compat)
+      const items: Record<string, LineItem[]> = {};
+      for (const key of LINE_ITEM_KEYS) {
+        if (draft.variables_json?.[key]) {
+          const parsed = parseLineItemsFromHtml(draft.variables_json[key]);
+          if (parsed.length > 0) items[key] = parsed;
+        }
+      }
+      if (Object.keys(items).length > 0) setLineItems(items);
     }
     setDraftId(draft.id);
     setShowDraftLoader(false);
-    setStep(2); // Jump to form step
+    setStep(2);
     setToast({ message: "Draft dimuat", type: "success" });
   }
 
