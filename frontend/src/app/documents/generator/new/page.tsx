@@ -41,7 +41,7 @@ function parseLineItemsFromHtml(html: string): LineItem[] {
     const nameMatch = rowHtml.match(/<strong[^>]*>([\s\S]*?)<\/strong>/);
     const descMatch = rowHtml.match(/<div[^>]*>([\s\S]*?)<\/div>/);
     const qtyMatch = rowHtml.match(/text-align:center[^>]*>(\d+)/);
-    const priceMatches = [...rowHtml.matchAll(/text-align:right[^>]*>([\s\S]*?)</g)];
+    const priceMatches = Array.from(rowHtml.matchAll(/text-align:right[^>]*>([\s\S]*?)</g));
     if (nameMatch) {
       const name = nameMatch[1].trim();
       const description = descMatch ? descMatch[1].replace(/<[^>]*>/g, "").trim() : "";
