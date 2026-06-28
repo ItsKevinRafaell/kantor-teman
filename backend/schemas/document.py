@@ -65,12 +65,17 @@ class DocumentWorkflowUpdate(BaseModel):
 
 
 class DocumentDraftIn(BaseModel):
+    id: Optional[str] = None  # if set, force-update this draft regardless of target combo
     template_id: Optional[str] = None
     template_name: Optional[str] = None
     target_type: Optional[str] = None
-    target_id: Optional[str] = None
+    target_id: Optional[str | int] = None
     variables_json: dict
     line_items_json: Optional[dict] = None
+
+    def model_post_init(self, __context):
+        if self.target_id is not None and not isinstance(self.target_id, str):
+            self.target_id = str(self.target_id)
 
 
 class DocumentDraftOut(BaseModel):

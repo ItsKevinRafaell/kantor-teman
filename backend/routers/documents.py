@@ -1357,16 +1357,26 @@ def create_or_update_document_draft(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Create or update a draft (upsert by template_id+target combo)."""
+    """Create or update a draft. If body.id is set, force-update that draft.
+    Otherwise upsert by template_id+target combo."""
     now = datetime.now(timezone.utc).isoformat()
 
-    # Try to find existing draft for this user+template+target combo
-    existing = db.query(DocumentDraft).filter(
-        DocumentDraft.user_id == current_user.id,
-        DocumentDraft.template_id == body.template_id,
-        DocumentDraft.target_type == body.target_type,
-        DocumentDraft.target_id == body.target_id,
-    ).first()
+    existing = None
+    # 1. If draft id is provided, update that specific draft
+    if body.id:
+        existing = db.query(DocumentDraft).filter(
+            DocumentDraft.id == body.id,
+            DocumentDraft.user_id == current_user.id,
+        ).first()
+
+    # 2. Otherwise, try to find by template+target combo
+    if not existing and body.template_id:
+        existing = db.query(DocumentDraft).filter(
+            DocumentDraft.user_id == current_user.id,
+            DocumentDraft.template_id == body.template_id,
+            DocumentDraft.target_type == body.target_type,
+            DocumentDraft.target_id == body.target_id,
+        ).first()
 
     if existing:
         existing.variables_json = json.dumps(body.variables_json)
@@ -1374,11 +1384,15 @@ def create_or_update_document_draft(
         existing.updated_at = now
         if body.template_name:
             existing.template_name = body.template_name
+        if body.target_type is not None:
+            existing.target_type = body.target_type
+        if body.target_id is not None:
+            existing.target_id = body.target_id
         draft = existing
         log_audit(db, current_user.name, "UPDATE", "document_drafts", draft.id, {"template_name": draft.template_name})
     else:
         draft = DocumentDraft(
-            id=str(uuid.uuid4()),
+            id=body.id or str(uuid.uuid4()),
             user_id=current_user.id,
             template_id=body.template_id,
             template_name=body.template_name,
