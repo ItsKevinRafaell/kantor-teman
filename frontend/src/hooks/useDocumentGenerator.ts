@@ -549,7 +549,7 @@ export function useDocumentGenerator() {
 
   return {
     // State
-    step, setStep, templates, selectedTemplate, targetType, setTargetType,
+    step, setStep, templates, selectedTemplate, setSelectedTemplate, targetType, setTargetType,
     leads, contacts, products, projects,
     selectedLead, selectedContact, selectedProject,
     targetSearch, setTargetSearch,

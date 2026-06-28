@@ -35,11 +35,20 @@ function DocumentNewPageInner() {
     const tmpl = ctx.templates.find(t => t.id === editCtx.templateId);
     if (!tmpl) return;
 
-    // Apply edit context
+    // Apply edit context — directly set template and variables without
+    // triggering selectTemplate's defaults fetch (which would overwrite edit values)
     editAppliedRef.current = true;
     ctx.setEditDocId(editCtx.docId || null);
-    ctx.selectTemplate(tmpl);
+    // Build template from stored variables so form renders the same fields as when saved
+    const apiTmpl = ctx.templates.find(t => t.id === editCtx.templateId);
+    ctx.setSelectedTemplate({
+      id: editCtx.templateId,
+      name: editCtx.templateName || apiTmpl?.name || "Template",
+      type: apiTmpl?.type || "",
+      variables: Object.keys(editCtx.variables || {}),
+    });
     ctx.setVariables(editCtx.variables || {});
+    if (editCtx.line_items_json) ctx.setLineItems(editCtx.line_items_json);
     ctx.setStep(2); // Jump directly to form step
     sessionStorage.removeItem("kt_edit_context");
   }, [isEditMode, ctx.templates]); // eslint-disable-line react-hooks/exhaustive-deps

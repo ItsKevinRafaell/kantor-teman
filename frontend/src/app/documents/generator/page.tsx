@@ -133,7 +133,9 @@ export default function DocumentGeneratorPage() {
             docId: doc.id,
             templateId: doc.template_id,
             templateName: doc.template_name,
+            templateType: doc.template_type || normalizeDocType(doc),
             variables: original.variables_json || {},
+            line_items_json: original.line_items_json || null,
           }));
         }
       }
