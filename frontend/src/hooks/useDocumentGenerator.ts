@@ -188,6 +188,7 @@ export function useDocumentGenerator() {
         liJson[key] = items.map(it => ({ id: it.id, name: it.name, description: it.description, qty: it.qty, price: it.price }));
       }
       const body = {
+        id: draftId || undefined,
         template_id: ctx.selectedTemplate.id,
         template_name: ctx.selectedTemplate.name,
         target_type: ttype !== "empty" ? ttype : null,
@@ -195,11 +196,9 @@ export function useDocumentGenerator() {
         variables_json: ctx.variables,
         line_items_json: Object.keys(liJson).length > 0 ? liJson : null,
       };
-      console.log('[Draft] Saving:', JSON.stringify(body, null, 2));
       const res = await apiFetch("/api/document-drafts", { method: "POST", body: JSON.stringify(body) });
       if (!res.ok) {
         const errText = await res.text();
-        console.error('[Draft] Save failed:', res.status, errText);
         setToast({ message: `Gagal simpan draft: ${res.status}`, type: "error" });
       }
       if (res.ok) {
@@ -207,11 +206,15 @@ export function useDocumentGenerator() {
         setDraftId(data.id);
         setLastSaved(new Date());
         hasUnsavedChangesRef.current = false;
-        const lr = await apiFetch("/api/document-drafts");
-        if (lr.ok) setDrafts(await lr.json());
+        // Update draft list from POST response (no extra GET call)
+        setDrafts(prev => {
+          const idx = prev.findIndex(d => d.id === data.id);
+          const entry = { ...data, line_items_json: data.line_items_json || {} };
+          if (idx >= 0) { const next = [...prev]; next[idx] = entry; return next; }
+          return [entry, ...prev];
+        });
       }
     } catch (e: unknown) {
-      console.error('[Draft] Save error:', e);
       setToast({ message: `Gagal simpan draft: ${e instanceof Error ? e.message : 'Unknown'}`, type: "error" });
     }
     finally { setDraftSaving(false); }
