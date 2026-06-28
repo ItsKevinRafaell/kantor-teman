@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, Suspense } from "react";
+import { useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Toast from "../../../../components/Toast";
 import Breadcrumb from "../../../../components/Breadcrumb";
@@ -20,26 +20,28 @@ function DocumentNewPageInner() {
   const ctx = useDocumentGenerator();
   const searchParams = useSearchParams();
   const isEditMode = searchParams.get("edit") === "true";
+  const editAppliedRef = useRef(false);
 
   // Detect edit mode: load variables from sessionStorage, find template, jump to step 2
   useEffect(() => {
-    if (!isEditMode) return;
+    if (!isEditMode || editAppliedRef.current) return;
     const raw = sessionStorage.getItem("kt_edit_context");
     if (!raw) return;
-    try {
-      const editCtx = JSON.parse(raw);
-      if (editCtx.templateId) {
-        // Wait for templates to load, then set up the form
-        const tmpl = ctx.templates.find(t => t.id === editCtx.templateId);
-        if (tmpl) {
-          ctx.setEditDocId(editCtx.docId || null);
-          ctx.selectTemplate(tmpl);
-          ctx.setVariables(editCtx.variables || {});
-          ctx.setStep(2); // Jump directly to form step (fill variables)
-        }
-      }
-      sessionStorage.removeItem("kt_edit_context");
-    } catch { /* ignore parse errors */ }
+    let editCtx: any;
+    try { editCtx = JSON.parse(raw); } catch { return; }
+    if (!editCtx.templateId) return;
+
+    // Wait for templates to load
+    const tmpl = ctx.templates.find(t => t.id === editCtx.templateId);
+    if (!tmpl) return;
+
+    // Apply edit context
+    editAppliedRef.current = true;
+    ctx.setEditDocId(editCtx.docId || null);
+    ctx.selectTemplate(tmpl);
+    ctx.setVariables(editCtx.variables || {});
+    ctx.setStep(2); // Jump directly to form step
+    sessionStorage.removeItem("kt_edit_context");
   }, [isEditMode, ctx.templates]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
@@ -60,14 +62,16 @@ function DocumentNewPageInner() {
         <DraftSaveBar saving={ctx.draftSaving} lastSaved={ctx.lastSaved} hasDraft={ctx.step >= 1 && ctx.step <= 2 && !!ctx.selectedTemplate} />
       </div>
 
-      {/* Draft Loader */}
-      <DraftLoader
-        drafts={ctx.drafts}
-        loading={ctx.showDraftLoader && ctx.drafts.length === 0}
-        onResume={ctx.loadDraft}
-        onDelete={ctx.deleteDraft}
-        onDismiss={() => ctx.setShowDraftLoader(false)}
-      />
+      {/* Draft Loader - hidden in edit mode */}
+      {!isEditMode && (
+        <DraftLoader
+          drafts={ctx.drafts}
+          loading={ctx.showDraftLoader && ctx.drafts.length === 0}
+          onResume={ctx.loadDraft}
+          onDelete={ctx.deleteDraft}
+          onDismiss={() => ctx.setShowDraftLoader(false)}
+        />
+      )}
 
       <GeneratorSteps currentStep={ctx.step} />
 
