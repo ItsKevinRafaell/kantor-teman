@@ -427,7 +427,25 @@ export default function VariableInputForm({
           // Always suppress internal metadata — injected by Brand Kit, not user-editable
           allKeys.forEach(k => { if (INTERNAL_METADATA_KEYS.has(k)) suppressedKeys.add(k); });
 
-          return Object.entries(variables).map(([key, val]) => {
+          // Sort keys so important fields come first: logo → dates → numbers → client info → service → items → long text → rest
+          const FIELD_ORDER = [
+            "logo", "tanggal", "nomor_invoice", "no_invoice", "nomor",
+            "due_date", "valid_until", "validity",
+            "klien", "nama", "nama_klien", "perusahaan_klien",
+            "alamat", "phone", "layanan", "service", "jenis_layanan",
+            "items_rows", "items_table", "line_items", "items",
+            "scope", "payment_info", "payment_method", "terms",
+            "catatan", "keterangan",
+          ];
+          const sortedEntries = [...Object.entries(variables)].sort(([a], [b]) => {
+            const ai = FIELD_ORDER.findIndex(f => f === a.toLowerCase() || a.toLowerCase().includes(f));
+            const bi = FIELD_ORDER.findIndex(f => f === b.toLowerCase() || b.toLowerCase().includes(f));
+            const av = ai >= 0 ? ai : 999;
+            const bv = bi >= 0 ? bi : 999;
+            return av - bv || a.localeCompare(b);
+          });
+
+          return sortedEntries.map(([key, val]) => {
             if (renderedKeys.has(key)) return null;
             if (numberKeys.includes(key) && key !== primaryNumberKey) return null;
             if (suppressedKeys.has(key)) return null;
