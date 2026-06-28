@@ -75,6 +75,11 @@ const SERVER_ALIAS_KEYS = new Set([
   "brand_name", "tagline",
 ]);
 
+// Internal metadata keys injected by Brand Kit / server — never show in form
+const INTERNAL_METADATA_KEYS = new Set([
+  "colors", "fonts",
+]);
+
 const FIELD_HINTS: Record<string, string> = {
   klien: "Nama klien / bisnis penerima dokumen",
   nama: "Nama lengkap penerima",
@@ -419,6 +424,8 @@ export default function VariableInputForm({
           }
           // Always suppress server alias keys — they're brand-owned or display-only
           allKeys.forEach(k => { if (SERVER_ALIAS_KEYS.has(k)) suppressedKeys.add(k); });
+          // Always suppress internal metadata — injected by Brand Kit, not user-editable
+          allKeys.forEach(k => { if (INTERNAL_METADATA_KEYS.has(k)) suppressedKeys.add(k); });
 
           return Object.entries(variables).map(([key, val]) => {
             if (renderedKeys.has(key)) return null;
