@@ -1,5 +1,33 @@
 """Client-facing default templates for the document generator."""
 
+# Pre-written scope templates for each service type
+SCOPE_TEMPLATES = {
+    "web_dev": {
+        "name": "Pembuatan Website",
+        "scope": "Pembuatan website profesional untuk bisnis Anda, meliputi:\n\n• Konsultasi dan riset kebutuhan bisnis\n• Desain tampilan yang menarik dan mudah digunakan\n• Integrasi WhatsApp untuk komunikasi langsung dengan pelanggan\n• Optimasi agar mudah ditemukan di Google\n• Website responsif untuk HP dan komputer\n• Domain dan hosting tahun pertama\n• Pelatihan cara update konten website",
+    },
+    "seo_gmaps": {
+        "name": "SEO & Google Maps",
+        "scope": "Optimasi agar bisnis Anda muncul di halaman pertama Google dan Google Maps, meliputi:\n\n• Riset kata kunci yang sering dicari pelanggan di daerah Anda\n• Optimasi profil Google Business Profile (foto, deskripsi, jam buka)\n• Pembuatan artikel/blog yang relevan dengan bisnis Anda\n• Optimasi teknis website agar cepat dan mudah dibaca Google\n• Monitoring peringkat dan laporan bulanan\n• Balasan ulasan pelanggan untuk membangun reputasi",
+    },
+    "sosmed": {
+        "name": "Kelola Media Sosial",
+        "scope": "Pengelolaan media sosial bisnis Anda agar aktif dan menarik pelanggan, meliputi:\n\n• Strategi konten bulanan sesuai target audiens\n• Desain konten visual yang konsisten dengan brand Anda\n• Penulisan caption yang menarik dan mendorong interaksi\n• Penjadwalan posting otomatis\n• Riset hashtag yang relevan\n• Laporan performa bulanan (jumlah like, komentar, followers baru)",
+    },
+    "maintenance": {
+        "name": "Maintenance Website",
+        "scope": "Perawatan rutin website Anda agar tetap aman dan berjalan lancar, meliputi:\n\n• Backup data mingguan (jaga-jaga kalau ada masalah)\n• Scan malware dan keamanan bulanan\n• Update sistem dan plugin otomatis\n• Monitoring performa website 24/7\n• Perbaikan bug atau error yang muncul\n• Laporan kondisi website bulanan",
+    },
+    "branding": {
+        "name": "Desain Logo & Branding",
+        "scope": "Pembuatan identitas visual bisnis Anda yang profesional dan konsisten, meliputi:\n\n• Konsultasi visi dan target audiens bisnis\n• Pembuatan beberapa opsi desain logo\n• Revisi hingga sesuai keinginan\n• File logo dalam berbagai format (untuk cetak dan digital)\n• Panduan penggunaan logo dan warna brand\n• Desain kartu nama dan kop surat (untuk paket lengkap)",
+    },
+    "retainer": {
+        "name": "Paket Retainer Bulanan",
+        "scope": "Layanan digital bulanan lengkap untuk bisnis Anda, meliputi kombinasi dari:\n\n• Pengembangan dan perawatan website\n• Optimasi SEO dan Google Maps\n• Pengelolaan media sosial\n• Konsultasi strategi digital\n• Laporan performa bulanan\n• Dukungan teknis prioritas",
+    },
+}
+
 BASE_STYLE = """
 @page{size:A4;margin:28pt 34pt}
 body{font-family:Helvetica,Arial,sans-serif;color:#1f2937;font-size:10.5pt;line-height:1.45}
@@ -45,13 +73,12 @@ INVOICE_HTML = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>{BASE_
 </body></html>""".format(BASE_STYLE=BASE_STYLE)
 
 
-RECEIPT_HTML = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>{BASE_STYLE}.amount{{font-size:24pt;font-weight:bold;color:#b45309;text-align:center;padding:18pt}}</style></head><body>
+RECEIPT_HTML = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>{BASE_STYLE}</style></head><body>
 <table class="w100 top"><tr><td><div class="logo">{{logo}}</div><div class="eyebrow">{{brand_name}}</div><div class="title">BUKTI PEMBAYARAN</div></td><td class="right muted">No. <span class="strong">{{nomor}}</span><br/>{{tanggal}}</td></tr></table>
 <table class="w100 box">
   <tr><td class="muted">Diterima dari</td><td class="right strong">{{klien}}</td></tr>
   <tr><td class="muted">Untuk pembayaran</td><td class="right strong">{{layanan}}</td></tr>
   <tr><td class="muted">Metode pembayaran</td><td class="right strong">{{payment_method}}</td></tr>
-  <tr><td colspan="2" class="amount">{{amount}}</td></tr>
   <tr><td colspan="2" class="muted">{{keterangan}}</td></tr>
 </table>
 <div class="footer"><span class="strong">{{brand_name}}</span><br/>{{tagline}}<br/>Bukti pembayaran sah tanpa tanda tangan basah.</div>

@@ -56,7 +56,7 @@ const LINE_ITEM_KEYS = ["items_rows", "items_table", "line_items", "items"];
 const TOTAL_KEYS = ["total", "total_harga", "grand_total", "total_bayar", "total_amount", "jumlah_total", "total_tagihan"];
 const LOGO_KEYS = ["logo", "logo_perusahaan", "company_logo"];
 const LARGE_TEXT_PATTERNS = ["html", "body", "scope", "terms", "rows", "alamat", "payment_info", "catatan", "keterangan", "deliverables", "out_of_scope", "payment_schedule", "tech_spec", "milestones", "ip_rights", "bug_warranty", "domain_hosting", "revision_limit", "sla_metrics", "coverage_hours", "scope_included", "emergency_escalation", "ticket_resolution", "target_keywords", "success_metrics", "disclaimer", "reporting", "scope_change", "platforms", "approval_flow", "content_ownership", "platform_rules", "escalation", "concept_count", "moodboard_approval", "color_standards", "file_usage_rights", "scope_monthly", "hour_allocation", "addon_rate", "change_request_process", "termination_notice"];
-const RUPIAH_PATTERNS = ["nilai", "harga", "amount", "nominal", "bayar", "biaya", "tarif", "fee", "price", "cost"];
+const RUPIAH_PATTERNS = ["nilai", "harga", "nominal", "bayar", "biaya", "tarif", "fee", "price", "cost"];
 const PHONE_PATTERNS = ["phone", "telepon", "telp", "hp", "whatsapp", "wa"];
 const EMAIL_PATTERNS = ["email", "mail"];
 const READONLY_COMPANY_KEYS = ["brand_name", "nama_perusahaan", "alamat_perusahaan", "phone_perusahaan", "email_perusahaan", "tagline"];
@@ -281,6 +281,7 @@ interface VariableInputFormProps {
   selectedTemplate: any;
   paymentMethods: any[];
   products: any[];
+  scopeTemplates: Array<{service_type: string; name: string; scope: string}>;
   setProductPickerForKey: (key: string | null) => void;
   setProductPickerMode: (mode: "line_item" | "single") => void;
   klienCandidates: any[];
@@ -295,7 +296,7 @@ interface VariableInputFormProps {
 }
 
 export default function VariableInputForm({
-  variables, setVariables, lineItems, setLineItems, selectedTemplate, paymentMethods, products,
+  variables, setVariables, lineItems, setLineItems, selectedTemplate, paymentMethods, products, scopeTemplates,
   setProductPickerForKey, setProductPickerMode, klienCandidates, klienSearch, setKlienSearch,
   klienDropdownOpen, setKlienDropdownOpen, klienRef, setShowSeqEditor, loadCurrentSequence, setToast,
 }: VariableInputFormProps) {
@@ -766,6 +767,7 @@ export default function VariableInputForm({
             if (isLargeTextKey(key)) {
               const isTemplatable = ["terms", "scope", "catatan", "keterangan", "payment_info"].some(p => key.toLowerCase().includes(p));
               const savedTpls = fieldTemplates[key] !== undefined ? fieldTemplates[key] : loadFieldTemplates(key);
+              const isScopeField = key.toLowerCase() === "scope";
               return (
                 <div key={key}>
                   <div className="flex items-center justify-between">
@@ -794,6 +796,24 @@ export default function VariableInputForm({
                       </div>
                     )}
                   </div>
+                  {isScopeField && scopeTemplates && scopeTemplates.length > 0 && (
+                    <select
+                      onChange={(e) => {
+                        const selected = scopeTemplates.find(t => t.service_type === e.target.value);
+                        if (selected) {
+                          setVariables(prev => ({ ...prev, [key]: selected.scope }));
+                        }
+                      }}
+                      className="mt-1 mb-2 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800"
+                    >
+                      <option value="">— Pilih template lingkup pekerjaan —</option>
+                      {scopeTemplates.map((t) => (
+                        <option key={t.service_type} value={t.service_type}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   {isTemplatable && fieldTemplateOpen === key && savedTpls.length > 0 && (
                     <div className="mt-1 border border-amber-200 dark:border-amber-800 rounded-xl bg-amber-50 dark:bg-amber-950/20 p-2 space-y-1 max-h-40 overflow-y-auto">
                       {savedTpls.map((tpl: string, i: number) => (

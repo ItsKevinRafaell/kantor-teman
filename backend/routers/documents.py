@@ -28,6 +28,7 @@ from app.core.dependencies import (get_current_user, require_admin, UPLOADS_DIR,
     _cors_list, _get_setting, HERMES_GATEWAY_URL, _hermes_headers, _office_profile, _ads_out,
     _detect_service_type, _detect_service_type_single_lead)
 from app.constants import CLIENT_STATUS_VALUES, DOCUMENT_STATUSES, PAYMENT_STATUSES, DocumentStatus
+from document_template_library import SCOPE_TEMPLATES
 from app.services.sales_workflow_service import archive_generated_document
 from document_template_library import get_document_template_starters, get_service_description, SERVICE_DESCRIPTIONS
 
@@ -750,7 +751,6 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
 
     elif template_type == "receipt":
         defaults["nomor"] = _document_number(db, "receipt")
-        defaults["amount"] = ""
         defaults["payment_method"] = ""
         defaults["keterangan"] = ""
 
@@ -877,6 +877,12 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
                 elif k not in defaults:
                     defaults[k] = v
 
+    # Auto-populate scope from SCOPE_TEMPLATES based on service_type
+    if service_type and service_type in SCOPE_TEMPLATES:
+        scope_template = SCOPE_TEMPLATES[service_type]
+        if "scope" not in defaults or not defaults.get("scope"):
+            defaults["scope"] = scope_template["scope"]
+
     # Auto-populate line items from matching products
     if template_type in ["invoice", "receipt", "surat_penawaran", "proposal_pdf", "kontrak"]:
         if "items_rows" not in defaults or not defaults.get("items_rows"):
@@ -976,6 +982,16 @@ def get_template_defaults(
                 break
     defaults = _build_default_vars(db, ttype, target_type, target_id)
     return {"defaults": defaults, "template_type": ttype}
+
+
+@router.get("/api/document-scope-templates")
+def list_scope_templates(current_user: User = Depends(get_current_user)):
+    """List available scope templates per service type."""
+    from document_template_library import SCOPE_TEMPLATES
+    return [
+        {"service_type": k, "name": v["name"], "scope": v["scope"]}
+        for k, v in SCOPE_TEMPLATES.items()
+    ]
 
 
 def _build_pdf_display_name(db, template_type: str, target_type, target_id, full_vars: dict) -> str:

@@ -120,6 +120,7 @@ export function useDocumentGenerator() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [scopeTemplates, setScopeTemplates] = useState<Array<{service_type: string; name: string; scope: string}>>([]);
   const [klienSearch, setKlienSearch] = useState("");
   const [klienDropdownOpen, setKlienDropdownOpen] = useState(false);
   const klienRef = useRef<HTMLDivElement>(null);
@@ -173,6 +174,7 @@ export function useDocumentGenerator() {
       try { const r = await apiFetch("/api/products?active_only=true"); if (r.ok) setProducts(await r.json()); } catch {}
       try { const r = await apiFetch("/api/projects"); if (r.ok) setProjects(await r.json()); } catch {}
       try { const r = await apiFetch("/api/finance/payment-methods"); if (r.ok) { const d: PaymentMethod[] = await r.json(); setPaymentMethods(d.filter(m => m.is_active)); } } catch {}
+      try { const r = await apiFetch("/api/document-scope-templates"); if (r.ok) { setScopeTemplates(await r.json()); } } catch {}
     }
     loadData();
   }, []);
@@ -609,7 +611,7 @@ export function useDocumentGenerator() {
     generating, previewing, previewUrl, setPreviewUrl,
     generatedDoc, setGeneratedDoc,
     emailModal, setEmailModal, emailTo, setEmailTo, emailSubject, setEmailSubject, sendingEmail,
-    toast, setToast, paymentMethods,
+    toast, setToast, paymentMethods, scopeTemplates,
     klienSearch, setKlienSearch, klienDropdownOpen, setKlienDropdownOpen, klienRef,
     // Edit mode
     editDocId, setEditDocId,
