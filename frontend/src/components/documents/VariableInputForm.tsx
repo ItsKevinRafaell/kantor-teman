@@ -88,7 +88,7 @@ const FIELD_HINTS: Record<string, string> = {
   email: "Contoh: klien@email.com",
   layanan: "Jenis layanan yang diberikan (mis. Pembuatan Website, SEO Bulanan)",
   perihal: "Topik / judul surat (mis. Penawaran Jasa Pembuatan Website)",
-  scope: "Rincian pekerjaan yang dikerjakan — apa saja yang termasuk dan tidak termasuk",
+  scope: "Daftar detail pekerjaan yang akan dikerjakan (mis: desain logo, setup website, SEO optimization)",
   terms: "Syarat & ketentuan: pembayaran, revisi, kerahasiaan, dll",
   durasi: "Lama kontrak berlaku (mis. 3 bulan, 1 tahun)",
   nilai_kontrak: "Nilai total kontrak dalam Rupiah",
@@ -98,7 +98,7 @@ const FIELD_HINTS: Record<string, string> = {
   due_date: "Tanggal jatuh tempo pembayaran",
   payment_info: "Rekening atau metode pembayaran yang tampil di invoice",
   catatan: "Catatan tambahan untuk penerima invoice",
-  keterangan: "Keterangan pembayaran, misalnya termin pertama atau pelunasan",
+  keterangan: "Detail pembayaran (mis: DP 50% di awal, pelunasan setelah selesai)",
   // Website Development
   tech_spec: "Domain, hosting, tech stack, browser support (pisahkan baris per item)",
   deliverables: "Daftar file/output yang diserahkan ke klien (pisahkan baris per item)",
@@ -632,7 +632,6 @@ export default function VariableInputForm({
                     onChange={e => setVariables(prev => ({ ...prev, [key]: toRupiahRaw(e.target.value) }))}
                     placeholder="Rp 0"
                     className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 font-semibold" />
-                  <p className="text-[11px] text-gray-400 mt-1">{FIELD_HINTS[key.toLowerCase()] || "Format Rupiah otomatis"}</p>
                 </div>
               );
             }
