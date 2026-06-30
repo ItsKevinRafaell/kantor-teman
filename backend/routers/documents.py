@@ -877,9 +877,77 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
                 elif k not in defaults:
                     defaults[k] = v
 
+    # Auto-populate line items from matching products
     if template_type in ["invoice", "receipt", "surat_penawaran", "proposal_pdf", "kontrak"]:
         if "items_rows" not in defaults or not defaults.get("items_rows"):
-            defaults["items_rows"] = '<tr><td colspan="4" style="text-align:center;color:#999;">Tidak ada item</td></tr>'
+            # Try to find matching products based on service_type or product_interest
+            from models import Product, Category
+            matched_products = []
+
+            # Determine search criteria
+            search_name = ""
+            if lead and lead.product_interest:
+                search_name = lead.product_interest
+            elif contact and contact.purchased_product:
+                search_name = contact.purchased_product
+            elif project and project.service_type:
+                search_name = project.service_type
+
+            # Query products matching the service type
+            if search_name:
+                # Try exact category match first
+                category = db.query(Category).filter(
+                    (Category.name.ilike(f"%{search_name}%")) |
+                    (Category.description.ilike(f"%{search_name}%"))
+                ).first()
+
+                if category:
+                    matched_products = db.query(Product).filter(
+                        Product.category_id == category.id,
+                        Product.is_active == True
+                    ).order_by(Product.base_price.asc()).all()
+                else:
+                    # Fallback: search by product name
+                    matched_products = db.query(Product).filter(
+                        (Product.name.ilike(f"%{search_name}%")) |
+                        (Product.description.ilike(f"%{search_name}%")),
+                        Product.is_active == True
+                    ).order_by(Product.base_price.asc()).limit(3).all()
+
+            # Generate HTML table rows from matched products
+            if matched_products:
+                rows = []
+                for p in matched_products:
+                    # Parse features JSON
+                    features = []
+                    if p.features:
+                        try:
+                            features = json.loads(p.features)
+                        except:
+                            features = []
+
+                    # Build description from features
+                    desc = "<br>".join(f"• {f}" for f in features[:5]) if features else p.description or ""
+
+                    # Format price
+                    price_formatted = f"Rp {p.base_price:,.0f}".replace(",", ".")
+
+                    # Generate row HTML
+                    row = f'''<tr>
+<td style="padding:6px 8px;border-bottom:1px solid #e5e7eb">
+<strong>{p.name}</strong>
+<div style="margin-top:3px;color:#6b7280;font-size:11px;line-height:1.45">{desc}</div>
+</td>
+<td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:center">1</td>
+<td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right">{price_formatted}</td>
+<td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600">{price_formatted}</td>
+</tr>'''
+                    rows.append(row)
+
+                defaults["items_rows"] = "\n".join(rows)
+            else:
+                # Fallback to empty state
+                defaults["items_rows"] = '<tr><td colspan="4" style="text-align:center;color:#999;">Tidak ada item</td></tr>'
 
     return defaults
 

@@ -380,67 +380,76 @@ SERVICE_DESCRIPTIONS: dict[str, dict[str, str]] = {
 
     # ─── Website Development ──────────────────────────────────────────────────
     "web_dev": {
-        "layanan": "Pengembangan Website & Optimasi Digital Presence",
+        "layanan": "Pengembangan Website Profesional — Dominasi Digital Presence Bisnis Anda",
         "scope": (
-            "Penyedia Jasa akan merancang dan membangun website yang responsif, dioptimalkan\n"
-            "untuk pengalaman pengguna (UX) dan performa. Proses meliputi:\n"
-            "  1. Discovery & Wireframe — pemahaman kebutuhan dan persetujuan alur.\n"
-            "  2. Desain UI — mockup visual yang konsisten dengan brand klien.\n"
-            "  3. Development — implementasi kode dengan standar aksesibilitas dan SEO dasar.\n"
-            "  4. Testing & QA — uji fungsionalitas di berbagai browser dan perangkat.\n"
+            "Di era digital ini, website bukan lagi pilihan — ini adalah KEHARUSAN. 80% calon pelanggan\n"
+            "meriset bisnis Anda di Google SEBELUM memutuskan untuk membeli. Tanpa website profesional,\n"
+            "Anda kehilangan pelanggan ke kompetitor yang sudah online.\n\n"
+            "Penyedia Jasa akan membangun website yang Bekerja 24/7 untuk bisnis Anda:\n"
+            "  1. Discovery & Wireframe — kami pahami kebutuhan bisnis Anda secara mendalam.\n"
+            "  2. Desain UI Premium — visual yang konsisten dengan brand dan menarik pelanggan.\n"
+            "  3. Development — implementasi dengan standar aksesibilitas dan SEO dasar.\n"
+            "  4. Testing & QA — uji menyeluruh di berbagai browser dan perangkat.\n"
             "  5. Deployment — peluncuran ke hosting yang telah disepakati."
         ),
         "deliverables": (
-            "- Website responsif sesuai spesifikasi yang disepakati\n"
-            "- Dokumentasi teknis dasar (struktur halaman, panduan CMS jika ada)\n"
+            "- Website responsif yang bekerja 24/7 untuk bisnis Anda\n"
+            "- Domain & hosting tahun pertama GRATIS (hemat hingga Rp 500.000)\n"
+            "- Dokumentasi teknis lengkap + panduan CMS\n"
             "- File sumber desain (jika disepakati saat kick-off)\n"
-            "- Pelatihan singkat pengelolaan konten (jika CMS terpasang)"
+            "- Pelatihan singkat pengelolaan konten (jika CMS terpasang)\n"
+            "- Garansi bug fixing 30 hari setelah serah terima"
         ),
         "terms": (
-            "1. Pembayaran dilakukan sesuai termin yang disepakati.\n"
-            "2. Revisi desain dan konten sebanyak 2 (dua) kali tanpa biaya tambahan.\n"
-            "3. Revisi di luar cakupan awal akan dikenakan biaya sesuai kesepakatan.\n"
-            "4. Konten (teks, foto, video) disediakan oleh klien, kecuali disepakati lain.\n"
-            "5. Website diserahkan dalam kondisi siap pakai; garansi bug fixing berlaku 30 hari setelah serah terima."
+            "1. Pembayaran sesuai termin yang disepakati. DP 50% untuk memulai proyek.\n"
+            "2. Revisi desain dan konten 2 (dua) kali GRATIS. Revisi tambahan dikenakan biaya.\n"
+            "3. Konten (teks, foto, video) disediakan oleh klien. Kami bisa bantu copywriting dengan biaya terpisah.\n"
+            "4. Website diserahkan dalam kondisi siap pakai dan optimal.\n"
+            "5. GARANSI bug fixing 30 hari setelah serah terima final."
         ),
         "out_of_scope": (
-            "Pengembangan fitur baru yang tidak termasuk dalam cakupan awal,\n"
-            "penulisan konten (copywriting), fotografi, dan hosting management\n"
-            "memerlukan addendum terpisah. Maintenance dan dukungan teknis pasca-launch\n"
-            "tersedia dalam paket bulanan terpisah."
+            "Pengembangan fitur baru di luar cakupan awal, penulisan konten (copywriting),\n"
+            "fotografi profesional, dan hosting management memerlukan addendum terpisah.\n"
+            "Maintenance dan dukungan teknis pasca-launch tersedia dalam paket bulanan terpisah."
         ),
-        "revision_limit": "2 (dua) kali revisi gratis. Revisi tambahan dikenakan biaya per sesi sesuai kesepakatan.",
-        "bug_warranty": "Garansi bug fixing selama 30 hari setelah serah terima final. Issue di luar bug (fitur baru, redesign) memerlukan addendum.",
-        "ip_rights": "Hak atas kode dan aset desain website menjadi milik klien setelah pelunasan pembayaran. Penyedia Jasa berhak menampilkan website sebagai portofolio.",
-        "domain_hosting": "Domain dan hosting atas nama klien. Konfigurasi teknis ditangani oleh Penyedia Jasa selama masa pengerjaan. Setelah serah terima, pengelolaan hosting menjadi tanggung jawab klien atau penyedia hosting.",
+        "revision_limit": "2 (dua) kali revisi GRATIS. Revisi tambahan dikenakan biaya per sesi sesuai kesepakatan.",
+        "bug_warranty": "GARANSI bug fixing 30 hari setelah serah terima final. Issue di luar bug (fitur baru, redesign) memerlukan addendum.",
+        "ip_rights": "Hak atas kode dan aset desain website menjadi milik klien SETELAH pelunasan pembayaran. Penyedia Jasa berhak menampilkan website sebagai portofolio.",
+        "domain_hosting": "Domain dan hosting tahun pertama GRATIS atas nama klien. Konfigurasi teknis ditangani oleh Penyedia Jasa. Setelah tahun pertama, perpanjangan domain & hosting menjadi tanggung jawab klien.",
         "milestones": (
-            "1. Discovery & Wireframe → approval klien\n"
-            "2. Desain UI → approval klien\n"
-            "3. Development → demo internal\n"
-            "4. Testing & Revisi → UAT klien\n"
+            "1. Discovery & Wireframe → approval klien (3-5 hari kerja)\n"
+            "2. Desain UI → approval klien (5-7 hari kerja)\n"
+            "3. Development → demo internal (7-10 hari kerja)\n"
+            "4. Testing & Revisi → UAT klien (3-5 hari kerja)\n"
             "5. Serah terima final → pelunasan"
         ),
     },
 
     # ─── Website Development Bulanan ──────────────────────────────────────────
     "web_dev_bulanan": {
-        "layanan": "Pengembangan & Pengelolaan Website Bulanan",
+        "layanan": "Website Bulanan — Profesional Tanpa Modal Besar",
         "scope": (
-            "Layanan pengembangan website secara berkelanjutan meliputi:\n"
+            "Bayangkan punya website profesional tanpa harus keluar modal jutaan di awal.\n"
+            "Dengan paket bulanan, Anda bisa langsung online dan fokus kembangkan bisnis,\n"
+            "sementara kami yang urus teknisnya.\n\n"
+            "Layanan berkelanjutan yang membuat website Anda SELALU OPTIMAL:\n"
             "  1. Pemeliharaan teknis — update platform, plugin, dan optimasi performa.\n"
             "  2. Pengembangan fitur — penambahan halaman atau fungsionalitas sesuai prioritas.\n"
             "  3. Monitoring & report — laporan performa, uptime, dan penggunaan bulanan."
         ),
         "deliverables": (
-            "- Website ter-update sesuai prioritas yang disepakati\n"
+            "- Website selalu ter-update dan aman dari vulnerability\n"
+            "- Pengembangan fitur baru sesuai prioritas bisnis Anda\n"
             "- Laporan bulanan: performa, update yang dilakukan, dan rekomendasi\n"
-            "- Dukungan teknis via WhatsApp/email selama jam kerja"
+            "- Dukungan teknis via WhatsApp/email selama jam kerja\n"
+            "- Fleksibilitas: upgrade atau stop kapan saja tanpa penalti"
         ),
         "terms": (
             "1. Pembayaran bulanan di muka, sebelum tanggal 10 setiap bulannya.\n"
             "2. Prioritas pekerjaan ditentukan bersama di awal setiap bulan.\n"
             "3. Jam pengembangan yang tidak terpakai tidak dapat di-akumulasi ke bulan berikutnya.\n"
-            "4. Layanan di luar jam kerja hanya untuk kondisi darurat (website down, error kritis)."
+            "4. Layanan di luar jam kerja hanya untuk kondisi darurat (website down, error kritis).\n"
+            "5. Stop layanan kapan saja dengan pemberitahuan 30 hari."
         ),
         "out_of_scope": (
             "Redesign total, pembuatan landing page baru untuk campaign iklan,\n"
@@ -457,77 +466,83 @@ SERVICE_DESCRIPTIONS: dict[str, dict[str, str]] = {
 
     # ─── SEO & Google Business Profile ────────────────────────────────────────
     "seo_gmaps": {
-        "layanan": "Optimasi SEO Lokal & Google Business Profile",
+        "layanan": "SEO & Google Maps — Jangan Biarkan Kompetitor Mendominasi Google Lebih Lama",
         "scope": (
-            "Penyedia Jasa akan melaksanakan optimasi visibilitas digital melalui:\n"
-            "  1. Audit awal — analisis kondisi website dan Google Business Profile (GBP).\n"
-            "  2. Riset keyword — identifikasi kata kunci relevan berdasarkan industri dan lokasi.\n"
-            "  3. On-page optimization — optimasi meta tag, heading, konten, dan kecepatan halaman.\n"
-            "  4. Off-page optimization — pembangunan backlink berkualitas dan lokal citation.\n"
-            "  5. GBP optimization — optimasi profil, posting, dan review management.\n"
-            "  6. Monthly reporting — laporan ranking keyword, traffic organik, dan aktivitas."
+            "46% pencarian di Google bersifat LOKAL. Artinya, pelanggan di sekitar Anda sedang\n"
+            "mencari bisnis seperti Anda SEKARANG JUGA. Pertanyaannya: apakah mereka menemukan\n"
+            "Anda, atau kompetitor Anda?\n\n"
+            "Kami akan memastikan bisnis Anda TAMPIL di halaman pertama Google:\n"
+            "  1. Audit mendalam — analisis kondisi website dan Google Business Profile (GBP).\n"
+            "  2. Riset keyword strategis — identifikasi kata kunci yang menghasilkan KONVERSI.\n"
+            "  3. On-page optimization — optimasi meta tag, heading, konten, dan kecepatan.\n"
+            "  4. Off-page optimization — backlink berkualitas dan lokal citation.\n"
+            "  5. GBP optimization — profil, posting rutin, dan review management.\n"
+            "  6. Reporting transparan — laporan ranking, traffic, dan ROI setiap bulan."
         ),
         "deliverables": (
-            "- Laporan audit digital awal\n"
-            "- Dokumen riset keyword (target + volume pencarian)\n"
-            "- Optimasi on-page (meta tag, heading, internal linking)\n"
-            "- Posting Google Business Profile (4-8x per bulan)\n"
-            "- Laporan bulanan: ranking, traffic organik, dan aktivitas SEO"
+            "- Laporan audit digital awal (nilai Rp 500.000 — GRATIS untuk klien SEO)\n"
+            "- Riset keyword strategis dengan volume pencarian dan tingkat kompetisi\n"
+            "- Optimasi on-page menyeluruh (meta tag, heading, internal linking)\n"
+            "- Posting Google Business Profile 4-12x per bulan (sesuai paket)\n"
+            "- Laporan bulanan detail: ranking, traffic organik, dan rekomendasi strategis"
         ),
         "terms": (
-            "1. Pembayaran bulanan di muka.\n"
-            "2. Hasil SEO bersifat gradual dan bergantung pada banyak faktor eksternal.\n"
-            "   Penyedia Jasa tidak menjamin ranking #1 atau posisi spesifik di mesin pencari.\n"
-            "3. Perubahan arah atau penambahan keyword memerlukan addendum tertulis.\n"
-            "4. Klien wajib menyediakan akses ke website, Google Analytics, dan Google Search Console."
+            "1. Pembayaran bulanan di muka. Tanpa kontrak jangka panjang — berhenti kapan saja.\n"
+            "2. Hasil SEO bersifat gradual. Peningkatan signifikan biasanya terlihat dalam 3-6 bulan.\n"
+            "3. Perubahan keyword atau arah optimasi memerlukan addendum tertulis.\n"
+            "4. Klien menyediakan akses ke website, Google Analytics, dan Google Search Console."
         ),
         "out_of_scope": (
-            "Google Ads management, penulisan konten blog (kecuali disepakati),\n"
-            "desain grafis, dan pengembangan website memerlukan layanan terpisah.\n"
+            "Google Ads management (kami bisa bantu dengan biaya terpisah), penulisan konten blog\n"
+            "(kecuali sudah termasuk dalam paket), desain grafis, dan pengembangan website.\n"
             "Biaya iklan Google Ads dibayar langsung oleh klien."
         ),
         "disclaimer": (
-            "Hasil optimasi SEO bergantung pada algoritma mesin pencari, tingkat kompetisi,\n"
-            "dan faktor eksternal lainnya. Penyedia Jasa berkomitmen pada proses optimasi\n"
-            "terbaik, namun tidak dapat menjamin ranking atau posisi spesifik di mesin pencari.\n"
-            "Peningkatan visibilitas biasanya terlihat dalam 2-6 bulan pertama."
+            "Hasil SEO bergantung pada algoritma Google, tingkat kompetisi, dan faktor eksternal.\n"
+            "Kami TIDAK menjamin ranking #1 atau posisi spesifik. Namun, kami berkomitmen pada\n"
+            "proses optimasi terbaik dengan strategi yang terbukti efektif. Peningkatan visibilitas\n"
+            "biasanya terlihat dalam 3-6 bulan pertama."
         ),
-        "target_keywords": "Daftar keyword akan disesuaikan berdasarkan riset awal dan disepakati bersama saat kick-off.",
+        "target_keywords": "Daftar keyword akan disesuaikan berdasarkan riset awal dan disepakati bersama saat kick-off. Fokus pada keyword yang menghasilkan konversi, bukan hanya traffic.",
         "success_metrics": (
             "Metrik keberhasilan: perubahan ranking keyword target, peningkatan traffic organik,\n"
-            "dan impresi Google Business Profile. Data dimonitor via Google Search Console dan Google Analytics."
+            "dan impresi Google Business Profile. Data dimonitor via Google Search Console dan Analytics.\n"
+            "Target realistis: peningkatan 50-200% traffic organik dalam 6 bulan."
         ),
         "scope_change": "Perubahan keyword target atau arah optimasi memerlukan addendum tertulis dan penyesuaian biaya.",
     },
 
     # ─── Social Media Management ──────────────────────────────────────────────
     "sosmed": {
-        "layanan": "Pengelolaan Konten Media Sosial",
+        "layanan": "Kelola Sosial Media — Bangun Brand yang Dicintai Pelanggan",
         "scope": (
-            "Penyedia Jasa akan mengelola kehadiran brand di media sosial melalui:\n"
-            "  1. Content planning — penyusunan content calendar bulanan.\n"
-            "  2. Content creation — desain visual, copywriting, dan scheduling.\n"
-            "  3. Posting & monitoring — publikasi konten sesuai jadwal.\n"
-            "  4. Monthly analytics — laporan performa (reach, engagement, follower growth)."
+            "Media sosial bukan lagi sekadar tempat posting — ini adalah CHANNEL PENJUALAN\n"
+            "yang bisa menghasilkan revenue langsung. Bisnis yang aktif di sosmed mendapat\n"
+            "3x lebih banyak kepercayaan dari calon pelanggan.\n\n"
+            "Kami akan mengelola sosmed Anda secara PROFESIONAL:\n"
+            "  1. Content planning — content calendar strategis berdasarkan target audiens.\n"
+            "  2. Content creation — desain visual branded, copywriting persuasif, scheduling.\n"
+            "  3. Posting & monitoring — publikasi konsisten sesuai jadwal optimal.\n"
+            "  4. Analytics & optimization — laporan performa dan rekomendasi bulanan."
         ),
         "deliverables": (
             "- Content calendar bulanan (disetujui H-3 sebelum minggu berjalan)\n"
-            "- Desain feed dan story sesuai platform yang disepakati\n"
-            "- Copywriting/caption untuk setiap posting\n"
-            "- Laporan bulanan: reach, engagement, dan rekomendasi"
+            "- 9-24 konten feed per bulan (sesuai paket) dengan desain branded premium\n"
+            "- Copywriting/caption persuasif yang menghasilkan engagement dan konversi\n"
+            "- Video reels editing (untuk paket Pro & Expert)\n"
+            "- Laporan bulanan detail: reach, engagement, follower growth, dan ROI"
         ),
         "terms": (
-            "1. Pembayaran bulanan di muka.\n"
+            "1. Pembayaran bulanan di muka. Tanpa kontrak jangka panjang.\n"
             "2. Content calendar dikirim H-3 sebelum minggu berjalan.\n"
             "3. Klien wajib memberikan approval maksimal H-1.\n"
             "4. Konten yang tidak di-approve akan di-skip dari jadwal posting.\n"
-            "5. Revisi konten sebanyak 1 (satu) kali per konten sebelum scheduling."
+            "5. Revisi konten 1x per konten sebelum scheduling (GRATIS)."
         ),
         "out_of_scope": (
             "Pembelian iklan (ad spend), pengelolaan DM/chat (community management),\n"
-            "fotografi/videografi on-site, dan influencer collaboration\n"
-            "memerlukan layanan terpisah. Klien bertanggung jawab atas kepatuhan\n"
-            "terhadap kebijakan platform media sosial."
+            "fotografi/videografi on-site, dan influencer collaboration memerlukan layanan terpisah.\n"
+            "Klien bertanggung jawab atas kepatuhan terhadap kebijakan platform media sosial."
         ),
         "platform_rules": (
             "Penyedia Jasa tidak bertanggung jawab atas penangguhan atau pembatasan akun\n"
@@ -544,34 +559,38 @@ SERVICE_DESCRIPTIONS: dict[str, dict[str, str]] = {
             "maksimal H-1. Konten yang tidak di-approve akan di-skip. Revisi 1x per konten sebelum scheduling."
         ),
         "content_ownership": (
-            "Konten (desain, caption, video) menjadi milik klien setelah pembayaran lunas.\n"
+            "SEMUA konten (desain, caption, video) menjadi milik klien SETELAH pembayaran lunas.\n"
             "Penyedia Jasa berhak menggunakan konten sebagai portofolio dengan izin klien."
         ),
-        "revision_limit": "1 (satu) kali revisi per konten sebelum scheduling. Revisi tambahan: Rp 50.000/sesi.",
+        "revision_limit": "1 (satu) kali revisi GRATIS per konten sebelum scheduling. Revisi tambahan: Rp 50.000/sesi.",
     },
 
     # ─── Maintenance & Support ────────────────────────────────────────────────
     "maintenance": {
-        "layanan": "Dukungan Teknis & Maintenance Website",
+        "layanan": "Maintenance Website — Jangan Biarkan Website Anda Menjadi Beban Operasional",
         "scope": (
-            "Penyedia Jasa menyediakan dukungan teknis berkelanjutan untuk menjaga\n"
-            "website klien tetap optimal, aman, dan terkini:\n"
-            "  1. Update rutin — plugin, theme, dan core platform.\n"
-            "  2. Backup berkala — backup mingguan dengan retensi 30 hari.\n"
-            "  3. Security monitoring — scanning malware dan vulnerability.\n"
+            "Website yang tidak di-maintenance adalah BOM WAKTU. Plugin usang, keamanan bolong,\n"
+            "backup tidak teratur — semua ini bisa membuat website Anda DOWN dan kehilangan\n"
+            "pelanggan dalam sekejap.\n\n"
+            "Kami menjaga website Anda tetap AMAN, CEPAT, dan TERKINI:\n"
+            "  1. Update rutin — plugin, theme, dan core platform selalu ter-update.\n"
+            "  2. Backup berkala — backup mingguan/harian dengan retensi 30-90 hari.\n"
+            "  3. Security monitoring — scanning malware dan vulnerability 24/7.\n"
             "  4. Bug fixing — perbaikan error dalam cakupan yang disepakati.\n"
-            "  5. Monthly report — laporan kondisi website dan aktivitas maintenance."
+            "  5. Performance optimization — website tetap cepat dan responsif.\n"
+            "  6. Monthly report — laporan kondisi website dan aktivitas maintenance."
         ),
         "deliverables": (
-            "- Update plugin, theme, dan core platform\n"
-            "- Backup mingguan (retensi 30 hari)\n"
-            "- Monitoring keamanan dan scanning malware\n"
+            "- Update plugin, theme, dan core platform (mencegah vulnerability)\n"
+            "- Backup rutin (mingguan/harian) dengan retensi 30-90 hari\n"
+            "- Monitoring keamanan 24/7 dan scanning malware\n"
             "- Perbaikan bug dan error (dalam cakupan)\n"
-            "- Laporan bulanan: kondisi website, update, dan rekomendasi"
+            "- Performance optimization (kecepatan website)\n"
+            "- Laporan bulanan detail: kondisi website, update, dan rekomendasi"
         ),
         "terms": (
-            "1. Pembayaran bulanan di muka.\n"
-            "2. Response time sesuai SLA yang disepakati.\n"
+            "1. Pembayaran bulanan di muka. Tanpa kontrak jangka panjang.\n"
+            "2. Response time sesuai SLA yang disepakati (critical: 4 jam).\n"
             "3. Issue dianggap resolved ketika klien memberikan sign-off.\n"
             "4. Jika tidak ada respon dalam 5 hari kerja setelah penyelesaian, ticket akan di-closed."
         ),
@@ -581,9 +600,9 @@ SERVICE_DESCRIPTIONS: dict[str, dict[str, str]] = {
             "Biaya addendum akan dikonfirmasi sebelum pengerjaan."
         ),
         "sla_metrics": (
-            "Critical (website down/error fatal): 4 jam kerja\n"
-            "Normal (fungsi terganggu): 1x24 jam kerja\n"
-            "Low (kosmetik/minor): 3x24 jam kerja"
+            "Critical (website down/error fatal): Response dalam 4 jam kerja\n"
+            "Normal (fungsi terganggu): Response dalam 1x24 jam kerja\n"
+            "Low (kosmetik/minor): Response dalam 3x24 jam kerja"
         ),
         "coverage_hours": "Senin - Jumat, 09.00 - 18.00 WIB. Emergency di luar jam kerja hanya untuk kondisi kritis (website down total).",
         "emergency_escalation": "Kontak WhatsApp/SMS ke nomor yang dicantumkan saat kick-off. Emergency di luar jam kerja hanya untuk kondisi kritis yang mempengaruhi operasional bisnis.",
@@ -592,29 +611,32 @@ SERVICE_DESCRIPTIONS: dict[str, dict[str, str]] = {
 
     # ─── Branding & Visual Identity ───────────────────────────────────────────
     "branding": {
-        "layanan": "Perancangan Identitas Visual & Brand",
+        "layanan": "Desain Logo & Identitas Visual — Bangun Brand yang Tak Terlupakan",
         "scope": (
-            "Penyedia Jasa akan merancang identitas visual yang konsisten dan profesional\n"
-            "untuk memperkuat positioning brand klien:\n"
-            "  1. Discovery & Brief — pemahaman visi, target audiens, dan positioning.\n"
-            "  2. Moodboard & Konsep — penyusunan 3 arah konsep visual.\n"
-            "  3. Development — pengembangan 1 arah konsep yang dipilih.\n"
-            "  4. Brand Guide — pedoman penggunaan elemen visual.\n"
-            "  5. File Delivery — penyerahan file final dalam format yang disepakati."
+            "Logo bukan sekadar gambar — ini adalah WAJAH brand Anda yang akan diingat pelanggan\n"
+            "sepanjang waktu. Logo yang profesional meningkatkan kepercayaan hingga 80% dan\n"
+            "membuat bisnis Anda terlihat SERIUS dan KREDIBEL di mata pelanggan.\n\n"
+            "Kami akan menciptakan identitas visual yang MENCERMINKAN nilai bisnis Anda:\n"
+            "  1. Discovery & Brief — kami pahami visi, misi, dan target audiens Anda.\n"
+            "  2. Moodboard & Konsep — 3 arah konsep visual yang berbeda untuk Anda pilih.\n"
+            "  3. Development — pengembangan 1 arah konsep yang dipilih hingga sempurna.\n"
+            "  4. Brand Guide — pedoman lengkap penggunaan elemen visual brand Anda.\n"
+            "  5. File Delivery — semua file dalam format profesional siap pakai."
         ),
         "deliverables": (
-            "- 3 arah konsep awal (moodboard + visual direction)\n"
-            "- Logo final dalam format AI, PNG, SVG, dan EPS\n"
-            "- Brand guide (warna, tipografi, penggunaan logo)\n"
-            "- Palet warna (Pantone, CMYK, HEX, RGB)\n"
-            "- Tipografi utama dan sekunder"
+            "- 3 arah konsep awal (moodboard + visual direction) — Anda pilih yang terbaik\n"
+            "- Logo final dalam SEMUA format: AI, PNG, SVG, EPS (siap cetak & digital)\n"
+            "- Brand guide lengkap: warna, tipografi, penggunaan logo\n"
+            "- Palet warna profesional (Pantone, CMYK, HEX, RGB)\n"
+            "- Tipografi utama dan sekunder yang konsisten\n"
+            "- File master vector (bisa diedit kapan saja tanpa kehilangan kualitas)"
         ),
         "terms": (
             "1. DP 50% saat kick-off, pelunasan saat serah terima final.\n"
             "2. 3 arah konsep awal. Klien memilih 1 arah untuk dikembangkan.\n"
-            "3. Revisi sebanyak 3 (tiga) kali gratis per konsep.\n"
+            "3. Revisi sebanyak 3 (tiga) kali GRATIS per konsep.\n"
             "4. Revisi di luar batas dikenakan biaya tambahan.\n"
-            "5. File final diserahkan setelah pelunasan."
+            "5. File final diserahkan setelah pelunasan — SEMUA hak milik Anda."
         ),
         "out_of_scope": (
             "Pengembangan website, pengelolaan media sosial, strategi pemasaran,\n"
@@ -622,7 +644,7 @@ SERVICE_DESCRIPTIONS: dict[str, dict[str, str]] = {
             "layanan terpisah. Biaya akan dikonfirmasi sebelum pengerjaan."
         ),
         "concept_count": "3 (tiga) arah konsep awal. Klien memilih 1 (satu) arah untuk dikembangkan lebih lanjut.",
-        "revision_limit": "3 (tiga) kali revisi gratis per konsep. Revisi di luar batas dikenakan biaya tambahan per sesi.",
+        "revision_limit": "3 (tiga) kali revisi GRATIS per konsep. Revisi di luar batas dikenakan biaya tambahan per sesi.",
         "moodboard_approval": (
             "Moodboard dan brief visual harus di-approve oleh klien sebelum desain dimulai.\n"
             "Klien dianggap menyetujui brief apabila tidak memberikan koreksi dalam 3 hari kerja."
@@ -636,25 +658,30 @@ SERVICE_DESCRIPTIONS: dict[str, dict[str, str]] = {
 
     # ─── Retainer / Paket Bulanan Multi-Layanan ───────────────────────────────
     "retainer": {
-        "layanan": "Layanan Digital Terpadu — Paket Bulanan",
+        "layanan": "Paket Retainer Bulanan — Solusi Digital All-in-One untuk Bisnis Anda",
         "scope": (
-            "Layanan digital terpadu yang mencakup berbagai kebutuhan bisnis sesuai\n"
-            "paket yang disepakati. Cakupan meliputi:\n"
-            "  1. Pengembangan & maintenance website (jika termasuk dalam paket)\n"
-            "  2. Optimasi SEO & Google Business Profile (jika termasuk dalam paket)\n"
-            "  3. Pengelolaan konten media sosial (jika termasuk dalam paket)\n"
-            "  4. Dukungan teknis dan konsultasi digital strategy"
+            "Bayangkan memiliki TIM DIGITAL LENGKAP yang bekerja untuk bisnis Anda setiap bulan,\n"
+            "tanpa perlu rekrut karyawan atau investasi besar. Dengan paket retainer, Anda mendapat\n"
+            "akses ke berbagai layanan digital profesional dengan SATU KONTAK dan SATU HARGA BULANAN.\n\n"
+            "Layanan terpadu yang mencakup SEMUA kebutuhan digital bisnis Anda:\n"
+            "  1. Pengembangan & maintenance website — website selalu optimal dan aman\n"
+            "  2. Optimasi SEO & Google Business Profile — tampil di halaman pertama Google\n"
+            "  3. Pengelolaan konten media sosial — brand aktif dan engagement tinggi\n"
+            "  4. Dukungan teknis dan konsultasi digital strategy — kami siap bantu kapan saja"
         ),
         "deliverables": (
-            "- Deliverables sesuai layanan yang termasuk dalam paket\n"
-            "- Laporan bulanan: progres, metrik, dan rekomendasi\n"
-            "- Dukungan komunikasi via WhatsApp/email selama jam kerja"
+            "- Semua deliverables sesuai layanan yang termasuk dalam paket Anda\n"
+            "- Laporan bulanan komprehensif: progres, metrik, ROI, dan rekomendasi strategis\n"
+            "- Dukungan komunikasi via WhatsApp/email selama jam kerja (response cepat)\n"
+            "- Konsultasi digital strategy tanpa batas — kami bantu Anda tumbuh\n"
+            "- Fleksibilitas: upgrade atau downgrade paket sesuai kebutuhan bisnis"
         ),
         "terms": (
             "1. Pembayaran bulanan di muka, sebelum tanggal 10 setiap bulannya.\n"
-            "2. Prioritas layanan ditentukan bersama di awal setiap bulan.\n"
+            "2. Prioritas layanan ditentukan bersama di awal setiap bulan — Anda yang kontrol.\n"
             "3. Slot/jam yang tidak terpakai tidak dapat di-akumulasi ke bulan berikutnya.\n"
-            "4. Layanan di luar paket memerlukan addendum tertulis."
+            "4. Layanan di luar paket memerlukan addendum tertulis.\n"
+            "5. Stop layanan kapan saja dengan pemberitahuan 30 hari — tanpa penalti."
         ),
         "out_of_scope": (
             "Layanan yang tidak termasuk dalam paket bulanan memerlukan addendum terpisah.\n"
