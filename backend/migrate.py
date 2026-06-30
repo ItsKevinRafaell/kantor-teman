@@ -103,6 +103,7 @@ if "mysql" in _db_url:
         ("provider_configs", "monthly_quota", "ALTER TABLE provider_configs ADD COLUMN monthly_quota FLOAT NOT NULL DEFAULT 0"),
         ("scrape_history", "batch_name", "ALTER TABLE scrape_history ADD COLUMN batch_name VARCHAR(255) NULL"),
         ("users", "role", "ALTER TABLE users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT 'admin'"),
+        ("users", "token_version", "ALTER TABLE users ADD COLUMN token_version INT NOT NULL DEFAULT 1"),
         ("ai_proxies", "feature", "ALTER TABLE ai_proxies ADD COLUMN feature VARCHAR(50) NULL"),
         ("contacts", "lead_id", "ALTER TABLE contacts ADD COLUMN lead_id INT NULL"),
         ("ai_proxies", "provider", "ALTER TABLE ai_proxies ADD COLUMN provider VARCHAR(50) NOT NULL DEFAULT '9router'"),
@@ -1185,6 +1186,17 @@ if users_cols and "role" not in users_cols:
     print("+ kolom role ditambahkan ke users")
 elif users_cols:
     print("= users.role sudah ada, skip")
+
+# ---------------------------------------------------------------------------
+# Migrasi users: tambah token_version
+# ---------------------------------------------------------------------------
+cur.execute("PRAGMA table_info(users)")
+users_cols = {row[1] for row in cur.fetchall()}
+if users_cols and "token_version" not in users_cols:
+    cur.execute("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 1")
+    print("+ kolom token_version ditambahkan ke users")
+elif users_cols:
+    print("= users.token_version sudah ada, skip")
 
 conn.commit()
 

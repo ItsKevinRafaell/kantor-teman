@@ -583,9 +583,19 @@ export default function VariableInputForm({
                         </div>
                         <div>
                           <label className="text-[10px] font-bold text-gray-400 uppercase">Deskripsi</label>
-                          <textarea value={it.description} placeholder="Deskripsi paket / fitur..."
-                            onChange={e => updateLineItem(key, it.id, { description: e.target.value })} rows={2}
-                            className="w-full mt-0.5 px-2 py-1.5 text-xs border border-gray-200 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900 resize-y" />
+                          <textarea
+                            value={it.description}
+                            placeholder="Deskripsi paket / fitur..."
+                            onChange={e => {
+                              updateLineItem(key, it.id, { description: e.target.value });
+                              // Auto-resize textarea
+                              e.target.style.height = 'auto';
+                              e.target.style.height = `${e.target.scrollHeight}px`;
+                            }}
+                            rows={Math.min(2 + (it.description?.split('\n').length || 0), 10)}
+                            className="w-full mt-0.5 px-2 py-1.5 text-xs border border-gray-200 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900 resize-y min-h-[60px]"
+                            style={{ overflow: 'hidden' }}
+                          />
                         </div>
                       </div>
                     ))}
