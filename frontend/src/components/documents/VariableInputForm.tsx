@@ -710,10 +710,9 @@ export default function VariableInputForm({
                         {m.name} · {m.account_name} · {m.account_number}
                       </option>
                     ))}
-                    <option value="Tunai">Tunai</option>
                   </select>
                   {paymentMethods.length === 0 && (
-                    <p className="text-[11px] text-amber-600 mt-1">Belum ada metode pembayaran aktif. Tambah di Finance → Metode Pembayaran.</p>
+                    <p className="text-[11px] text-amber-600 mt-1">Belum ada metode pembayaran. Tambahkan di menu Finance → Payment Methods</p>
                   )}
                 </div>
               );
