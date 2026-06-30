@@ -4,27 +4,27 @@
 SCOPE_TEMPLATES = {
     "web_dev": {
         "name": "Pembuatan Website",
-        "scope": "Pembuatan website profesional untuk bisnis Anda, meliputi:\n\n• Konsultasi dan riset kebutuhan bisnis\n• Desain tampilan yang menarik dan mudah digunakan\n• Integrasi WhatsApp untuk komunikasi langsung dengan pelanggan\n• Optimasi agar mudah ditemukan di Google\n• Website responsif untuk HP dan komputer\n• Domain dan hosting tahun pertama\n• Pelatihan cara update konten website",
+        "scope": "Pembuatan website profesional untuk bisnis Anda, meliputi:\n\n- Konsultasi dan riset kebutuhan bisnis\n- Desain tampilan yang menarik dan mudah digunakan\n- Integrasi WhatsApp untuk komunikasi langsung dengan pelanggan\n- Optimasi agar mudah ditemukan di Google\n- Website responsif untuk HP dan komputer\n- Domain dan hosting tahun pertama\n- Pelatihan cara update konten website",
     },
     "seo_gmaps": {
         "name": "SEO & Google Maps",
-        "scope": "Optimasi agar bisnis Anda muncul di halaman pertama Google dan Google Maps, meliputi:\n\n• Riset kata kunci yang sering dicari pelanggan di daerah Anda\n• Optimasi profil Google Business Profile (foto, deskripsi, jam buka)\n• Pembuatan artikel/blog yang relevan dengan bisnis Anda\n• Optimasi teknis website agar cepat dan mudah dibaca Google\n• Monitoring peringkat dan laporan bulanan\n• Balasan ulasan pelanggan untuk membangun reputasi",
+        "scope": "Optimasi agar bisnis Anda muncul di halaman pertama Google dan Google Maps, meliputi:\n\n- Riset kata kunci yang sering dicari pelanggan di daerah Anda\n- Optimasi profil Google Business Profile (foto, deskripsi, jam buka)\n- Pembuatan artikel/blog yang relevan dengan bisnis Anda\n- Optimasi teknis website agar cepat dan mudah dibaca Google\n- Monitoring peringkat dan laporan bulanan\n- Balasan ulasan pelanggan untuk membangun reputasi",
     },
     "sosmed": {
         "name": "Kelola Media Sosial",
-        "scope": "Pengelolaan media sosial bisnis Anda agar aktif dan menarik pelanggan, meliputi:\n\n• Strategi konten bulanan sesuai target audiens\n• Desain konten visual yang konsisten dengan brand Anda\n• Penulisan caption yang menarik dan mendorong interaksi\n• Penjadwalan posting otomatis\n• Riset hashtag yang relevan\n• Laporan performa bulanan (jumlah like, komentar, followers baru)",
+        "scope": "Pengelolaan media sosial bisnis Anda agar aktif dan menarik pelanggan, meliputi:\n\n- Strategi konten bulanan sesuai target audiens\n- Desain konten visual yang konsisten dengan brand Anda\n- Penulisan caption yang menarik dan mendorong interaksi\n- Penjadwalan posting otomatis\n- Riset hashtag yang relevan\n- Laporan performa bulanan (jumlah like, komentar, followers baru)",
     },
     "maintenance": {
         "name": "Maintenance Website",
-        "scope": "Perawatan rutin website Anda agar tetap aman dan berjalan lancar, meliputi:\n\n• Backup data mingguan (jaga-jaga kalau ada masalah)\n• Scan malware dan keamanan bulanan\n• Update sistem dan plugin otomatis\n• Monitoring performa website 24/7\n• Perbaikan bug atau error yang muncul\n• Laporan kondisi website bulanan",
+        "scope": "Perawatan rutin website Anda agar tetap aman dan berjalan lancar, meliputi:\n\n- Backup data mingguan (jaga-jaga kalau ada masalah)\n- Scan malware dan keamanan bulanan\n- Update sistem dan plugin otomatis\n- Monitoring performa website 24/7\n- Perbaikan bug atau error yang muncul\n- Laporan kondisi website bulanan",
     },
     "branding": {
         "name": "Desain Logo & Branding",
-        "scope": "Pembuatan identitas visual bisnis Anda yang profesional dan konsisten, meliputi:\n\n• Konsultasi visi dan target audiens bisnis\n• Pembuatan beberapa opsi desain logo\n• Revisi hingga sesuai keinginan\n• File logo dalam berbagai format (untuk cetak dan digital)\n• Panduan penggunaan logo dan warna brand\n• Desain kartu nama dan kop surat (untuk paket lengkap)",
+        "scope": "Pembuatan identitas visual bisnis Anda yang profesional dan konsisten, meliputi:\n\n- Konsultasi visi dan target audiens bisnis\n- Pembuatan beberapa opsi desain logo\n- Revisi hingga sesuai keinginan\n- File logo dalam berbagai format (untuk cetak dan digital)\n- Panduan penggunaan logo dan warna brand\n- Desain kartu nama dan kop surat (untuk paket lengkap)",
     },
     "retainer": {
         "name": "Paket Retainer Bulanan",
-        "scope": "Layanan digital bulanan lengkap untuk bisnis Anda, meliputi kombinasi dari:\n\n• Pengembangan dan perawatan website\n• Optimasi SEO dan Google Maps\n• Pengelolaan media sosial\n• Konsultasi strategi digital\n• Laporan performa bulanan\n• Dukungan teknis prioritas",
+        "scope": "Layanan digital bulanan lengkap untuk bisnis Anda, meliputi kombinasi dari:\n\n- Pengembangan dan perawatan website\n- Optimasi SEO dan Google Maps\n- Pengelolaan media sosial\n- Konsultasi strategi digital\n- Laporan performa bulanan\n- Dukungan teknis prioritas",
     },
 }
 
