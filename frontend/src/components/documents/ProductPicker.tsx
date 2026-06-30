@@ -56,7 +56,11 @@ export default function ProductPicker({
                 <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{p.name}</p>
                 <p className="text-sm font-bold text-amber-600">{formatRupiah(p.base_price)}</p>
               </div>
-              {p.description && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{p.description}</p>}
+              {p.description && (
+                <div className="text-xs text-gray-500 mt-1 max-h-20 overflow-y-auto">
+                  {p.description}
+                </div>
+              )}
             </button>
           ))}
         </div>
