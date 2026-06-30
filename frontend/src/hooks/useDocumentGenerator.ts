@@ -448,7 +448,10 @@ export function useDocumentGenerator() {
 
   // --- Line item operations ---
   const addLineItemFromProduct = useCallback((key: string, product: Product) => {
-    const newItem: LineItem = { id: crypto.randomUUID(), name: product.name, description: product.description || (product.features?.join(", ") || ""), qty: 1, price: product.base_price };
+    const description = product.features?.length
+      ? product.features.join("\n")
+      : (product.description || "");
+    const newItem: LineItem = { id: crypto.randomUUID(), name: product.name, description, qty: 1, price: product.base_price };
     setLineItems(prev => {
       const items = [...(prev[key] || []), newItem];
       setVariables(v => ({ ...v, [key]: lineItemsToHtml(items) }));
@@ -460,7 +463,10 @@ export function useDocumentGenerator() {
   }, [variables]);
 
   const pickProductForSingleField = useCallback((key: string, product: Product) => {
-    setVariables(prev => ({ ...prev, [key]: product.name, scope: key === "layanan" && !prev.scope ? (product.description || product.features?.join("\n") || "") : prev.scope }));
+    const scopeValue = product.features?.length
+      ? product.features.join("\n")
+      : (product.description || "");
+    setVariables(prev => ({ ...prev, [key]: product.name, scope: key === "layanan" && !prev.scope ? scopeValue : prev.scope }));
     markUnsaved();
     setProductPickerForKey(null); setProductSearch("");
   }, []);

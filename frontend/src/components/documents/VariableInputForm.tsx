@@ -368,10 +368,13 @@ export default function VariableInputForm({
   };
 
   const addLineItemFromProduct = (key: string, product: any) => {
+    const description = product.features?.length
+      ? product.features.join("\n")
+      : (product.description || "");
     const newItem: LineItem = {
       id: crypto.randomUUID(),
       name: product.name,
-      description: product.description || (product.features?.join(", ") || ""),
+      description,
       qty: 1,
       price: product.base_price,
     };
@@ -393,11 +396,14 @@ export default function VariableInputForm({
   };
 
   const pickProductForSingleField = (key: string, product: any) => {
+    const scopeValue = product.features?.length
+      ? product.features.join("\n")
+      : (product.description || "");
     setVariables(prev => ({
       ...prev,
       [key]: product.name,
       scope: key === "layanan" && !prev.scope
-        ? (product.description || product.features?.join("\n") || "")
+        ? scopeValue
         : prev.scope,
     }));
     setProductPickerForKey(null);
