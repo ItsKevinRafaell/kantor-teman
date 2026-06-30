@@ -57,7 +57,7 @@ export default function ProductPicker({
                 <p className="text-sm font-bold text-amber-600">{formatRupiah(p.base_price)}</p>
               </div>
               {p.description && (
-                <div className="text-xs text-gray-500 mt-1 max-h-20 overflow-y-auto">
+                <div className="text-xs text-gray-500 mt-2 max-h-32 overflow-y-auto pr-2 leading-relaxed">
                   {p.description}
                 </div>
               )}
