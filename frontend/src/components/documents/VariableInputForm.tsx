@@ -592,8 +592,8 @@ export default function VariableInputForm({
                               e.target.style.height = 'auto';
                               e.target.style.height = `${e.target.scrollHeight}px`;
                             }}
-                            rows={Math.min(2 + (it.description?.split('\n').length || 0), 10)}
-                            className="w-full mt-0.5 px-2 py-1.5 text-xs border border-gray-200 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900 resize-y min-h-[60px]"
+                            rows={Math.min(Math.max(4, Math.ceil((it.description?.length || 0) / 60)), 15)}
+                            className="w-full mt-0.5 px-2 py-1.5 text-xs border border-gray-200 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900 resize-y min-h-[80px]"
                             style={{ overflow: 'hidden' }}
                           />
                         </div>
