@@ -473,18 +473,29 @@ export function useDocumentGenerator() {
     setProductPickerForKey(null); setProductSearch("");
   }, []);
 
-  // --- Invoice sequence ---
+  // --- Document sequence (supports all template types) ---
   async function loadCurrentSequence() {
-    try { const res = await apiFetch("/api/documents/invoice-sequence"); if (res.ok) { const data = await res.json(); setSeqStartFrom(String(data.next_seq)); } } catch {}
+    if (!selectedTemplate) return;
+    const templateType = selectedTemplate.type || "invoice";
+    try {
+      const res = await apiFetch(`/api/documents/invoice-sequence?template_type=${templateType}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSeqStartFrom(String(data.next_seq));
+      }
+    } catch {}
   }
 
   async function saveSequence() {
+    if (!selectedTemplate) return;
     const start = parseInt(seqStartFrom);
     if (!start || start < 1) { setToast({ message: "Nomor awal harus angka >= 1", type: "error" }); return; }
+    const templateType = selectedTemplate.type || "invoice";
     try {
-      const res = await apiFetch("/api/documents/invoice-sequence", { method: "PUT", body: JSON.stringify({ start_from: start, template_type: "invoice" }) });
+      const res = await apiFetch("/api/documents/invoice-sequence", { method: "PUT", body: JSON.stringify({ start_from: start, template_type: templateType }) });
       if (!res.ok) throw new Error("Gagal simpan");
-      setToast({ message: `Nomor invoice berikutnya: ${start}`, type: "success" });
+      const docTypeName = templateType.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+      setToast({ message: `Nomor ${docTypeName} berikutnya: ${start}`, type: "success" });
       setShowSeqEditor(false);
       if (selectedTemplate) { const ttype = selectedProject ? "project" : selectedLead ? "lead" : selectedContact ? "contact" : "empty"; await fetchAndApplyDefaults(selectedTemplate, ttype, selectedProject?.id ?? selectedLead?.id ?? selectedContact?.id ?? null); }
     } catch (e: unknown) { setToast({ message: e instanceof Error ? e.message : "Gagal simpan", type: "error" }); }

@@ -933,8 +933,8 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
                         except:
                             features = []
 
-                    # Build description from features
-                    desc = "<br>".join(f"• {f}" for f in features[:5]) if features else p.description or ""
+                    # Build description from features — use <br/> for PDF compatibility
+                    desc = "<br/>".join(f"• {f}" for f in features[:5]) if features else (p.description or "").replace("\n", "<br/>")
 
                     # Format price
                     price_formatted = f"Rp {p.base_price:,.0f}".replace(",", ".")

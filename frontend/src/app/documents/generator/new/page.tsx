@@ -253,6 +253,7 @@ function DocumentNewPageInner() {
         seqStartFrom={ctx.seqStartFrom}
         setSeqStartFrom={ctx.setSeqStartFrom}
         saveSequence={ctx.saveSequence}
+        templateType={ctx.selectedTemplate?.type}
       />
 
       {/* Email Modal */}

@@ -14,7 +14,7 @@ interface EditClientModalProps {
 }
 
 export default function EditClientModal({ contact, open, onClose, onSuccess, setToast }: EditClientModalProps) {
-  const [form, setForm] = useState({ business_name: "", phone_number: "", owner_name: "", purchased_product: "", notes: "" });
+  const [form, setForm] = useState({ business_name: "", phone_number: "", owner_name: "", email: "", address: "", purchased_product: "", notes: "" });
 
   // Populate form when modal opens with a contact
   useEffect(() => {
@@ -23,6 +23,8 @@ export default function EditClientModal({ contact, open, onClose, onSuccess, set
         business_name: contact.business_name,
         phone_number: contact.phone_number,
         owner_name: contact.owner_name || "",
+        email: contact.email || "",
+        address: contact.address || "",
         purchased_product: contact.purchased_product || "",
         notes: contact.notes || "",
       });
@@ -38,7 +40,7 @@ export default function EditClientModal({ contact, open, onClose, onSuccess, set
     });
     if (res.ok) {
       setToast({ message: "Klien berhasil diperbarui.", type: "success" });
-      setForm({ business_name: "", phone_number: "", owner_name: "", purchased_product: "", notes: "" });
+      setForm({ business_name: "", phone_number: "", owner_name: "", email: "", address: "", purchased_product: "", notes: "" });
       onSuccess();
       onClose();
     } else {
@@ -68,6 +70,14 @@ export default function EditClientModal({ contact, open, onClose, onSuccess, set
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Nama Owner</label>
             <input value={form.owner_name} onChange={e => setForm(f => ({ ...f, owner_name: e.target.value }))} className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Email</label>
+            <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Alamat</label>
+            <textarea value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} rows={2} className={inputClsLarge} />
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Produk/Layanan</label>

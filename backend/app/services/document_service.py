@@ -614,6 +614,9 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
         defaults["keterangan"] = ""
 
     elif template_type == "proposal_pdf":
+        seq = _peek_doc_sequence(db, "GLOBAL", "proposal_pdf")
+        yyyymm = today.strftime("%Y%m")
+        defaults["nomor"] = f"PROP/{yyyymm}/{seq:03d}"
         defaults["valid_until"] = _format_date_id(today + timedelta(days=14))
         defaults["validity"] = defaults["valid_until"]
         defaults.setdefault("scope", "")

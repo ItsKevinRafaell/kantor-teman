@@ -45,6 +45,8 @@ class Contact(Base):
     business_name = Column(String(255), nullable=False)
     owner_name = Column(String(255), nullable=True)
     phone_number = Column(String(255), unique=True, nullable=False)
+    email = Column(String(255), nullable=True)
+    address = Column(String(500), nullable=True)
     purchased_product = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
     # FK to Lead - auto-created when Contact is created standalone

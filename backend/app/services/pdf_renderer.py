@@ -640,12 +640,17 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
             if not description and "\n" in service_name:
                 service_lines = [line.strip() for line in service_name.splitlines() if line.strip()]
                 service_name = service_lines[0] if service_lines else service_name
-                description = " ".join(service_lines[1:])
+                description = "\n".join(service_lines[1:])  # Preserve newlines in description
             service_name = _clean_label_value(service_name)
             description = description.strip()
             service_cell = [Paragraph(html_mod.escape(service_name or "-"), item_name)]
             if description:
-                service_cell.append(Paragraph(html_mod.escape(description[:300]), item_desc))
+                # Convert <br/> tags to newlines before escaping, then escape
+                desc_clean = description.replace("<br/>", "\n").replace("<br>", "\n")
+                desc_escaped = html_mod.escape(desc_clean[:300])
+                # Convert newlines to <br/> for Paragraph to render
+                desc_final = desc_escaped.replace("\n", "<br/>")
+                service_cell.append(Paragraph(desc_final, item_desc))
 
             table_data.append([
                 service_cell,

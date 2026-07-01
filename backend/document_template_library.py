@@ -86,7 +86,7 @@ RECEIPT_HTML = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>{BASE_
 
 
 PROPOSAL_HTML = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>{BASE_STYLE}</style></head><body>
-<table class="w100 top"><tr><td><div class="logo">{{logo}}</div><div class="eyebrow">{{brand_name}}</div><div class="title">PROPOSAL PENAWARAN</div></td><td class="right muted">Tanggal: <span class="strong">{{tanggal}}</span><br/>Berlaku hingga: <span class="strong">{{valid_until}}</span></td></tr></table>
+<table class="w100 top"><tr><td><div class="logo">{{logo}}</div><div class="eyebrow">{{brand_name}}</div><div class="title">PROPOSAL PENAWARAN</div><div class="muted">No. <span class="strong">{{nomor}}</span></div></td><td class="right muted">Tanggal: <span class="strong">{{tanggal}}</span><br/>Berlaku hingga: <span class="strong">{{valid_until}}</span></td></tr></table>
 <table class="w100"><tr><td width="49%" class="box"><div class="box-title">Penyedia Jasa</div><div class="strong">{{brand_name}}</div><div class="muted">{{phone_perusahaan}}<br/>{{email_perusahaan}}</div></td><td width="2%"></td><td width="49%" class="box"><div class="box-title">Disiapkan Untuk</div><div class="strong">{{klien}}</div><div class="muted">{{alamat}}<br/>{{phone}}</div></td></tr></table>
 <div class="section-title">Layanan Utama</div><div class="soft"><span class="strong">{{layanan}}</span></div>
 <div class="section-title">Lingkup Pekerjaan</div><div class="soft">{{scope}}</div>

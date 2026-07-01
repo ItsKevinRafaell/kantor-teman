@@ -4,6 +4,8 @@ export interface Contact {
   business_name: string;
   owner_name: string | null;
   phone_number: string;
+  email: string | null;
+  address: string | null;
   purchased_product: string | null;
   notes: string | null;
   lead_id?: number | null;

@@ -12,7 +12,7 @@ interface AddClientModalProps {
 }
 
 export default function AddClientModal({ open, onClose, onSuccess, setToast }: AddClientModalProps) {
-  const [form, setForm] = useState({ business_name: "", phone_number: "", owner_name: "", purchased_product: "" });
+  const [form, setForm] = useState({ business_name: "", phone_number: "", owner_name: "", email: "", address: "", purchased_product: "" });
   const [saving, setSaving] = useState(false);
 
   if (!open) return null;
@@ -23,7 +23,7 @@ export default function AddClientModal({ open, onClose, onSuccess, setToast }: A
     try {
       const res = await apiFetch("/api/contacts", { method: "POST", body: JSON.stringify(form) });
       if (res.ok) {
-        setForm({ business_name: "", phone_number: "", owner_name: "", purchased_product: "" });
+        setForm({ business_name: "", phone_number: "", owner_name: "", email: "", address: "", purchased_product: "" });
         setToast({ message: "Klien berhasil ditambahkan!", type: "success" });
         onSuccess();
         onClose();
@@ -58,6 +58,14 @@ export default function AddClientModal({ open, onClose, onSuccess, setToast }: A
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Nama Owner</label>
             <input value={form.owner_name} onChange={e => setForm(f => ({ ...f, owner_name: e.target.value }))} className={inputCls} placeholder="Opsional" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Email</label>
+            <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className={inputCls} placeholder="email@contoh.com" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Alamat</label>
+            <textarea value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} rows={2} className={inputClsLarge} placeholder="Opsional" />
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Produk/Layanan</label>

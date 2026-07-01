@@ -46,6 +46,8 @@ class ContactOut(BaseModel):
     business_name: str
     owner_name: Optional[str]
     phone_number: str
+    email: Optional[str] = None
+    address: Optional[str] = None
     purchased_product: Optional[str]
     notes: Optional[str]
     lead_id: Optional[int] = None  # FK to Lead
@@ -56,6 +58,8 @@ class ContactUpdate(BaseModel):
     business_name: Optional[str] = None
     phone_number: Optional[str] = None
     owner_name: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
     purchased_product: Optional[str] = None
     notes: Optional[str] = None
 

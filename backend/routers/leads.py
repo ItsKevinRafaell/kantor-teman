@@ -729,6 +729,8 @@ def create_contact(body: ContactUpdate, current_user: User = Depends(get_current
         business_name=body.business_name,
         phone_number=normalized_phone,
         owner_name=body.owner_name,
+        email=getattr(body, 'email', None),
+        address=getattr(body, 'address', None),
         purchased_product=body.purchased_product,
         notes=body.notes,
         lead_id=lead.id,  # Link Contact to Lead
@@ -768,6 +770,10 @@ def update_contact(contact_id: int, body: ContactUpdate, current_user: User = De
 
     if body.owner_name is not None:
         contact.owner_name = body.owner_name
+    if hasattr(body, 'email') and body.email is not None:
+        contact.email = body.email
+    if hasattr(body, 'address') and body.address is not None:
+        contact.address = body.address
     if body.purchased_product is not None:
         contact.purchased_product = body.purchased_product
     if body.notes is not None:
