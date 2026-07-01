@@ -611,7 +611,7 @@ def _apply_target_company_aliases(defaults: dict, company_name: str) -> None:
 
 
 def _document_number(db: Session, template_type: str, reserve: bool = False) -> str:
-    prefixes = {"invoice": "INV", "receipt": "RCPT", "surat_penawaran": "SP", "mou": "MOU",
+    prefixes = {"invoice": "INV", "receipt": "RCPT", "surat_penawaran": "SP", "proposal_pdf": "PROP", "mou": "MOU",
                "kontrak": "KONTRAK", "kontrak_web_dev": "KONTRAK-WD", "kontrak_seo": "KONTRAK-SEO",
                "kontrak_sosmed": "KONTRAK-SM", "kontrak_maintenance": "KONTRAK-MTN",
                "kontrak_branding": "KONTRAK-BRAND", "kontrak_retainer": "KONTRAK-RET"}
@@ -755,6 +755,7 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
         defaults["keterangan"] = ""
 
     elif template_type == "proposal_pdf":
+        defaults["nomor"] = _document_number(db, "proposal_pdf")
         defaults["valid_until"] = _format_date_id(today + timedelta(days=14))
         defaults["validity"] = defaults["valid_until"]
         defaults.setdefault("scope", "")
