@@ -246,7 +246,7 @@ function lineItemsToHtml(items: LineItem[]): string {
   const rows = items.map((item, i) => {
     const subtotal = item.qty * item.price;
     const description = item.description
-      ? `<div style="margin-top:3px;color:#6b7280;font-size:11px;line-height:1.45">${escapeHtml(item.description)}</div>`
+      ? `<div style="margin-top:3px;color:#6b7280;font-size:11px;line-height:1.45">${escapeHtml(item.description).replace(/\n/g, '<br>')}</div>`
       : "";
     return `<tr><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb"><strong>${escapeHtml(item.name)}</strong>${description}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:center">${item.qty}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right">${formatRupiah(item.price)}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600">${formatRupiah(subtotal)}</td></tr>`;
   }).join("");
@@ -447,8 +447,10 @@ export default function VariableInputForm({
             "catatan", "keterangan",
           ];
           const sortedEntries = [...Object.entries(variables)].sort(([a], [b]) => {
-            const ai = FIELD_ORDER.findIndex(f => f === a.toLowerCase() || a.toLowerCase().includes(f));
-            const bi = FIELD_ORDER.findIndex(f => f === b.toLowerCase() || b.toLowerCase().includes(f));
+            const aLower = a.toLowerCase();
+            const bLower = b.toLowerCase();
+            const ai = FIELD_ORDER.findIndex(f => f === aLower);
+            const bi = FIELD_ORDER.findIndex(f => f === bLower);
             const av = ai >= 0 ? ai : 999;
             const bv = bi >= 0 ? bi : 999;
             return av - bv || a.localeCompare(b);
