@@ -433,6 +433,8 @@ export default function VariableInputForm({
           allKeys.forEach(k => { if (SERVER_ALIAS_KEYS.has(k)) suppressedKeys.add(k); });
           // Always suppress internal metadata — injected by Brand Kit, not user-editable
           allKeys.forEach(k => { if (INTERNAL_METADATA_KEYS.has(k)) suppressedKeys.add(k); });
+          // Always suppress amount field — total is calculated from line items
+          allKeys.forEach(k => { if (k.toLowerCase() === "amount") suppressedKeys.add(k); });
 
           // Sort keys so important fields come first: logo → dates → numbers → client info → service → items → long text → rest
           const FIELD_ORDER = [
