@@ -800,7 +800,7 @@ export default function VariableInputForm({
                       </div>
                     )}
                   </div>
-                  {isScopeField && scopeTemplates && scopeTemplates.length > 0 && (
+                  {isScopeField && false && scopeTemplates && scopeTemplates.length > 0 && (
                     <select
                       onChange={(e) => {
                         const selected = scopeTemplates.find(t => t.service_type === e.target.value);

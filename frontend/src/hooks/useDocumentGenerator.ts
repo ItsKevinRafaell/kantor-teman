@@ -5,7 +5,7 @@ import { formatRupiah } from "../utils/formatter";
 
 export interface DocTemplate { id: string; name: string; type: string; variables: string[]; }
 export interface Lead { id: number; business_name: string; phone_number: string; address: string | null; product_interest: string | null; }
-export interface Contact { id: number; business_name: string; owner_name: string | null; phone_number: string; purchased_product: string | null; }
+export interface Contact { id: number; business_name: string; owner_name: string | null; phone_number: string; email: string | null; address: string | null; purchased_product: string | null; }
 export interface Product { id: string; name: string; description: string | null; base_price: number; features: string[]; }
 export interface Project { id: string; lead_id: number | null; name: string; nominal: number; start_date: string | null; end_date: string | null; service_type: string | null; contract_months: number | null; }
 export interface GeneratedDoc { id: string; file_url: string; template_name: string; display_filename?: string; is_edited?: boolean; }
@@ -420,14 +420,14 @@ export function useDocumentGenerator() {
   // --- Target selection ---
   const pickLead = useCallback((lead: Lead) => {
     setSelectedLead(lead); setSelectedContact(null); setSelectedProject(null);
-    setVariables(prev => ({ ...prev, klien: lead.business_name, nama: lead.business_name, alamat: lead.address || "", layanan: lead.product_interest || "", phone: lead.phone_number }));
+    setVariables(prev => ({ ...prev, klien: lead.business_name, nama: lead.business_name, alamat: lead.address || "", email: "", layanan: lead.product_interest || "", phone: lead.phone_number }));
     markUnsaved();
     if (selectedTemplate) fetchAndApplyDefaults(selectedTemplate, "lead", lead.id);
   }, [selectedTemplate]);
 
   const pickContact = useCallback((contact: Contact) => {
     setSelectedContact(contact); setSelectedLead(null); setSelectedProject(null);
-    setVariables(prev => ({ ...prev, klien: contact.business_name, nama: contact.business_name, phone: contact.phone_number, layanan: contact.purchased_product || "" }));
+    setVariables(prev => ({ ...prev, klien: contact.business_name, nama: contact.business_name, phone: contact.phone_number, email: contact.email || "", alamat: contact.address || "", layanan: contact.purchased_product || "" }));
     markUnsaved();
     if (selectedTemplate) fetchAndApplyDefaults(selectedTemplate, "contact", contact.id);
   }, [selectedTemplate]);
@@ -438,7 +438,7 @@ export function useDocumentGenerator() {
     const formatDate = (d: string) => d ? new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "";
     setVariables(prev => ({
       ...prev, klien: lead?.business_name || prev.klien || "", nama: lead?.business_name || prev.nama || "",
-      alamat: lead?.address || prev.alamat || "", phone: lead?.phone_number || prev.phone || "",
+      alamat: lead?.address || prev.alamat || "", email: "", phone: lead?.phone_number || prev.phone || "",
       layanan: project.name || project.service_type || prev.layanan || "",
       nilai_kontrak: project.nominal ? formatRupiah(project.nominal) : prev.nilai_kontrak || "",
       tanggal_mulai: formatDate(project.start_date || ""), tanggal_akhir: formatDate(project.end_date || ""),
