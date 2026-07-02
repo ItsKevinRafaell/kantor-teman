@@ -26,7 +26,7 @@ export function BeforeAfterComparison({ nama_usaha, category, city, slug, base_p
       ];
 
   return (
-    <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <section className="grid grid-cols-1 md:grid-cols-2 gap-0">
       {/* Before */}
       <div className="bg-zinc-100 dark:bg-zinc-800 border-2 border-zinc-200 dark:border-zinc-700 rounded-2xl p-5 space-y-4 transition-all duration-300 ease-in-out">
         <div className="flex items-center justify-between">
@@ -46,6 +46,16 @@ export function BeforeAfterComparison({ nama_usaha, category, city, slug, base_p
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="hidden md:flex items-center justify-center relative">
+        <div className="absolute left-1/2 top-4 bottom-4 w-px bg-gradient-to-b from-zinc-200 dark:from-zinc-700 via-amber-300 to-zinc-200 dark:to-zinc-700" />
+        <div className="w-8 h-8 rounded-full bg-white dark:bg-zinc-800 border-2 border-amber-400 flex items-center justify-center z-10">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500">
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
         </div>
       </div>
 
