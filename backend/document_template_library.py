@@ -85,15 +85,63 @@ RECEIPT_HTML = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>{BASE_
 </body></html>""".format(BASE_STYLE=BASE_STYLE)
 
 
-PROPOSAL_HTML = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>{BASE_STYLE}</style></head><body>
-<table class="w100 top"><tr><td><div class="logo">{{{{logo}}}}</div><div class="eyebrow">{{{{brand_name}}}}</div><div class="title">PROPOSAL PENAWARAN</div><div class="muted">No. <span class="strong">{{{{nomor}}}}</span></div></td><td class="right muted">Tanggal: <span class="strong">{{{{tanggal}}}}</span><br/>Berlaku hingga: <span class="strong">{{{{valid_until}}}}</span></td></tr></table>
-<table class="w100"><tr><td width="49%" class="box"><div class="box-title">Penyedia Jasa</div><div class="strong">{{{{brand_name}}}}</div><div class="muted">{{{{alamat_perusahaan}}}}<br/>{{{{phone_perusahaan}}}}<br/>{{{{email_perusahaan}}}}</div></td><td width="2%"></td><td width="49%" class="box"><div class="box-title">Disiapkan Untuk</div><div class="strong">{{{{klien}}}}</div><div class="muted">{{{{alamat}}}}<br/>{{{{phone}}}}</div></td></tr></table>
-<div class="section-title">Layanan Utama</div><div class="soft"><span class="strong">{{{{layanan}}}}</span></div>
-<div class="section-title">Lingkup Pekerjaan</div><div class="soft">{{{{scope}}}}</div>
-<div class="section-title">Rincian Investasi</div>{{{{items_rows}}}}
-<div class="note">Penawaran ini berlaku hingga <span class="strong">{{{{valid_until}}}}</span>. Harga dan jadwal pengerjaan dapat berubah setelah tanggal tersebut.</div>
-<div class="footer"><span class="strong">{{{{brand_name}}}}</span><br/>{{{{tagline}}}}<br/>Proposal penawaran layanan.</div>
-</body></html>""".format(BASE_STYLE=BASE_STYLE)
+PROPOSAL_HTML = """<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@page{size:A4;margin:28pt 34pt}
+body{font-family:Helvetica,Arial,sans-serif;color:#1f2937;font-size:10.5pt;line-height:1.45}
+table{border-collapse:collapse}
+.w100{width:100%}
+.top{border-bottom:2pt solid #111827;margin-bottom:16pt;padding-bottom:12pt}
+.logo img{max-height:48pt;max-width:150pt}
+.eyebrow{font-size:8pt;font-weight:bold;color:#6b7280;text-transform:uppercase}
+.title{font-size:22pt;font-weight:bold;color:#111827}
+.accent{color:#b45309}
+.right{text-align:right}
+.muted{font-size:9pt;color:#6b7280}
+.strong{font-weight:bold;color:#111827}
+.box{border:1pt solid #d1d5db;padding:9pt;vertical-align:top}
+.box-title{font-size:8pt;font-weight:bold;color:#6b7280;text-transform:uppercase;margin-bottom:4pt}
+.section-title{font-size:8pt;font-weight:bold;color:#4b5563;text-transform:uppercase;border-bottom:1pt solid #d1d5db;padding-bottom:3pt;margin-top:14pt;margin-bottom:6pt}
+.note{border:1pt solid #f59e0b;background-color:#fffbeb;color:#92400e;padding:8pt}
+.soft{background-color:#f8fafc;padding:8pt}
+.footer{border-top:1pt solid #d1d5db;margin-top:18pt;padding-top:8pt;font-size:8pt;color:#6b7280}
+</style>
+</head>
+<body>
+<table class="w100 top">
+<tr>
+<td width="58%" valign="top"><div class="logo">{{logo}}</div><div class="eyebrow">{{brand_name}}</div><div class="title">PROPOSAL PENAWARAN</div><div class="muted">No. <span class="strong">{{nomor}}</span></div></td>
+<td width="42%" valign="top" class="right muted">Tanggal: <span class="strong">{{tanggal}}</span><br/>Berlaku hingga: <span class="strong">{{valid_until}}</span></td>
+</tr>
+</table>
+<table class="w100">
+<tr>
+<td width="49%" class="box">
+<div class="box-title">Penyedia Jasa</div>
+<div class="strong">{{brand_name}}</div>
+<div class="muted">{{alamat_perusahaan}}<br/>{{phone_perusahaan}}<br/>{{email_perusahaan}}</div>
+</td>
+<td width="2%"></td>
+<td width="49%" class="box">
+<div class="box-title">Disiapkan Untuk</div>
+<div class="strong">{{klien}}</div>
+<div class="muted">{{alamat}}<br/>{{phone}}</div>
+</td>
+</tr>
+</table>
+<div class="section-title">Layanan Utama</div>
+<div class="soft"><span class="strong">{{layanan}}</span></div>
+<div class="section-title">Lingkup Pekerjaan</div>
+<div class="soft">{{scope}}</div>
+<div class="section-title">Rincian Investasi</div>
+{{items_rows}}
+<div class="note">Penawaran ini berlaku hingga <span class="strong">{{valid_until}}</span>. Harga dan jadwal pengerjaan dapat berubah setelah tanggal tersebut.</div>
+<div class="footer"><span class="strong">{{brand_name}}</span><br/>{{tagline}}<br/>Proposal penawaran layanan.</div>
+</body>
+</html>"""
 
 
 QUOTATION_HTML = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>{BASE_STYLE}</style></head><body>
