@@ -182,6 +182,7 @@ function DocumentNewPageInner() {
           setLineItems={ctx.setLineItems}
           paymentMethods={ctx.paymentMethods}
           products={ctx.products}
+          scopeTemplates={ctx.scopeTemplates}
           setProductPickerForKey={ctx.setProductPickerForKey}
           setProductPickerMode={ctx.setProductPickerMode}
           klienCandidates={ctx.klienCandidates}

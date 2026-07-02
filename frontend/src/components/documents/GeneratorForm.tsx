@@ -12,6 +12,7 @@ interface GeneratorFormProps {
   setLineItems: (v: any) => void;
   paymentMethods: any[];
   products: any[];
+  scopeTemplates: Array<{service_type: string; name: string; scope: string}>;
   setProductPickerForKey: (k: string | null) => void;
   setProductPickerMode: (m: "line_item" | "single") => void;
   klienCandidates: any[];
@@ -29,7 +30,7 @@ interface GeneratorFormProps {
 
 export default function GeneratorForm({
   step, setStep, selectedTemplate, variables, setVariables, lineItems, setLineItems,
-  paymentMethods, products, setProductPickerForKey, setProductPickerMode,
+  paymentMethods, products, scopeTemplates, setProductPickerForKey, setProductPickerMode,
   klienCandidates, klienSearch, setKlienSearch, klienDropdownOpen, setKlienDropdownOpen,
   klienRef, setShowSeqEditor, loadCurrentSequence, setToast, previewing, handlePreview,
 }: GeneratorFormProps) {
@@ -43,6 +44,7 @@ export default function GeneratorForm({
         selectedTemplate={selectedTemplate}
         paymentMethods={paymentMethods}
         products={products}
+        scopeTemplates={scopeTemplates}
         setProductPickerForKey={setProductPickerForKey}
         setProductPickerMode={setProductPickerMode}
         klienCandidates={klienCandidates}
