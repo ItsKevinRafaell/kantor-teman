@@ -1402,11 +1402,20 @@ td{padding:10px 12px;border-bottom:1px solid #eee;font-size:13px}
         (str(_uuid2.uuid4()), "Proposal Penawaran PDF", "proposal_pdf", """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
 body{font-family:'Poppins',sans-serif;margin:0;padding:40px;color:#242423}
-.header{text-align:center;margin-bottom:30px}
-.title{font-size:24px;font-weight:700;color:#f5a700}
+.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #f5a700;padding-bottom:16px;margin-bottom:30px}
+.header-left{text-align:left}
+.header-right{text-align:right}
+.logo-img{max-height:50px;max-width:150px}
+.title{font-size:24px;font-weight:700;color:#f5a700;margin:0}
+.nomor{font-size:12px;color:#666;margin-top:4px}
 .subtitle{font-size:14px;color:#666;margin-top:4px}
 .section{margin:24px 0}
 .section h2{font-size:14px;text-transform:uppercase;letter-spacing:1px;color:#f5a700;border-bottom:2px solid #f5a700;padding-bottom:4px}
+.from-to{display:flex;gap:20px;margin:24px 0}
+.from-box,.to-box{flex:1;background:#fcfaf7;border:1px solid #eee;border-radius:8px;padding:16px}
+.box-title{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#f5a700;margin-bottom:8px;font-weight:700}
+.box-name{font-weight:700;font-size:15px}
+.box-detail{font-size:12px;color:#666;margin-top:4px}
 .service{background:#fcfaf7;border:1px solid #eee;border-radius:8px;padding:16px;margin:12px 0}
 .service-name{font-weight:700;font-size:15px}
 .service-price{color:#f5a700;font-weight:700}
@@ -1414,13 +1423,38 @@ body{font-family:'Poppins',sans-serif;margin:0;padding:40px;color:#242423}
 .validity{font-size:11px;color:#999;text-align:center;margin-top:30px}
 .footer{margin-top:40px;text-align:center;font-size:11px;color:#999}
 </style></head><body>
-<div class="header">{{logo}}<p class="title">Proposal Penawaran</p><p class="subtitle">Disiapkan untuk: {{klien}}</p></div>
+<div class="header">
+  <div class="header-left">
+    <div class="logo-img">{{logo}}</div>
+    <p class="title">Proposal Penawaran</p>
+    <p class="nomor">No. {{nomor}}</p>
+  </div>
+  <div class="header-right">
+    <p class="subtitle">Tanggal: {{tanggal}}</p>
+    <p class="subtitle">Berlaku hingga: {{valid_until}}</p>
+  </div>
+</div>
+<div class="from-to">
+  <div class="from-box">
+    <div class="box-title">Penyedia Jasa</div>
+    <div class="box-name">{{brand_name}}</div>
+    <div class="box-detail">{{alamat_perusahaan}}</div>
+    <div class="box-detail">{{phone_perusahaan}}</div>
+    <div class="box-detail">{{email_perusahaan}}</div>
+  </div>
+  <div class="to-box">
+    <div class="box-title">Disiapkan Untuk</div>
+    <div class="box-name">{{klien}}</div>
+    <div class="box-detail">{{alamat}}</div>
+    <div class="box-detail">{{phone}}</div>
+  </div>
+</div>
 <div class="section"><h2>Layanan</h2>{{services_html}}</div>
 <p class="total">Total: {{total}}</p>
 <div class="section"><h2>FAQ</h2>{{faqs_html}}</div>
 <p class="validity">Berlaku hingga: {{validity}}</p>
-<div class="footer">Teman UMKM Kita · temanumkmkita.com</div>
-</body></html>""", '["klien","services_html","total","validity","faqs_html"]', 1, _now),
+<div class="footer">Teman UMKM Kita · temanumkmkita.com<br/>Dokumen ini dibuat secara digital.</div>
+</body></html>""", '["nomor","tanggal","valid_until","validity","brand_name","alamat_perusahaan","phone_perusahaan","email_perusahaan","klien","alamat","phone","services_html","total","faqs_html"]', 1, _now),
 
         (str(_uuid2.uuid4()), "Surat Penawaran Formal", "surat_penawaran", """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>

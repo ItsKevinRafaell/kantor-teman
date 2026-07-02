@@ -725,7 +725,7 @@ def generate_document_pdf(
 
     # Reserve and apply document number
     number = None
-    if template_type in ("invoice", "receipt", "surat_penawaran", "mou"):
+    if template_type in ("invoice", "receipt", "proposal_pdf", "surat_penawaran", "mou"):
         number = _document_number(db, template_type, reserve=True)
         if template_type == "invoice":
             full_vars["nomor_invoice"] = number
