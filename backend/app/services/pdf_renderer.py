@@ -304,8 +304,26 @@ def _extract_doc_parts(rendered_html: str) -> dict:
             title = match.group(1).upper()
             break
 
-    # Extract invoice number
+    # Extract document number (supports all document types)
     invoice_num = _first_value([r"INVOICE\s+(INV[/\-][A-Z0-9/\-]+)", r"(INV[/\-]\d+)"], text) or ""
+    doc_number = _first_value(
+        [r"(?:No\.?\s*)?((?:PROP|SP|RCPT|MOU|KONTRAK|KTR|INV)[/\-][A-Z0-9/\-]+)"],
+        text,
+    ) or invoice_num
+
+    # Derive document type from title
+    _TITLE_TO_DOC_TYPE = {
+        "INVOICE": "invoice",
+        "PROPOSAL PENAWARAN": "proposal_pdf",
+        "SURAT PENAWARAN": "surat_penawaran",
+        "BUKTI PEMBAYARAN": "receipt",
+        "PERJANJIAN KERJA SAMA": "kontrak",
+    }
+    doc_type = "invoice"
+    for title_key, type_key in _TITLE_TO_DOC_TYPE.items():
+        if title in title_key or title_key in title:
+            doc_type = type_key
+            break
 
     section_end_labels = {
         "ditagihkan kepada", "kepada", "rincian tagihan", "rincian layanan",
@@ -394,6 +412,8 @@ def _extract_doc_parts(rendered_html: str) -> dict:
         "text": text,
         "logo_url": logo_url,
         "title": title,
+        "doc_type": doc_type,
+        "doc_number": doc_number,
         "invoice_num": invoice_num,
         "brand": brand or "Teman UMKM Kita",
         "client": client,
@@ -482,9 +502,23 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
 
     story = []
 
-    # === 1. CENTERED INVOICE HEADER (full width) ===
-    story.append(Paragraph("INVOICE", invoice_title))
-    story.append(Paragraph(f"#{parts.get('invoice_num') or parts.get('title', 'DOKUMEN')}", invoice_num))
+    # === 1. TYPE-AWARE HEADER ===
+    doc_type = parts.get("doc_type", "invoice")
+    doc_number = parts.get("doc_number") or parts.get("invoice_num") or ""
+
+    # Map doc_type to display title and number prefix
+    _DOC_TYPE_DISPLAY = {
+        "invoice": ("INVOICE", "#"),
+        "proposal_pdf": ("PROPOSAL PENAWARAN", "No."),
+        "surat_penawaran": ("SURAT PENAWARAN", "No."),
+        "receipt": ("BUKTI PEMBAYARAN", "No."),
+        "kontrak": ("PERJANJIAN KERJA SAMA", ""),
+    }
+    display_title, number_prefix = _DOC_TYPE_DISPLAY.get(doc_type, ("INVOICE", "#"))
+
+    story.append(Paragraph(display_title, invoice_title))
+    if doc_number:
+        story.append(Paragraph(f"{number_prefix} {doc_number}", invoice_num))
     story.append(Spacer(1, 3 * mm))
 
     # Brand accent line
@@ -637,18 +671,30 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
                 continue
 
             service_name, description, qty, rate, amount = map_item_row(row, header_row)
+            # If description is empty but service_name has newlines, split it
             if not description and "\n" in service_name:
                 service_lines = [line.strip() for line in service_name.splitlines() if line.strip()]
                 service_name = service_lines[0] if service_lines else service_name
-                description = "\n".join(service_lines[1:])  # Preserve newlines in description
+                description = "\n".join(service_lines[1:])
+            # Also check if service_name itself contains feature-like content (bullet points, numbered lists)
+            elif description and "\n" not in description and len(service_name.splitlines()) > 1:
+                # service_name has multiple lines, keep them
+                service_lines = [line.strip() for line in service_name.splitlines() if line.strip()]
+                if len(service_lines) > 1:
+                    service_name = service_lines[0]
+                    # Prepend existing service lines to description
+                    extra_desc = "\n".join(service_lines[1:])
+                    description = extra_desc + ("\n" + description if description else "")
+
             service_name = _clean_label_value(service_name)
             description = description.strip()
             service_cell = [Paragraph(html_mod.escape(service_name or "-"), item_name)]
             if description:
-                # Convert <br/> tags to newlines before escaping, then escape
+                # Convert <br/> and <br> tags to newlines
                 desc_clean = description.replace("<br/>", "\n").replace("<br>", "\n")
-                desc_escaped = html_mod.escape(desc_clean[:300])
-                # Convert newlines to <br/> for Paragraph to render
+                # Escape HTML entities
+                desc_escaped = html_mod.escape(desc_clean[:500])
+                # Convert newlines to <br/> for Paragraph rendering
                 desc_final = desc_escaped.replace("\n", "<br/>")
                 service_cell.append(Paragraph(desc_final, item_desc))
 
