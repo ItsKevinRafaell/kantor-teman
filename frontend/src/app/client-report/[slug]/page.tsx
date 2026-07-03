@@ -193,6 +193,33 @@ function ServiceMetrics({ report }: { report: PublicReport }) {
       </>
     );
   }
+  if (service.retainer) {
+    const retainer = service.retainer;
+    return (
+      <>
+        <div className="md:col-span-2 rounded-xl border-2 border-amber-200 bg-amber-50 p-4">
+          <h3 className="text-sm font-bold text-amber-800 mb-3">📊 Before/After Retainer</h3>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-lg bg-white border border-amber-200 p-3">
+              <p className="text-xs font-bold text-amber-700 mb-2">📌 Before (Baseline)</p>
+              <p className="text-sm text-neutral-700 whitespace-pre-wrap">{retainer.before || "Belum ada data before."}</p>
+            </div>
+            <div className="rounded-lg bg-white border border-green-200 p-3">
+              <p className="text-xs font-bold text-green-700 mb-2">✅ After (Hasil)</p>
+              <p className="text-sm text-neutral-700 whitespace-pre-wrap">{retainer.after || "Belum ada data after."}</p>
+            </div>
+          </div>
+          {retainer.notes && (
+            <div className="mt-3 rounded-lg bg-white border border-neutral-200 p-3">
+              <p className="text-xs font-bold text-neutral-600 mb-1">Catatan Analisis</p>
+              <p className="text-sm text-neutral-700 whitespace-pre-wrap">{retainer.notes}</p>
+            </div>
+          )}
+        </div>
+        <ReportComparisonBlocks report={report} />
+      </>
+    );
+  }
   if (report.service_type === "branding") {
     const branding = service.branding || {};
     return wrapMetrics(

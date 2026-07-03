@@ -52,6 +52,8 @@ const FIELD_LABELS: Record<string, string> = {
 
 const DATE_KEY_PATTERNS = ["tanggal", "due_date", "valid_until", "tanggal_mulai", "tanggal_akhir", "expired", "expiry"];
 const INVOICE_NUMBER_KEYS = ["nomor_invoice", "no_invoice", "nomor"];
+// Formal doc types that have automatic numbering (all use DocumentSequence)
+const FORMAL_DOC_TYPES = ["invoice", "receipt", "proposal_pdf", "mou", "surat_penawaran", "kontrak", "kontrak_retainer", "kontrak_seo", "kontrak_sosmed", "kontrak_maintenance", "kontrak_branding", "kontrak_web_dev"];
 const LINE_ITEM_KEYS = ["items_rows", "items_table", "line_items", "items"];
 const TOTAL_KEYS = ["total", "total_harga", "grand_total", "total_bayar", "total_amount", "jumlah_total", "total_tagihan"];
 const LOGO_KEYS = ["logo", "logo_perusahaan", "company_logo"];
@@ -418,7 +420,7 @@ export default function VariableInputForm({
       <div className="space-y-4">
         {(() => {
           const allKeys = Object.keys(variables);
-          const usesAutoNumber = ["invoice", "receipt", "surat_penawaran"].includes(selectedTemplate?.type || "");
+          const usesAutoNumber = FORMAL_DOC_TYPES.includes(selectedTemplate?.type || "");
           const numberKeys = usesAutoNumber ? allKeys.filter(k => isInvoiceNumberKey(k)) : [];
           const primaryNumberKey = numberKeys[0] || null;
           const renderedKeys = new Set<string>();
@@ -504,16 +506,29 @@ export default function VariableInputForm({
 
             // Invoice number
             if (numberKeys.includes(key)) {
-              const numberLabel = selectedTemplate?.type === "invoice"
-                ? "Nomor Invoice"
-                : selectedTemplate?.type === "receipt"
-                  ? "Nomor Bukti Pembayaran"
-                  : "Nomor Surat";
+              const typeLabel = (() => {
+                switch (selectedTemplate?.type) {
+                  case "invoice": return "Invoice";
+                  case "receipt": return "Bukti Pembayaran";
+                  case "proposal_pdf": return "Proposal";
+                  case "mou": return "MOU";
+                  case "surat_penawaran": return "Surat Penawaran";
+                  case "kontrak":
+                  case "kontrak_retainer":
+                  case "kontrak_seo":
+                  case "kontrak_sosmed":
+                  case "kontrak_maintenance":
+                  case "kontrak_branding":
+                  case "kontrak_web_dev":
+                    return "Kontrak";
+                  default: return "Dokumen";
+                }
+              })();
               return (
                 <div key={key}>
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">{numberLabel}</label>
-                    {selectedTemplate?.type === "invoice" && (
+                    <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">Nomor {typeLabel}</label>
+                    {FORMAL_DOC_TYPES.includes(selectedTemplate?.type || "") && (
                       <button type="button" onClick={() => { setShowSeqEditor(true); loadCurrentSequence(); }}
                         className="text-[11px] text-amber-600 hover:text-amber-700 font-semibold">Atur nomor awal</button>
                     )}
@@ -525,7 +540,7 @@ export default function VariableInputForm({
                     placeholder={`{{${key}}}`}
                     className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-gray-50 dark:bg-neutral-800/50 font-mono"
                   />
-                  <p className="text-[11px] text-gray-400 mt-1">Terisi otomatis dan dikunci saat PDF final dibuat.</p>
+                  <p className="text-[11px] text-gray-400 mt-1">Terisi otomatis dan dikunci saat PDF final dibuat. Nomor urut per tipe dokumen (Invoice, Kwitansi, MOU, dll dimulai terpisah).</p>
                 </div>
               );
             }

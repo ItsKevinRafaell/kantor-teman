@@ -11,12 +11,23 @@ import { getServiceLabel } from "../../../lib/serviceLabels";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+// Debounce hook - must be defined outside component to follow React rules of hooks
+function useDebounce(value: string, delay: number): string {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
+
 interface Project {
   id: string;
   lead_id: number | null;
   name: string;
   service_type: string | null;
   contract_months: number | null;
+  type: string | null; // "FIXED" or "RETAINER"
 }
 
 interface Lead {
@@ -295,6 +306,10 @@ export default function ReportsContent() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  // Search states for lazy-loaded dropdowns
+  const [projectSearch, setProjectSearch] = useState("");
+  const [leadSearch, setLeadSearch] = useState("");
+  const [contactSearch, setContactSearch] = useState("");
 
   const selectedProject = useMemo(() => projects.find(p => p.id === targetId) || null, [projects, targetId]);
   const selectedLead = useMemo(() => leads.find(l => String(l.id) === targetId) || null, [leads, targetId]);
@@ -308,24 +323,65 @@ export default function ReportsContent() {
     if (res.ok) setReports(await res.json());
   }, []);
 
+  const debouncedProjectSearch = useDebounce(projectSearch, 300);
+  const debouncedLeadSearch = useDebounce(leadSearch, 300);
+  const debouncedContactSearch = useDebounce(contactSearch, 300);
+
+  // Lazy load projects with search
+  const fetchProjects = useCallback(async (search: string) => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    const res = await apiFetch(`/api/projects?${params}`);
+    if (res.ok) setProjects(await res.json());
+  }, []);
+
+  // Lazy load leads with search
+  const fetchLeads = useCallback(async (search: string) => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    params.set("limit", "50");
+    const res = await apiFetch(`/api/leads?${params}`);
+    if (res.ok) setLeads(await res.json());
+  }, []);
+
+  // Lazy load contacts with search
+  const fetchContacts = useCallback(async (search: string) => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    params.set("limit", "50");
+    const res = await apiFetch(`/api/contacts?${params}`);
+    if (res.ok) setContacts(await res.json());
+  }, []);
+
+  // Initial load with limited results
   useEffect(() => {
     async function load() {
       try {
-        const [projectRes, leadRes, contactRes] = await Promise.all([
-          apiFetch("/api/projects"),
-          apiFetch("/api/leads"),
-          apiFetch("/api/contacts"),
+        await Promise.all([
+          fetchProjects(""),
+          fetchLeads(""),
+          fetchContacts(""),
         ]);
-        if (projectRes.ok) setProjects(await projectRes.json());
-        if (leadRes.ok) setLeads(await leadRes.json());
-        if (contactRes.ok) setContacts(await contactRes.json());
         await fetchReports();
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [fetchReports]);
+  }, [fetchProjects, fetchLeads, fetchContacts, fetchReports]);
+
+  // Refetch when search changes
+  useEffect(() => {
+    fetchProjects(debouncedProjectSearch);
+  }, [debouncedProjectSearch, fetchProjects]);
+
+  useEffect(() => {
+    fetchLeads(debouncedLeadSearch);
+  }, [debouncedLeadSearch, fetchLeads]);
+
+  useEffect(() => {
+    fetchContacts(debouncedContactSearch);
+  }, [debouncedContactSearch, fetchContacts]);
 
   useEffect(() => {
     if (targetType === "project" && selectedProject?.contract_months && monthNumber > selectedProject.contract_months) {
@@ -385,7 +441,14 @@ export default function ReportsContent() {
         setToast({ message: data.detail || "Gagal membuat laporan", type: "error" });
         return;
       }
-      setReports(prev => [data, ...prev.filter(item => item.id !== data.id)]);
+      setReports(prev => {
+        const existingIds = new Set(prev.map(r => r.id));
+        if (existingIds.has(data.id)) {
+          // Update existing instead of adding duplicate
+          return prev.map(r => r.id === data.id ? data : r);
+        }
+        return [data, ...prev];
+      });
       setToast({ message: "Laporan dibuat. PDF masuk arsip dan link publik siap dikirim.", type: "success" });
       if (data.public_url) window.open(data.public_url, "_blank");
     } catch {
@@ -441,13 +504,32 @@ export default function ReportsContent() {
           <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/20 dark:text-amber-200">{targetHelper}</p>
 
           {targetType !== "empty" && (
-            <label>
-              <span className="mb-1 block text-xs font-semibold text-neutral-500">Pilih target</span>
-              <select value={targetId} onChange={e => setTargetId(e.target.value)} className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800">
+            <div className="space-y-2">
+              <label>
+                <span className="mb-1 block text-xs font-semibold text-neutral-500">Pilih target</span>
+                <input
+                  type="text"
+                  placeholder={`Cari ${targetType === "project" ? "proyek" : targetType === "lead" ? "lead" : "klien"}...`}
+                  value={targetType === "project" ? projectSearch : targetType === "lead" ? leadSearch : contactSearch}
+                  onChange={e => {
+                    if (targetType === "project") setProjectSearch(e.target.value);
+                    else if (targetType === "lead") setLeadSearch(e.target.value);
+                    else setContactSearch(e.target.value);
+                  }}
+                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
+                />
+              </label>
+              <select value={targetId} onChange={e => setTargetId(e.target.value)} className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800 max-h-48 overflow-y-auto">
                 <option value="">Pilih...</option>
+                {targetOptions().length === 0 && (
+                  <option value="" disabled>Tidak ada hasil</option>
+                )}
                 {targetOptions().map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
               </select>
-            </label>
+              <p className="text-[10px] text-neutral-400">
+                {targetOptions().length} hasil · Ketik untuk mencari lebih banyak
+              </p>
+            </div>
           )}
 
           <div className="grid gap-3 md:grid-cols-3">
@@ -499,6 +581,54 @@ export default function ReportsContent() {
               ))}
             </div>
           </div>
+
+          {/* Retainer Before/After Section */}
+          {selectedProject?.type === "RETAINER" && (
+            <div className="rounded-xl border-2 border-amber-200 bg-amber-50/30 dark:bg-amber-950/20 p-4">
+              <h3 className="text-sm font-bold text-amber-800 dark:text-amber-200 mb-3 flex items-center gap-2">
+                📊 Before/After Retainer
+                <span className="text-xs font-normal text-amber-600 dark:text-amber-400">(Periode sebelumnya vs sekarang)</span>
+              </h3>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label>
+                    <span className="mb-1 block text-xs font-semibold text-amber-700 dark:text-amber-300">📌 Before (baseline retainer)</span>
+                    <textarea
+                      value={metrics["retainer_before"] || ""}
+                      onChange={e => updateMetric("retainer_before", e.target.value)}
+                      placeholder="Kondisi awal retainer: URL, metric baseline, masalah yang mau diselesaikan..."
+                      rows={3}
+                      className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm dark:border-amber-800 dark:bg-neutral-900"
+                    />
+                  </label>
+                </div>
+                <div className="space-y-2">
+                  <label>
+                    <span className="mb-1 block text-xs font-semibold text-green-700 dark:text-green-300">✅ After (hasil periode ini)</span>
+                    <textarea
+                      value={metrics["retainer_after"] || ""}
+                      onChange={e => updateMetric("retainer_after", e.target.value)}
+                      placeholder="Hasil setelah periode retainer ini: apa yang berubah, improvement, dll..."
+                      rows={3}
+                      className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm dark:border-green-800 dark:bg-neutral-900"
+                    />
+                  </label>
+                </div>
+              </div>
+              <div className="mt-3">
+                <label>
+                  <span className="mb-1 block text-xs font-semibold text-neutral-500">Catatan before/after retainer</span>
+                  <textarea
+                    value={metrics["retainer_notes"] || ""}
+                    onChange={e => updateMetric("retainer_notes", e.target.value)}
+                    placeholder="Analisis: apa yang berhasil, apa yang perlu diperbaiki, next step..."
+                    rows={2}
+                    className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+                  />
+                </label>
+              </div>
+            </div>
+          )}
 
           <div className="grid gap-3 md:grid-cols-2">
             <label className="md:col-span-2">

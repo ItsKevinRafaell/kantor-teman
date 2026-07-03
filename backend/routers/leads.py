@@ -693,8 +693,34 @@ def delete_batch(batch_name: str, current_user: User = Depends(require_admin), d
 
 
 @router.get("/api/contacts", response_model=list[ContactOut])
-def get_contacts(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    return db.query(Contact).all()
+def get_contacts(
+    search: Optional[str] = Query(None, description="Filter by business_name or phone"),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Contact)
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            db.query(Contact).filter(
+                Contact.business_name.ilike(search_term) |
+                Contact.phone_number.ilike(search_term)
+            ).exists()
+        )
+        # Alternative approach using or_
+        from sqlalchemy import or_
+        query = db.query(Contact).filter(
+            or_(
+                Contact.business_name.ilike(search_term),
+                Contact.phone_number.ilike(search_term)
+            )
+        )
+    # Count total for potential pagination info
+    total = query.count()
+    results = query.order_by(Contact.business_name).offset(offset).limit(limit).all()
+    return results
 
 
 

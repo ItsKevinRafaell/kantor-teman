@@ -430,6 +430,15 @@ def _manual_service_metrics(service_type: str, manual_metrics: dict) -> dict:
                 "approval_status": manual_metrics.get("approval_status"),
             }
         }
+    # Retainer-specific metrics (before/after tracking)
+    if service_type in {"retainer", "kontrak_retainer"} or any(k in str(manual_metrics) for k in ["retainer_before", "retainer_after"]):
+        return {
+            "retainer": {
+                "before": manual_metrics.get("retainer_before"),
+                "after": manual_metrics.get("retainer_after"),
+                "notes": manual_metrics.get("retainer_notes"),
+            }
+        }
     return {"manual": manual_metrics}
 
 
