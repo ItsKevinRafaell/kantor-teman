@@ -95,17 +95,34 @@ const SEO_CURRENT_FIELDS: MetricField[] = [
 ];
 
 const SEO_MONTHLY_FIELDS: MetricField[] = [
-  ...SEO_CURRENT_FIELDS,
-  { key: "gsc_clicks_previous", label: "GSC clicks bulan lalu", type: "number" },
-  { key: "gsc_impressions_previous", label: "GSC impressions bulan lalu", type: "number" },
-  { key: "gsc_ctr_previous", label: "CTR bulan lalu", placeholder: "2,8%" },
-  { key: "gsc_average_position_previous", label: "Average position bulan lalu", placeholder: "15,2" },
-  { key: "gsc_comparison_notes", label: "Notes komparasi bulan ini vs bulan lalu", type: "textarea", placeholder: "Contoh: clicks naik karena artikel layanan mulai masuk halaman 1, tapi CTR perlu diperbaiki lewat meta title." },
-  { key: "gsc_clicks_target_next_month", label: "Target clicks bulan depan", type: "number" },
-  { key: "gsc_impressions_target_next_month", label: "Target impressions bulan depan", type: "number" },
-  { key: "gsc_ctr_target_next_month", label: "Target CTR bulan depan", placeholder: "3,8%" },
-  { key: "gsc_average_position_target_next_month", label: "Target average position bulan depan", placeholder: "10,0" },
-  { key: "seo_next_month_target_notes", label: "Notes target bulan depan", type: "textarea", placeholder: "Contoh: target realistis setelah publish 2 artikel, optimasi internal link, dan update Google Business Profile." },
+  { key: "website_url", label: "URL website", placeholder: "https://domain-klien.com" },
+  // GSC Current Month
+  { key: "gsc_clicks", label: "GSC Clicks (Bulan Ini)", type: "number" },
+  { key: "gsc_impressions", label: "GSC Impressions (Bulan Ini)", type: "number" },
+  { key: "gsc_ctr", label: "GSC CTR (Bulan Ini)", placeholder: "8.78%" },
+  { key: "gsc_average_position", label: "GSC Avg Position (Bulan Ini)", placeholder: "13.85" },
+  // GSC Previous Month (Comparison)
+  { key: "gsc_clicks_previous", label: "GSC Clicks (Bulan Lalu)", type: "number" },
+  { key: "gsc_impressions_previous", label: "GSC Impressions (Bulan Lalu)", type: "number" },
+  { key: "gsc_ctr_previous", label: "GSC CTR (Bulan Lalu)", placeholder: "8.5%" },
+  { key: "gsc_average_position_previous", label: "GSC Avg Position (Bulan Lalu)", placeholder: "15.0" },
+  // Google Business Profile
+  { key: "gbp_views", label: "GBP Views", type: "number" },
+  { key: "gbp_searches", label: "GBP Searches (Direct+Indirect)", type: "number" },
+  { key: "gbp_directions", label: "GBP Directions", type: "number" },
+  { key: "gbp_calls", label: "GBP Calls", type: "number" },
+  { key: "gbp_website_clicks", label: "GBP Website Clicks", type: "number" },
+  // Top Queries & Pages
+  { key: "top_queries", label: "Top 5 Queries (1 per baris)", type: "textarea", placeholder: "jasa pembangunan rumah\npembangunan rumah jogja\n..." },
+  { key: "top_pages", label: "Top 5 Pages (1 per baris)", placeholder: "/layanan/pembangunan-rumah\n/layanan/desain-interior\n..." },
+  // Notes
+  { key: "gsc_comparison_notes", label: "Analisis & Catatan", type: "textarea", placeholder: "Clicks naik 9.3% karena 2 artikel baru masuk halaman 1. CTR sedikit turun karena impressions naik lebih cepat. Perlu optimasi meta title untuk improve CTR." },
+  // Target
+  { key: "gsc_clicks_target_next_month", label: "Target GSC Clicks (Bulan Depan)", type: "number" },
+  { key: "gsc_impressions_target_next_month", label: "Target GSC Impressions (Bulan Depan)", type: "number" },
+  { key: "gsc_ctr_target_next_month", label: "Target CTR (Bulan Depan)", placeholder: "9.0%" },
+  { key: "gsc_average_position_target_next_month", label: "Target Avg Position (Bulan Depan)", placeholder: "12.0" },
+  { key: "seo_next_month_target_notes", label: "Notes Target Bulan Depan", type: "textarea", placeholder: "Target realistis: publish 2 artikel baru, optimasi 3 meta title existing, update GBP posting rutin." },
 ];
 
 const SEO_COMPLETION_FIELDS: MetricField[] = [
@@ -163,19 +180,28 @@ const SERVICE_COMPARISON_FIELDS: Record<string, MetricField[]> = {
 const SERVICE_FIELDS: Record<string, MetricField[]> = {
   seo_gmaps: SEO_MONTHLY_FIELDS,
   maintenance: [
-    { key: "website_url", label: "URL website", placeholder: "https://domain-klien.com" },
-    { key: "last_backup_at", label: "Tanggal backup terakhir", type: "date" },
-    { key: "backup_status", label: "Status backup", placeholder: "Berhasil / gagal / perlu dicek" },
-    { key: "backup_link", label: "Link/file backup", placeholder: "Drive, cPanel, atau path backup" },
-    { key: "backup_size", label: "Ukuran backup", placeholder: "1.2 GB" },
-    { key: "core_updates", label: "Update WordPress core", placeholder: "Tidak ada / 6.5 -> 6.6" },
-    { key: "plugin_updates", label: "Update plugin", placeholder: "5 plugin berhasil diperbarui" },
-    { key: "theme_updates", label: "Update theme", placeholder: "Tema aktif sudah terbaru" },
-    { key: "security_status", label: "Status security/site health", placeholder: "Aman, tidak ada critical issue" },
-    { key: "security_score", label: "Security/site health score", type: "number" },
+    // Website Info
+    { key: "website_url", label: "URL Website", placeholder: "https://domain-klien.com" },
+    { key: "wp_version", label: "Versi WordPress", placeholder: "WordPress 6.5.5" },
+    // Backup Section
+    { key: "last_backup_at", label: "Tanggal Backup Terakhir", type: "date" },
+    { key: "backup_status", label: "Status Backup", placeholder: "Berhasil / Gagal / Pending" },
+    { key: "backup_link", label: "Link/File Backup", placeholder: "https://drive.google.com/..." },
+    { key: "backup_size", label: "Ukuran Backup", placeholder: "1.2 GB" },
+    // WordPress Updates
+    { key: "core_updates", label: "Update WordPress Core", placeholder: "6.5.4 -> 6.5.5 (1 update)" },
+    { key: "plugin_updates", label: "Update Plugin", placeholder: "Plugin A (1.2.3 -> 1.2.4), Plugin B (2.0.0 -> 2.0.1)" },
+    { key: "theme_updates", label: "Update Theme", placeholder: "Tema aktif sudah terbaru / Theme X updated" },
+    // Security & Health
+    { key: "security_status", label: "Status Security/Site Health", placeholder: "Aman - Tidak ada critical issue" },
+    { key: "security_issues", label: "Issue Keamanan (jika ada)", placeholder: "Tidak ada / wp-config.php exposed" },
     { key: "uptime", label: "Uptime", placeholder: "99.9%" },
-    { key: "incidents", label: "Insiden", placeholder: "Tidak ada downtime" },
-    { key: "resolved_issues", label: "Issue terselesaikan", type: "number" },
+    // Work Done
+    { key: "work_done", label: "Pekerjaan yang Dilakukan", type: "textarea", placeholder: "1. Update plugin A ke versi terbaru\n2. Backup manual setelah update major\n3. Optimasi gambar di halaman layanan" },
+    { key: "incidents", label: "Insiden/Downtime", placeholder: "Tidak ada / 1x downtime 15 menit (server overload)" },
+    { key: "resolved_issues", label: "Issue yang Diselesaikan", placeholder: "1. Error 500 di halaman kontak\n2. Plugin conflict dengan PHP 8.2" },
+    // Notes
+    { key: "maintenance_notes", label: "Catatan & Rekomendasi", type: "textarea", placeholder: "Website berjalan normal. Rekomendasi: upgrade PHP ke 8.3 semester ini untuk performa lebih baik." },
   ],
   sosmed: [
     { key: "posts", label: "Konten publish", type: "number" },
@@ -505,30 +531,67 @@ export default function ReportsContent() {
 
           {targetType !== "empty" && (
             <div className="space-y-2">
-              <label>
-                <span className="mb-1 block text-xs font-semibold text-neutral-500">Pilih target</span>
-                <input
-                  type="text"
-                  placeholder={`Cari ${targetType === "project" ? "proyek" : targetType === "lead" ? "lead" : "klien"}...`}
-                  value={targetType === "project" ? projectSearch : targetType === "lead" ? leadSearch : contactSearch}
-                  onChange={e => {
-                    if (targetType === "project") setProjectSearch(e.target.value);
-                    else if (targetType === "lead") setLeadSearch(e.target.value);
-                    else setContactSearch(e.target.value);
-                  }}
-                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
-                />
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-neutral-500">
+                  Pilih {targetType === "project" ? "Proyek" : targetType === "lead" ? "Lead" : "Klien"}
+                </span>
+                {/* Searchable Combobox */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder={`Ketik nama ${targetType === "project" ? "proyek" : targetType === "lead" ? "lead" : "klien"} untuk mencari...`}
+                    value={targetType === "project" ? projectSearch : targetType === "lead" ? leadSearch : contactSearch}
+                    onChange={e => {
+                      if (targetType === "project") setProjectSearch(e.target.value);
+                      else if (targetType === "lead") setLeadSearch(e.target.value);
+                      else setContactSearch(e.target.value);
+                    }}
+                    className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm dark:border-neutral-700 dark:bg-neutral-800"
+                  />
+                  {/* Dropdown Results */}
+                  {targetOptions().length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full rounded-xl border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900 max-h-60 overflow-y-auto">
+                      {targetOptions().map(item => (
+                        <button
+                          key={item.value}
+                          type="button"
+                          onClick={() => {
+                            setTargetId(item.value);
+                            // Clear search after selection
+                            if (targetType === "project") setProjectSearch("");
+                            else if (targetType === "lead") setLeadSearch("");
+                            else setContactSearch("");
+                          }}
+                          className={`w-full text-left px-3 py-2.5 text-sm hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors ${
+                            targetId === item.value ? "bg-amber-50 dark:bg-amber-900/20 border-l-2 border-amber-500" : ""
+                          }`}
+                        >
+                          <span className="font-medium text-neutral-800 dark:text-neutral-100">{item.label}</span>
+                          {targetId === item.value && (
+                            <span className="ml-2 text-xs text-amber-600">✓ Dipilih</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </label>
-              <select value={targetId} onChange={e => setTargetId(e.target.value)} className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800 max-h-48 overflow-y-auto">
-                <option value="">Pilih...</option>
-                {targetOptions().length === 0 && (
-                  <option value="" disabled>Tidak ada hasil</option>
-                )}
-                {targetOptions().map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
-              </select>
-              <p className="text-[10px] text-neutral-400">
-                {targetOptions().length} hasil · Ketik untuk mencari lebih banyak
-              </p>
+              {/* Selected Project Info */}
+              {selectedProject && (
+                <div className="rounded-lg border border-green-200 bg-green-50 dark:bg-green-900/20 dark:border-green-800 p-3">
+                  <p className="text-sm font-semibold text-green-800 dark:text-green-200">
+                    ✓ {selectedProject.name}
+                  </p>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                    {getServiceLabel(selectedProject.service_type) || "Layanan"} ·
+                    {selectedProject.type === "RETAINER" ? "🔄 Retainer" : "📋 Fixed"}
+                    {selectedProject.contract_months && ` · ${selectedProject.contract_months} bulan`}
+                  </p>
+                </div>
+              )}
+              {!selectedProject && targetOptions().length === 0 && (
+                <p className="text-xs text-neutral-400">Tidak ada hasil. Coba kata kunci lain.</p>
+              )}
             </div>
           )}
 
