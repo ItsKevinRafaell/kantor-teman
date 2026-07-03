@@ -874,8 +874,13 @@ def render_pdf_with_weasyprint(rendered_html: str, uploads_dir: str | None = Non
     pdf = HTML(string=rendered_html, url_fetcher=_pdf_url_fetcher).write_pdf()
     if not _is_valid_pdf(pdf):
         raise RuntimeError("WeasyPrint menghasilkan PDF invalid")
-    if len(pdf) < int(os.getenv("PDF_BLANK_FALLBACK_MAX_BYTES", "8192")):
-        raise RuntimeError("WeasyPrint menghasilkan PDF yang kemungkinan blank")
+    # NB: do NOT reject small PDFs by byte count. A valid report with one
+    # screenshot + little text can be ~4KB yet legitimately embed an image
+    # (verified). The byte threshold (PDF_BLANK_FALLBACK_MAX_BYTES, default
+    # 8192) was a false-positive trap that dropped valid PDFs → chain fell
+    # to text fallback → images lost. Empty HTML is already rejected by
+    # visible_text_from_html at the chain entry; structural validity is
+    # covered by _is_valid_pdf above.
     return pdf
 
 
