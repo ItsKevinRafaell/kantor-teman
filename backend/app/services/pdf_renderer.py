@@ -449,8 +449,11 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
     # rich HTML/CSS with embedded screenshots — let them fall through to WeasyPrint
     # (which supports <img>, tables, flex CSS). Without this, reportlab renders a
     # tiny valid-but-empty PDF and the chain never reaches weasyprint → images blank.
-    title_text = (parts.get("title") or "").upper()
-    if "LAPORAN" in title_text:
+    # NB: parts["title"] is invoice-derived (defaults to "DOKUMEN", only matches
+    # INVOICE/PROPOSAL/etc), so it never equals "LAPORAN". Detect reports via the
+    # visible text (the report <h1> is "Laporan Klien ...").
+    visible = (parts.get("text") or "").upper()
+    if "LAPORAN" in visible and "LAPORAN" not in (parts.get("title") or "").upper():
         raise NotImplementedError("Laporan klien ditangani WeasyPrint, bukan ReportLab")
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
