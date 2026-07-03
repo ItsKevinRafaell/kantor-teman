@@ -19,7 +19,7 @@ from typing import Any, Optional
 import httpx
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import UPLOADS_DIR
+from app.core.dependencies import UPLOADS_DIR, FRONTEND_URL
 from app.services.document_service import _slugify_name, build_brand_context
 from app.services.pdf_renderer import render_pdf_from_html
 from app.services.sales_workflow_service import archive_generated_document
@@ -525,6 +525,52 @@ def _derive_next_month_targets(metrics: dict, service_type: str = "general", rep
     return {"metrics": target_rows, "notes": notes}
 
 
+def _derive_comparison_groups(manual_metrics: Optional[dict]) -> list:
+    """Derive arbitrary user-supplied comparison groups.
+
+    Input shape (from admin form, inside manual_metrics["comparison_groups"]):
+      [ { title, reference_label, current_label,
+          rows: [ {label, previous, current, lower_is_better?} ] } ]
+    Each row's delta is computed via _calculate_delta. Returns [] if absent.
+    """
+    groups_raw = (manual_metrics or {}).get("comparison_groups") or []
+    if not isinstance(groups_raw, list):
+        return []
+    result = []
+    for group in groups_raw:
+        if not isinstance(group, dict):
+            continue
+        rows_in = group.get("rows") or []
+        rows_out = []
+        for row in rows_in:
+            if not isinstance(row, dict):
+                continue
+            label = row.get("label") or row.get("key") or "Metric"
+            current = row.get("current")
+            previous = row.get("previous")
+            lower_is_better = bool(row.get("lower_is_better"))
+            delta = _calculate_delta(current, previous)
+            if delta is None and current in (None, "") and previous in (None, ""):
+                continue  # skip fully-empty rows
+            rows_out.append({
+                "label": label,
+                "current": current,
+                "previous": previous,
+                "lower_is_better": lower_is_better,
+                "delta": delta,
+            })
+        if not rows_out:
+            continue
+        result.append({
+            "title": group.get("title") or "Komparasi",
+            "reference_label": group.get("reference_label") or "Pembanding",
+            "current_label": group.get("current_label") or "Sekarang",
+            "notes": group.get("notes"),
+            "rows": rows_out,
+        })
+    return result
+
+
 def _derive_legacy_seo_comparisons(metrics: dict, report_type: str = "monthly") -> dict:
     gsc = metrics.get("service", {}).get("gsc", {})
     if report_type == "completion":
@@ -660,6 +706,7 @@ def build_report_payload(
     }
     metrics["comparisons"] = _derive_comparisons(metrics, service_type, report_type)
     metrics["next_month_targets"] = _derive_next_month_targets(metrics, service_type, report_type)
+    metrics["comparison_groups"] = _derive_comparison_groups(manual_metrics)
 
     evidence_payload = {
         **_clean_dict(evidence),
@@ -751,6 +798,34 @@ def _render_seo_targets(gsc: dict) -> str:
     if notes:
         rows += f"<tr><th>Catatan target</th><td>{_safe_text(notes)}</td></tr>"
     return f"<table><tbody>{rows}</tbody></table>"
+
+
+def _render_comparison_groups(payload: dict) -> str:
+    groups = payload.get("metrics", {}).get("comparison_groups") or []
+    if not groups:
+        return ""
+    blocks = []
+    for group in groups:
+        ref = group.get("reference_label") or "Pembanding"
+        cur = group.get("current_label") or "Sekarang"
+        rows = "".join(
+            f"<tr><th>{_safe_text(item.get('label'))}</th>"
+            f"<td>{_format_number(item.get('previous'))}</td>"
+            f"<td>{_format_number(item.get('current'))}</td>"
+            f"<td>{_format_delta(item.get('delta'), bool(item.get('lower_is_better')))}</td></tr>"
+            for item in group.get("rows", [])
+        )
+        notes_html = ""
+        if group.get("notes"):
+            notes_html = f'<tr><th>Catatan</th><td colspan="3">{_safe_text(group.get("notes"))}</td></tr>'
+        blocks.append(f"""
+        <div class="section"><h2>{_safe_text(group.get('title') or 'Komparasi Performa')}</h2>
+          <table>
+            <thead><tr><th>Metric</th><th>{_safe_text(ref)}</th><th>{_safe_text(cur)}</th><th>Perubahan</th></tr></thead>
+            <tbody>{rows}{notes_html}</tbody>
+          </table>
+        </div>""")
+    return "".join(blocks)
 
 
 def _render_comparison_section(payload: dict) -> str:
@@ -913,20 +988,49 @@ def _render_workspace_table(payload: dict) -> str:
       <tbody>""" + "".join(rows) + "</tbody></table></div>"
 
 
+def _is_image_evidence(item: dict, url: str) -> bool:
+    ftype = (item.get("file_type") or "").lower()
+    if ftype.startswith("image/"):
+        return True
+    ext = os.path.splitext(url)[1].lower()
+    return ext in {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+
+
+def _absolute_url(url: str) -> str:
+    if url and url.startswith("/"):
+        return f"{(FRONTEND_URL or '').rstrip('/')}{url}"
+    return url
+
+
 def _render_evidence(payload: dict) -> str:
     evidence = payload.get("evidence", {})
-    items = evidence.get("workspace_evidence", []) or evidence.get("items", []) or []
+    items = evidence.get("items", []) or evidence.get("workspace_evidence", []) or []
     if not items:
         return '<div class="section"><h2>Bukti Pengerjaan</h2><p class="muted">Belum ada bukti/link yang dilampirkan.</p></div>'
-    rows = []
+    blocks = []
     for item in items[:20]:
         label = item.get("label") or item.get("title") or item.get("file_name") or "Bukti"
         url = item.get("url") or item.get("file_path") or item.get("link") or ""
-        rows.append(f"<tr><td>{_safe_text(label)}</td><td>{_safe_text(url)}</td><td>{_safe_text(item.get('source') or '')}</td></tr>")
-    return """
+        abs_url = _absolute_url(url)
+        if url and _is_image_evidence(item, url):
+            blocks.append(f"""
+            <div class="evidence-item">
+              <p class="evidence-label">{_safe_text(label)}</p>
+              <img src="{_safe_text(abs_url)}" alt="{_safe_text(label)}"/>
+            </div>""")
+        elif url:
+            blocks.append(f"""
+            <div class="evidence-item">
+              <p class="evidence-label">{_safe_text(label)}</p>
+              <a href="{_safe_text(abs_url)}">{_safe_text(item.get('file_name') or url)}</a>
+              <span class="muted">{_safe_text(item.get('source') or '')}</span>
+            </div>""")
+        else:
+            blocks.append(f'<div class="evidence-item"><p class="evidence-label">{_safe_text(label)}</p><span class="muted">Tidak ada link</span></div>')
+    return f"""
     <div class="section"><h2>Bukti Pengerjaan</h2>
-      <table><thead><tr><th>Bukti</th><th>Link/File</th><th>Sumber</th></tr></thead>
-      <tbody>""" + "".join(rows) + "</tbody></table></div>"
+      <div class="evidence-grid">{''.join(blocks)}</div>
+    </div>"""
 
 
 def render_report_html(payload: dict, brand: Optional[dict] = None) -> str:
@@ -963,6 +1067,11 @@ th {{ color: #374151; background: #f9fafb; font-weight: 700; }}
 ul {{ margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.7; }}
 .muted {{ color: #6b7280; font-size: 12px; }}
 .footer {{ margin-top: 28px; padding-top: 12px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 10px; text-align: center; }}
+img {{ max-width: 100%; height: auto; border-radius: 8px; display: block; margin: 6px 0; }}
+.evidence-grid {{ display: grid; grid-template-columns: 1fr; gap: 14px; }}
+.evidence-item {{ border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; }}
+.evidence-label {{ font-weight: 700; font-size: 12px; margin: 0 0 4px; color: #374151; }}
+.evidence-item a {{ color: #b45309; font-size: 12px; }}
 </style>
 </head>
 <body>
@@ -983,6 +1092,7 @@ ul {{ margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.7; }}
   </div>
 
   {_render_service_section(payload)}
+  {_render_comparison_groups(payload)}
   {_render_comparison_section(payload)}
   {_render_next_month_targets(payload)}
   {_render_workspace_table(payload)}

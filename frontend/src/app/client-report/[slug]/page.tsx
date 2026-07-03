@@ -27,6 +27,14 @@ interface PublicReport {
   created_at: string;
 }
 
+interface ComparisonGroup {
+  title?: string;
+  reference_label?: string;
+  current_label?: string;
+  notes?: string;
+  rows: { label?: string; current?: any; previous?: any; lower_is_better?: boolean; delta?: any }[];
+}
+
 const SERVICE_LABELS: Record<string, string> = {
   seo_gmaps: "SEO & Google Maps",
   maintenance: "Maintenance Website",
@@ -123,6 +131,46 @@ function ReportComparisonBlocks({ report }: { report: PublicReport }) {
           ) : (
             <p className="mt-2 text-sm text-amber-900">Target bulan depan belum diisi.</p>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ComparisonGroupTable({ group }: { group: ComparisonGroup }) {
+  const ref = group.reference_label || "Pembanding";
+  const cur = group.current_label || "Sekarang";
+  return (
+    <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+      <div className="border-b border-neutral-200 px-4 py-3">
+        <h3 className="text-sm font-bold text-neutral-900">{group.title || "Komparasi Performa"}</h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="border-b border-neutral-200 text-left text-xs text-neutral-500">
+              <th className="px-3 py-2">Metric</th>
+              <th className="px-3 py-2 capitalize">{ref}</th>
+              <th className="px-3 py-2">{cur}</th>
+              <th className="px-3 py-2">Perubahan</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-neutral-100">
+            {group.rows.map((item, index) => (
+              <tr key={`${item.label}-${index}`}>
+                <th className="bg-neutral-50 px-3 py-2 text-left text-xs font-bold text-neutral-600">{item.label}</th>
+                <td className="px-3 py-2 text-sm text-neutral-700">{valueText(item.previous)}</td>
+                <td className="px-3 py-2 text-sm font-semibold text-neutral-900">{valueText(item.current)}</td>
+                <td className="px-3 py-2 text-sm text-neutral-700">{deltaText(item.delta, item.lower_is_better)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {group.notes && (
+        <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">Catatan</p>
+          <p className="mt-1 text-sm leading-6 text-neutral-700">{group.notes}</p>
         </div>
       )}
     </div>
@@ -303,7 +351,11 @@ export default function PublicClientReportPage() {
   if (error || !report) return <div className="min-h-screen bg-neutral-50 p-8 text-center text-sm text-neutral-500">{error || "Laporan tidak ditemukan"}</div>;
 
   const workspace = report.metrics?.workspace || {};
-  const evidence = report.evidence?.workspace_evidence || report.evidence?.items || [];
+  const evidence = [
+    ...(report.evidence?.workspace_evidence || []),
+    ...(report.evidence?.items || []),
+  ];
+  const comparisonGroups: ComparisonGroup[] = report.metrics?.comparison_groups || [];
   const pagespeed = report.metrics?.pagespeed || {};
   const downloadUrl = report.download_document_id ? `${API_BASE}/api/reports/public/${slug}/download` : null;
 
@@ -341,6 +393,12 @@ export default function PublicClientReportPage() {
           <ServiceMetrics report={report} />
         </section>
 
+        {comparisonGroups.length > 0 && (
+          <div className="space-y-4">
+            {comparisonGroups.map((group, index) => <ComparisonGroupTable key={`${group.title}-${index}`} group={group} />)}
+          </div>
+        )}
+
         <section className="grid gap-5 md:grid-cols-3">
           <div className="rounded-2xl border border-neutral-200 bg-white p-5">
             <h2 className="mb-3 text-base font-bold">Highlight</h2>
@@ -361,13 +419,25 @@ export default function PublicClientReportPage() {
           {evidence.length === 0 ? (
             <p className="text-sm text-neutral-500">Belum ada bukti/link yang dilampirkan.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="grid gap-4">
               {evidence.slice(0, 20).map((item: any, index: number) => {
                 const url = item.url || item.file_path || item.link || "";
                 const absoluteUrl = url && url.startsWith("/") ? `${API_BASE}${url}` : url;
+                const label = item.label || item.title || item.file_name || "Bukti";
+                const isImage = (item.file_type || "").toLowerCase().startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(url);
+                if (isImage && absoluteUrl) {
+                  return (
+                    <div key={`${url}-${index}`} className="rounded-xl border border-neutral-200 p-3">
+                      <p className="mb-2 text-sm font-semibold text-neutral-900">{label}</p>
+                      <a href={absoluteUrl} target="_blank" rel="noopener noreferrer" className="block">
+                        <img src={absoluteUrl} alt={label} className="max-h-96 w-full rounded-lg object-contain" />
+                      </a>
+                    </div>
+                  );
+                }
                 return (
                   <div key={`${url}-${index}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-200 px-3 py-2 text-sm">
-                    <span className="font-semibold">{item.label || item.title || item.file_name || "Bukti"}</span>
+                    <span className="font-semibold">{label}</span>
                     {absoluteUrl ? (
                       <a href={absoluteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-amber-700 hover:underline">
                         <ExternalLink size={13} /> Buka

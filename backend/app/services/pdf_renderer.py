@@ -830,11 +830,36 @@ def render_pdf_with_xhtml2pdf(rendered_html: str, uploads_dir: str | None = None
     return pdf
 
 
-def render_pdf_with_weasyprint(rendered_html: str) -> bytes:
+def render_pdf_with_weasyprint(rendered_html: str, uploads_dir: str | None = None) -> bytes:
     from weasyprint import HTML
 
-    def _pdf_url_fetcher(_url: str, **_kw):
-        return {"string": b"", "mime_type": "text/plain"}
+    def _pdf_url_fetcher(url: str, **_kw):
+        # Resolve only local /uploads/ files to their bytes so embedded <img>
+        # screenshots render. External URLs return empty bytes (no network).
+        if not uploads_dir:
+            return {"string": b"", "mime_type": "text/plain"}
+        parsed = urlparse(url)
+        path = parsed.path if parsed.scheme else url
+        marker = "/uploads/"
+        if marker not in path:
+            return {"string": b"", "mime_type": "text/plain"}
+        rel = path.split(marker, 1)[1]
+        # Security: reject traversal, scope to uploads_dir only.
+        local_path = os.path.normpath(os.path.join(uploads_dir, rel))
+        uploads_real = os.path.realpath(uploads_dir)
+        if not local_path.startswith(uploads_real + os.sep) and local_path != uploads_real:
+            return {"string": b"", "mime_type": "text/plain"}
+        if not os.path.exists(local_path) or not os.path.isfile(local_path):
+            return {"string": b"", "mime_type": "text/plain"}
+        ext = os.path.splitext(local_path)[1].lower().lstrip(".")
+        mime = {
+            "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+            "webp": "image/webp", "gif": "image/gif", "svg": "image/svg+xml",
+            "pdf": "application/pdf",
+        }.get(ext, "application/octet-stream")
+        with open(local_path, "rb") as f:
+            data = f.read()
+        return {"string": data, "mime_type": mime}
 
     pdf = HTML(string=rendered_html, url_fetcher=_pdf_url_fetcher).write_pdf()
     if not _is_valid_pdf(pdf):
@@ -864,7 +889,7 @@ def render_pdf_from_html(rendered_html: str, uploads_dir: str | None = None) -> 
                 return render_pdf_with_reportlab(rendered_html)
             if name == "xhtml2pdf":
                 return render_pdf_with_xhtml2pdf(rendered_html, uploads_dir)
-            return render_pdf_with_weasyprint(rendered_html)
+            return render_pdf_with_weasyprint(rendered_html, uploads_dir)
         except ImportError:
             continue
         except Exception:

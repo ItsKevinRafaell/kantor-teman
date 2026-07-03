@@ -3,14 +3,15 @@ from __future__ import annotations
 from typing import Optional
 
 import os
+import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import FRONTEND_URL, _get_setting, get_current_user
+from app.core.dependencies import FRONTEND_URL, UPLOADS_DIR, _get_setting, get_current_user
 from app.services.client_report_service import (
     DOCUMENTS_DIR,
     REPORT_SERVICE_LABELS,
@@ -163,6 +164,42 @@ def get_public_report(slug: str, db: Session = Depends(get_db)):
         return _with_absolute_public_url(payload, db)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.post("/api/reports/attachments")
+async def upload_report_attachment(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Upload screenshot/bukti untuk dilampirkan ke laporan (report-scoped).
+
+    Tidak menyimpan DB row — frontend pegang file_url lalu submit via
+    evidence.items saat generate. Disimpan di uploads/reports/{uuid}/.
+    """
+    allowed_ext = {".jpg", ".jpeg", ".png", ".webp", ".pdf"}
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in allowed_ext:
+        raise HTTPException(status_code=400, detail=f"Format tidak diizinkan: {ext}. Gunakan: jpg, png, webp, pdf")
+
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File terlalu besar (max 5MB)")
+
+    folder_id = uuid.uuid4().hex
+    save_dir = os.path.join(UPLOADS_DIR, "reports", folder_id)
+    os.makedirs(save_dir, exist_ok=True)
+    fname = f"{uuid.uuid4().hex}{ext}"
+    fpath = os.path.join(save_dir, fname)
+    with open(fpath, "wb") as f:
+        f.write(contents)
+
+    file_url = f"/uploads/reports/{folder_id}/{fname}"
+    return {
+        "id": folder_id,
+        "file_url": file_url,
+        "file_name": file.filename or fname,
+        "file_type": file.content_type,
+    }
 
 
 @router.post("/api/reports/public/{slug}/duration")

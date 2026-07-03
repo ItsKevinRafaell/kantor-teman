@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { BarChart3, Check, Copy, Download, ExternalLink, FileText, Plus, RefreshCw, Search, X } from "lucide-react";
+import { BarChart3, Check, Copy, Download, ExternalLink, FileText, Plus, RefreshCw, Search, Trash2, Upload, X } from "lucide-react";
 import Breadcrumb from "../../../components/Breadcrumb";
 import Toast from "../../../components/Toast";
 import { apiFetch } from "../../../lib/api";
@@ -337,6 +337,11 @@ export default function ReportsContent() {
   const [leadSearch, setLeadSearch] = useState("");
   const [contactSearch, setContactSearch] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Comparison groups (arbitrary user-supplied tables)
+  const [comparisonGroups, setComparisonGroups] = useState<{ title: string; reference_label: string; current_label: string; notes: string; rows: { label: string; previous: string; current: string }[] }[]>([]);
+  // Manual evidence (uploaded screenshots + URL links)
+  const [uploadedEvidence, setUploadedEvidence] = useState<{ label: string; url: string; file_name: string; file_type: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   const selectedProject = useMemo(() => projects.find(p => p.id === targetId) || null, [projects, targetId]);
   const selectedLead = useMemo(() => leads.find(l => String(l.id) === targetId) || null, [leads, targetId]);
@@ -429,13 +434,40 @@ export default function ReportsContent() {
   }
 
   function buildPayload() {
-    const parsedMetrics: Record<string, string | number | string[]> = {};
+    const parsedMetrics: Record<string, string | number | string[] | any[]> = {};
     const allowedMetricKeys = new Set(metricFields.map(field => field.key));
     for (const [key, value] of Object.entries(metrics)) {
       if (!allowedMetricKeys.has(key)) continue;
       if (!value.trim()) continue;
       parsedMetrics[key] = toNumberIfPossible(value);
     }
+    const groupsPayload = comparisonGroups
+      .filter(g => g.rows.some(r => r.label.trim() || r.previous.trim() || r.current.trim()))
+      .map(g => ({
+        title: g.title.trim() || "Komparasi",
+        reference_label: g.reference_label.trim() || "Pembanding",
+        current_label: g.current_label.trim() || "Sekarang",
+        notes: g.notes.trim() || undefined,
+        rows: g.rows
+          .filter(r => r.label.trim() || r.previous.trim() || r.current.trim())
+          .map(r => ({
+            label: r.label.trim(),
+            previous: toNumberIfPossible(r.previous),
+            current: toNumberIfPossible(r.current),
+          })),
+      }));
+    if (groupsPayload.length > 0) {
+      parsedMetrics["comparison_groups"] = groupsPayload;
+    }
+    const evidenceItems = uploadedEvidence
+      .filter(e => e.url.trim())
+      .map(e => ({
+        label: e.label.trim() || e.file_name || "Bukti",
+        url: e.url.trim(),
+        file_name: e.file_name || undefined,
+        file_type: e.file_type || undefined,
+        source: "manual",
+      }));
     return {
       report_type: reportType,
       target_type: targetType,
@@ -444,7 +476,7 @@ export default function ReportsContent() {
       period_start: periodStart || null,
       period_end: periodEnd || null,
       metrics: parsedMetrics,
-      evidence: {},
+      evidence: evidenceItems.length > 0 ? { items: evidenceItems } : {},
       narrative: {
         executive_summary: executiveSummary,
         highlights: linesToArray(highlights),
@@ -490,6 +522,54 @@ export default function ReportsContent() {
     if (!url) return;
     await navigator.clipboard.writeText(url);
     setToast({ message: "Link laporan disalin", type: "success" });
+  }
+
+  // Comparison group helpers
+  function addComparisonGroup() {
+    setComparisonGroups(prev => [...prev, { title: "", reference_label: "Bulan lalu", current_label: "Bulan ini", notes: "", rows: [{ label: "", previous: "", current: "" }] }]);
+  }
+  function updateGroup(index: number, patch: Partial<{ title: string; reference_label: string; current_label: string; notes: string }>) {
+    setComparisonGroups(prev => prev.map((g, i) => i === index ? { ...g, ...patch } : g));
+  }
+  function removeGroup(index: number) {
+    setComparisonGroups(prev => prev.filter((_, i) => i !== index));
+  }
+  function addGroupRow(index: number) {
+    setComparisonGroups(prev => prev.map((g, i) => i === index ? { ...g, rows: [...g.rows, { label: "", previous: "", current: "" }] } : g));
+  }
+  function updateGroupRow(groupIndex: number, rowIndex: number, patch: Partial<{ label: string; previous: string; current: string }>) {
+    setComparisonGroups(prev => prev.map((g, gi) => gi === groupIndex ? { ...g, rows: g.rows.map((r, ri) => ri === rowIndex ? { ...r, ...patch } : r) } : g));
+  }
+  function removeGroupRow(groupIndex: number, rowIndex: number) {
+    setComparisonGroups(prev => prev.map((g, gi) => gi === groupIndex ? { ...g, rows: g.rows.filter((_, ri) => ri !== rowIndex) } : g));
+  }
+
+  // Evidence upload
+  async function uploadEvidence(file: File, label: string) {
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`${API_BASE}/api/reports/attachments`, { method: "POST", body: form, credentials: "include" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "Gagal upload");
+      }
+      const data = await res.json();
+      setUploadedEvidence(prev => [...prev, { label: label || file.name, url: data.file_url, file_name: data.file_name, file_type: data.file_type }]);
+      setToast({ message: "Screenshot terunggah", type: "success" });
+    } catch (e: any) {
+      setToast({ message: e.message || "Gagal upload", type: "error" });
+    } finally {
+      setUploading(false);
+    }
+  }
+  function addLinkEvidence(label: string, url: string) {
+    if (!url.trim()) return;
+    setUploadedEvidence(prev => [...prev, { label: label || url, url: url.trim(), file_name: "", file_type: "" }]);
+  }
+  function removeEvidence(index: number) {
+    setUploadedEvidence(prev => prev.filter((_, i) => i !== index));
   }
 
   const targetHelper = TARGET_TYPES.find(item => item.value === targetType)?.helper || "";
@@ -667,6 +747,82 @@ export default function ReportsContent() {
               </div>
             </div>
           )}
+
+          {/* Comparison Groups — arbitrary user tables */}
+          <div className="rounded-xl border border-blue-200 bg-blue-50/30 p-4 dark:border-blue-900/40 dark:bg-blue-950/10">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">📊 Tabel Komparasi</h3>
+              <button type="button" onClick={addComparisonGroup} className="inline-flex items-center gap-1 rounded-lg bg-blue-500 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-600">
+                <Plus size={14} /> Tambah Tabel
+              </button>
+            </div>
+            <p className="mb-3 text-xs text-neutral-500">Buat tabel komparasi bebas (mis. "Metriks Keseluruhan" bulan-ini vs bulan-lalu, atau "Kemajuan Proyek" benchmark vs sekarang). Label & baris bebas.</p>
+            {comparisonGroups.length === 0 ? (
+              <p className="rounded-lg bg-white px-3 py-3 text-xs text-neutral-400 dark:bg-neutral-900">Belum ada tabel. Klik "Tambah Tabel".</p>
+            ) : (
+              <div className="space-y-3">
+                {comparisonGroups.map((group, gi) => (
+                  <div key={gi} className="rounded-lg border border-neutral-200 bg-white p-3 dark:border-neutral-700 dark:bg-neutral-900">
+                    <div className="grid gap-2 md:grid-cols-4">
+                      <input value={group.title} onChange={e => updateGroup(gi, { title: e.target.value })} placeholder="Judul tabel" className="rounded-lg border border-neutral-200 px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800 md:col-span-2" />
+                      <input value={group.reference_label} onChange={e => updateGroup(gi, { reference_label: e.target.value })} placeholder="Label pembanding (mis. Mei 2026)" className="rounded-lg border border-neutral-200 px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800" />
+                      <input value={group.current_label} onChange={e => updateGroup(gi, { current_label: e.target.value })} placeholder="Label sekarang (mis. Juni 2026)" className="rounded-lg border border-neutral-200 px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800" />
+                    </div>
+                    <div className="mt-2 space-y-2">
+                      {group.rows.map((row, ri) => (
+                        <div key={ri} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2">
+                          <input value={row.label} onChange={e => updateGroupRow(gi, ri, { label: e.target.value })} placeholder="Metric (mis. Total Klik)" className="rounded-lg border border-neutral-200 px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800" />
+                          <input value={row.previous} onChange={e => updateGroupRow(gi, ri, { previous: e.target.value })} placeholder="Sebelum" inputMode="decimal" className="rounded-lg border border-neutral-200 px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800" />
+                          <input value={row.current} onChange={e => updateGroupRow(gi, ri, { current: e.target.value })} placeholder="Sekarang" inputMode="decimal" className="rounded-lg border border-neutral-200 px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800" />
+                          <button type="button" onClick={() => removeGroupRow(gi, ri)} className="rounded-lg p-1.5 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"><Trash2 size={14} /></button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <button type="button" onClick={() => addGroupRow(gi)} className="inline-flex items-center gap-1 rounded-lg bg-neutral-100 px-2 py-1 text-xs font-semibold text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300"><Plus size={12} /> Baris</button>
+                      <button type="button" onClick={() => removeGroup(gi)} className="text-xs text-red-500 hover:underline">Hapus tabel</button>
+                    </div>
+                    <input value={group.notes} onChange={e => updateGroup(gi, { notes: e.target.value })} placeholder="Catatan tabel (opsional)" className="mt-2 w-full rounded-lg border border-neutral-200 px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Evidence upload — screenshots + links */}
+          <div className="rounded-xl border border-green-200 bg-green-50/30 p-4 dark:border-green-900/40 dark:bg-green-950/10">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">📸 Bukti Pengerjaan (Screenshot)</h3>
+              <label className={`inline-flex cursor-pointer items-center gap-1 rounded-lg bg-green-500 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-green-600 ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
+                <Upload size={14} /> {uploading ? "Mengunggah..." : "Upload Screenshot"}
+                <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" className="hidden" onChange={e => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadEvidence(f, f.name);
+                  e.target.value = "";
+                }} />
+              </label>
+            </div>
+            <p className="mb-3 text-xs text-neutral-500">Upload screenshot per aktivitas (BACKUP BULANAN, ARTIKEL, grafik GSC). Akan tampil inline di laporan publik + PDF.</p>
+            {uploadedEvidence.length > 0 && (
+              <div className="mb-3 grid gap-2">
+                {uploadedEvidence.map((ev, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs dark:border-neutral-700 dark:bg-neutral-900">
+                    <span className="truncate font-medium text-neutral-800 dark:text-neutral-100">{ev.label} {ev.file_type.startsWith("image/") && <span className="text-green-600">[gambar]</span>}</span>
+                    <button type="button" onClick={() => removeEvidence(i)} className="text-red-400 hover:text-red-600"><Trash2 size={14} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
+              <input id="ev-link-label" placeholder="Label (mis. BACKUP BULANAN)" className="rounded-lg border border-neutral-200 px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800" />
+              <input id="ev-link-url" placeholder="URL bukti (opsional, kalau bukan upload)" className="rounded-lg border border-neutral-200 px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800" />
+              <button type="button" onClick={() => {
+                const l = (document.getElementById("ev-link-label") as HTMLInputElement)?.value || "";
+                const u = (document.getElementById("ev-link-url") as HTMLInputElement)?.value || "";
+                if (u) { addLinkEvidence(l, u); (document.getElementById("ev-link-label") as HTMLInputElement).value = ""; (document.getElementById("ev-link-url") as HTMLInputElement).value = ""; }
+              }} className="rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300">+ Link</button>
+            </div>
+          </div>
 
           <div className="grid gap-3 md:grid-cols-2">
             <label className="md:col-span-2">
