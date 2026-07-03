@@ -16,9 +16,10 @@ export function middleware(request: NextRequest) {
   const isLoginPage = pathname === "/login" || pathname === "/login/";
   const isPublicProposal = pathname.startsWith("/proposal/");
   const isPublicReport = pathname.startsWith("/report/");
+  const isPublicClientReport = pathname.startsWith("/client-report/");
   const isShortLink = pathname.startsWith("/r/") || pathname.startsWith("/p/");
 
-  if (isPublicProposal || isPublicReport || isShortLink) {
+  if (isPublicProposal || isPublicReport || isPublicClientReport || isShortLink) {
     return NextResponse.next();
   }
 
