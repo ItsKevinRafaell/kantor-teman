@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { BarChart3, Copy, Download, ExternalLink, FileText, Plus, RefreshCw } from "lucide-react";
+import { BarChart3, Check, Copy, Download, ExternalLink, FileText, Plus, RefreshCw, Search, X } from "lucide-react";
 import Breadcrumb from "../../../components/Breadcrumb";
 import Toast from "../../../components/Toast";
 import { apiFetch } from "../../../lib/api";
@@ -336,10 +336,12 @@ export default function ReportsContent() {
   const [projectSearch, setProjectSearch] = useState("");
   const [leadSearch, setLeadSearch] = useState("");
   const [contactSearch, setContactSearch] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const selectedProject = useMemo(() => projects.find(p => p.id === targetId) || null, [projects, targetId]);
   const selectedLead = useMemo(() => leads.find(l => String(l.id) === targetId) || null, [leads, targetId]);
   const selectedContact = useMemo(() => contacts.find(c => String(c.id) === targetId) || null, [contacts, targetId]);
+  const selectedTarget = useMemo(() => targetOptions().find(item => item.value === targetId) || null, [targetType, targetId, projects, leads, contacts]);
   const serviceType = selectedProject?.service_type || "general";
   const metricFields = useMemo(() => getMetricFields(serviceType, reportType), [serviceType, reportType]);
   const metricHelper = useMemo(() => getMetricHelper(serviceType, reportType), [serviceType, reportType]);
@@ -531,66 +533,39 @@ export default function ReportsContent() {
 
           {targetType !== "empty" && (
             <div className="space-y-2">
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold text-neutral-500">
-                  Pilih {targetType === "project" ? "Proyek" : targetType === "lead" ? "Lead" : "Klien"}
-                </span>
-                {/* Searchable Combobox */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder={`Ketik nama ${targetType === "project" ? "proyek" : targetType === "lead" ? "lead" : "klien"} untuk mencari...`}
-                    value={targetType === "project" ? projectSearch : targetType === "lead" ? leadSearch : contactSearch}
-                    onChange={e => {
-                      if (targetType === "project") setProjectSearch(e.target.value);
-                      else if (targetType === "lead") setLeadSearch(e.target.value);
-                      else setContactSearch(e.target.value);
-                    }}
-                    className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm dark:border-neutral-700 dark:bg-neutral-800"
-                  />
-                  {/* Dropdown Results */}
-                  {targetOptions().length > 0 && (
-                    <div className="absolute z-10 mt-1 w-full rounded-xl border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900 max-h-60 overflow-y-auto">
-                      {targetOptions().map(item => (
-                        <button
-                          key={item.value}
-                          type="button"
-                          onClick={() => {
-                            setTargetId(item.value);
-                            // Clear search after selection
-                            if (targetType === "project") setProjectSearch("");
-                            else if (targetType === "lead") setLeadSearch("");
-                            else setContactSearch("");
-                          }}
-                          className={`w-full text-left px-3 py-2.5 text-sm hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors ${
-                            targetId === item.value ? "bg-amber-50 dark:bg-amber-900/20 border-l-2 border-amber-500" : ""
-                          }`}
-                        >
-                          <span className="font-medium text-neutral-800 dark:text-neutral-100">{item.label}</span>
-                          {targetId === item.value && (
-                            <span className="ml-2 text-xs text-amber-600">✓ Dipilih</span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+              <span className="mb-1 block text-xs font-semibold text-neutral-500">
+                {selectedTarget ? "Target dipilih" : `Pilih ${targetType === "project" ? "Proyek" : targetType === "lead" ? "Lead" : "Klien"}`}
+              </span>
+              {selectedTarget ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50 dark:bg-green-900/20 dark:border-green-800 p-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-green-800 dark:text-green-200">
+                      ✓ {selectedTarget.label}
+                    </p>
+                    {selectedProject && (
+                      <p className="mt-0.5 text-xs text-green-600 dark:text-green-400">
+                        {getServiceLabel(selectedProject.service_type) || "Layanan"} ·
+                        {selectedProject.type === "RETAINER" ? "🔄 Retainer" : "📋 Fixed"}
+                        {selectedProject.contract_months && ` · ${selectedProject.contract_months} bulan`}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPickerOpen(true)}
+                    className="shrink-0 rounded-lg bg-white px-2.5 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-100 dark:bg-green-900/40 dark:text-green-200 dark:hover:bg-green-900/60"
+                  >
+                    Ganti
+                  </button>
                 </div>
-              </label>
-              {/* Selected Project Info */}
-              {selectedProject && (
-                <div className="rounded-lg border border-green-200 bg-green-50 dark:bg-green-900/20 dark:border-green-800 p-3">
-                  <p className="text-sm font-semibold text-green-800 dark:text-green-200">
-                    ✓ {selectedProject.name}
-                  </p>
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
-                    {getServiceLabel(selectedProject.service_type) || "Layanan"} ·
-                    {selectedProject.type === "RETAINER" ? "🔄 Retainer" : "📋 Fixed"}
-                    {selectedProject.contract_months && ` · ${selectedProject.contract_months} bulan`}
-                  </p>
-                </div>
-              )}
-              {!selectedProject && targetOptions().length === 0 && (
-                <p className="text-xs text-neutral-400">Tidak ada hasil. Coba kata kunci lain.</p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(true)}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-neutral-300 bg-neutral-50 px-3 py-2.5 text-sm font-semibold text-neutral-500 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:border-amber-600 dark:hover:bg-amber-950/20"
+                >
+                  <Search size={15} /> Cari & pilih {targetType === "project" ? "proyek" : targetType === "lead" ? "lead" : "klien"}
+                </button>
               )}
             </div>
           )}
@@ -787,6 +762,69 @@ export default function ReportsContent() {
           </div>
         </aside>
       </div>
+
+      {pickerOpen && targetType !== "empty" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setPickerOpen(false)} />
+          <div className="relative bg-[var(--bg-surface)] rounded-2xl shadow-2xl border border-[var(--border-default)] w-full max-w-lg p-5 space-y-3 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-50">
+                Pilih {targetType === "project" ? "Proyek" : targetType === "lead" ? "Lead" : "Klien"}
+              </h3>
+              <button onClick={() => setPickerOpen(false)} className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="relative">
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+              <input
+                type="text"
+                autoFocus
+                placeholder={`Cari nama ${targetType === "project" ? "proyek" : targetType === "lead" ? "lead" : "klien"}...`}
+                value={targetType === "project" ? projectSearch : targetType === "lead" ? leadSearch : contactSearch}
+                onChange={e => {
+                  if (targetType === "project") setProjectSearch(e.target.value);
+                  else if (targetType === "lead") setLeadSearch(e.target.value);
+                  else setContactSearch(e.target.value);
+                }}
+                className="w-full rounded-xl border border-neutral-200 bg-white pl-9 pr-3 py-2.5 text-sm dark:border-neutral-700 dark:bg-neutral-800"
+              />
+            </div>
+            <div className="-mr-1 flex-1 overflow-y-auto pr-1">
+              {targetOptions().length === 0 ? (
+                <p className="px-2 py-6 text-center text-sm text-neutral-400">Tidak ada hasil. Coba kata kunci lain.</p>
+              ) : (
+                <div className="space-y-1">
+                  {targetOptions().map(item => {
+                    const isSelected = targetId === item.value;
+                    return (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() => {
+                          setTargetId(item.value);
+                          if (targetType === "project") setProjectSearch("");
+                          else if (targetType === "lead") setLeadSearch("");
+                          else setContactSearch("");
+                          setPickerOpen(false);
+                        }}
+                        className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
+                          isSelected
+                            ? "bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700"
+                            : "hover:bg-neutral-50 dark:hover:bg-neutral-800 border border-transparent"
+                        }`}
+                      >
+                        <span className="font-medium text-neutral-800 dark:text-neutral-100">{item.label}</span>
+                        {isSelected && <Check size={16} className="text-amber-600 dark:text-amber-400" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
