@@ -17,7 +17,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     setUnauthorizedHandler(() => router.push("/login"));
   }, [router]);
 
-  if (pathname === "/login" || pathname === "/login/" || pathname.startsWith("/proposal/") || pathname.startsWith("/report/")) {
+  if (pathname === "/login" || pathname === "/login/" || pathname.startsWith("/proposal/") || pathname.startsWith("/report/") || pathname.startsWith("/client-report/")) {
     return <>{children}</>;
   }
 
