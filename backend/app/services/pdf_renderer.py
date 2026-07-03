@@ -445,6 +445,13 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
     from reportlab.platypus import HRFlowable, Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
     parts = _extract_doc_parts(rendered_html)
+    # ReportLab is invoice/proposal-shaped. Client reports ("Laporan ...") are
+    # rich HTML/CSS with embedded screenshots — let them fall through to WeasyPrint
+    # (which supports <img>, tables, flex CSS). Without this, reportlab renders a
+    # tiny valid-but-empty PDF and the chain never reaches weasyprint → images blank.
+    title_text = (parts.get("title") or "").upper()
+    if "LAPORAN" in title_text:
+        raise NotImplementedError("Laporan klien ditangani WeasyPrint, bukan ReportLab")
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
