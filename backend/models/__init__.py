@@ -11,7 +11,7 @@ from .lead import (
 from .proposal import Proposal, ServiceItem, ProposalAnalytics
 from .product import Category, Product, DynamicTemplate
 from .finance import Wallet, Transaction, Subscription, PaymentMethod
-from .project import Project, ClientNote, ClientCredential, ClientDocument
+from .project import Project, ClientNote, ClientCredential, ClientDocument, ProjectRiwayat
 from .board import (
     Board, BoardColumn, BoardCard, BoardCardComment,
     BoardCardChecklist, BoardCardActivity, BoardCardAttachment
@@ -49,7 +49,7 @@ __all__ = [
     # finance
     "Wallet", "Transaction", "Subscription", "PaymentMethod",
     # project
-    "Project", "ClientNote", "ClientCredential", "ClientDocument",
+    "Project", "ClientNote", "ClientCredential", "ClientDocument", "ProjectRiwayat",
     # board
     "Board", "BoardColumn", "BoardCard", "BoardCardComment",
     "BoardCardChecklist", "BoardCardActivity", "BoardCardAttachment",

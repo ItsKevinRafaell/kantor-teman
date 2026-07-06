@@ -56,3 +56,15 @@ class ClientDocument(Base):
     cloud_url = Column(String(255), nullable=False)
     created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
     lead = relationship("Lead", foreign_keys=[lead_id])
+
+
+class ProjectRiwayat(Base):
+    __tablename__ = "project_riwayat"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    timestamp = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+    actor = Column(String(255), nullable=False)
+    category = Column(String(50), nullable=False)  # STATUS / INVOICE / NOTE / FILE / MILESTONE / OTHER
+    content = Column(Text, nullable=False)
+    attachments = Column(Text, nullable=True)  # JSON list of file URLs
+    project = relationship("Project", backref="riwayat")

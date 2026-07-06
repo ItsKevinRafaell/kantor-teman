@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 
 
 class ProjectIn(BaseModel):
@@ -53,4 +53,21 @@ class ClientNoteOut(BaseModel):
     actor: str
     category: str
     content: str
+    model_config = {"from_attributes": True}
+
+
+class ProjectRiwayatIn(BaseModel):
+    category: str = Field(..., max_length=50)
+    content: str = Field(..., max_length=10000)
+    attachments: Optional[List[str]] = None
+
+
+class ProjectRiwayatOut(BaseModel):
+    id: str
+    project_id: str
+    timestamp: str
+    actor: str
+    category: str
+    content: str
+    attachments: Optional[List[str]] = None
     model_config = {"from_attributes": True}

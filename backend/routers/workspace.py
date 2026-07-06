@@ -9,7 +9,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import get_db, log_audit, User, Lead, Contact, Project, Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, BoardCardAttachment, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, WorkspaceAttachment, DocumentTemplate, GeneratedDocument, Category
+from models import get_db, log_audit, User, Lead, Contact, Project, Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, BoardCardAttachment, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, WorkspaceAttachment, DocumentTemplate, GeneratedDocument, Category, ProjectRiwayat
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, FRONTEND_URL, UPLOADS_DIR,
     _get_setting, get_fonnte_token, build_analysis_prompt,
@@ -193,6 +193,15 @@ def create_project(body: ProjectIn, current_user: User = Depends(require_admin),
     db.commit()
     db.refresh(project)
     log_audit(db, current_user.name, "CREATE", "projects", project.id, {"name": body.name, "lead_id": body.lead_id})
+    db.add(ProjectRiwayat(
+        id=str(uuid.uuid4()),
+        project_id=project.id,
+        actor=current_user.name,
+        category="STATUS",
+        content=f"Project dibuat: {body.name} ({body.type}, nominal Rp{body.nominal:,.0f})",
+        attachments="[]",
+    ))
+    db.commit()
     invalidate_workspace_list_cache()
 
     # Auto-init workspace always — use service_type template or fallback to general
@@ -294,6 +303,25 @@ def update_project(project_id: str, body: ProjectIn, current_user: User = Depend
     db.commit()
     db.refresh(project)
     log_audit(db, current_user.name, "UPDATE", "projects", project_id, {"name": body.name})
+    diff_parts = []
+    if project.status != body.status:
+        diff_parts.append(f"status {project.status}→{body.status}")
+    if project.nominal != body.nominal:
+        diff_parts.append(f"nominal Rp{project.nominal:,.0f}→Rp{body.nominal:,.0f}")
+    if project.name != body.name:
+        diff_parts.append(f"nama '{project.name}'→'{body.name}'")
+    if project.end_date != body.end_date:
+        diff_parts.append(f"deadline {project.end_date}→{body.end_date}")
+    if diff_parts:
+        db.add(ProjectRiwayat(
+            id=str(uuid.uuid4()),
+            project_id=project_id,
+            actor=current_user.name,
+            category="STATUS",
+            content="Update project: " + ", ".join(diff_parts),
+            attachments="[]",
+        ))
+        db.commit()
     invalidate_workspace_list_cache()
     return project
 
@@ -312,6 +340,15 @@ def complete_project(project_id: str, current_user: User = Depends(require_admin
     db.commit()
     db.refresh(project)
     log_audit(db, current_user.name, "UPDATE", "projects", project_id, {"status": "COMPLETED"})
+    db.add(ProjectRiwayat(
+        id=str(uuid.uuid4()),
+        project_id=project_id,
+        actor=current_user.name,
+        category="MILESTONE",
+        content=f"Project selesai pada {project.completed_at}",
+        attachments="[]",
+    ))
+    db.commit()
     invalidate_workspace_list_cache()
     return project
 
@@ -356,9 +393,11 @@ def delete_project(project_id: str, current_user: User = Depends(require_admin),
         db.query(BoardColumn).filter(BoardColumn.board_id == board.id).delete(synchronize_session=False)
         db.delete(board)
     project_name = project.name
+    # Snapshot riwayat before cascade delete (FK CASCADE will remove them)
+    existing_riwayat = db.query(ProjectRiwayat).filter(ProjectRiwayat.project_id == project_id).all()
+    log_audit(db, current_user.name, "DELETE", "projects", project_id, {"name": project_name, "riwayat_count": len(existing_riwayat)})
     db.delete(project)
     db.commit()
-    log_audit(db, current_user.name, "DELETE", "projects", project_id, {"name": project_name})
     invalidate_workspace_list_cache()
 
 
@@ -394,6 +433,98 @@ def update_project_color(
     db.commit()
     invalidate_workspace_list_cache()
     return {"id": project_id, "color": color}
+
+
+# ---------------------------------------------------------------------------
+# Project Riwayat (history / timeline per project)
+# ---------------------------------------------------------------------------
+
+VALID_RIWAYAT_CATEGORIES = ("STATUS", "INVOICE", "NOTE", "FILE", "MILESTONE", "OTHER")
+
+
+def _serialize_riwayat(r: ProjectRiwayat) -> ProjectRiwayatOut:
+    out = ProjectRiwayatOut.model_validate(r)
+    if r.attachments:
+        try:
+            out.attachments = json.loads(r.attachments)
+        except Exception:
+            out.attachments = []
+    return out
+
+
+@router.get("/api/projects/{project_id}/riwayat", response_model=list[ProjectRiwayatOut])
+def list_project_riwayat(
+    project_id: str,
+    category: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    q = db.query(ProjectRiwayat).filter(ProjectRiwayat.project_id == project_id)
+    if category:
+        q = q.filter(ProjectRiwayat.category == category)
+    items = q.order_by(ProjectRiwayat.timestamp.desc()).all()
+    return [_serialize_riwayat(r) for r in items]
+
+
+@router.post("/api/projects/{project_id}/riwayat", response_model=ProjectRiwayatOut, status_code=201)
+def create_project_riwayat(
+    project_id: str,
+    body: ProjectRiwayatIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project tidak ditemukan")
+    if body.category not in VALID_RIWAYAT_CATEGORIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Category harus salah satu dari: {', '.join(VALID_RIWAYAT_CATEGORIES)}",
+        )
+    r = ProjectRiwayat(
+        id=str(uuid.uuid4()),
+        project_id=project_id,
+        actor=current_user.name,
+        category=body.category,
+        content=body.content,
+        attachments=json.dumps(body.attachments or []),
+    )
+    db.add(r)
+    db.commit()
+    db.refresh(r)
+    log_audit(
+        db,
+        current_user.name,
+        "CREATE",
+        "project_riwayat",
+        r.id,
+        {"project_id": project_id, "category": body.category},
+    )
+    return _serialize_riwayat(r)
+
+
+@router.delete("/api/projects/riwayat/{riwayat_id}", status_code=204)
+def delete_project_riwayat(
+    riwayat_id: str,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    r = db.query(ProjectRiwayat).filter(ProjectRiwayat.id == riwayat_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Riwayat tidak ditemukan")
+    log_audit(
+        db,
+        current_user.name,
+        "DELETE",
+        "project_riwayat",
+        riwayat_id,
+        {"project_id": r.project_id},
+    )
+    db.delete(r)
+    db.commit()
 
 
 # ---------------------------------------------------------------------------

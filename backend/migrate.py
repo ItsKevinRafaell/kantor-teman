@@ -264,6 +264,24 @@ if "mysql" in _db_url:
     else:
         print("= MySQL: password_reset_tokens sudah ada, skip")
 
+    if not _table_exists("project_riwayat"):
+        _cur.execute("""
+            CREATE TABLE project_riwayat (
+                id VARCHAR(36) PRIMARY KEY,
+                project_id VARCHAR(36) NOT NULL,
+                timestamp VARCHAR(255) NOT NULL,
+                actor VARCHAR(255) NOT NULL,
+                category VARCHAR(50) NOT NULL,
+                content TEXT NOT NULL,
+                attachments TEXT NULL,
+                INDEX idx_project_riwayat_project_id (project_id),
+                INDEX idx_project_riwayat_timestamp (timestamp)
+            )
+        """)
+        print("+ MySQL: tabel project_riwayat dibuat")
+    else:
+        print("= MySQL: project_riwayat sudah ada, skip")
+
     for table, col, sql in _migrations:
         if not _table_exists(table):
             print(f"= {table} belum ada, skip (akan dibuat SQLAlchemy)")
@@ -561,6 +579,22 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 cur.execute("CREATE INDEX IF NOT EXISTS idx_password_reset_user_id ON password_reset_tokens(user_id)")
 cur.execute("CREATE INDEX IF NOT EXISTS idx_password_reset_expires_at ON password_reset_tokens(expires_at)")
 print("+ tabel password_reset_tokens ready")
+
+# project_riwayat: timeline per project
+cur.execute("""
+CREATE TABLE IF NOT EXISTS project_riwayat (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    category TEXT NOT NULL,
+    content TEXT NOT NULL,
+    attachments TEXT
+)
+""")
+cur.execute("CREATE INDEX IF NOT EXISTS idx_project_riwayat_project_id ON project_riwayat(project_id)")
+cur.execute("CREATE INDEX IF NOT EXISTS idx_project_riwayat_timestamp ON project_riwayat(timestamp)")
+print("+ tabel project_riwayat ready")
 
 # Add event column if missing
 cur.execute("PRAGMA table_info(proposal_analytics)")

@@ -35,7 +35,7 @@ from .board import (
     BoardCardOut, BoardColumnOut, BoardOut, BoardColumnIn, BoardCardIn,
     BoardCardUpdate, MoveCardRequest, BoardCardCommentIn, BoardCardChecklistIn,
 )
-from .project import ProjectIn, ProjectOut, ClientNoteIn, ClientNoteOut
+from .project import ProjectIn, ProjectOut, ClientNoteIn, ClientNoteOut, ProjectRiwayatIn, ProjectRiwayatOut
 from .credential import (
     CredentialFieldIn, CredentialIn, CredentialFieldOut, CredentialOut,
     CredentialUpdate,
@@ -99,6 +99,7 @@ __all__ = [
     "BoardCardUpdate", "MoveCardRequest", "BoardCardCommentIn", "BoardCardChecklistIn",
     # project
     "ProjectIn", "ProjectOut", "ClientNoteIn", "ClientNoteOut",
+    "ProjectRiwayatIn", "ProjectRiwayatOut",
     # credential
     "CredentialFieldIn", "CredentialIn", "CredentialFieldOut", "CredentialOut",
     "CredentialUpdate",
