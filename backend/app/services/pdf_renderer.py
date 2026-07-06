@@ -297,11 +297,13 @@ def _extract_doc_parts(rendered_html: str) -> dict:
         r"\b(PROPOSAL PENAWARAN)",
         r"\b(SURAT PENAWARAN)",
         r"\b(BUKTI PEMBAYARAN)",
-        r"\b(PERJANJIAN KERJA SAMA)",
+        r"\b(PERJANJIAN KERJA SAMA(?:\s*[—\-]\s*[A-Z ]+)?)",
+        r"\b(MOU\s+MOU[/\-][A-Z0-9/\-]+)",
+        r"\b(MOU\b)",
     ):
         match = re.search(candidate, text, flags=re.IGNORECASE)
         if match:
-            title = match.group(1).upper()
+            title = match.group(1).upper().strip()
             break
 
     # Extract document number (supports all document types)
@@ -317,12 +319,21 @@ def _extract_doc_parts(rendered_html: str) -> dict:
         "PROPOSAL PENAWARAN": "proposal_pdf",
         "SURAT PENAWARAN": "surat_penawaran",
         "BUKTI PEMBAYARAN": "receipt",
+        "PERJANJIAN KERJA SAMA — WEB DEV": "kontrak_web_dev",
+        "PERJANJIAN KERJA SAMA — SEO": "kontrak_seo",
+        "PERJANJIAN KERJA SAMA — SOSMED": "kontrak_sosmed",
+        "PERJANJIAN KERJA SAMA — MAINTENANCE": "kontrak_maintenance",
+        "PERJANJIAN KERJA SAMA — BRANDING": "kontrak_branding",
+        "PERJANJIAN KERJA SAMA — RETAINER": "kontrak_retainer",
         "PERJANJIAN KERJA SAMA": "kontrak",
+        "MOU": "mou",
     }
     doc_type = "invoice"
-    for title_key, type_key in _TITLE_TO_DOC_TYPE.items():
-        if title in title_key or title_key in title:
-            doc_type = type_key
+    # Match most specific key first (longer keys) so "PERJANJIAN KERJA SAMA — WEB DEV"
+    # wins over generic "PERJANJIAN KERJA SAMA".
+    for title_key in sorted(_TITLE_TO_DOC_TYPE.keys(), key=len, reverse=True):
+        if title_key in title or title in title_key:
+            doc_type = _TITLE_TO_DOC_TYPE[title_key]
             break
 
     section_end_labels = {
@@ -455,6 +466,37 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
     visible = (parts.get("text") or "").upper()
     if "LAPORAN" in visible and "LAPORAN" not in (parts.get("title") or "").upper():
         raise NotImplementedError("Laporan klien ditangani WeasyPrint, bukan ReportLab")
+
+    # Contract/MoU-aware rendering: contracts use Tanggal Mulai/Selesai,
+    # invoices use Tanggal Invoice/Jatuh Tempo. Detect once, reuse below.
+    _CONTRACT_TYPES = {
+        "kontrak", "kontrak_web_dev", "kontrak_seo", "kontrak_sosmed",
+        "kontrak_maintenance", "kontrak_branding", "kontrak_retainer", "mou",
+    }
+    doc_type = parts.get("doc_type", "invoice")
+    is_contract = doc_type in _CONTRACT_TYPES
+
+    # Extract contract dates from rendered HTML (case-insensitive search on `visible`).
+    # Source label "Tanggal Mulai" / "Tanggal Selesai" appears in templates via
+    # `_format_date_id(today)` then `<br/>` joined. We strip the prefix when reading.
+    contract_start = ""
+    contract_end = ""
+    if is_contract:
+        contract_start = _first_value(
+            [r"Tanggal\s*Mulai[:\s]+(.+?)(?:\s+[·|]\s*Tanggal|\s+Tanggal|$)"],
+            parts.get("text") or "",
+        ) or _first_value(
+            [r"Tanggal\s*Mulai\s+([^·|\n]+)"], parts.get("text") or ""
+        )
+        contract_end = _first_value(
+            [r"Tanggal\s*Selesai[:\s]+(.+?)(?:\s+[·|]\s*|$)"],
+            parts.get("text") or "",
+        ) or _first_value(
+            [r"Tanggal\s*Selesai\s+([^·|\n]+)"], parts.get("text") or ""
+        )
+        contract_start = _clean_date_value(contract_start)
+        contract_end = _clean_date_value(contract_end)
+
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -513,7 +555,7 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
     story = []
 
     # === 1. TYPE-AWARE HEADER ===
-    doc_type = parts.get("doc_type", "invoice")
+    # doc_type and is_contract already declared above (just after visible-text branch).
     doc_number = parts.get("doc_number") or parts.get("invoice_num") or ""
 
     # Map doc_type to display title and number prefix
@@ -523,6 +565,13 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
         "surat_penawaran": ("SURAT PENAWARAN", "No."),
         "receipt": ("BUKTI PEMBAYARAN", "No."),
         "kontrak": ("PERJANJIAN KERJA SAMA", ""),
+        "kontrak_web_dev": ("PERJANJIAN KERJA SAMA — WEB DEV", ""),
+        "kontrak_seo": ("PERJANJIAN KERJA SAMA — SEO", ""),
+        "kontrak_sosmed": ("PERJANJIAN KERJA SAMA — SOSMED", ""),
+        "kontrak_maintenance": ("PERJANJIAN KERJA SAMA — MAINTENANCE", ""),
+        "kontrak_branding": ("PERJANJIAN KERJA SAMA — BRANDING", ""),
+        "kontrak_retainer": ("PERJANJIAN KERJA SAMA — RETAINER", ""),
+        "mou": ("MOU", "No."),
     }
     display_title, number_prefix = _DOC_TYPE_DISPLAY.get(doc_type, ("INVOICE", "#"))
 
@@ -564,14 +613,21 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
         ]))
         logo_img = logo_placeholder
 
-    # Dates section - right aligned, label and value close together
-    tanggal_val = parts.get("tanggal") or "-"
-    due_date_val = parts.get("due_date") or "-"
-
-    dates_content = [
-        [Paragraph("Tanggal Invoice", meta_label), Paragraph(tanggal_val, meta_value)],
-        [Paragraph("Jatuh Tempo", meta_label), Paragraph(due_date_val, meta_value)],
-    ]
+    # Dates section - right aligned, label and value close together.
+    # Branch: contracts/MoU use Tanggal Mulai / Tanggal Selesai; invoices use
+    # Tanggal Invoice / Jatuh Tempo.
+    if is_contract:
+        dates_content = [
+            [Paragraph("Tanggal Mulai", meta_label), Paragraph(contract_start or "-", meta_value)],
+            [Paragraph("Tanggal Selesai", meta_label), Paragraph(contract_end or "-", meta_value)],
+        ]
+    else:
+        tanggal_val = parts.get("tanggal") or "-"
+        due_date_val = parts.get("due_date") or "-"
+        dates_content = [
+            [Paragraph("Tanggal Invoice", meta_label), Paragraph(tanggal_val, meta_value)],
+            [Paragraph("Jatuh Tempo", meta_label), Paragraph(due_date_val, meta_value)],
+        ]
     dates_table = Table(dates_content, colWidths=[27 * mm, 43 * mm], hAlign="RIGHT")
     dates_table.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -630,6 +686,61 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
     ]))
     story.append(from_to)
     story.append(Spacer(1, 8 * mm))
+
+    # === 3b. PASAL KONTRAK / BODY PARAGRAPHS (contracts & MoU) ===
+    # Contracts/MoU have long body text (scope, terms, deliverables, pasal-pasal)
+    # which ReportLab would otherwise skip because the invoice-shaped story only
+    # consumes items_table. Render remaining text lines as wrapped paragraphs.
+    if is_contract:
+        all_lines = _text_lines_from_html(rendered_html)
+        skip_labels = {
+            "dari", "ditagihkan kepada", "kepada", "disiapkan untuk",
+            "rincian layanan", "rincian tagihan", "rincian investasi",
+            "metode pembayaran", "pembayaran", "syarat & ketentuan",
+            "ketentuan", "catatan",
+        }
+        body_lines: list[str] = []
+        for line in all_lines:
+            stripped = line.strip()
+            if not stripped:
+                body_lines.append("")
+                continue
+            if stripped.lower() in skip_labels:
+                continue
+            # Skip lines that are already shown elsewhere
+            low = stripped.lower()
+            if any(low.startswith(prefix) for prefix in (
+                "tanggal invoice", "jatuh tempo", "tanggal mulai",
+                "tanggal selesai", "invoice ", "no.", "no ",
+                "dokumen ini dibuat",
+            )):
+                continue
+            # Drop document number line if present
+            if re.match(r"^(KONTRAK|INV|RCPT|PROP|SP|MOU)[/\\-]", stripped, flags=re.IGNORECASE):
+                continue
+            body_lines.append(stripped)
+        # Collapse 3+ blank lines into a single break (visual separation only)
+        cleaned: list[str] = []
+        blank_run = 0
+        for ln in body_lines:
+            if not ln:
+                blank_run += 1
+                if blank_run <= 1:
+                    cleaned.append(ln)
+            else:
+                blank_run = 0
+                cleaned.append(ln)
+        if cleaned:
+            story.append(Paragraph(display_title if display_title.upper() != "INVOICE" else "Rincian Kontrak",
+                                   section_label))
+            story.append(Spacer(1, 3 * mm))
+            for ln in cleaned:
+                if not ln:
+                    story.append(Spacer(1, 2 * mm))
+                    continue
+                # Truncate very long lines so they wrap (HTML renderer caps at ~96 chars)
+                story.append(Paragraph(html_mod.escape(ln[:1200]), contact_detail))
+            story.append(Spacer(1, 6 * mm))
 
     # === 4. ITEMS TABLE ===
     if parts["items_table"]:

@@ -405,10 +405,20 @@ export function useDocumentGenerator() {
       if (!res.ok) return;
       const data = await res.json();
       const defs: Record<string, string> = data.defaults || {};
+      // Auto-fill document number for all 12 formal doc types that have backend
+      // numbering (matches backend `prefixes` map in routers/documents.py:613
+      // and FORMAL_DOC_TYPES in VariableInputForm.tsx:56).
+      const FORMAL_TYPES_FOR_NUMBER = new Set([
+        "invoice", "receipt", "proposal_pdf", "mou", "surat_penawaran",
+        "kontrak", "kontrak_web_dev", "kontrak_seo", "kontrak_sosmed",
+        "kontrak_maintenance", "kontrak_branding", "kontrak_retainer",
+      ]);
       setVariables(prev => {
         const merged: Record<string, string> = { ...prev };
         for (const [k, v] of Object.entries(defs)) {
-          if (INVOICE_NUMBER_KEYS.includes(k.toLowerCase()) && ["invoice", "receipt", "surat_penawaran"].includes(template.type)) merged[k] = v as string;
+          if (INVOICE_NUMBER_KEYS.includes(k.toLowerCase()) && FORMAL_TYPES_FOR_NUMBER.has(template.type)) {
+            merged[k] = v as string;
+          }
           else if (k in merged && merged[k] === "") merged[k] = v as string;
           else if (!(k in merged)) merged[k] = v as string;
         }
