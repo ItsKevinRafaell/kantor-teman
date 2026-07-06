@@ -1,6 +1,14 @@
 import sys
 import os
 
+# Per-user fontconfig override: redirect Helvetica/Arial to the Droid Sans
+# Fallback TTF that the shared host actually has. Without this, WeasyPrint
+# resolves CSS font-family to URW Type1 fonts and produces PDFs whose CMap
+# renders blank for most glyphs in viewers that respect CID mappings.
+_FONTCONFIG_USER_CONF = "/home/qqwtlphb/.config/fontconfig/fonts.conf"
+if os.path.exists(_FONTCONFIG_USER_CONF):
+    os.environ.setdefault("FONTCONFIG_FILE", _FONTCONFIG_USER_CONF)
+
 VIRTUALENV = '/home/qqwtlphb/virtualenv/backend/3.13'
 activate_this = os.path.join(VIRTUALENV, 'bin/activate_this.py')
 with open(activate_this) as f:
