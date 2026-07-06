@@ -1151,12 +1151,21 @@ def _pdf_has_legible_text(pdf: bytes, min_chars: int = 50) -> bool:
 
 
 # Template types whose layout fits inside ReportLab's invoice-shaped pipeline.
-# WeasyPrint path is reserved here for client reports (CSS-flex + screenshots).
+# WeasyPrint path is reserved here for client reports (CSS-flex + screenshots)
+# but WeasyPrint on this shared host is broken (sparse CMap), so client_report
+# is routed to the text-fallback renderer instead — see `_renderer_chain`.
 _REPORTLAB_FIRST_TYPES = {
     "invoice", "receipt", "proposal_pdf", "surat_penawaran",
     "kontrak", "kontrak_web_dev", "kontrak_seo", "kontrak_sosmed",
     "kontrak_maintenance", "kontrak_branding", "kontrak_retainer", "mou",
 }
+
+# Rich client reports use CSS-grid + screenshots + KPI cards that ReportLab
+# cannot lay out (it would emit "Teman UMKM Kita" placeholders everywhere
+# because `_extract_doc_parts` doesn't understand the report's HTML). Route
+# them straight to the pure-PDF text-fallback renderer, which always renders
+# every line correctly even without system fonts.
+_REPORT_TYPES = {"client_report", "laporan"}
 
 
 def _renderer_chain(env_value: str, template_type: str | None) -> tuple[str, ...]:
@@ -1172,10 +1181,14 @@ def _renderer_chain(env_value: str, template_type: str | None) -> tuple[str, ...
     elif env_value == "xhtml2pdf":
         order = ["xhtml2pdf", "reportlab", "weasyprint"]
     elif env_value == "auto":
-        if template_type in _REPORTLAB_FIRST_TYPES:
+        if template_type in _REPORT_TYPES:
+            # Client reports go straight to text-fallback — never reportlab
+            # (which can't lay out CSS-grid KPIs) and never weasyprint (whose
+            # Type1 path emits a sparse CMap on this host).
+            order = ["textfb"]
+        elif template_type in _REPORTLAB_FIRST_TYPES:
             order = ["reportlab", "weasyprint", "xhtml2pdf"]
         else:
-            # client_report and anything we don't have a reportlab story for
             order = ["weasyprint", "reportlab", "xhtml2pdf"]
     else:
         # Default (reportlab) — explicit reportlab-first.
@@ -1191,6 +1204,8 @@ def _try_renderer(name: str, rendered_html: str, uploads_dir: str | None, templa
             return render_pdf_with_xhtml2pdf(rendered_html, uploads_dir)
         if name == "weasyprint":
             return render_pdf_with_weasyprint(rendered_html, uploads_dir)
+        if name == "textfb":
+            return render_text_fallback_pdf(rendered_html)
     except ImportError:
         return None
     except Exception:
