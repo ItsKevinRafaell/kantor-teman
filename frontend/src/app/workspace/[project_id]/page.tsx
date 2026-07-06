@@ -148,11 +148,8 @@ export default function WorkspaceDetailPage() {
 
   useEffect(() => {
     try {
-      const raw = typeof window !== "undefined" ? localStorage.getItem("kt_user") : null;
-      if (raw) {
-        const u = JSON.parse(raw);
-        setCurrentUserRole(u.role || "member");
-      }
+      const role = typeof window !== "undefined" ? localStorage.getItem("kt_role") : null;
+      setCurrentUserRole(role || "member");
     } catch {}
   }, []);
 

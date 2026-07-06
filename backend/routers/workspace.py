@@ -509,7 +509,7 @@ def create_project_riwayat(
 @router.delete("/api/projects/riwayat/{riwayat_id}", status_code=204)
 def delete_project_riwayat(
     riwayat_id: str,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     r = db.query(ProjectRiwayat).filter(ProjectRiwayat.id == riwayat_id).first()
