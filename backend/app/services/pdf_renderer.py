@@ -1123,6 +1123,81 @@ def render_pdf_with_weasyprint(rendered_html: str, uploads_dir: str | None = Non
     return pdf
 
 
+def _pdf_has_legible_text(pdf: bytes, min_chars: int = 50) -> bool:
+    """Best-effort post-render sanity check.
+
+    WeasyPrint on hosts without Helvetica/Arial/Noto Sans TTFs can produce a
+    structurally-valid PDF whose glyph CMap is empty for most characters
+    (every other glyph slot renders blank in viewers that respect CID
+    mappings). Detect that by extracting text with pdfminer.six and
+    rejecting PDFs with too few decoded characters.
+
+    Returns True on extraction failure so we don't accidentally fail the
+    chain on a transient extractor error — the structural `_is_valid_pdf`
+    guard already covers mal-formed files.
+    """
+    if len(pdf) < 1024:
+        return False
+    try:
+        from pdfminer.high_level import extract_text  # type: ignore
+    except Exception:
+        return True
+    try:
+        text = extract_text(io.BytesIO(pdf)) or ""
+    except Exception:
+        return True
+    cleaned = "".join(ch for ch in text if not ch.isspace())
+    return len(cleaned) >= min_chars
+
+
+# Template types whose layout fits inside ReportLab's invoice-shaped pipeline.
+# WeasyPrint path is reserved here for client reports (CSS-flex + screenshots).
+_REPORTLAB_FIRST_TYPES = {
+    "invoice", "receipt", "proposal_pdf", "surat_penawaran",
+    "kontrak", "kontrak_web_dev", "kontrak_seo", "kontrak_sosmed",
+    "kontrak_maintenance", "kontrak_branding", "kontrak_retainer", "mou",
+}
+
+
+def _renderer_chain(env_value: str, template_type: str | None) -> tuple[str, ...]:
+    """Return the ordered renderer tuple for the chain.
+
+    On shared-host prod (no Helvetica/Arial/Noto Sans TTF) WeasyPrint emits
+    a broken CMap that renders as blank text in most viewers, so prefer
+    ReportLab first. ReportLab embeds its built-in Helvetica-Bold and is
+    unaffected by system fonts.
+    """
+    if env_value == "weasyprint":
+        order = ["weasyprint", "reportlab", "xhtml2pdf"]
+    elif env_value == "xhtml2pdf":
+        order = ["xhtml2pdf", "reportlab", "weasyprint"]
+    elif env_value == "auto":
+        if template_type in _REPORTLAB_FIRST_TYPES:
+            order = ["reportlab", "weasyprint", "xhtml2pdf"]
+        else:
+            # client_report and anything we don't have a reportlab story for
+            order = ["weasyprint", "reportlab", "xhtml2pdf"]
+    else:
+        # Default (reportlab) — explicit reportlab-first.
+        order = ["reportlab", "xhtml2pdf", "weasyprint"]
+    return tuple(order)
+
+
+def _try_renderer(name: str, rendered_html: str, uploads_dir: str | None, template_type: str | None) -> bytes | None:
+    try:
+        if name == "reportlab":
+            return render_pdf_with_reportlab(rendered_html, template_type=template_type)
+        if name == "xhtml2pdf":
+            return render_pdf_with_xhtml2pdf(rendered_html, uploads_dir)
+        if name == "weasyprint":
+            return render_pdf_with_weasyprint(rendered_html, uploads_dir)
+    except ImportError:
+        return None
+    except Exception:
+        return None
+    return None
+
+
 def render_pdf_from_html(rendered_html: str, uploads_dir: str | None = None, template_type: str | None = None) -> bytes:
     if not visible_text_from_html(rendered_html):
         raise ValueError("Template PDF kosong. Isi HTML template terlebih dahulu.")
@@ -1130,22 +1205,22 @@ def render_pdf_from_html(rendered_html: str, uploads_dir: str | None = None, tem
         return render_text_fallback_pdf(rendered_html)
 
     rendered_html = inject_pdf_font(rendered_html)
-    renderer = os.getenv("PDF_RENDERER", "reportlab").lower()
-    if renderer == "weasyprint":
-        renderers = ("weasyprint", "reportlab", "xhtml2pdf")
-    elif renderer == "xhtml2pdf":
-        renderers = ("xhtml2pdf", "reportlab", "weasyprint")
-    else:
-        renderers = ("reportlab", "xhtml2pdf", "weasyprint")
-    for name in renderers:
-        try:
-            if name == "reportlab":
-                return render_pdf_with_reportlab(rendered_html, template_type=template_type)
-            if name == "xhtml2pdf":
-                return render_pdf_with_xhtml2pdf(rendered_html, uploads_dir)
-            return render_pdf_with_weasyprint(rendered_html, uploads_dir)
-        except ImportError:
+    env_value = os.getenv("PDF_RENDERER", "auto").lower()
+    chain = _renderer_chain(env_value, template_type)
+
+    expected_chars = max(50, len(visible_text_from_html(rendered_html)) // 4)
+
+    for name in chain:
+        pdf = _try_renderer(name, rendered_html, uploads_dir, template_type)
+        if not pdf or not _is_valid_pdf(pdf):
             continue
-        except Exception:
-            continue
+        if name == "weasyprint":
+            # Post-render sanity: if WeasyPrint produced a near-empty PDF on
+            # a host with no Helvetica/Arial/Noto Sans TTFs, the CMap bug
+            # above will manifest here. Fall through to the next renderer.
+            if not _pdf_has_legible_text(pdf, min_chars=expected_chars):
+                continue
+        return pdf
+
+    # Every high-fidelity renderer failed — last-ditch pure-PDF text draw.
     return render_text_fallback_pdf(rendered_html)
