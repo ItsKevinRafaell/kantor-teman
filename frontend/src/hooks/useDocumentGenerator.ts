@@ -27,6 +27,14 @@ const LINE_ITEM_KEYS = ["items_rows", "items_table", "line_items", "items"];
 const TOTAL_KEYS = ["total", "total_harga", "grand_total", "total_bayar", "total_amount", "jumlah_total", "total_tagihan"];
 const INVOICE_NUMBER_KEYS = ["nomor_invoice", "no_invoice", "nomor"];
 
+// Mirror of FORMAL_TYPES_FOR_NUMBER used inside fetchAndApplyDefaults. This is the
+// single source of truth for "which doc types get a Nomor ... field rendered".
+const FORMAL_TYPES_FOR_NUMBER_VALUES = new Set([
+  "invoice", "receipt", "proposal_pdf", "mou", "surat_penawaran",
+  "kontrak", "kontrak_web_dev", "kontrak_seo", "kontrak_sosmed",
+  "kontrak_maintenance", "kontrak_branding", "kontrak_retainer",
+]);
+
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, char => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
@@ -391,6 +399,16 @@ export function useDocumentGenerator() {
       if (LINE_ITEM_KEYS.includes(v.toLowerCase())) { items[v] = []; vars[v] = ""; }
       else vars[v] = "";
     });
+    // Inject nomor key for all formal doc types so the auto-number field renders
+    // even when the template's variables list doesn't include `nomor` (e.g.
+    // Proposal Penawaran PDF has valid_until instead of nomor). The
+    // fetchAndApplyDefaults call below fills the value from backend DocumentSequence.
+    if (
+      FORMAL_TYPES_FOR_NUMBER_VALUES.has(t.type) &&
+      !Object.prototype.hasOwnProperty.call(vars, "nomor")
+    ) {
+      vars["nomor"] = "";
+    }
     setVariables(vars);
     setLineItems(items);
     fetchAndApplyDefaults(t, "empty", null);

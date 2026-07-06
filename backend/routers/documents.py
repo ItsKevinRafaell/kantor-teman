@@ -1181,7 +1181,7 @@ def _render_document_pdf(template: DocumentTemplate, full_vars: dict) -> bytes:
         raise HTTPException(status_code=400, detail="Template PDF kosong. Isi HTML template terlebih dahulu.")
 
     try:
-        return render_pdf_from_html(rendered_html, UPLOADS_DIR)
+        return render_pdf_from_html(rendered_html, UPLOADS_DIR, template_type=template_type)
     except HTTPException:
         raise
     except Exception as e:
@@ -1620,7 +1620,9 @@ def edit_generated_document(
         # Also regenerate PDF from edited HTML
         try:
             injected = _inject_pdf_font(body.html_content)
-            pdf_bytes = render_pdf_from_html(injected, UPLOADS_DIR)
+            edit_template = db.query(DocumentTemplate).filter(DocumentTemplate.id == doc.template_id).first()
+            edit_template_type = _document_template_type(edit_template) if edit_template else None
+            pdf_bytes = render_pdf_from_html(injected, UPLOADS_DIR, template_type=edit_template_type)
             pdf_filename = f"{str(uuid.uuid4())}.pdf"
             pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
             with open(pdf_path, "wb") as pdf_file:
@@ -1761,7 +1763,9 @@ def rollback_document_version(
             # Rollback to HTML snapshot
             try:
                 injected = _inject_pdf_font(version.html_content)
-                pdf_bytes = render_pdf_from_html(injected, UPLOADS_DIR)
+                rb_template = db.query(DocumentTemplate).filter(DocumentTemplate.id == doc.template_id).first()
+                rb_template_type = _document_template_type(rb_template) if rb_template else None
+                pdf_bytes = render_pdf_from_html(injected, UPLOADS_DIR, template_type=rb_template_type)
                 pdf_filename = f"{str(uuid.uuid4())}.pdf"
                 pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
                 with open(pdf_path, "wb") as pdf_file:

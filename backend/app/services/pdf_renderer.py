@@ -278,7 +278,7 @@ def _first_value(patterns: list[str], text: str) -> str:
     return ""
 
 
-def _extract_doc_parts(rendered_html: str) -> dict:
+def _extract_doc_parts(rendered_html: str, template_type: str | None = None) -> dict:
     text = visible_text_from_html(rendered_html)
     lines = _text_lines_from_html(rendered_html)
     line_text = "\n".join(lines)
@@ -292,19 +292,45 @@ def _extract_doc_parts(rendered_html: str) -> dict:
         logo_url = logo_match.group(1)
 
     title = "DOKUMEN"
+    # Use re.search with word boundaries, but scope to a bounded prefix (first 400
+    # chars) so template body clauses that happen to contain "INVOICE ATAU..."
+    # don't override the real title in the header.
+    head = (text or "")[:400]
     for candidate in (
-        r"\b(INVOICE\s+[A-Z0-9/\-]+)",
-        r"\b(PROPOSAL PENAWARAN)",
-        r"\b(SURAT PENAWARAN)",
-        r"\b(BUKTI PEMBAYARAN)",
-        r"\b(PERJANJIAN KERJA SAMA(?:\s*[—\-]\s*[A-Z ]+)?)",
-        r"\b(MOU\s+MOU[/\-][A-Z0-9/\-]+)",
-        r"\b(MOU\b)",
+        r"\b(PERJANJIAN KERJA SAMA\s+[—\-]\s*WEB\s*DEV)\b",
+        r"\b(PERJANJIAN KERJA SAMA\s+[—\-]\s*SEO)\b",
+        r"\b(PERJANJIAN KERJA SAMA\s+[—\-]\s*SOSMED)\b",
+        r"\b(PERJANJIAN KERJA SAMA\s+[—\-]\s*MAINTENANCE)\b",
+        r"\b(PERJANJIAN KERJA SAMA\s+[—\-]\s*BRANDING)\b",
+        r"\b(PERJANJIAN KERJA SAMA\s+[—\-]\s*RETAINER)\b",
+        r"\b(PERJANJIAN KERJA SAMA)\b(?!\s+[—\-])",
+        r"\b(LAMPIRAN KONTRAK\s+[—\-]\s*WEB\s*DEV)\b",
+        r"\b(LAMPIRAN KONTRAK\s+[—\-]\s*SEO)\b",
+        r"\b(LAMPIRAN KONTRAK\s+[—\-]\s*SOSMED)\b",
+        r"\b(LAMPIRAN KONTRAK\s+[—\-]\s*MAINTENANCE)\b",
+        r"\b(LAMPIRAN KONTRAK\s+[—\-]\s*BRANDING)\b",
+        r"\b(LAMPIRAN KONTRAK\s+[—\-]\s*RETAINER)\b",
+        r"\b(LAMPIRAN KONTRAK)\b(?!\s+[—\-])",
+        r"\b(MEMORANDUM OF UNDERSTANDING)\b",
+        r"\b(MOU)(?!\w)",
+        r"\b(INVOICE\s+[A-Z0-9/\-]+)(?!\w)",
+        r"\b(PROPOSAL PENAWARAN)(?!\w)",
+        r"\b(SURAT PENAWARAN)(?!\w)",
+        r"\b(BUKTI PEMBAYARAN)(?!\w)",
     ):
-        match = re.search(candidate, text, flags=re.IGNORECASE)
+        match = re.search(candidate, head, flags=re.IGNORECASE)
         if match:
             title = match.group(1).upper().strip()
             break
+
+    # Normalize MOU title variant to canonical "MOU" so _TITLE_TO_DOC_TYPE matches.
+    if title.startswith("MEMORANDUM OF UNDERSTANDING"):
+        title = "MOU"
+    # Normalize LAMPIRAN KONTRAK variants so title maps to PERJANJIAN KERJA SAMA
+    # family in _TITLE_TO_DOC_TYPE (this generic fallback then matches the right
+    # subtype via the prefix logic below using the template type if available).
+    if title == "LAMPIRAN KONTRAK":
+        title = "PERJANJIAN KERJA SAMA"
 
     # Extract document number (supports all document types)
     invoice_num = _first_value([r"INVOICE\s+(INV[/\-][A-Z0-9/\-]+)", r"(INV[/\-]\d+)"], text) or ""
@@ -313,7 +339,11 @@ def _extract_doc_parts(rendered_html: str) -> dict:
         text,
     ) or invoice_num
 
-    # Derive document type from title
+    # Derive document type from title. Use EXACT match first; fall back to prefix
+    # match (longest-prefix-first) only if no exact match. Substring matching
+    # (`title_key in title`) caused `kontrak` to incorrectly resolve to
+    # `kontrak_maintenance` because "PERJANJIAN KERJA SAMA" is a substring of
+    # all variants.
     _TITLE_TO_DOC_TYPE = {
         "INVOICE": "invoice",
         "PROPOSAL PENAWARAN": "proposal_pdf",
@@ -329,19 +359,62 @@ def _extract_doc_parts(rendered_html: str) -> dict:
         "MOU": "mou",
     }
     doc_type = "invoice"
-    # Match most specific key first (longer keys) so "PERJANJIAN KERJA SAMA — WEB DEV"
-    # wins over generic "PERJANJIAN KERJA SAMA".
-    for title_key in sorted(_TITLE_TO_DOC_TYPE.keys(), key=len, reverse=True):
-        if title_key in title or title in title_key:
-            doc_type = _TITLE_TO_DOC_TYPE[title_key]
-            break
+    # Step 1: exact match wins immediately.
+    if title in _TITLE_TO_DOC_TYPE:
+        doc_type = _TITLE_TO_DOC_TYPE[title]
+    else:
+        # Step 2: prefix-match (longest title key whose start matches `title` start).
+        # This avoids "PERJANJIAN KERJA SAMA — MAINTENANCE" swallowing a generic
+        # `PERJANJIAN KERJA SAMA` because of substring greediness.
+        best_key = None
+        for title_key in sorted(_TITLE_TO_DOC_TYPE.keys(), key=len, reverse=True):
+            if title.startswith(title_key):
+                best_key = title_key
+                break
+        # Step 3: prefix in the other direction (title is prefix of key) for short titles like "MOU" before "MOU / foo".
+        if not best_key:
+            for title_key in sorted(_TITLE_TO_DOC_TYPE.keys(), key=len, reverse=True):
+                if title_key.startswith(title):
+                    best_key = title_key
+                    break
+        if best_key:
+            doc_type = _TITLE_TO_DOC_TYPE[best_key]  # type: ignore[index]  # noqa
+
+    # Trust template_type when it's specific and title-derived detection is generic.
+    # Templates like "Kontrak — Website Development" render title "LAMPIRAN KONTRAK"
+    # which normalizes to generic "PERJANJIAN KERJA SAMA" → lost the subtype. Recover
+    # by checking the template_type passed in: if template_type is a kontrak_*
+    # subtype, use that instead of the generic "kontrak" detection.
+    if template_type and template_type in _TITLE_TO_DOC_TYPE.values():
+        type_to_title = {v: k for k, v in _TITLE_TO_DOC_TYPE.items()}
+        expected_title_prefix = type_to_title.get(template_type, "")
+        # Only override if expected_title_prefix is more specific than the derived
+        # title's family. If the template type is the generic "kontrak" and the
+        # derived family is also kontrak, no override needed.
+        if expected_title_prefix and len(expected_title_prefix) > len(type_to_title.get(doc_type, "")):
+            doc_type = template_type
 
     section_end_labels = {
         "ditagihkan kepada", "kepada", "rincian tagihan", "rincian layanan",
         "rincian investasi", "layanan yang ditawarkan", "pembayaran",
         "metode pembayaran", "syarat & ketentuan", "ketentuan", "catatan",
     }
-    brand_details = _section_lines(lines, {"Dari"}, section_end_labels)
+    # Provider brand may appear under "Penyedia Jasa", "Dari", "Pihak Pertama -
+    # Penyedia Jasa" (or the client-equivalent "Pihak Kedua - Klien") depending
+    # on the template. Compound labels with surrounding "Pihak Pertama -" text
+    # are included so Kontrak/MoU templates that use that wording don't fall back
+    # to the signature block at the bottom of the page.
+    brand_details = _section_lines(
+        lines,
+        {
+            "Dari", "DARI",
+            "Penyedia Jasa", "PENYEDIA JASA",
+            "Pihak Pertama - Penyedia Jasa",
+            "Pihak Pertama - Penyedia Layanan",
+            "Pihak Pertama",
+        },
+        section_end_labels,
+    )
     client_details = _section_lines(
         lines,
         {"Ditagihkan Kepada", "Kepada", "Disiapkan Untuk"},
@@ -349,8 +422,63 @@ def _extract_doc_parts(rendered_html: str) -> dict:
     )
 
     brand = _clean_label_value(brand_details[0]) if brand_details else ""
+    # Reject role-label values like "Pihak Kedua," that come from later signature
+    # blocks when the section parser matched the wrong "Penyedia Jasa" label.
+    if brand and re.match(r"^\s*(Pihak Pertama|Pihak Kedua|Pihak Ketiga|Klien|Nama)", brand, flags=re.IGNORECASE):
+        brand = ""
     if not brand:
-        brand = _first_value([r"Dari\s+(.+?)(?:\s+(?:Ditagihkan Kepada|Kepada|Rincian)|$)"], line_text) or "Teman UMKM Kita"
+        brand = _first_value(
+            [r"(?:Dari|Penyedia Jasa)\s+(.+?)(?:\s+(?:Ditagihkan Kepada|Kepada|Rincian|Layanan|Tanggal|$))"],
+            line_text,
+        )
+    if not brand:
+        # Fallback: pick first line after a "Penyedia Jasa" / "Dari" / "Pihak Pertama"
+        # label that looks like a brand name (skip role labels, skip lines with
+        # commas or placeholders).
+        labels = {
+            "penyedia jasa", "dari",
+            "pihak pertama - penyedia jasa", "pihak pertama – penyedia jasa",
+            "pihak pertama", "pihak pertama -",
+        }
+        role_words = {"pihak pertama", "pihak kedua", "pihak ketiga",
+                      "penyedia jasa", "klien", "dari", "kepada"}
+        for i, line in enumerate(lines[:60]):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if stripped.lower() in labels:
+                for j in range(i + 1, min(i + 5, len(lines))):
+                    nxt = lines[j].strip()
+                    if not nxt:
+                        continue
+                    if "{" in nxt:  # unsubstituted placeholder
+                        continue
+                    low = nxt.lower()
+                    if low in role_words:
+                        continue
+                    if low.endswith(",") or low.endswith(":"):
+                        # Part of a "Pihak Pertama," / "Klien:" header — skip past
+                        # the trailing role label and grab the next line if it
+                        # looks like a name.
+                        for k in range(j + 1, min(j + 5, len(lines))):
+                            nxt2 = lines[k].strip()
+                            if not nxt2 or "{" in nxt2:
+                                continue
+                            if nxt2.lower() in role_words:
+                                continue
+                            if 2 <= len(nxt2) <= 80:
+                                brand = nxt2
+                                break
+                        if brand:
+                            break
+                        continue
+                    if 2 <= len(nxt) <= 80:
+                        brand = nxt
+                        break
+                if brand:
+                    break
+    if not brand:
+        brand = "Kantor Teman"
     client = _clean_label_value(client_details[0]) if client_details else ""
     if not client:
         client = _first_value([r"(?:Ditagihkan Kepada|Kepada)\s+(.+?)(?:\s+(?:Rincian|Layanan|Pembayaran|$))"], line_text)
@@ -446,7 +574,7 @@ def _extract_doc_parts(rendered_html: str) -> dict:
     }
 
 
-def render_pdf_with_reportlab(rendered_html: str) -> bytes:
+def render_pdf_with_reportlab(rendered_html: str, template_type: str | None = None) -> bytes:
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER, TA_RIGHT
     from reportlab.lib.pagesizes import A4
@@ -455,7 +583,7 @@ def render_pdf_with_reportlab(rendered_html: str) -> bytes:
     from reportlab.lib.utils import ImageReader
     from reportlab.platypus import HRFlowable, Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-    parts = _extract_doc_parts(rendered_html)
+    parts = _extract_doc_parts(rendered_html, template_type=template_type)
     # ReportLab is invoice/proposal-shaped. Client reports ("Laporan ...") are
     # rich HTML/CSS with embedded screenshots — let them fall through to WeasyPrint
     # (which supports <img>, tables, flex CSS). Without this, reportlab renders a
@@ -995,7 +1123,7 @@ def render_pdf_with_weasyprint(rendered_html: str, uploads_dir: str | None = Non
     return pdf
 
 
-def render_pdf_from_html(rendered_html: str, uploads_dir: str | None = None) -> bytes:
+def render_pdf_from_html(rendered_html: str, uploads_dir: str | None = None, template_type: str | None = None) -> bytes:
     if not visible_text_from_html(rendered_html):
         raise ValueError("Template PDF kosong. Isi HTML template terlebih dahulu.")
     if os.getenv("PDF_FORCE_TEXT_FALLBACK", "").lower() == "true":
@@ -1012,7 +1140,7 @@ def render_pdf_from_html(rendered_html: str, uploads_dir: str | None = None) -> 
     for name in renderers:
         try:
             if name == "reportlab":
-                return render_pdf_with_reportlab(rendered_html)
+                return render_pdf_with_reportlab(rendered_html, template_type=template_type)
             if name == "xhtml2pdf":
                 return render_pdf_with_xhtml2pdf(rendered_html, uploads_dir)
             return render_pdf_with_weasyprint(rendered_html, uploads_dir)
