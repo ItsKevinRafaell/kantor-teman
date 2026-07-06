@@ -1044,6 +1044,14 @@ def _prepare_document_vars(
     # Start with brand context + generic server-computed fields
     full_vars = dict(brand_ctx)
     full_vars["tanggal"] = _format_date_id(today)
+    # Always seed with document-type defaults — even when no target is provided.
+    # Without this, optional fields (terms, catatan, payment_info, scope, ...) leak
+    # through Jinja Undefined as literal "{{key}}" placeholders into the rendered
+    # PDF, producing garbage text like "{terms}" or "{catatan}".
+    defaults = _build_default_vars(db, template_type, None, None)
+    for k, v in defaults.items():
+        if k not in full_vars:
+            full_vars[k] = v
     # Only call _build_default_vars when allow_db_defaults=True (prefill endpoint).
     # Preview/generate MUST NOT re-query target DB for client/company/service fields.
     if allow_db_defaults and body.target_id and body.target_type:
@@ -1215,10 +1223,11 @@ def preview_document(request: Request, body: DocumentGenerateIn, current_user: U
         raise HTTPException(status_code=e.status_code, detail=e.detail, headers=cors_h)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Preview gagal: {e}", headers=cors_h)
+    preview_name = _build_pdf_display_name(db, _document_template_type(template), body.target_type, body.target_id, full_vars) or template.name or "Preview"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": 'inline; filename="preview.pdf"', **cors_h},
+        headers={"Content-Disposition": f'inline; filename="{preview_name}.pdf"', **cors_h},
     )
 
 
