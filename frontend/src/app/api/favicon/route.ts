@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
+import path from "node:path";
+import fs from "node:fs/promises";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-// Final-static fallback: brandmark icon from the build bundle.
-const STATIC_FALLBACK_PNG = "/brand/derived/icon-192.png";
+// Built by scripts/build_logo_assets.py from the yellow brandmark master.
+// Used as the *static* fallback when Brand Kit has no brandmark uploaded,
+// or when the cross-origin fetch fails (e.g. backend cold-start, CORS,
+// trailing-slash redirect loops on Vercel).
+const STATIC_FALLBACK_PNG = "brand/derived/icon-192.png";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -18,7 +23,6 @@ function fallbackSvg(): string {
 
 async function fetchAssetFile(absoluteUrl: string): Promise<{ buf: ArrayBuffer; contentType: string } | null> {
   try {
-    // Bypass Next/Vercel cache; we control caching via response headers.
     const fileRes = await fetch(absoluteUrl, { cache: "no-store" });
     if (!fileRes.ok) return null;
     return {
@@ -57,26 +61,20 @@ function pickFaviconAsset(
   return null;
 }
 
-async function fetchFromOriginUrl(originUrl: string) {
-  // Resolve a path like "/brand/derived/icon-192.png" relative to this
-  // Vercel deployment by using the request Host header. Works in both
-  // Vercel SSR and local dev — avoids the SSR-self-fetch loop entirely.
-  return fetchAssetFile(originUrl);
-}
-
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const origin = `${url.protocol}//${url.host}`;
   const cc = "public, max-age=300, s-maxage=300, must-revalidate";
 
-  // 1. Brand Kit brandmark (admin upload).
+  // 1. Brand Kit brandmark (admin upload). Skipped silently if fetch fails
+  //    (cold backend, CORS, trailing-slash redirect). Admin uploads propagate
+  //    within the 5-minute cache window without redeploy.
   try {
     const res = await fetch(`${API_BASE}/api/brand-kit/public`, { cache: "no-store" });
     if (res.ok) {
       const kit = await res.json();
       const asset = pickFaviconAsset(kit);
       if (asset?.url) {
-        const file = await fetchFromOriginUrl(`${API_BASE}${asset.url}`);
+        const file = await fetchAssetFile(`${API_BASE}${asset.url}`);
         if (file) {
           return new NextResponse(file.buf, {
             headers: { "Content-Type": file.contentType, "Cache-Control": cc },
@@ -88,15 +86,20 @@ export async function GET(request: Request) {
     /* fall through */
   }
 
-  // 2. Static shipped icon from the same deployment /public folder.
-  const local = await fetchFromOriginUrl(`${origin}${STATIC_FALLBACK_PNG}`);
-  if (local) {
-    return new NextResponse(local.buf, {
-      headers: { "Content-Type": local.contentType, "Cache-Control": cc },
+  // 2. Static shipped icon, read directly from the bundle filesystem.
+  //    Next bundles /public into the deployment, so fs.readFile works
+  //    on Vercel as long as we resolve relative to process.cwd().
+  try {
+    const localPath = path.join(process.cwd(), "public", STATIC_FALLBACK_PNG);
+    const buf = await fs.readFile(localPath);
+    return new NextResponse(buf, {
+      headers: { "Content-Type": "image/png", "Cache-Control": cc },
     });
+  } catch {
+    /* fall through */
   }
 
-  // 3. Inline SVG (yellow brandmark shape — should rarely fire).
+  // 3. Inline SVG (should rarely fire now that fs fallback works).
   return new NextResponse(fallbackSvg(), {
     headers: { "Content-Type": "image/svg+xml", "Cache-Control": cc },
   });
