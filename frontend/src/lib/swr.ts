@@ -1,7 +1,15 @@
 import useSWR, { mutate, SWRConfiguration } from "swr";
 import { apiFetch } from "./api";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Mirror lib/api.ts: in production `NEXT_PUBLIC_API_URL` is empty so
+// requests go same-origin (`/api/...`) and the kt_token cookie travels
+// through. In dev (localhost), default to localhost:8000 so the fastapi
+// backend is reachable.
+const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+const IS_BROWSER_LOCAL =
+  typeof window !== "undefined" &&
+  /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(window.location.host);
+const API_BASE = RAW_API_BASE || (IS_BROWSER_LOCAL ? "http://localhost:8000" : "");
 
 export type { SWRConfiguration };
 

@@ -1,4 +1,11 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://api.kantorteman.my.id";
+// When NEXT_PUBLIC_API_URL is empty (production on Vercel), requests go
+// same-origin (`/api/...`) and the kt_token cookie travels. In local dev
+// we default to http://localhost:8000 where the fastapi backend runs.
+const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+const IS_BROWSER_LOCAL =
+  typeof window !== "undefined" &&
+  /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(window.location.host);
+const API_BASE = RAW_API_BASE || (IS_BROWSER_LOCAL ? "http://localhost:8000" : "");
 
 let onUnauthorized: (() => void) | null = null;
 export function setUnauthorizedHandler(fn: () => void) { onUnauthorized = fn; }
