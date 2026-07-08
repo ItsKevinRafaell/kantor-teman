@@ -4,6 +4,9 @@ import { apiFetch } from "./api";
 // Runtime hostname-based resolver: never trust the Vercel project env
 // NEXT_PUBLIC_API_URL=https://api.kantorteman.my.id (it stays baked in
 // at build time and would push every dashboard fetch cross-site).
+// Both Vercel-served custom domains (e.g. www.kantorteman.my.id) and
+// preview/prod subdomains are routed same-origin (API_BASE = "") so the
+// Next rewrites() proxy at /api/* can carry the kt_token cookie.
 function resolveApiBase(): string {
   if (typeof window === "undefined") {
     return process.env.NEXT_PUBLIC_API_URL || "";
@@ -11,7 +14,7 @@ function resolveApiBase(): string {
   const host = window.location.hostname;
   if (host.endsWith(".vercel.app") || host === "vercel.app") return "";
   if (/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host)) return "http://localhost:8000";
-  if (host.endsWith("kantorteman.my.id")) return "https://api.kantorteman.my.id";
+  if (host.endsWith("kantorteman.my.id")) return "";
   return process.env.NEXT_PUBLIC_API_URL || "";
 }
 let API_BASE = "";
