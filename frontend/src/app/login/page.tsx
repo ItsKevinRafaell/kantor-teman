@@ -2,17 +2,17 @@
 
 import { useState, useEffect, FormEvent } from "react";
 import { setToken } from "../../lib/api";
+import Logo from "../../components/ui/Logo";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-const STATIC_LOGO = "/logo-primary.png";
-const STATIC_API_LOGO = `${API_BASE}/uploads/brand/logo-primary.png`;
+const FALLBACK_LOGO = "/brand/master/primary-yellow.png";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [logoUrl, setLogoUrl] = useState<string>(STATIC_LOGO);
+  const [logoUrl, setLogoUrl] = useState<string>(FALLBACK_LOGO);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -24,11 +24,18 @@ export default function LoginPage() {
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data?.assets) return;
-        const logo = data.assets.find((a: { asset_type: string; file_url?: string }) => a.asset_type === "logo_primary");
-        const nextLogo = logo?.file_url ? `${API_BASE}${logo.file_url}` : STATIC_API_LOGO;
+        // Prefer admin-chosen default; else first primary lockup
+        const defId: string | undefined = data.default_document_asset_id;
+        let chosen = defId ? data.assets.find((a: { id: string }) => a.id === defId) : undefined;
+        if (!chosen) {
+          chosen = data.assets.find((a: { asset_type: string; file_url?: string }) =>
+            ["logo_primary_yellow", "logo_primary", "logo_secondary"].includes(a.asset_type),
+          );
+        }
+        const nextLogo = chosen?.file_url ? `${API_BASE}${chosen.file_url}` : FALLBACK_LOGO;
         setLogoUrl(nextLogo);
       })
-      .catch(() => setLogoUrl(STATIC_API_LOGO));
+      .catch(() => setLogoUrl(FALLBACK_LOGO));
   }, []);
 
   async function handleSubmit(e: FormEvent) {
@@ -74,7 +81,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <img src={logoUrl} alt="Kantor Teman" className="h-16 w-auto mx-auto object-contain" onError={() => setLogoUrl(STATIC_LOGO)} />
+          <Logo variant="primary" size={64} src={logoUrl} className="h-16 w-auto mx-auto object-contain" alt="Teman UMKM Kita" />
           <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">CRM Internal · Masuk untuk melanjutkan</p>
         </div>
 

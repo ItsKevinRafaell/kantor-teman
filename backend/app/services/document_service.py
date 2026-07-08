@@ -119,11 +119,39 @@ def build_brand_context(db: Session) -> dict:
     ctx["phone_perusahaan"] = getattr(kit, "phone", None) or ""
     ctx["email_perusahaan"] = getattr(kit, "email", None) or ""
     assets = db.query(BrandAsset).filter(BrandAsset.kit_id == kit.id).all()
+
+    # Choose logo for documents. Admin can pin any asset via
+    # `default_document_asset_id`; otherwise fall back through the
+    # 6-slot schema (primary-yellow > primary-white > brandmark-yellow > ...)
+    # and finally legacy aliases (logo_primary / brandmark).
+    api_base = _get_setting("app_base_url", "") or os.getenv("APP_BASE_URL", "https://api.kantorteman.my.id")
+    chosen_url = ""
+    chosen_id = getattr(kit, "default_document_asset_id", None)
+    if chosen_id:
+        match = next((a for a in assets if a.id == chosen_id and a.file_url), None)
+        if match:
+            chosen_url = match.file_url
+    if not chosen_url:
+        for pref in (
+            "logo_primary_yellow", "logo_primary_white",
+            "logo_secondary_yellow", "logo_secondary_white",
+            "brandmark_yellow", "brandmark_white",
+            "logo_primary", "logo_secondary", "brandmark",
+        ):
+            match = next((a for a in assets if a.asset_type == pref and a.file_url), None)
+            if match:
+                chosen_url = match.file_url
+                break
+    if not chosen_url:
+        match = next((a for a in assets if a.file_url), None)
+        if match:
+            chosen_url = match.file_url
+    if chosen_url:
+        ctx["logo"] = f'<img src="{api_base.rstrip("/")}{chosen_url}" alt="logo" style="max-height:60px"/>'
+        ctx["logo_url"] = f"{api_base.rstrip('/')}{chosen_url}"
+
     for a in assets:
-        if a.asset_type == "logo_primary" and a.file_url:
-            api_base = _get_setting("app_base_url", "") or os.getenv("APP_BASE_URL", "https://api.kantorteman.my.id")
-            ctx["logo"] = f'<img src="{api_base.rstrip("/")}{a.file_url}" alt="logo" style="max-height:60px"/>'
-        elif a.asset_type == "color":
+        if a.asset_type == "color":
             ctx["colors"][a.name.lower().replace(" ", "_")] = a.value or ""
         elif a.asset_type == "font":
             ctx["fonts"][a.name.lower().replace(" ", "_")] = a.value or ""

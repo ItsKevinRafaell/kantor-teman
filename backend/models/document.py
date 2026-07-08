@@ -58,6 +58,9 @@ class BrandKit(Base):
     email = Column(String(255), default="")
     address = Column(Text, default="")
     logo = Column(Text, default="")
+    # Asset ID chosen as the default logo for PDF documents. Selected by admin
+    # in Brand Kit UI; fall back to first available primary-yellow on read.
+    default_document_asset_id = Column(String(36), nullable=True)
 
 
 class BrandAsset(Base):

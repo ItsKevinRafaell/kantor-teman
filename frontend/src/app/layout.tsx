@@ -10,9 +10,12 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: "/api/favicon" },
-      { url: "/favicon.ico" },
+      { url: "/brand/derived/favicon.ico", type: "image/x-icon" },
+      { url: "/brand/derived/favicon-32.png", type: "image/png", sizes: "32x32" },
+      { url: "/brand/derived/favicon-48.png", type: "image/png", sizes: "48x48" },
+      { url: "/brand/derived/icon-192.png", type: "image/png", sizes: "192x192" },
     ],
-    apple: "/apple-touch-icon.png",
+    apple: "/brand/derived/apple-touch-icon.png",
   },
   appleWebApp: {
     capable: true,
