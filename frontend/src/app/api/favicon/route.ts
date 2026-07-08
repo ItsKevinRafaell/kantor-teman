@@ -63,10 +63,18 @@ function pickFaviconAsset(
   return null;
 }
 
-export async function GET() {
-  // 1. Brand Kit brandmark (admin upload)
+export async function GET(request: Request) {
+  // Make sure CDN/browser bypass cache during deploys.
+  const url = new URL(request.url);
+  const cacheBust = url.searchParams.get("v") ?? "";
+  const cacheControl = `public, max-age=300, s-maxage=300, must-revalidate${cacheBust ? `, no-cache` : ""}`;
+
+  // 1. Brand Kit brandmark (admin upload) — server-side fetch, no full-page cache.
   try {
-    const res = await fetch(`${API_BASE}/api/brand-kit/public`, { next: { revalidate: 300 } });
+    const res = await fetch(`${API_BASE}/api/brand-kit/public`, {
+      cache: "no-store",
+      next: { revalidate: 300 },
+    });
     if (res.ok) {
       const kit = await res.json();
       const asset = pickFaviconAsset(kit);
@@ -74,24 +82,28 @@ export async function GET() {
         const file = await fetchAssetFile(`${API_BASE}${asset.url}`);
         if (file) {
           return new NextResponse(file.buf, {
-            headers: { "Content-Type": file.contentType, "Cache-Control": "public, max-age=300" },
+            headers: { "Content-Type": file.contentType, "Cache-Control": cacheControl },
           });
         }
       }
     }
   } catch { /* fall through */ }
 
-  // 2. Static shipped icon (yellow brandmark @192) from /public/brand/derived/
-  const localBase = (process.env.NEXT_PUBLIC_FRONTEND_URL ?? "http://localhost:3000").replace(/\/$/, "");
-  const local = await fetchAssetFile(`${localBase}${STATIC_FALLBACK_PNG}`);
-  if (local) {
-    return new NextResponse(local.buf, {
-      headers: { "Content-Type": local.contentType, "Cache-Control": "public, max-age=300" },
+  // 2. Static shipped icon — lives in the same Vercel deployment, so use a
+  //    path-relative URL (Next serves files from /public at the root).
+  //    Direct fs read avoids the SSR self-fetch loop entirely.
+  try {
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const localPath = path.join(process.cwd(), "public", STATIC_FALLBACK_PNG.replace(/^\//, ""));
+    const buf = await fs.readFile(localPath);
+    return new NextResponse(buf, {
+      headers: { "Content-Type": "image/png", "Cache-Control": cacheControl },
     });
-  }
+  } catch { /* fall through */ }
 
-  // 3. Inline SVG last-resort
+  // 3. Inline SVG last-resort (yellow brandmark shape).
   return new NextResponse(fallbackSvg(), {
-    headers: { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=300" },
+    headers: { "Content-Type": "image/svg+xml", "Cache-Control": cacheControl },
   });
 }
