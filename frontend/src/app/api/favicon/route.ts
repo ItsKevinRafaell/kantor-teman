@@ -4,9 +4,7 @@ import fs from "node:fs/promises";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 // Built by scripts/build_logo_assets.py from the yellow brandmark master.
-// Used as the *static* fallback when Brand Kit has no brandmark uploaded,
-// or when the cross-origin fetch fails (e.g. backend cold-start, CORS,
-// trailing-slash redirect loops on Vercel).
+// Used as the *static* fallback when Brand Kit has no PNG brandmark uploaded.
 const STATIC_FALLBACK_PNG = "brand/derived/icon-192.png";
 
 export const dynamic = "force-dynamic";
@@ -35,9 +33,11 @@ async function fetchAssetFile(absoluteUrl: string): Promise<{ buf: ArrayBuffer; 
 }
 
 /**
- * Pick a favicon-grade asset: brandmark-shaped only (icon, never lockup),
- * yellow preferred over white. Admin-chosen default accepted only when its
- * shape is brandmark.
+ * Pick a favicon-grade asset: brandmark-shaped only AND png/ico only.
+ * Falls back through yellow → white → legacy. Admin-chosen default
+ * accepted only when its shape is brandmark AND filetype is image/png
+ * or image/x-icon — SVGs are rejected because browsers can render them
+ * inconsistently at favicon sizes.
  */
 function pickFaviconAsset(
   kit: {
@@ -47,15 +47,17 @@ function pickFaviconAsset(
 ): { url: string } | null {
   const assets = kit?.assets ?? [];
   const iconSet = new Set(["brandmark_yellow", "brandmark_white", "brandmark"]);
+  const isRaster = (fileUrl?: string | null) =>
+    !!fileUrl && /\.(png|jpe?g|webp|ico)$/i.test(fileUrl);
 
   const defId = kit?.default_document_asset_id;
   if (defId) {
-    const def = assets.find((a) => a.id === defId && a.file_url);
+    const def = assets.find((a) => a.id === defId && a.file_url && isRaster(a.file_url));
     if (def && iconSet.has(def.asset_type)) return { url: def.file_url as string };
   }
 
   for (const pref of ["brandmark_yellow", "brandmark_white", "brandmark"]) {
-    const m = assets.find((a) => a.asset_type === pref && a.file_url);
+    const m = assets.find((a) => a.asset_type === pref && a.file_url && isRaster(a.file_url));
     if (m?.file_url) return { url: m.file_url };
   }
   return null;
@@ -65,9 +67,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const cc = "public, max-age=300, s-maxage=300, must-revalidate";
 
-  // 1. Brand Kit brandmark (admin upload). Skipped silently if fetch fails
-  //    (cold backend, CORS, trailing-slash redirect). Admin uploads propagate
-  //    within the 5-minute cache window without redeploy.
+  // 1. Brand Kit brandmark (admin upload). Skipped silently if fetch fails.
   try {
     const res = await fetch(`${API_BASE}/api/brand-kit/public`, { cache: "no-store" });
     if (res.ok) {
@@ -86,9 +86,7 @@ export async function GET(request: Request) {
     /* fall through */
   }
 
-  // 2. Static shipped icon, read directly from the bundle filesystem.
-  //    Next bundles /public into the deployment, so fs.readFile works
-  //    on Vercel as long as we resolve relative to process.cwd().
+  // 2. Static shipped icon, read directly from the deployment bundle.
   try {
     const localPath = path.join(process.cwd(), "public", STATIC_FALLBACK_PNG);
     const buf = await fs.readFile(localPath);
@@ -99,7 +97,7 @@ export async function GET(request: Request) {
     /* fall through */
   }
 
-  // 3. Inline SVG (should rarely fire now that fs fallback works).
+  // 3. Inline SVG (last resort — should rarely fire).
   return new NextResponse(fallbackSvg(), {
     headers: { "Content-Type": "image/svg+xml", "Cache-Control": cc },
   });
