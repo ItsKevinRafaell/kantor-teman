@@ -1,20 +1,30 @@
 "use client";
 
 import { useState, useEffect, FormEvent } from "react";
-import { setToken } from "../../lib/api";
+import { useRouter } from "next/navigation";
+import { setToken, consumeUnauthToast } from "../../lib/api";
 import Logo from "../../components/ui/Logo";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const FALLBACK_LOGO = "/brand/master/primary-yellow.png";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState<string>(FALLBACK_LOGO);
+  const [autoLogoutNotice, setAutoLogoutNotice] = useState<string | null>(null);
 
   useEffect(() => {
+    // If we were just bounced here from a 401 auto-logout, surface a
+    // "session expired" notice once and let the user re-authenticate.
+    const ts = consumeUnauthToast();
+    if (ts > 0) {
+      setAutoLogoutNotice("Sesi Anda berakhir — silakan login ulang untuk melanjutkan.");
+    }
+
     const params = new URLSearchParams(window.location.search);
     if (params.has("email") || params.has("password")) {
       window.history.replaceState(null, "", "/login/");
@@ -88,6 +98,11 @@ export default function LoginPage() {
         {/* Card */}
         <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-xl border border-gray-100 dark:border-neutral-800 p-8">
           <form onSubmit={handleSubmit} method="post" className="space-y-5">
+            {autoLogoutNotice && (
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/40 text-amber-700 dark:text-amber-300 rounded-xl px-4 py-3 text-sm" role="status" data-testid="auto-logout-notice">
+                {autoLogoutNotice}
+              </div>
+            )}
             <div>
               <label htmlFor="email" className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Email</label>
               <input
