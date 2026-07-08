@@ -55,10 +55,25 @@ const nextConfig = {
   },
   async rewrites() {
     return [
+      // Public report links (already served as HTML)
       { source: "/r/:slug", destination: `${BACKEND_URL}/r/:slug` },
       { source: "/r/:slug/", destination: `${BACKEND_URL}/r/:slug` },
       { source: "/p/:slug", destination: `${BACKEND_URL}/p/:slug` },
       { source: "/p/:slug/", destination: `${BACKEND_URL}/p/:slug` },
+      // Proxy every JSON API call through Vercel so dashboard fetches are
+      // same-origin. Backend cookies (samesite=lax, domain=.kantorteman.my.id)
+      // would otherwise be blocked by browsers because the SPA lives on
+      // a different registrable domain (kantor-teman-five.vercel.app) than
+      // the API (api.kantorteman.my.id). Same-origin /api/* keeps the
+      // cookie chain intact without re-architecting to samesite=none.
+      {
+        source: "/api/:path*",
+        destination: `${BACKEND_URL}/api/:path*`,
+      },
+      // Public OG-image, og-meta, favicon, pwa manifest, sw.js go
+      // through too so trailing-slash redirects from cross-site SSR
+      // self-fetch don't 308-loop.
+      { source: "/og-image/:slug", destination: `${BACKEND_URL}/api/og-image/:slug` },
     ];
   },
   async redirects() {
