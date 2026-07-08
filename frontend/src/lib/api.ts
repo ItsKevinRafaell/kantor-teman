@@ -1,11 +1,45 @@
-// When NEXT_PUBLIC_API_URL is empty (production on Vercel), requests go
-// same-origin (`/api/...`) and the kt_token cookie travels. In local dev
-// we default to http://localhost:8000 where the fastapi backend runs.
-const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
-const IS_BROWSER_LOCAL =
-  typeof window !== "undefined" &&
-  /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(window.location.host);
-const API_BASE = RAW_API_BASE || (IS_BROWSER_LOCAL ? "http://localhost:8000" : "");
+// When running in the browser, derive API_BASE from the hostname instead
+// of trusting `NEXT_PUBLIC_API_URL`. The Vercel project env has
+// NEXT_PUBLIC_API_URL=https://api.kantorteman.my.id baked in — overriding
+// the empty .env.production at build time. If we trust that env value,
+// every dashboard fetch goes cross-site and samesite=lax blocks the
+// kt_token cookie → dashboard 401s.
+//
+// Resolution rules (browser side):
+//   1. window.location.hostname matches a Vercel preview/prod domain
+//      -> API_BASE = "" (same-origin). Vercel's next.config.js
+//      rewrites() proxies /api/* to api.kantorteman.my.id with the
+//      cookie attached.
+//   2. window.location.hostname is localhost / 127.0.0.1
+//      -> API_BASE = "http://localhost:8000" (local FastAPI dev).
+//   3. Other hostnames (custom prod) -> API_BASE stays at the explicit
+//      NEXT_PUBLIC_API_URL env value when set, otherwise "".
+
+function resolveApiBase(): string {
+  if (typeof window === "undefined") {
+    // SSR build-time / Node — keep Vercel's NEXT_PUBLIC_API_URL so the
+    // server can fetch the backend over the public internet.
+    return process.env.NEXT_PUBLIC_API_URL || "";
+  }
+  const host = window.location.hostname;
+  // Vercel preview + production domains
+  if (host.endsWith(".vercel.app") || host === "vercel.app") return "";
+  if (/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host)) return "http://localhost:8000";
+  // Custom kantorteman.my.id app host (future scenario)
+  if (host.endsWith("kantorteman.my.id")) return "https://api.kantorteman.my.id";
+  // Fallback: trust env, else empty (same-origin)
+  return process.env.NEXT_PUBLIC_API_URL || "";
+}
+
+let API_BASE = "";
+let apiBaseInitialized = false;
+function ensureApiBase(): string {
+  if (!apiBaseInitialized) {
+    API_BASE = resolveApiBase();
+    apiBaseInitialized = true;
+  }
+  return API_BASE;
+}
 
 let onUnauthorized: (() => void) | null = null;
 export function setUnauthorizedHandler(fn: () => void) { onUnauthorized = fn; }
@@ -17,8 +51,9 @@ export function setToken(_token: string, name: string, email: string, role: stri
 }
 
 export async function clearToken() {
+  const base = ensureApiBase();
   try {
-    await fetch(`${API_BASE}/api/auth/logout`, { method: "POST", credentials: "include" });
+    await fetch(`${base}/api/auth/logout`, { method: "POST", credentials: "include" });
   } catch { /* ignore */ }
   clearLocalAuthCache();
 }
@@ -92,9 +127,10 @@ function fireAutoLogout(reason: "401" | "manual" = "401") {
   autoLogoutInFlight = true;
   clearLocalAuthCache();
   void flushSwrCache();
+  const base = ensureApiBase();
   // Best-effort server-side logout to invalidate the token_version.
   if (reason === "401" || reason === "manual") {
-    fetch(`${API_BASE}/api/auth/logout`, { method: "POST", credentials: "include" })
+    fetch(`${base}/api/auth/logout`, { method: "POST", credentials: "include" })
       .catch(() => { /* offline? still log out locally */ })
       .finally(() => {
         if (onUnauthorized) onUnauthorized();
@@ -110,16 +146,17 @@ function fireAutoLogout(reason: "401" | "manual" = "401") {
 export async function logoutLocally() { fireAutoLogout("manual"); }
 
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  const base = ensureApiBase();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string> ?? {}),
   };
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: "include" });
+    res = await fetch(`${base}${path}`, { ...options, headers, credentials: "include" });
   } catch (error) {
     const detail = error instanceof Error ? error.message : "network error";
-    throw new Error(`Tidak bisa menghubungi API KantorTeman (${API_BASE}). Cek koneksi, CORS, atau status backend. Detail: ${detail}`);
+    throw new Error(`Tidak bisa menghubungi API KantorTeman (${base}). Cek koneksi, CORS, atau status backend. Detail: ${detail}`);
   }
   if (res.status === 401 && typeof window !== "undefined" && !path.includes("/auth/")) {
     fireAutoLogout("401");

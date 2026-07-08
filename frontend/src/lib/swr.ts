@@ -1,15 +1,28 @@
 import useSWR, { mutate, SWRConfiguration } from "swr";
 import { apiFetch } from "./api";
 
-// Mirror lib/api.ts: in production `NEXT_PUBLIC_API_URL` is empty so
-// requests go same-origin (`/api/...`) and the kt_token cookie travels
-// through. In dev (localhost), default to localhost:8000 so the fastapi
-// backend is reachable.
-const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
-const IS_BROWSER_LOCAL =
-  typeof window !== "undefined" &&
-  /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(window.location.host);
-const API_BASE = RAW_API_BASE || (IS_BROWSER_LOCAL ? "http://localhost:8000" : "");
+// Runtime hostname-based resolver: never trust the Vercel project env
+// NEXT_PUBLIC_API_URL=https://api.kantorteman.my.id (it stays baked in
+// at build time and would push every dashboard fetch cross-site).
+function resolveApiBase(): string {
+  if (typeof window === "undefined") {
+    return process.env.NEXT_PUBLIC_API_URL || "";
+  }
+  const host = window.location.hostname;
+  if (host.endsWith(".vercel.app") || host === "vercel.app") return "";
+  if (/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host)) return "http://localhost:8000";
+  if (host.endsWith("kantorteman.my.id")) return "https://api.kantorteman.my.id";
+  return process.env.NEXT_PUBLIC_API_URL || "";
+}
+let API_BASE = "";
+let apiBaseInitialized = false;
+function ensureApiBase(): string {
+  if (!apiBaseInitialized) {
+    API_BASE = resolveApiBase();
+    apiBaseInitialized = true;
+  }
+  return API_BASE;
+}
 
 export type { SWRConfiguration };
 
@@ -17,7 +30,7 @@ export type { SWRConfiguration };
  * SWR-based data fetching hook with automatic JSON parsing
  */
 export function useApi<T>(path: string | null, config?: Partial<SWRConfiguration<T>>) {
-  const url = path ? `${API_BASE}${path}` : null;
+  const url = path ? `${ensureApiBase()}${path}` : null;
 
   return useSWR<T>(url, (url) => apiFetchJson<T>(url), {
     revalidateOnFocus: false,
@@ -31,7 +44,7 @@ export function useApi<T>(path: string | null, config?: Partial<SWRConfiguration
  * Fetch JSON with error handling
  */
 export async function apiFetchJson<T>(url: string): Promise<T> {
-  const res = await apiFetch(url.replace(API_BASE, ""));
+  const res = await apiFetch(url.replace(ensureApiBase(), ""));
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Request failed" }));
     throw new Error(err.detail || `HTTP ${res.status}`);
@@ -44,7 +57,7 @@ export async function apiFetchJson<T>(url: string): Promise<T> {
  * Use for optimistic updates or after mutations
  */
 export function apiMutate(path: string) {
-  mutate(`${API_BASE}${path}`);
+  mutate(`${ensureApiBase()}${path}`);
 }
 
 /**
