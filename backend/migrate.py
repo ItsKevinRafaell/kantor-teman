@@ -44,6 +44,8 @@ if "mysql" in _db_url:
         return _cur.fetchone() is not None
 
     _migrations = [
+        # brand kits — chosen default asset for PDF documents
+        ("brand_kits", "default_document_asset_id", "ALTER TABLE brand_kits ADD COLUMN default_document_asset_id VARCHAR(36) NULL"),
         # leads
         ("leads", "is_archived", "ALTER TABLE leads ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0"),
         ("leads", "deleted_at", "ALTER TABLE leads ADD COLUMN deleted_at VARCHAR(255) NULL"),

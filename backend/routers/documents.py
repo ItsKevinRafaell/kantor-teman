@@ -190,6 +190,35 @@ class BrandKitUpdate(BaseModel):
     email: Optional[str] = None
     address: Optional[str] = None
     logo: Optional[str] = None
+    default_document_asset_id: Optional[str] = None
+
+
+# Allowed BrandAsset.asset_type values. Six logo slots — three shapes
+# (primary lockup, secondary lockup, brandmark icon) × two colour variants
+# (yellow, white). Existing legacy values still accepted for back-compat.
+BRAND_ASSET_TYPES: list[dict] = [
+    {"id": "logo_primary_yellow",  "label": "Primary lockup — kuning", "category": "logo",  "shape": "primary",   "color": "yellow"},
+    {"id": "logo_primary_white",   "label": "Primary lockup — putih",  "category": "logo",  "shape": "primary",   "color": "white"},
+    {"id": "logo_secondary_yellow","label": "Secondary lockup — kuning","category": "logo", "shape": "secondary", "color": "yellow"},
+    {"id": "logo_secondary_white", "label": "Secondary lockup — putih","category": "logo",  "shape": "secondary", "color": "white"},
+    {"id": "brandmark_yellow",     "label": "Brandmark icon — kuning", "category": "icon",  "shape": "icon",      "color": "yellow"},
+    {"id": "brandmark_white",      "label": "Brandmark icon — putih",  "category": "icon",  "shape": "icon",      "color": "white"},
+    # Legacy aliases — old data keeps working
+    {"id": "logo_primary",         "label": "Primary lockup (legacy)",   "category": "logo",  "shape": "primary",   "color": "yellow"},
+    {"id": "logo_secondary",       "label": "Secondary lockup (legacy)", "category": "logo",  "shape": "secondary", "color": "yellow"},
+    {"id": "brandmark",            "label": "Brandmark / Icon (legacy)", "category": "icon",  "shape": "icon",      "color": "yellow"},
+]
+
+
+def _normalize_asset_type(asset_type: str) -> str:
+    """Map legacy asset_type ids onto the new 6-slot naming so that rows
+    uploaded by the old admin UI continue to render correctly."""
+    legacy_to_new = {
+        "logo_primary":   "logo_primary_yellow",
+        "logo_secondary": "logo_secondary_yellow",
+        "brandmark":      "brandmark_yellow",
+    }
+    return legacy_to_new.get(asset_type, asset_type)
 
 
 class BrandAssetIn(BaseModel):
@@ -203,6 +232,19 @@ class BrandAssetIn(BaseModel):
 
 def _serialize_kit(kit: BrandKit, db: Session) -> dict:
     assets = db.query(BrandAsset).filter(BrandAsset.kit_id == kit.id).order_by(BrandAsset.asset_type, BrandAsset.position).all()
+    # Auto-pick default: admin-chosen asset → first primary-yellow → first asset.
+    default_id = getattr(kit, "default_document_asset_id", None)
+    if not default_id:
+        for pref in ("logo_primary_yellow", "logo_primary", "logo_secondary_yellow", "logo_secondary"):
+            found = next((a for a in assets if a.asset_type == pref and a.file_url), None)
+            if found:
+                default_id = found.id
+                break
+        if not default_id and assets:
+            with_url = next((a for a in assets if a.file_url), None)
+            if with_url:
+                default_id = with_url.id
+
     return {
         "id": kit.id,
         "kit_name": kit.kit_name,
@@ -214,10 +256,12 @@ def _serialize_kit(kit: BrandKit, db: Session) -> dict:
         "email": getattr(kit, "email", "") or "",
         "address": getattr(kit, "address", "") or "",
         "logo": getattr(kit, "logo", "") or "",
+        "default_document_asset_id": default_id,
+        "asset_types": BRAND_ASSET_TYPES,
         "assets": [
             {
                 "id": a.id,
-                "asset_type": a.asset_type,
+                "asset_type": _normalize_asset_type(a.asset_type),
                 "name": a.name,
                 "value": a.value,
                 "file_url": a.file_url,
@@ -287,6 +331,8 @@ def update_brand_kit(body: BrandKitUpdate, current_user: User = Depends(require_
         kit.address = body.address
     if body.logo is not None:
         kit.logo = body.logo
+    if body.default_document_asset_id is not None:
+        kit.default_document_asset_id = body.default_document_asset_id or None
     if body.is_active is not None:
         kit.is_active = body.is_active
     db.commit()
