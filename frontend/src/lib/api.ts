@@ -118,6 +118,8 @@ async function flushSwrCache() {
 }
 
 let autoLogoutInFlight = false;
+let autoLogoutFiredOnce = false;  // prevent self-inflicted loop after the
+                                   // server-side token_version bump
 
 /**
  * Drain localStorage + SWR cache + (best-effort) call /api/auth/logout
@@ -131,8 +133,17 @@ function fireAutoLogout(reason: "401" | "manual" = "401") {
   autoLogoutInFlight = true;
   clearLocalAuthCache();
   void flushSwrCache();
+  // Idempotent guard: after the first auto-logout in a tab, do NOT
+  // POST /api/auth/logout again — that increments server-side
+  // token_version and turns every cached kt_token into a 401-triggering
+  // token, trapping the user in an infinite redirect loop.
+  if (reason === "401" && autoLogoutFiredOnce) {
+    if (onUnauthorized) onUnauthorized();
+    else window.location.href = "/login";
+    return;
+  }
+  if (reason === "401") autoLogoutFiredOnce = true;
   const base = ensureApiBase();
-  // Best-effort server-side logout to invalidate the token_version.
   if (reason === "401" || reason === "manual") {
     fetch(`${base}/api/auth/logout`, { method: "POST", credentials: "include" })
       .catch(() => { /* offline? still log out locally */ })
@@ -144,6 +155,15 @@ function fireAutoLogout(reason: "401" | "manual" = "401") {
     if (onUnauthorized) onUnauthorized();
     else window.location.href = "/login";
   }
+}
+
+/**
+ * Reset the auto-logout latches so the next tab session starts clean.
+ * Called after a successful /api/auth/login so a manual login doesn't
+ * appear as already-firing-auto-logout.
+ */
+export function resetAutoLogoutLatch() {
+  autoLogoutFiredOnce = false;
 }
 
 // Expose for manual logout buttons if they want a unified helper.
