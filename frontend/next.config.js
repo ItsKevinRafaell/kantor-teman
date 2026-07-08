@@ -66,15 +66,11 @@ const nextConfig = {
       // a different registrable domain (kantor-teman-five.vercel.app) than
       // the API (api.kantorteman.my.id). Same-origin /api/* keeps the
       // cookie chain intact without re-architecting to samesite=none.
-      // Both bare and trailing-slash forms are matched because
-      // trailingSlash:true in this Next config forces /api/foo → /api/foo/
-      // before the rewrite rule fires; we need both.
+      //
+      // Under trailingSlash:true, the request /api/foo gets a 308-redirect
+      // to /api/foo/ before rewrites run, so we register both forms.
       { source: "/api/:path*",  destination: `${BACKEND_URL}/api/:path*`  },
       { source: "/api/:path*/", destination: `${BACKEND_URL}/api/:path*` },
-      // Public OG-image, og-meta, favicon, pwa manifest, sw.js go
-      // through too so trailing-slash redirects from cross-site SSR
-      // self-fetch don't 308-loop.
-      { source: "/og-image/:slug", destination: `${BACKEND_URL}/api/og-image/:slug` },
     ];
   },
   async redirects() {
