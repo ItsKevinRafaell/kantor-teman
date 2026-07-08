@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-// New derived asset lives in the frontend's /public (master PNGs were copied
-// from SVG via scripts/build_logo_assets.py).
+// Final-static fallback — only reached when Brand Kit has no brandmark icon
+// uploaded. Lives in `public/brand/derived/` and is built by
+// scripts/build_logo_assets.py from the yellow brandmark master.
 const STATIC_FALLBACK_PNG = "/brand/derived/icon-192.png";
 
 export const dynamic = "force-dynamic";
@@ -32,29 +33,45 @@ async function fetchAssetFile(absoluteUrl: string): Promise<{ buf: ArrayBuffer; 
   }
 }
 
-function preferredBrandmarkAssetId(kit: { assets?: Array<{ id: string; asset_type: string; file_url?: string | null }>; default_document_asset_id?: string | null }) {
+/**
+ * Choose the favicon source. Order:
+ *   1. Brand Kit admin-chosen default — but ONLY if it's brandmark-shaped
+ *      (icon / brandmark), never a horizontal lockup.
+ *   2. First brandmark-shaped asset uploaded (yellow preferred over white).
+ *   3. Static `/brand/derived/icon-192.png` shipped with the build.
+ *   4. Inline SVG.
+ */
+function pickFaviconAsset(
+  kit: { assets?: Array<{ id: string; asset_type: string; file_url?: string | null }>; default_document_asset_id?: string | null },
+): { url: string } | null {
   const assets = kit?.assets ?? [];
-  // Honour admin-chosen default only if it points to a brandmark/icon
-  // (acceptable: any of the 6 logo slots; fall back to brandmark-yellow).
+  const brandmarkSet = new Set(["brandmark_yellow", "brandmark_white", "brandmark"]);
+
+  // 1. Admin-chosen default, ONLY if shape is icon.
   const defId = kit?.default_document_asset_id;
-  const def = defId ? assets.find(a => a.id === defId && a.file_url) : null;
-  if (def?.file_url) return def;
-  for (const pref of ["brandmark_yellow", "brandmark_white", "brandmark", "logo_primary_yellow", "logo_primary"]) {
-    const m = assets.find(a => a.asset_type === pref && a.file_url);
-    if (m) return m;
+  if (defId) {
+    const def = assets.find((a) => a.id === defId && a.file_url);
+    if (def && brandmarkSet.has(def.asset_type)) return { url: def.file_url as string };
   }
+
+  // 2. First brandmark-shaped asset (yellow > white > legacy).
+  for (const pref of ["brandmark_yellow", "brandmark_white", "brandmark"]) {
+    const m = assets.find((a) => a.asset_type === pref && a.file_url);
+    if (m?.file_url) return { url: m.file_url };
+  }
+
   return null;
 }
 
 export async function GET() {
-  // 1. Try brand kit public endpoint
+  // 1. Brand Kit brandmark (admin upload)
   try {
     const res = await fetch(`${API_BASE}/api/brand-kit/public`, { next: { revalidate: 300 } });
     if (res.ok) {
       const kit = await res.json();
-      const asset = preferredBrandmarkAssetId(kit);
-      if (asset?.file_url) {
-        const file = await fetchAssetFile(`${API_BASE}${asset.file_url}`);
+      const asset = pickFaviconAsset(kit);
+      if (asset?.url) {
+        const file = await fetchAssetFile(`${API_BASE}${asset.url}`);
         if (file) {
           return new NextResponse(file.buf, {
             headers: { "Content-Type": file.contentType, "Cache-Control": "public, max-age=300" },
@@ -64,7 +81,7 @@ export async function GET() {
     }
   } catch { /* fall through */ }
 
-  // 2. Try the new derived asset shipped with the build
+  // 2. Static shipped icon (yellow brandmark @192) from /public/brand/derived/
   const localBase = (process.env.NEXT_PUBLIC_FRONTEND_URL ?? "http://localhost:3000").replace(/\/$/, "");
   const local = await fetchAssetFile(`${localBase}${STATIC_FALLBACK_PNG}`);
   if (local) {
