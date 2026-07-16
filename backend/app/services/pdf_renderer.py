@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 
 PDF_FONT_CSS = """
-* { font-family: Helvetica, Arial, sans-serif; box-sizing: border-box; }
+* { font-family: "Droid Sans Fallback", Helvetica, Arial, sans-serif; box-sizing: border-box; }
 """
 
 
@@ -1192,9 +1192,9 @@ def _renderer_chain(env_value: str, template_type: str | None) -> tuple[str, ...
     unaffected by system fonts.
     """
     if env_value == "weasyprint":
-        order = ["weasyprint", "reportlab", "xhtml2pdf"]
+        order = ["textfb", "reportlab", "xhtml2pdf"]
     elif env_value == "xhtml2pdf":
-        order = ["xhtml2pdf", "reportlab", "weasyprint"]
+        order = ["xhtml2pdf", "reportlab", "textfb"]
     elif env_value == "auto":
         if template_type in _REPORT_TYPES:
             # Client reports go straight to text-fallback — never reportlab
@@ -1202,9 +1202,9 @@ def _renderer_chain(env_value: str, template_type: str | None) -> tuple[str, ...
             # Type1 path emits a sparse CMap on this host).
             order = ["textfb"]
         elif template_type in _REPORTLAB_FIRST_TYPES:
-            order = ["reportlab", "weasyprint", "xhtml2pdf"]
+            order = ["reportlab", "xhtml2pdf", "textfb"]
         else:
-            order = ["weasyprint", "reportlab", "xhtml2pdf"]
+            order = ["textfb", "reportlab", "xhtml2pdf"]
     else:
         # Default (reportlab) — explicit reportlab-first.
         order = ["reportlab", "xhtml2pdf", "weasyprint"]
