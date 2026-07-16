@@ -1144,8 +1144,10 @@ def _prepare_document_vars(
         for k, v in defaults.items():
             if k not in full_vars:
                 full_vars[k] = v
-    # User variables override defaults for client/company/service fields
-    # Empty string in user input is valid explicit input — set the key as-is
+    # User variables override defaults for client/company/service fields.
+    # Empty string from frontend means "I haven't touched this field" — do NOT
+    # override a non-empty backend default with it.  Only override when the user
+    # explicitly provides a non-empty value, or when the field has no default yet.
     for key, value in body.variables.items():
         value = _normalize_document_variable(key, value)
         # Server-owned: only override if currently empty/none
@@ -1153,8 +1155,11 @@ def _prepare_document_vars(
             if full_vars.get(key) in (None, ""):
                 full_vars[key] = value
             continue
-        # All other fields: always set when user provides them (even empty string)
-        # Normalize None → "" so templates render empty instead of "None"
+        # If user sent empty string AND backend already has a non-empty default,
+        # keep the default — the user simply hasn't edited this field yet.
+        if (value is None or value == "") and full_vars.get(key):
+            continue
+        # All other fields: set when user provides a value
         full_vars[key] = value if value is not None else ""
     for key, value in list(full_vars.items()):
         full_vars[key] = _normalize_document_variable(key, value)
