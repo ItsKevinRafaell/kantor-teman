@@ -226,7 +226,20 @@ function toRupiahRaw(display: string): string {
 
 function extractImgSrc(html: string): string {
   const m = html.match(/src=["']([^"']+)["']/i);
-  return m ? m[1] : "";
+  if (!m) return "";
+  const src = m[1];
+  // Backend now uses relative /uploads/... URLs so PDF renderers resolve from
+  // local disk.  In the browser the frontend is on a different origin (Vercel),
+  // so we must prepend the API base to make the image load.
+  if (src.startsWith("/uploads/")) {
+    const base = typeof window !== "undefined"
+      ? (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+          ? "http://localhost:8000"
+          : "https://api.kantorteman.my.id")
+      : "";
+    return `${base}${src}`;
+  }
+  return src;
 }
 
 function escapeHtml(value: string): string {
