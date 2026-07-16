@@ -601,6 +601,9 @@ def _build_brand_context(db: Session) -> dict:
     # (see pdf_renderer._uploads_link_callback / _pdf_url_fetcher), which works
     # without network. The frontend preview iframe and Brand Kit page load the
     # same /uploads path same-origin, so display is unaffected.
+    def _is_svg(url: str) -> bool:
+        return url.lower().endswith('.svg')
+
     chosen_url = ""
     chosen_id = getattr(kit, "default_document_asset_id", None)
     if chosen_id:
@@ -616,10 +619,12 @@ def _build_brand_context(db: Session) -> dict:
         ):
             match = next((a for a in assets if a.asset_type == pref and a.file_url), None)
             if match:
+                if _is_svg(match.file_url):
+                    continue
                 chosen_url = match.file_url
                 break
     if not chosen_url:
-        match = next((a for a in assets if a.file_url), None)
+        match = next((a for a in assets if a.file_url and not _is_svg(a.file_url)), None)
         if match:
             chosen_url = match.file_url
     if chosen_url:
