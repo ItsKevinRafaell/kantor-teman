@@ -533,7 +533,10 @@ export function useDocumentGenerator() {
   function buildDocumentPayload() {
     const ttype = selectedProject ? "project" : selectedLead ? "lead" : selectedContact ? "contact" : null;
     const tid = selectedProject?.id ?? selectedLead?.id ?? selectedContact?.id ?? null;
-    return { template_id: selectedTemplate?.id, target_type: ttype, target_id: tid !== null ? String(tid) : null, variables };
+    // Read from ref so we always get the latest variables — the React state
+    // closure can be stale after updateLineItem/setVariables inside setLineItems.
+    const latestVars = draftStateRef.current.variables ?? variables;
+    return { template_id: selectedTemplate?.id, target_type: ttype, target_id: tid !== null ? String(tid) : null, variables: latestVars };
   }
 
   async function handlePreview() {
