@@ -574,7 +574,7 @@ def _extract_doc_parts(rendered_html: str, template_type: str | None = None) -> 
     }
 
 
-def render_pdf_with_reportlab(rendered_html: str, template_type: str | None = None) -> bytes:
+def render_pdf_with_reportlab(rendered_html: str, template_type: str | None = None, uploads_dir: str | None = None) -> bytes:
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER, TA_RIGHT
     from reportlab.lib.pagesizes import A4
@@ -582,6 +582,20 @@ def render_pdf_with_reportlab(rendered_html: str, template_type: str | None = No
     from reportlab.lib.units import mm
     from reportlab.lib.utils import ImageReader
     from reportlab.platypus import HRFlowable, Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    def _resolve_asset(uri: str) -> str:
+        if os.path.isabs(uri) and os.path.exists(uri):
+            return uri
+        if uploads_dir:
+            parsed = urlparse(uri)
+            path = parsed.path if parsed.scheme else uri
+            marker = "/uploads/"
+            if marker in path:
+                local = os.path.normpath(os.path.join(uploads_dir, path.split(marker, 1)[1]))
+                real = os.path.realpath(uploads_dir)
+                if local.startswith(real + os.sep) and os.path.exists(local):
+                    return local
+        return uri
 
     parts = _extract_doc_parts(rendered_html, template_type=template_type)
     # ReportLab is invoice/proposal-shaped. Client reports ("Laporan ...") are
@@ -718,13 +732,14 @@ def render_pdf_with_reportlab(rendered_html: str, template_type: str | None = No
         try:
             # Preserve the source aspect ratio. Horizontal logos fit best at
             # about 36 x 14 mm; square brandmarks fit within 22 x 22 mm.
-            reader = ImageReader(parts["logo_url"])
+            logo_path = _resolve_asset(parts["logo_url"])
+            reader = ImageReader(logo_path)
             src_w, src_h = reader.getSize()
             max_w, max_h = 36 * mm, 14 * mm
             if src_h and src_w / src_h < 1.6:
                 max_w, max_h = 22 * mm, 22 * mm
             scale = min(max_w / src_w, max_h / src_h) if src_w and src_h else 1
-            logo_img = Image(parts["logo_url"], width=src_w * scale, height=src_h * scale)
+            logo_img = Image(logo_path, width=src_w * scale, height=src_h * scale)
         except Exception:
             logo_img = None
 
@@ -1199,7 +1214,7 @@ def _renderer_chain(env_value: str, template_type: str | None) -> tuple[str, ...
 def _try_renderer(name: str, rendered_html: str, uploads_dir: str | None, template_type: str | None) -> bytes | None:
     try:
         if name == "reportlab":
-            return render_pdf_with_reportlab(rendered_html, template_type=template_type)
+            return render_pdf_with_reportlab(rendered_html, template_type=template_type, uploads_dir=uploads_dir)
         if name == "xhtml2pdf":
             return render_pdf_with_xhtml2pdf(rendered_html, uploads_dir)
         if name == "weasyprint":
@@ -1214,10 +1229,24 @@ def _try_renderer(name: str, rendered_html: str, uploads_dir: str | None, templa
 
 
 def render_pdf_from_html(rendered_html: str, uploads_dir: str | None = None, template_type: str | None = None) -> bytes:
+    pdf, _ = render_pdf_from_html_with_meta(rendered_html, uploads_dir, template_type)
+    return pdf
+
+
+def render_pdf_from_html_with_meta(
+    rendered_html: str, uploads_dir: str | None = None, template_type: str | None = None
+) -> tuple[bytes, str]:
+    """Render PDF and also report which renderer actually produced it.
+
+    Useful for diagnosing the recurring "blank text" prod issue: if the
+    response header says `weasyprint` but text is invisible, the host's
+    fontconfig override (Helvetica -> Droid Sans Fallback) is not taking
+    effect and WeasyPrint is emitting a sparse CMap.
+    """
     if not visible_text_from_html(rendered_html):
         raise ValueError("Template PDF kosong. Isi HTML template terlebih dahulu.")
     if os.getenv("PDF_FORCE_TEXT_FALLBACK", "").lower() == "true":
-        return render_text_fallback_pdf(rendered_html)
+        return render_text_fallback_pdf(rendered_html), "textfb-force"
 
     rendered_html = inject_pdf_font(rendered_html)
     env_value = os.getenv("PDF_RENDERER", "auto").lower()
@@ -1235,7 +1264,29 @@ def render_pdf_from_html(rendered_html: str, uploads_dir: str | None = None, tem
             # above will manifest here. Fall through to the next renderer.
             if not _pdf_has_legible_text(pdf, min_chars=expected_chars):
                 continue
-        return pdf
+        return pdf, name
 
     # Every high-fidelity renderer failed — last-ditch pure-PDF text draw.
-    return render_text_fallback_pdf(rendered_html)
+    return render_text_fallback_pdf(rendered_html), "textfb-fallback"
+
+
+def pdf_render_diagnostics() -> dict:
+    """Surface the prod PDF render environment for debugging blank-text."""
+    import importlib.util
+
+    def _have(mod: str) -> bool:
+        return importlib.util.find_spec(mod) is not None
+
+    fontconfig_file = os.environ.get("FONTCONFIG_FILE", "")
+    return {
+        "pdf_renderer_env": os.getenv("PDF_RENDERER", "auto"),
+        "pdf_force_text_fallback": os.getenv("PDF_FORCE_TEXT_FALLBACK", "false"),
+        "fontconfig_file": fontconfig_file,
+        "fontconfig_file_exists": bool(fontconfig_file) and os.path.exists(fontconfig_file),
+        "renderers_available": {
+            "reportlab": _have("reportlab"),
+            "weasyprint": _have("weasyprint"),
+            "xhtml2pdf": _have("xhtml2pdf"),
+            "pdfminer": _have("pdfminer"),
+        },
+    }

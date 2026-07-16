@@ -22,7 +22,7 @@ from app.services import (
     _slugify_name,
 )
 from app.services.pdf_renderer import inject_pdf_font as _inject_pdf_font
-from app.services.pdf_renderer import render_pdf_from_html
+from app.services.pdf_renderer import render_pdf_from_html, render_pdf_from_html_with_meta, pdf_render_diagnostics
 from app.services.archive_service import parent_creates_cycle as _archive_parent_creates_cycle
 from app.core.dependencies import (get_current_user, require_admin, UPLOADS_DIR,
     _cors_list, _get_setting, HERMES_GATEWAY_URL, _hermes_headers, _office_profile, _ads_out,
@@ -571,7 +571,7 @@ def _build_brand_context(db: Session) -> dict:
     kit = db.query(BrandKit).filter(BrandKit.is_active == True).order_by(BrandKit.created_at.desc()).first() \
         or db.query(BrandKit).order_by(BrandKit.created_at.desc()).first()
     ctx = {
-        "logo": "", "colors": {}, "fonts": {},
+        "logo": "", "logo_url": "", "colors": {}, "fonts": {},
         "tagline": "", "nama_perusahaan": "", "brand_name": "",
         "alamat_perusahaan": "", "phone_perusahaan": "", "email_perusahaan": ""
     }
@@ -586,11 +586,48 @@ def _build_brand_context(db: Session) -> dict:
     ctx["phone_perusahaan"] = getattr(kit, "phone", None) or ""
     ctx["email_perusahaan"] = getattr(kit, "email", None) or ""
     assets = db.query(BrandAsset).filter(BrandAsset.kit_id == kit.id).all()
+
+    # Choose logo for documents. Admin can pin any asset via
+    # `default_document_asset_id`; otherwise fall back through the 6-slot
+    # schema (primary-yellow > primary-white > brandmark-yellow > ...) and
+    # finally legacy aliases (logo_primary / brandmark).
+    #
+    # IMPORTANT: the <img> src uses a RELATIVE "/uploads/..." path, NOT an
+    # absolute https://api.kantorteman.my.id/... URL. ReportLab/WeasyPrint on
+    # the sandboxed shared host cannot reach the public domain (no outbound
+    # network to its own host), so an absolute URL silently fails → the logo
+    # never embeds and the PDF shows a blank/orange placeholder. The relative
+    # path is resolved to local disk by the renderer's uploads link callback
+    # (see pdf_renderer._uploads_link_callback / _pdf_url_fetcher), which works
+    # without network. The frontend preview iframe and Brand Kit page load the
+    # same /uploads path same-origin, so display is unaffected.
+    chosen_url = ""
+    chosen_id = getattr(kit, "default_document_asset_id", None)
+    if chosen_id:
+        match = next((a for a in assets if a.id == chosen_id and a.file_url), None)
+        if match:
+            chosen_url = match.file_url
+    if not chosen_url:
+        for pref in (
+            "logo_primary_yellow", "logo_primary_white",
+            "logo_secondary_yellow", "logo_secondary_white",
+            "brandmark_yellow", "brandmark_white",
+            "logo_primary", "logo_secondary", "brandmark",
+        ):
+            match = next((a for a in assets if a.asset_type == pref and a.file_url), None)
+            if match:
+                chosen_url = match.file_url
+                break
+    if not chosen_url:
+        match = next((a for a in assets if a.file_url), None)
+        if match:
+            chosen_url = match.file_url
+    if chosen_url:
+        ctx["logo"] = f'<img src="{chosen_url}" alt="logo" style="max-height:60px"/>'
+        ctx["logo_url"] = chosen_url
+
     for a in assets:
-        if a.asset_type == "logo_primary" and a.file_url:
-            api_base = _get_setting("app_base_url", "") or os.getenv("APP_BASE_URL", "https://api.kantorteman.my.id")
-            ctx["logo"] = f'<img src="{api_base.rstrip("/")}{a.file_url}" alt="logo" style="max-height:60px"/>'
-        elif a.asset_type == "color":
+        if a.asset_type == "color":
             ctx["colors"][a.name.lower().replace(" ", "_")] = a.value or ""
         elif a.asset_type == "font":
             ctx["fonts"][a.name.lower().replace(" ", "_")] = a.value or ""
@@ -602,9 +639,6 @@ def _build_brand_context(db: Session) -> dict:
             ctx["phone_perusahaan"] = a.value
         elif a.asset_type == "company_email" and a.value:
             ctx["email_perusahaan"] = a.value
-    if not ctx["logo"]:
-        api_base = _get_setting("app_base_url", "") or os.getenv("APP_BASE_URL", "https://api.kantorteman.my.id")
-        ctx["logo"] = f'<img src="{api_base.rstrip()}/uploads/brand/logo-primary.png" alt="logo" style="max-height:60px"/>'
     return ctx
 
 
@@ -1224,7 +1258,7 @@ def _visible_document_text(rendered_html: str) -> str:
     return " ".join(html_mod.unescape(without_tags).split())
 
 
-def _render_document_pdf(template: DocumentTemplate, full_vars: dict) -> bytes:
+def _render_document_pdf(template: DocumentTemplate, full_vars: dict) -> tuple[bytes, str]:
     template_type = _document_template_type(template)
     rendered_html = _render_document_html(_document_template_html(template), full_vars)
     if not _visible_document_text(rendered_html):
@@ -1235,7 +1269,8 @@ def _render_document_pdf(template: DocumentTemplate, full_vars: dict) -> bytes:
         raise HTTPException(status_code=400, detail="Template PDF kosong. Isi HTML template terlebih dahulu.")
 
     try:
-        return render_pdf_from_html(rendered_html, UPLOADS_DIR, template_type=template_type)
+        pdf, renderer = render_pdf_from_html_with_meta(rendered_html, UPLOADS_DIR, template_type=template_type)
+        return pdf, renderer
     except HTTPException:
         raise
     except Exception as e:
@@ -1264,7 +1299,7 @@ def preview_document(request: Request, body: DocumentGenerateIn, current_user: U
         raise HTTPException(status_code=404, detail="Template tidak ditemukan", headers=cors_h)
     try:
         full_vars = _prepare_document_vars(db, template, body)
-        pdf_bytes = _render_document_pdf(template, full_vars)
+        pdf_bytes, pdf_renderer = _render_document_pdf(template, full_vars)
     except HTTPException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail, headers=cors_h)
     except Exception as e:
@@ -1273,7 +1308,11 @@ def preview_document(request: Request, body: DocumentGenerateIn, current_user: U
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="{preview_name}.pdf"', **cors_h},
+        headers={
+            "Content-Disposition": f'inline; filename="{preview_name}.pdf"',
+            "X-Pdf-Renderer": pdf_renderer,
+            **cors_h,
+        },
     )
 
 
@@ -1287,7 +1326,7 @@ def generate_document(request: Request, body: DocumentGenerateIn, current_user: 
         raise HTTPException(status_code=404, detail="Template tidak ditemukan", headers=cors_h)
     try:
         full_vars = _prepare_document_vars(db, template, body, reserve_number=True)
-        pdf_bytes = _render_document_pdf(template, full_vars)
+        pdf_bytes, _ = _render_document_pdf(template, full_vars)
         file_id = str(uuid.uuid4())
         pdf_filename = f"{file_id}.pdf"
         pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
@@ -2256,6 +2295,23 @@ class OfficeChatRequest(BaseModel):
 
 def _hermes_headers() -> dict:
     return {"X-Gateway-Token": HERMES_GATEWAY_TOKEN, "Content-Type": "application/json"}
+
+
+@router.get("/api/documents/health")
+def document_health(current_user: User = Depends(get_current_user)):
+    """Debug endpoint: surface which PDF renderer + fontconfig path is active.
+
+    Useful when preview shows blank text. Inspect `X-Pdf-Renderer` header
+    of any preview/generate response, or hit this endpoint and look at
+    `renderer` — if it says `weasyprint` on a host without the fontconfig
+    override, the PDF text will be invisible.
+    """
+    diag = pdf_render_diagnostics()
+    diag["renderer"] = diag["pdf_renderer_env"]
+    diag["notes"] = (
+        "WeasyPrint needs FONTCONFIG_FILE -> Droid Sans Fallback or text will be blank."
+    )
+    return diag
 
 
 def _office_profile(profile: str) -> str:
