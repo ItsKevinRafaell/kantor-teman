@@ -545,7 +545,7 @@ export function useDocumentGenerator() {
     const timeoutId = setTimeout(() => { setPreviewing(false); setToast({ message: "Preview timeout. Silakan coba lagi.", type: "error" }); }, 30000);
     try {
       const payload = JSON.stringify(buildDocumentPayload());
-      const res = await apiFetch(`/api/documents/preview?t=${Date.now()}`, { method: "POST", body: payload, headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" } });
+      const res = await apiFetch(`/api/documents/preview/?t=${Date.now()}`, { method: "POST", body: payload, headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" } });
       clearTimeout(timeoutId);
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || "Preview gagal"); }
       const blob = await res.blob();
