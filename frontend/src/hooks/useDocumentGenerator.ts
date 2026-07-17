@@ -545,18 +545,7 @@ export function useDocumentGenerator() {
     const timeoutId = setTimeout(() => { setPreviewing(false); setToast({ message: "Preview timeout. Silakan coba lagi.", type: "error" }); }, 30000);
     try {
       const payload = JSON.stringify(buildDocumentPayload());
-      const ts = Date.now();
-      // Send directly to API backend to bypass Vercel trailingSlash redirect
-      // which strips the POST body during308→307 chain
-      const apiUrl = window.location.hostname.includes("localhost")
-        ? "http://localhost:8000"
-        : "https://api.kantorteman.my.id";
-      const res = await fetch(`${apiUrl}/api/documents/preview?t=${ts}`, {
-        method: "POST",
-        body: payload,
-        headers: { "Content-Type": "application/json", "Cache-Control": "no-cache" },
-        credentials: "include",
-      });
+      const res = await apiFetch(`/api/documents/preview?t=${Date.now()}`, { method: "POST", body: payload });
       clearTimeout(timeoutId);
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || "Preview gagal"); }
       const blob = await res.blob();
