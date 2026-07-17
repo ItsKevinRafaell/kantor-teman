@@ -584,11 +584,11 @@ def render_pdf_with_reportlab(rendered_html: str, template_type: str | None = No
     from reportlab.platypus import HRFlowable, Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
-    _DROID_TTF = "/usr/share/fonts/google-droid-sans-fonts/DroidSansFallbackFull.ttf"
-    if os.path.exists(_DROID_TTF):
-        pdfmetrics.registerFont(TTFont("DroidSansFB", _DROID_TTF))
-        _BODY_FONT = "DroidSansFB"
-        _BOLD_FONT = "DroidSansFB"
+    _LIBERATION_TTF = "/home/qqwtlphb/backend/uploads/LiberationSans-Regular.ttf"
+    if os.path.exists(_LIBERATION_TTF):
+        pdfmetrics.registerFont(TTFont("Liberation", _LIBERATION_TTF))
+        _BODY_FONT = "Liberation"
+        _BOLD_FONT = "Liberation"
     else:
         _BODY_FONT = "Helvetica"
         _BOLD_FONT = "Helvetica-Bold"
