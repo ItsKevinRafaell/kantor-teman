@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 
 PDF_FONT_CSS = """
-* { font-family: "Droid Sans Fallback", Helvetica, Arial, sans-serif; box-sizing: border-box; }
+* { font-family: "Liberation", Helvetica, Arial, sans-serif; box-sizing: border-box; }
 """
 
 
@@ -86,6 +86,7 @@ def render_text_fallback_pdf(rendered_html: str) -> bytes:
     catalog_id = add_object(b"<< /Type /Catalog /Pages 2 0 R >>")
     pages_id = add_object(b"")
     font_id = add_object(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
+    # Note: Helvetica Type1 is always available as PDF built-in - OK for text fallback
     page_ids: list[int] = []
 
     for page_lines in pages:
@@ -584,11 +585,11 @@ def render_pdf_with_reportlab(rendered_html: str, template_type: str | None = No
     from reportlab.platypus import HRFlowable, Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
-    _LIBERATION_TTF = "/home/qqwtlphb/backend/uploads/LiberationSans-Regular.ttf"
-    if os.path.exists(_LIBERATION_TTF):
-        pdfmetrics.registerFont(TTFont("Liberation", _LIBERATION_TTF))
-        _BODY_FONT = "Liberation"
-        _BOLD_FONT = "Liberation"
+    _CARLITO_TTF = "/home/qqwtlphb/backend/uploads/Carlito-Regular.ttf"
+    if os.path.exists(_CARLITO_TTF):
+        pdfmetrics.registerFont(TTFont("Carlito", _CARLITO_TTF))
+        _BODY_FONT = "Carlito"
+        _BOLD_FONT = "Carlito"
     else:
         _BODY_FONT = "Helvetica"
         _BOLD_FONT = "Helvetica-Bold"
@@ -663,6 +664,8 @@ def render_pdf_with_reportlab(rendered_html: str, template_type: str | None = No
     doc.creator = "Kantor Teman"
     doc.subject = f"Dokumen untuk {parts.get('client') or 'Klien'}"
     styles = getSampleStyleSheet()
+    # Override base Normal style to use our embedded font
+    styles["Normal"].fontName = _BODY_FONT
 
     # Brand colors
     BRAND_PRIMARY = colors.HexColor("#f5a700")
