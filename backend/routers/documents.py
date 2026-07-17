@@ -1301,6 +1301,7 @@ def debug_document_html(body: DocumentGenerateIn, current_user: User = Depends(g
 
 
 @router.post("/api/documents/preview")
+@router.post("/api/documents/preview/")
 def preview_document(request: Request, body: DocumentGenerateIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     origin = request.headers.get("origin", "")
     cors_h = {"Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", "Vary": "Origin"} if origin in _cors_list else {}
