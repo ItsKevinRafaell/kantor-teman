@@ -585,11 +585,12 @@ def render_pdf_with_reportlab(rendered_html: str, template_type: str | None = No
     from reportlab.platypus import HRFlowable, Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
-    _CARLITO_TTF = "/home/qqwtlphb/backend/uploads/Carlito-Regular.ttf"
-    if os.path.exists(_CARLITO_TTF):
-        pdfmetrics.registerFont(TTFont("Carlito", _CARLITO_TTF))
-        _BODY_FONT = "Carlito"
-        _BOLD_FONT = "Carlito"
+    _DEJAVU_TTF = "/home/qqwtlphb/backend/uploads/DejaVuSans.ttf"
+    if os.path.exists(_DEJAVU_TTF):
+        pdfmetrics.registerFont(TTFont("DejaVu", _DEJAVU_TTF))
+        pdfmetrics.registerFontFamily("DejaVu", normal="DejaVu", bold="DejaVu", italic="DejaVu", boldItalic="DejaVu")
+        _BODY_FONT = "DejaVu"
+        _BOLD_FONT = "DejaVu"
     else:
         _BODY_FONT = "Helvetica"
         _BOLD_FONT = "Helvetica-Bold"
