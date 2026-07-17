@@ -582,6 +582,16 @@ def render_pdf_with_reportlab(rendered_html: str, template_type: str | None = No
     from reportlab.lib.units import mm
     from reportlab.lib.utils import ImageReader
     from reportlab.platypus import HRFlowable, Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    _DROID_TTF = "/usr/share/fonts/google-droid-sans-fonts/DroidSansFallbackFull.ttf"
+    if os.path.exists(_DROID_TTF):
+        pdfmetrics.registerFont(TTFont("DroidSansFB", _DROID_TTF))
+        _BODY_FONT = "DroidSansFB"
+        _BOLD_FONT = "DroidSansFB"
+    else:
+        _BODY_FONT = "Helvetica"
+        _BOLD_FONT = "Helvetica-Bold"
 
     def _resolve_asset(uri: str) -> str:
         if os.path.isabs(uri) and os.path.exists(uri):
@@ -663,35 +673,35 @@ def render_pdf_with_reportlab(rendered_html: str, template_type: str | None = No
     LIGHT_BG = colors.HexColor("#fafafa")
 
     # Style definitions
-    invoice_title = ParagraphStyle("InvoiceTitle", parent=styles["Normal"], fontName="Helvetica-Bold",
+    invoice_title = ParagraphStyle("InvoiceTitle", parent=styles["Normal"], fontName=_BOLD_FONT,
                                     fontSize=28, leading=32, textColor=DARK_TEXT, alignment=TA_CENTER)
-    invoice_num = ParagraphStyle("InvoiceNum", parent=styles["Normal"], fontName="Helvetica",
+    invoice_num = ParagraphStyle("InvoiceNum", parent=styles["Normal"], fontName=_BODY_FONT,
                                   fontSize=11, leading=14, textColor=MUTED_TEXT, alignment=TA_CENTER)
-    section_label = ParagraphStyle("SectionLabel", parent=styles["Normal"], fontName="Helvetica-Bold",
+    section_label = ParagraphStyle("SectionLabel", parent=styles["Normal"], fontName=_BOLD_FONT,
                                     fontSize=6.5, leading=8, textColor=MUTED_TEXT, textTransform="uppercase")
-    contact_name = ParagraphStyle("ContactName", parent=styles["Normal"], fontName="Helvetica-Bold",
+    contact_name = ParagraphStyle("ContactName", parent=styles["Normal"], fontName=_BOLD_FONT,
                                   fontSize=10, leading=12, textColor=DARK_TEXT)
-    contact_detail = ParagraphStyle("ContactDetail", parent=styles["Normal"], fontName="Helvetica",
+    contact_detail = ParagraphStyle("ContactDetail", parent=styles["Normal"], fontName=_BODY_FONT,
                                    fontSize=7.5, leading=10, textColor=BODY_TEXT)
-    meta_label = ParagraphStyle("MetaLabel", parent=styles["Normal"], fontName="Helvetica",
+    meta_label = ParagraphStyle("MetaLabel", parent=styles["Normal"], fontName=_BODY_FONT,
                                  fontSize=7, leading=9, textColor=MUTED_TEXT, alignment=TA_RIGHT)
-    meta_value = ParagraphStyle("MetaValue", parent=styles["Normal"], fontName="Helvetica-Bold",
+    meta_value = ParagraphStyle("MetaValue", parent=styles["Normal"], fontName=_BOLD_FONT,
                                  fontSize=8, leading=10, textColor=DARK_TEXT, alignment=TA_RIGHT)
-    total_label = ParagraphStyle("TotalLabel", parent=styles["Normal"], fontName="Helvetica-Bold",
+    total_label = ParagraphStyle("TotalLabel", parent=styles["Normal"], fontName=_BOLD_FONT,
                                   fontSize=9, leading=11, textColor=BRAND_PRIMARY, alignment=TA_RIGHT)
-    total_amount_style = ParagraphStyle("TotalAmount", parent=styles["Normal"], fontName="Helvetica-Bold",
+    total_amount_style = ParagraphStyle("TotalAmount", parent=styles["Normal"], fontName=_BOLD_FONT,
                                         fontSize=16, leading=20, textColor=DARK_TEXT, alignment=TA_RIGHT)
-    table_header = ParagraphStyle("TableHeader", parent=styles["Normal"], fontName="Helvetica-Bold",
+    table_header = ParagraphStyle("TableHeader", parent=styles["Normal"], fontName=_BOLD_FONT,
                                    fontSize=7, leading=8.5, textColor=colors.white, alignment=TA_CENTER)
-    item_name = ParagraphStyle("ItemName", parent=styles["Normal"], fontName="Helvetica-Bold",
+    item_name = ParagraphStyle("ItemName", parent=styles["Normal"], fontName=_BOLD_FONT,
                                fontSize=7.5, leading=9.5, textColor=DARK_TEXT)
-    item_desc = ParagraphStyle("ItemDesc", parent=styles["Normal"], fontName="Helvetica",
+    item_desc = ParagraphStyle("ItemDesc", parent=styles["Normal"], fontName=_BODY_FONT,
                                fontSize=6.5, leading=8, textColor=MUTED_TEXT)
-    table_right = ParagraphStyle("TableRight", parent=styles["Normal"], fontName="Helvetica",
+    table_right = ParagraphStyle("TableRight", parent=styles["Normal"], fontName=_BODY_FONT,
                                  fontSize=7.5, leading=9, textColor=BODY_TEXT, alignment=TA_RIGHT)
-    footer_brand = ParagraphStyle("FooterBrand", parent=styles["Normal"], fontName="Helvetica-Bold",
+    footer_brand = ParagraphStyle("FooterBrand", parent=styles["Normal"], fontName=_BOLD_FONT,
                                    fontSize=9, leading=11, textColor=DARK_TEXT)
-    footer_detail = ParagraphStyle("FooterDetail", parent=styles["Normal"], fontName="Helvetica",
+    footer_detail = ParagraphStyle("FooterDetail", parent=styles["Normal"], fontName=_BODY_FONT,
                                     fontSize=7, leading=9, textColor=MUTED_TEXT)
 
     story = []
@@ -746,7 +756,7 @@ def render_pdf_with_reportlab(rendered_html: str, template_type: str | None = No
     # Logo placeholder if no logo (orange square with brand initial)
     if not logo_img:
         logo_placeholder = Table([[
-            Paragraph("T", ParagraphStyle("LogoText", fontName="Helvetica-Bold", fontSize=16,
+            Paragraph("T", ParagraphStyle("LogoText", fontName=_BOLD_FONT, fontSize=16,
                                            textColor=colors.white, alignment=TA_CENTER))
         ]], colWidths=[35 * mm], rowHeights=[25 * mm])
         logo_placeholder.setStyle(TableStyle([
