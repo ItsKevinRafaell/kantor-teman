@@ -113,6 +113,7 @@ def _auth_cookie_options():
     }
 
 @router.post("/api/auth/login")
+@router.post("/api/auth/login/")
 def login(body: LoginIn, request: Request, response: Response, db: Session = Depends(get_db)):
     ip = _client_ip(request)
     _ensure_allowed_email(body.email)
@@ -191,6 +192,7 @@ def reset_password(body: PasswordResetConfirm, db: Session = Depends(get_db)):
 
 
 @router.post("/api/auth/logout")
+@router.post("/api/auth/logout/")
 def logout(
     response: Response,
     current_user: User = Depends(get_current_user),
