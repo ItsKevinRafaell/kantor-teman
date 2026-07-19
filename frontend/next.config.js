@@ -21,7 +21,7 @@ if (process.env.NODE_ENV === "development") {
 }
 
 const nextConfig = {
-  trailingSlash: true,
+  trailingSlash: false,
   images: {
     unoptimized: false,
   },
