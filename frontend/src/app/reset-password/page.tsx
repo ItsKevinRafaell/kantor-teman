@@ -2,7 +2,14 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const API_BASE = (() => {
+  if (typeof window === "undefined") return process.env.NEXT_PUBLIC_API_URL || "";
+  const host = window.location.hostname;
+  if (host.endsWith(".vercel.app") || host === "vercel.app") return "";
+  if (/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host)) return "http://localhost:8000";
+  if (host.endsWith("kantorteman.my.id")) return "";
+  return process.env.NEXT_PUBLIC_API_URL || "";
+})();
 
 export default function ResetPasswordPage() {
   const [token, setToken] = useState("");

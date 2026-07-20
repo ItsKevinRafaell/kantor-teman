@@ -123,7 +123,7 @@ def login(body: LoginIn, request: Request, response: Response, db: Session = Dep
         record_login_failure(ip, db)
         raise HTTPException(status_code=401, detail="Email atau password salah")
     record_login_success(ip, db)
-    token = create_token(user.id, user.email)
+    token = create_token(user.id, user.email, getattr(user, "token_version", 1))
     response.set_cookie(
         key="kt_token",
         value=token,

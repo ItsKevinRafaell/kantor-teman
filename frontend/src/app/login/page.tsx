@@ -5,7 +5,15 @@ import { useRouter } from "next/navigation";
 import { setToken, consumeUnauthToast, resetAutoLogoutLatch } from "../../lib/api";
 import Logo from "../../components/ui/Logo";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Runtime API base: empty on Vercel (same-origin proxy), localhost for dev.
+const API_BASE = (() => {
+  if (typeof window === "undefined") return process.env.NEXT_PUBLIC_API_URL || "";
+  const host = window.location.hostname;
+  if (host.endsWith(".vercel.app") || host === "vercel.app") return "";
+  if (/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host)) return "http://localhost:8000";
+  if (host.endsWith("kantorteman.my.id")) return "";
+  return process.env.NEXT_PUBLIC_API_URL || "";
+})();
 const FALLBACK_LOGO = "/brand/master/primary-yellow.png";
 
 export default function LoginPage() {
@@ -30,7 +38,7 @@ export default function LoginPage() {
       window.history.replaceState(null, "", "/login/");
     }
 
-    fetch(`${API_BASE}/api/brand-kit/public`)
+    fetch(`${API_BASE}/api/brand-kit/public/`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data?.assets) return;
@@ -64,7 +72,7 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/auth/login`, {
+      const res = await fetch(`${API_BASE}/api/auth/login/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: formEmail, password: formPassword }),

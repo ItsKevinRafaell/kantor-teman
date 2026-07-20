@@ -57,7 +57,7 @@ export function setToken(_token: string, name: string, email: string, role: stri
 export async function clearToken() {
   const base = ensureApiBase();
   try {
-    await fetch(`${base}/api/auth/logout`, { method: "POST", credentials: "include" });
+    await fetch(`${base}/api/auth/logout/`, { method: "POST", credentials: "include" });
   } catch { /* ignore */ }
   clearLocalAuthCache();
 }
@@ -145,7 +145,7 @@ function fireAutoLogout(reason: "401" | "manual" = "401") {
   if (reason === "401") autoLogoutFiredOnce = true;
   const base = ensureApiBase();
   if (reason === "401" || reason === "manual") {
-    fetch(`${base}/api/auth/logout`, { method: "POST", credentials: "include" })
+    fetch(`${base}/api/auth/logout/`, { method: "POST", credentials: "include" })
       .catch(() => { /* offline? still log out locally */ })
       .finally(() => {
         if (onUnauthorized) onUnauthorized();

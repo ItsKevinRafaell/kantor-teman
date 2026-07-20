@@ -23,7 +23,16 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Runtime API base — same logic as lib/api.ts but kept separate to avoid
+// pulling in the full auth module (this context loads on every page).
+const API_BASE = (() => {
+  if (typeof window === "undefined") return process.env.NEXT_PUBLIC_API_URL || "";
+  const host = window.location.hostname;
+  if (host.endsWith(".vercel.app") || host === "vercel.app") return "";
+  if (/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host)) return "http://localhost:8000";
+  if (host.endsWith("kantorteman.my.id")) return "";
+  return process.env.NEXT_PUBLIC_API_URL || "";
+})();
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -68,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await fetch(`${API_BASE}/api/auth/logout`, { method: "POST", credentials: "include" });
+      await fetch(`${API_BASE}/api/auth/logout/`, { method: "POST", credentials: "include" });
     } catch { /* ignore */ }
     localStorage.removeItem("kt_name");
     localStorage.removeItem("kt_email");
