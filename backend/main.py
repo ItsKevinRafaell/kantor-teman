@@ -44,7 +44,7 @@ async def lifespan(app):
     yield
 
 # ── App ────────────────────────────────────────────────────────────────────────
-app = FastAPI(title="Kantor Teman API", lifespan=lifespan)
+app = FastAPI(title="Kantor Teman API", lifespan=lifespan, redirect_slashes=False)
 
 app.add_middleware(
     CORSMiddleware,

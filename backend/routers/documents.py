@@ -1049,6 +1049,7 @@ TRACKING_PIXEL_PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfF
 
 
 @router.get("/api/document-templates/{template_id}/defaults")
+@router.get("/api/document-templates/{template_id}/defaults/")
 def get_template_defaults(
     template_id: str,
     target_type: Optional[str] = None,
@@ -1286,6 +1287,26 @@ def _render_document_pdf(template: DocumentTemplate, full_vars: dict) -> tuple[b
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"PDF generation gagal: {e}")
 
+
+
+@router.post("/api/documents/preview-debug")
+def preview_debug(body: DocumentGenerateIn, current_user: User = Depends(get_current_user)):
+    """Debug endpoint: echoes back exactly what the frontend sends."""
+    non_empty = {k: str(v)[:200] for k, v in body.variables.items() if v}
+    empty = [k for k, v in body.variables.items() if not v]
+    return {"template_id": body.template_id, "target_type": body.target_type, "target_id": body.target_id,
+            "vars_total": len(body.variables), "non_empty_count": len(non_empty), "empty_count": len(empty),
+            "non_empty": non_empty, "empty_keys": empty}
+
+
+@router.post("/api/documents/preview-debug")
+def preview_debug(body: DocumentGenerateIn, current_user: User = Depends(get_current_user)):
+    """Echo back what the frontend sends."""
+    non_empty = {k: str(v)[:200] for k, v in body.variables.items() if v}
+    empty = [k for k, v in body.variables.items() if not v]
+    return JSONResponse({"template_id": body.template_id, "target_type": body.target_type,
+                         "target_id": body.target_id, "vars_total": len(body.variables),
+                         "non_empty": non_empty, "empty_keys": empty})
 
 
 @router.post("/api/documents/debug-html")

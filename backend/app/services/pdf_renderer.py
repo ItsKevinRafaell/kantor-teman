@@ -1184,7 +1184,7 @@ def _pdf_has_legible_text(pdf: bytes, min_chars: int = 50) -> bool:
 # but WeasyPrint on this shared host is broken (sparse CMap), so client_report
 # is routed to the text-fallback renderer instead — see `_renderer_chain`.
 _REPORTLAB_FIRST_TYPES = {
-    "invoice", "receipt", "proposal_pdf", "surat_penawaran",
+    "invoice", "receipt", "surat_penawaran",
     "kontrak", "kontrak_web_dev", "kontrak_seo", "kontrak_sosmed",
     "kontrak_maintenance", "kontrak_branding", "kontrak_retainer", "mou",
 }
@@ -1220,8 +1220,14 @@ def _renderer_chain(env_value: str, template_type: str | None) -> tuple[str, ...
         else:
             order = ["textfb", "reportlab", "xhtml2pdf"]
     else:
-        # Default (reportlab) — explicit reportlab-first.
-        order = ["reportlab", "xhtml2pdf", "weasyprint"]
+        # Default (reportlab) — explicit reportlab-first, but skip for
+        # templates whose HTML ReportLab can't parse (reports, proposals, etc.)
+        if template_type in _REPORT_TYPES:
+            order = ["textfb"]
+        elif template_type in _REPORTLAB_FIRST_TYPES:
+            order = ["reportlab", "xhtml2pdf", "textfb"]
+        else:
+            order = ["textfb", "reportlab", "xhtml2pdf"]
     return tuple(order)
 
 
