@@ -171,28 +171,13 @@ export async function logoutLocally() { fireAutoLogout("manual"); }
 
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const base = ensureApiBase();
-  // Ensure trailing slash for mutation requests (POST/PUT/PATCH/DELETE).
-  // trailingSlash:true in next.config.js causes 308 redirects on paths
-  // without trailing slash, which drops the request body for mutations.
-  // GET requests are safe because 308 preserves the query string.
-  let normalizedPath = path;
-  const method = (options.method || "GET").toUpperCase();
-  if (method !== "GET" && method !== "HEAD" && normalizedPath.startsWith("/api/")) {
-    const qIdx = normalizedPath.indexOf("?");
-    if (qIdx === -1) {
-      if (!normalizedPath.endsWith("/")) normalizedPath += "/";
-    } else {
-      const before = normalizedPath.slice(0, qIdx);
-      if (!before.endsWith("/")) normalizedPath = before + "/" + normalizedPath.slice(qIdx);
-    }
-  }
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string> ?? {}),
   };
   let res: Response;
   try {
-    res = await fetch(`${base}${normalizedPath}`, { ...options, headers, credentials: "include" });
+    res = await fetch(`${base}${path}`, { ...options, headers, credentials: "include" });
   } catch (error) {
     const detail = error instanceof Error ? error.message : "network error";
     throw new Error(`Tidak bisa menghubungi API KantorTeman (${base}). Cek koneksi, CORS, atau status backend. Detail: ${detail}`);
