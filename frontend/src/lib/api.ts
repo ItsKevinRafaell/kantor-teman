@@ -171,10 +171,13 @@ export async function logoutLocally() { fireAutoLogout("manual"); }
 
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const base = ensureApiBase();
-  // Ensure trailing slash — trailingSlash:true in next.config.js causes 308
-  // redirects on paths without trailing slash, which drops POST/PUT/PATCH bodies.
+  // Ensure trailing slash for mutation requests (POST/PUT/PATCH/DELETE).
+  // trailingSlash:true in next.config.js causes 308 redirects on paths
+  // without trailing slash, which drops the request body for mutations.
+  // GET requests are safe because 308 preserves the query string.
   let normalizedPath = path;
-  if (normalizedPath.startsWith("/api/")) {
+  const method = (options.method || "GET").toUpperCase();
+  if (method !== "GET" && method !== "HEAD" && normalizedPath.startsWith("/api/")) {
     const qIdx = normalizedPath.indexOf("?");
     if (qIdx === -1) {
       if (!normalizedPath.endsWith("/")) normalizedPath += "/";
