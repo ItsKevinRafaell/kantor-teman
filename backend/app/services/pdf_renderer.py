@@ -1195,6 +1195,8 @@ _REPORTLAB_FIRST_TYPES = {
 # them straight to the pure-PDF text-fallback renderer, which always renders
 # every line correctly even without system fonts.
 _REPORT_TYPES = {"client_report", "laporan"}
+# Templates with rich HTML/CSS that ReportLab can't parse — use xhtml2pdf first
+_HTML_FIRST_TYPES = {"proposal_pdf"}
 
 
 def _renderer_chain(env_value: str, template_type: str | None) -> tuple[str, ...]:
@@ -1217,6 +1219,8 @@ def _renderer_chain(env_value: str, template_type: str | None) -> tuple[str, ...
             order = ["textfb"]
         elif template_type in _REPORTLAB_FIRST_TYPES:
             order = ["reportlab", "xhtml2pdf", "textfb"]
+        elif template_type in _HTML_FIRST_TYPES:
+            order = ["xhtml2pdf", "reportlab", "textfb"]
         else:
             order = ["textfb", "reportlab", "xhtml2pdf"]
     else:
@@ -1226,6 +1230,8 @@ def _renderer_chain(env_value: str, template_type: str | None) -> tuple[str, ...
             order = ["textfb"]
         elif template_type in _REPORTLAB_FIRST_TYPES:
             order = ["reportlab", "xhtml2pdf", "textfb"]
+        elif template_type in _HTML_FIRST_TYPES:
+            order = ["xhtml2pdf", "reportlab", "textfb"]
         else:
             order = ["textfb", "reportlab", "xhtml2pdf"]
     return tuple(order)
@@ -1279,14 +1285,9 @@ def render_pdf_from_html_with_meta(
         if not pdf or not _is_valid_pdf(pdf):
             continue
         if name == "weasyprint":
-            # Post-render sanity: if WeasyPrint produced a near-empty PDF on
-            # a host with no Helvetica/Arial/Noto Sans TTFs, the CMap bug
-            # above will manifest here. Fall through to the next renderer.
             if not _pdf_has_legible_text(pdf, min_chars=expected_chars):
                 continue
         return pdf, name
-
-    # Every high-fidelity renderer failed — last-ditch pure-PDF text draw.
     return render_text_fallback_pdf(rendered_html), "textfb-fallback"
 
 
