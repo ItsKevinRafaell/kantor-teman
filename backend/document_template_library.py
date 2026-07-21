@@ -90,138 +90,153 @@ PROPOSAL_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <style>
-/* Force print backgrounds — WeasyPrint/Chrome otherwise strip table/div fills */
-*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
-@page{size:A4;margin:0}
-body{font-family:Helvetica,Arial,sans-serif;color:#1f2937;font-size:10pt;line-height:1.5;margin:0;padding:0;background:#ffffff}
+/* Bundled font helpers are replaced by @font-face in pdf_renderer.inject_pdf_font() */
+@page{size:A4;margin:28pt 32pt}
+*{box-sizing:border-box}
+body{
+  font-family:Helvetica,Arial,sans-serif;
+  color:#111827;
+  font-size:10pt;
+  line-height:1.55;
+  margin:0;padding:0;background:#ffffff
+}
 table{border-collapse:collapse;border-spacing:0}
 .w100{width:100%}
-.page-pad{padding:0 26pt 22pt 26pt}
+a{color:#111827;text-decoration:none}
 
-/* Header: put background on TD (WeasyPrint often ignores table-level bg) */
-.header-band{width:100%;border-collapse:collapse;margin:0}
-.header-band td{
-  background-color:#111827;
-  color:#ffffff;
-  vertical-align:middle;
-  border:0;
-  padding:16pt 18pt;
+/* Header — logo + title left, meta right, hairline rule */
+.header td{vertical-align:top;padding:0 0 12pt 0;border:0}
+.logo img{max-height:36pt;max-width:128pt;display:block}
+.brandline{font-size:8pt;color:#6b7280;margin-top:6pt;letter-spacing:0.04em}
+.title{
+  font-size:19pt;font-weight:bold;color:#111827;
+  margin:0 0 4pt 0;letter-spacing:-0.02em;line-height:1.1;
 }
-.header-band .logo img{max-height:42pt;max-width:140pt;display:block}
-.header-band .eyebrow{
-  font-size:7.5pt;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;
-  color:#fbbf24;margin:6pt 0 4pt 0;
-}
-.header-band .title{font-size:20pt;font-weight:bold;color:#ffffff;margin:0;line-height:1.15}
-.header-band .meta{text-align:right;font-size:8.5pt;color:#d1d5db;line-height:1.55}
-.header-band .meta .strong{color:#ffffff;font-weight:bold}
+.meta{text-align:right;font-size:9pt;color:#6b7280;line-height:1.6}
+.meta b{color:#111827}
+.rule{border:0;border-top:0.8pt solid #e5e7eb;margin:0 0 18pt 0;height:0}
 
-/* Amber accent strip under header */
-.accent-bar{
-  width:100%;height:5pt;background-color:#f5a700;
-  margin:0 0 16pt 0;border:0;padding:0;line-height:0;font-size:0;
+/* Two-column identity */
+.parties td{vertical-align:top;padding:0;border:0}
+.eyebrow{
+  font-size:7pt;font-weight:bold;color:#6b7280;text-transform:uppercase;
+  letter-spacing:0.12em;margin:0 0 5pt 0;
 }
+.identity{
+  font-size:11pt;font-weight:bold;color:#111827;
+  margin:0 0 3pt 0;line-height:1.2;
+}
+.detail{font-size:9pt;color:#4b5563;line-height:1.5}
+.detail:empty{display:none}
 
-/* Cards */
-.card-table{width:100%;margin:0 0 4pt 0}
-.box{
-  border:1.5pt solid #e5e7eb;
-  padding:10pt 12pt;
-  vertical-align:top;
-  background-color:#f9fafb;
+/* Sections — no background fill, no left rail, just eyebrow + body */
+.section{margin:20pt 0 0 0}
+.section:first-of-type{margin-top:6pt}
+.section-eyebrow{
+  font-size:7pt;font-weight:bold;color:#9ca3af;text-transform:uppercase;
+  letter-spacing:0.12em;margin:0 0 6pt 0;
 }
-.box-title{
-  font-size:7.5pt;font-weight:bold;color:#b45309;text-transform:uppercase;
-  letter-spacing:0.06em;margin:0 0 6pt 0;
-  border-bottom:1.5pt solid #fcd34d;padding-bottom:3pt;
-}
-.strong{font-weight:bold;color:#111827}
-.muted{font-size:8.5pt;color:#4b5563;line-height:1.45}
-
-/* Sections — amber left rail + warm fill */
 .section-title{
-  font-size:8pt;font-weight:bold;color:#111827;text-transform:uppercase;
-  letter-spacing:0.05em;
-  border-left:4pt solid #f5a700;
-  padding:5pt 0 5pt 10pt;
-  margin:14pt 0 6pt 0;
-  background-color:#fffbeb;
+  font-size:11pt;font-weight:bold;color:#111827;
+  margin:0 0 6pt 0;line-height:1.25;
 }
-.soft{
-  background-color:#f8fafc;
-  border:1pt solid #e5e7eb;
-  padding:10pt 12pt;
-  line-height:1.5;
-}
-.soft .strong{color:#b45309;font-size:11pt}
+.section-body{font-size:10pt;color:#1f2937;line-height:1.6}
+.section-body b,.section-body strong{font-weight:bold;color:#111827}
 
-/* Validity callout */
-.note{
-  border:1.5pt solid #f59e0b;
-  background-color:#fffbeb;
-  color:#92400e;
-  padding:9pt 12pt;
-  margin-top:14pt;
-  font-size:9pt;
+/* Investment table — injected HTML lives here; keep unobtrusive */
+.inv-table{width:100%;margin-top:2pt;font-size:9.5pt;border-collapse:collapse}
+.inv-table th{
+  text-align:left;font-size:7pt;font-weight:bold;color:#6b7280;
+  text-transform:uppercase;letter-spacing:0.06em;
+  padding:7pt 6pt 6pt 0;border-bottom:1pt solid #e5e7eb;
 }
+.inv-table td{padding:9pt 6pt 8pt 0;border-bottom:0.8pt solid #f3f4f6;vertical-align:top;color:#1f2937}
+.inv-table tfoot td{border-bottom:0;border-top:1.2pt solid #111827;font-weight:bold;color:#111827;padding-top:10pt}
+.inv-table strong{font-weight:bold;color:#111827}
+.inv-table .sub{font-size:8.5pt;color:#6b7280;margin-top:3pt;line-height:1.45}
 
-/* Footer */
-.footer{
-  border-top:2pt solid #111827;
-  margin-top:18pt;
-  padding-top:8pt;
-  font-size:8pt;
-  color:#6b7280;
-}
-.footer .strong{color:#111827}
+/* Validity — quiet */
+.validity{margin-top:22pt;font-size:9pt;color:#6b7280;line-height:1.5}
+.validity b{color:#111827}
+
+/* Footer — minimal */
+.footer{margin-top:30pt;padding-top:10pt;border-top:0.8pt solid #e5e7eb;font-size:8.5pt;color:#9ca3af;line-height:1.5}
+.footer b{color:#6b7280}
 </style>
 </head>
 <body>
-<table class="header-band w100">
+
+<table class="w100 header">
 <tr>
-<td width="58%" style="background-color:#111827;color:#ffffff;padding:16pt 18pt">
-  <div class="logo">{{logo}}</div>
-  <div class="eyebrow">{{brand_name}}</div>
-  <div class="title">PROPOSAL PENAWARAN</div>
+<td width="54%" style="padding:0 12pt 12pt 0">
+  {% if logo %}<div class="logo">{{logo}}</div>{% endif %}
+  {% if brand_name %}<div class="brandline">{{brand_name}}</div>{% endif %}
 </td>
-<td width="42%" class="meta" style="background-color:#111827;color:#d1d5db;padding:16pt 18pt;text-align:right">
-  No. <span class="strong" style="color:#ffffff">{{nomor}}</span><br/>
-  Tanggal: <span class="strong" style="color:#ffffff">{{tanggal}}</span><br/>
-  Berlaku hingga: <span class="strong" style="color:#ffffff">{{valid_until}}</span>
+<td width="46%" class="meta" style="padding:0 0 12pt 12pt;text-align:right">
+  <div class="title">Proposal Penawaran</div>
+  {% if nomor %}No. <b>{{nomor}}</b><br/>{% endif %}
+  {% if tanggal %}Tanggal <b>{{tanggal}}</b><br/>{% endif %}
+  {% if valid_until %}Berlaku hingga <b>{{valid_until}}</b>{% endif %}
 </td>
 </tr>
 </table>
-<div class="accent-bar" style="background-color:#f5a700;height:5pt;width:100%"></div>
-<div class="page-pad">
-<table class="w100 card-table">
+<div class="rule"></div>
+
+<table class="w100 parties">
 <tr>
-<td width="49%" class="box" style="background-color:#f9fafb;border:1.5pt solid #e5e7eb;padding:10pt 12pt">
-  <div class="box-title">Penyedia Jasa</div>
-  <div class="strong">{{brand_name}}</div>
-  <div class="muted">{{alamat_perusahaan}}<br/>{{phone_perusahaan}}<br/>{{email_perusahaan}}</div>
+<td width="48%">
+  <div class="eyebrow">Penyedia jasa</div>
+  {% if brand_name %}<div class="identity">{{brand_name}}</div>{% endif %}
+  <div class="detail">
+    {% if alamat_perusahaan %}{{alamat_perusahaan}}<br/>{% endif %}
+    {% if phone_perusahaan %}{{phone_perusahaan}}<br/>{% endif %}
+    {% if email_perusahaan %}{{email_perusahaan}}{% endif %}
+  </div>
 </td>
-<td width="2%"></td>
-<td width="49%" class="box" style="background-color:#f9fafb;border:1.5pt solid #e5e7eb;padding:10pt 12pt">
-  <div class="box-title">Disiapkan Untuk</div>
-  <div class="strong">{{klien}}</div>
-  <div class="muted">{{alamat}}<br/>{{phone}}</div>
+<td width="4%"></td>
+<td width="48%">
+  <div class="eyebrow">Disiapkan untuk</div>
+  {% if klien %}<div class="identity">{{klien}}</div>{% endif %}
+  <div class="detail">
+    {% if alamat %}{{alamat}}<br/>{% endif %}
+    {% if phone %}{{phone}}{% endif %}
+  </div>
 </td>
 </tr>
 </table>
-<div class="section-title" style="background-color:#fffbeb;border-left:4pt solid #f5a700">Layanan Utama</div>
-<div class="soft" style="background-color:#f8fafc"><span class="strong" style="color:#b45309">{{layanan}}</span></div>
-<div class="section-title" style="background-color:#fffbeb;border-left:4pt solid #f5a700">Lingkup Pekerjaan</div>
-<div class="soft" style="background-color:#f8fafc">{{scope}}</div>
-<div class="section-title" style="background-color:#fffbeb;border-left:4pt solid #f5a700">Rincian Investasi</div>
-{{items_rows}}
-<div class="note" style="background-color:#fffbeb;border:1.5pt solid #f59e0b;color:#92400e">
-  Penawaran ini berlaku hingga <span class="strong">{{valid_until}}</span>.
-  Harga dan jadwal pengerjaan dapat berubah setelah tanggal tersebut.
+
+{% if layanan %}
+<div class="section">
+  <div class="section-eyebrow">Layanan utama</div>
+  <div class="section-title">{{layanan}}</div>
 </div>
+{% endif %}
+
+{% if scope and scope.strip() %}
+<div class="section">
+  <div class="section-eyebrow">Lingkup pekerjaan</div>
+  <div class="section-body">{{scope}}</div>
+</div>
+{% endif %}
+
+{% if items_rows and items_rows.strip() %}
+<div class="section">
+  <div class="section-eyebrow">Rincian investasi</div>
+  <div class="section-body">{{items_rows}}</div>
+</div>
+{% endif %}
+
+{% if valid_until %}
+<div class="validity">
+  Penawaran ini berlaku hingga <b>{{valid_until}}</b>. Harga dan jadwal dapat berubah setelah tanggal tersebut.
+</div>
+{% endif %}
+
 <div class="footer">
-  <span class="strong">{{brand_name}}</span><br/>{{tagline}}<br/>Proposal penawaran layanan profesional.
+  {% if brand_name %}<b>{{brand_name}}</b>{% if tagline %} · {{tagline}}{% endif %}<br/>{% endif %}
+  Proposal penawaran layanan
 </div>
-</div>
+
 </body>
 </html>"""
 

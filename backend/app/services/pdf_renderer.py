@@ -15,53 +15,112 @@ from urllib.parse import urlparse
 # inject_pdf_font used `font-family: "Liberation"` which is NOT installed.
 # WeasyPrint then fell back to URW Type1 (Nimbus) and emitted a PDF whose
 # CMap rendered blank in browsers (Ctrl+A shows "TEMAN TEMAN / No. No.").
-# Fix: embed a real TTF via @font-face with file:// absolute path. Bare
-# paths and src: local() are ignored by WeasyPrint on this host.
-_DOC_FONT_CANDIDATES = (
-    # Project-bundled TTFs (deployed under backend/uploads/)
-    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "DejaVuSans.ttf"),
-    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "LiberationSans-Regular.ttf"),
-    # Production absolute paths (LiteSpeed shared host)
-    "/home/qqwtlphb/backend/uploads/DejaVuSans.ttf",
-    "/home/qqwtlphb/backend/uploads/LiberationSans-Regular.ttf",
-    # System fallback (CJK-capable but works for Latin)
+# Previous fix only used DejaVuSans normal; bold tags got synthetic-bold
+# from the same normal TTF → letter-spacing collapsed (L AYANAN).
+# Fix: embed real TTFs via @font-face file:// (normal + bold at minimum).
+
+_DOC_FONT_MAP = {
+    "normal": (
+        "DejaVuSans.ttf",
+        "LiberationSans-Regular.ttf",
+    ),
+    "bold": (
+        "DejaVuSans-Bold.ttf",
+        "LiberationSans-Bold.ttf",
+        "DejaVuSans-Bold.ttf",  # second chance after liberation probe fails
+    ),
+    "italic": (
+        "DejaVuSans-Oblique.ttf",
+        "LiberationSans-Italic.ttf",
+    ),
+    "bold_italic": (
+        "DejaVuSans-BoldOblique.ttf",
+        "LiberationSans-BoldItalic.ttf",
+    ),
+}
+
+_UPLOADS_CANDIDATE_DIRS = (
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads"),
+    "/home/qqwtlphb/backend/uploads",
+)
+
+_SYSTEM_FALLBACK_TTFS = (
     "/usr/share/fonts/google-droid-sans-fonts/DroidSansFallbackFull.ttf",
 )
 
 
-def _resolve_doc_font_path() -> str | None:
-    for path in _DOC_FONT_CANDIDATES:
-        if path and os.path.isfile(path):
-            return os.path.realpath(path)
+def _find_ttf_in_uploads(names: tuple[str, ...]) -> str | None:
+    for directory in _UPLOADS_CANDIDATE_DIRS:
+        for name in names:
+            path = os.path.join(directory, name)
+            if os.path.isfile(path):
+                return os.path.realpath(path)
     return None
 
 
+def _resolve_doc_fonts() -> dict[str, str]:
+    found: dict[str, str] = {}
+    for variant, names in _DOC_FONT_MAP.items():
+        path = _find_ttf_in_uploads(names)
+        if path:
+            found[variant] = path
+    # System fallbacks — at least we have DejaVu/Liberation regular on most images,
+    # but we already checked there. Special case: if no bold, reuse normal rather
+    # than falling back to fake bold (synthetic) which breaks spacing.
+    if "normal" not in found:
+        for sys_path in _SYSTEM_FALLBACK_TTFS:
+            if os.path.isfile(sys_path):
+                found["normal"] = os.path.realpath(sys_path)
+                break
+    if "bold" not in found and "normal" in found:
+        found["bold"] = found["normal"]
+    return found
+
+
 def _pdf_font_css() -> str:
-    font_path = _resolve_doc_font_path()
-    if not font_path:
-        # Last resort — no TTF available; hope fontconfig aliases work.
+    fonts = _resolve_doc_fonts()
+    if not fonts.get("normal"):
         return "* { font-family: Helvetica, Arial, sans-serif; box-sizing: border-box; }"
-    # file:// is REQUIRED. Without the scheme WeasyPrint silently ignores the
-    # @font-face and falls back to broken Type1 fonts.
-    uri = "file://" + font_path
-    return f"""
-@font-face {{
-  font-family: "DocFont";
-  src: url("{uri}") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-}}
-@font-face {{
-  font-family: "DocFont";
-  src: url("{uri}") format("truetype");
-  font-weight: bold;
-  font-style: normal;
-}}
-html, body, table, td, th, div, span, p, h1, h2, h3, * {{
-  font-family: "DocFont", sans-serif !important;
-  box-sizing: border-box;
-}}
-"""
+
+    def _face(weight: str, style: str, path: str | None) -> str:
+        if not path or not os.path.isfile(path):
+            return ""
+        uri = "file://" + path
+        bold_kw = f"font-weight: {weight};" if weight in ("bold", "normal") else ""
+        italic_kw = f"font-style: {style};" if style in ("italic", "normal") else ""
+        return f'@font-face {{ font-family: "DocFont"; src: url("{uri}") format("truetype"); {bold_kw} {italic_kw} }}'
+
+    # Always emit normal; fallback bold to normal if bold file missing.
+    faces: list[str] = []
+    n = fonts.get("normal")
+    b = fonts.get("bold") or n
+    i = fonts.get("italic")
+    bi = fonts.get("bold_italic") or b
+
+    faces.append(_face("normal", "normal", n))
+    faces.append(_face("bold", "normal", b))
+    if i:
+        faces.append(_face("normal", "italic", i))
+    if bi:
+        faces.append(_face("bold", "italic", bi))
+
+    faces_css = "\n".join(f for f in faces if f)
+    # Inject once, but with strong override so template font-family:Helvetica etc
+    # does NOT win over embedded font (previous attempt had font-family in template
+    # CSS at 10.5pt which overrode inject because WeasyPrint's cascade favored later style).
+    return (
+        faces_css
+        + "\n"
+        + "html, body, table, td, th, div, span, p, h1, h2, h3, b, strong, i, em { "
+        + 'font-family: "DocFont", Helvetica, Arial, sans-serif !important; '
+        + "box-sizing: border-box; "
+        + "}\n"
+    )
+
+
+# Back-compat — some callers imported _resolve_doc_font_path
+def _resolve_doc_font_path() -> str | None:
+    return _resolve_doc_fonts().get("normal")
 
 
 def visible_text_from_html(rendered_html: str) -> str:
