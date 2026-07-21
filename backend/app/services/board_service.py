@@ -72,6 +72,7 @@ def card_to_out(card, workspace_linked_ids: Optional[set] = None) -> dict:
         "lead_id": card.lead_id,
         "lead": lead_out,
         "color": card.color or "gray",
+        "google_event_id": getattr(card, "google_event_id", None),
         "is_workspace_linked": bool(workspace_linked_ids and card.id in workspace_linked_ids),
         "comments": [_board_card_comment_to_out(c) for c in comments],
         "checklist": [_board_card_checklist_to_out(i) for i in checklist],
@@ -217,8 +218,31 @@ def create_board_card(
         actor=actor,
     )
     db.add(activity)
+
+    # Sync deadline to Google Calendar (best-effort)
+    if due_date:
+        try:
+            from app.core.services.google_calendar_service import sync_to_google_calendar
+            event_id = sync_to_google_calendar(
+                title=f"[Deadline] {title}",
+                date=due_date,
+                description=description or f"Board card deadline — assignee: {assignee or actor}",
+            )
+            if event_id:
+                card.google_event_id = event_id
+        except Exception as exc:
+            print(f"[BOARD] gcal sync create failed: {exc}", flush=True)
+
     db.commit()
     db.refresh(card)
+
+    try:
+        from models import log_audit
+        log_audit(db, actor, "CREATE", "board_cards", card.id, {
+            "title": title, "due_date": due_date, "column_id": column_id,
+        })
+    except Exception:
+        pass
 
     return card_to_out(card)
 
@@ -248,7 +272,27 @@ def update_board_card(db: Session, card_id: str, updates: dict, actor: str) -> d
     if "assignee" in updates:
         card.assignee = updates["assignee"]
     if "due_date" in updates:
+        old_due = card.due_date
         card.due_date = updates["due_date"]
+        try:
+            from app.core.services.google_calendar_service import (
+                sync_to_google_calendar,
+                delete_google_calendar_event,
+            )
+            if card.due_date:
+                event_id = sync_to_google_calendar(
+                    title=f"[Deadline] {card.title}",
+                    date=card.due_date,
+                    event_id=getattr(card, "google_event_id", None),
+                    description=card.description or f"Board card deadline — assignee: {card.assignee or actor}",
+                )
+                if event_id:
+                    card.google_event_id = event_id
+            elif old_due and getattr(card, "google_event_id", None):
+                delete_google_calendar_event(card.google_event_id)
+                card.google_event_id = None
+        except Exception as exc:
+            print(f"[BOARD] gcal sync update failed: {exc}", flush=True)
     if "labels" in updates:
         card.labels = json.dumps(updates["labels"])
     if "column_id" in updates:
@@ -286,6 +330,15 @@ def update_board_card(db: Session, card_id: str, updates: dict, actor: str) -> d
 
     db.commit()
     db.refresh(card)
+    try:
+        from models import log_audit
+        log_audit(db, actor, "UPDATE", "board_cards", card.id, {
+            "fields": list(updates.keys()),
+            "title": card.title,
+            "due_date": card.due_date,
+        })
+    except Exception:
+        pass
     return card_to_out(card)
 
 
@@ -293,6 +346,12 @@ def delete_board_card(db: Session, card_id: str) -> None:
     card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
     if not card:
         raise ValueError("Card tidak ditemukan")
+    if getattr(card, "google_event_id", None):
+        try:
+            from app.core.services.google_calendar_service import delete_google_calendar_event
+            delete_google_calendar_event(card.google_event_id)
+        except Exception:
+            pass
     db.query(WorkspaceRow).filter(WorkspaceRow.board_card_id == card_id).update({"board_card_id": None})
     db.query(BoardCardActivity).filter(BoardCardActivity.card_id == card_id).delete()
     db.query(BoardCardAttachment).filter(BoardCardAttachment.card_id == card_id).delete()

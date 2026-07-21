@@ -25,7 +25,7 @@ export function SearchableSelect({
   onChange,
   placeholder = "Pilih...",
   searchPlaceholder = "Ketik untuk cari...",
-  maxDisplay = 10,
+  maxDisplay = 50,
   disabled = false,
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);

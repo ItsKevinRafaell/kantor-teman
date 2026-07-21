@@ -1,7 +1,8 @@
 "use client";
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import { Trash2, Archive, ArchiveRestore, User, CheckSquare, MessageSquare, History, Paperclip, Upload } from "lucide-react";
 import { Modal } from "./SharedModal";
+import { SearchableSelect } from "../ui/SearchableSelect";
 import { LABEL_COLORS } from "./types";
 import type { BoardUser } from "./types";
 
@@ -98,11 +99,18 @@ export function CardModal({
                 <span className="text-neutral-400 text-xs">(dari proyek)</span>
               </div>
             ) : (
-              <select value={cardForm.lead_id ?? ""} onChange={e => setCardForm((p: any) => ({ ...p, lead_id: e.target.value ? Number(e.target.value) : null }))}
-                className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm">
-                <option value="">Tanpa klien</option>
-                {leads.map((l: any) => <option key={l.id} value={l.id}>{l.business_name}</option>)}
-              </select>
+              <SearchableSelect
+                options={(leads || []).map((l: any) => ({
+                  value: String(l.id),
+                  label: l.business_name || `Lead #${l.id}`,
+                  sub: [l.phone_number, l.status].filter(Boolean).join(" · "),
+                }))}
+                value={cardForm.lead_id != null ? String(cardForm.lead_id) : ""}
+                onChange={(v) => setCardForm((p: any) => ({ ...p, lead_id: v ? Number(v) : null }))}
+                placeholder="Cari klien…"
+                searchPlaceholder="Nama / telepon…"
+                maxDisplay={80}
+              />
             )}
           </div>
         )}

@@ -1,10 +1,20 @@
 "use client";
+import { useMemo } from "react";
 import { Modal } from "./SharedModal";
+import { SearchableSelect } from "../ui/SearchableSelect";
 
 const COLORS = {
   primary: "bg-amber-500 hover:bg-amber-600 text-white",
   secondary: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700",
 };
+
+function leadOptions(leads: any[]) {
+  return (leads || []).map((l: any) => ({
+    value: String(l.id),
+    label: l.business_name || `Lead #${l.id}`,
+    sub: [l.phone_number, l.status, l.product_interest].filter(Boolean).join(" · "),
+  }));
+}
 
 interface ColumnModalProps {
   open: boolean;
@@ -48,6 +58,7 @@ interface ProjectModalProps {
 }
 
 export function ProjectModal({ open, form, setForm, leads, saving, onCreate, onClose }: ProjectModalProps) {
+  const options = useMemo(() => leadOptions(leads), [leads]);
   return (
     <Modal open={open} onClose={onClose} title="Buat Proyek Baru">
       <div className="space-y-4">
@@ -67,11 +78,15 @@ export function ProjectModal({ open, form, setForm, leads, saving, onCreate, onC
         </div>
         <div>
           <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Klien (opsional)</label>
-          <select value={form.lead_id ?? ""} onChange={e => setForm((p: any) => ({ ...p, lead_id: e.target.value ? Number(e.target.value) : null }))}
-            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm">
-            <option value="">Tanpa klien</option>
-            {leads.map((l: any) => <option key={l.id} value={l.id}>{l.business_name}</option>)}
-          </select>
+          <SearchableSelect
+            options={options}
+            value={form.lead_id != null ? String(form.lead_id) : ""}
+            onChange={(v) => setForm((p: any) => ({ ...p, lead_id: v ? Number(v) : null }))}
+            placeholder="Cari klien / prospek…"
+            searchPlaceholder="Ketik nama, telepon, status…"
+            maxDisplay={80}
+          />
+          <p className="mt-1 text-[11px] text-neutral-400">Ketik untuk filter — cocok kalau daftar panjang.</p>
         </div>
         <button onClick={onCreate} disabled={saving || !form.name.trim()}
           className={`w-full px-4 py-2 text-sm rounded-xl font-medium ${COLORS.primary} disabled:opacity-50`}>
@@ -93,6 +108,7 @@ interface EditProjectModalProps {
 }
 
 export function EditProjectModal({ open, form, setForm, leads, saving, onSave, onClose }: EditProjectModalProps) {
+  const options = useMemo(() => leadOptions(leads), [leads]);
   return (
     <Modal open={open} onClose={onClose} title="Edit Proyek">
       <div className="space-y-4">
@@ -111,11 +127,14 @@ export function EditProjectModal({ open, form, setForm, leads, saving, onSave, o
         </div>
         <div>
           <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Klien (opsional)</label>
-          <select value={form.lead_id ?? ""} onChange={e => setForm((p: any) => ({ ...p, lead_id: e.target.value ? Number(e.target.value) : null }))}
-            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm">
-            <option value="">Tanpa klien</option>
-            {leads.map((l: any) => <option key={l.id} value={l.id}>{l.business_name}</option>)}
-          </select>
+          <SearchableSelect
+            options={options}
+            value={form.lead_id != null ? String(form.lead_id) : ""}
+            onChange={(v) => setForm((p: any) => ({ ...p, lead_id: v ? Number(v) : null }))}
+            placeholder="Cari klien / prospek…"
+            searchPlaceholder="Ketik nama, telepon, status…"
+            maxDisplay={80}
+          />
         </div>
         <button onClick={onSave} disabled={saving || !form.name.trim()}
           className={`w-full px-4 py-2 text-sm rounded-xl font-medium ${COLORS.primary} disabled:opacity-50`}>

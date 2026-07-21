@@ -255,12 +255,15 @@ def get_content_types(current_user: User = Depends(get_current_user), db: Sessio
     row = db.query(SystemSettings).filter_by(key="content_types").first()
     if row and row.value:
         return json.loads(row.value)
+    # General calendar event types (not content-only)
     return [
-        {"value": "IG_CAROUSEL", "label": "IG Carousel", "color": "#f97316"},
-        {"value": "IG_REELS", "label": "IG Reels", "color": "#ec4899"},
-        {"value": "SEO_ARTICLE", "label": "Artikel SEO", "color": "#10b981"},
-        {"value": "TIKTOK", "label": "TikTok", "color": "#06b6d4"},
-        {"value": "YOUTUBE", "label": "YouTube", "color": "#ef4444"},
+        {"value": "MEETING", "label": "Meeting", "color": "#3b82f6"},
+        {"value": "DEADLINE", "label": "Deadline", "color": "#ef4444"},
+        {"value": "REMINDER", "label": "Reminder", "color": "#f59e0b"},
+        {"value": "CLIENT", "label": "Klien", "color": "#8b5cf6"},
+        {"value": "CONTENT", "label": "Konten", "color": "#10b981"},
+        {"value": "PERSONAL", "label": "Personal", "color": "#6b7280"},
+        {"value": "OTHER", "label": "Lainnya", "color": "#64748b"},
     ]
 
 
@@ -310,7 +313,11 @@ def get_content_schedules(current_user: User = Depends(get_current_user), db: Se
 
 @router.post("/api/content-schedule", response_model=ContentScheduleOut, status_code=201)
 def create_content_schedule(body: ContentScheduleIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    google_event_id = sync_to_google_calendar(body.title, body.schedule_date)
+    google_event_id = sync_to_google_calendar(
+        body.title,
+        body.schedule_date,
+        description=f"[{body.type}] via Kantor Teman Kalender · status {body.status}",
+    )
 
     schedule = ContentSchedule(
         id=str(uuid.uuid4()),
@@ -324,7 +331,9 @@ def create_content_schedule(body: ContentScheduleIn, current_user: User = Depend
     db.add(schedule)
     db.commit()
     db.refresh(schedule)
-    log_audit(db, current_user.name, "CREATE", "content_schedules", schedule.id, {"title": body.title})
+    log_audit(db, current_user.name, "CREATE", "content_schedules", schedule.id, {
+        "title": body.title, "type": body.type, "gcal": bool(google_event_id),
+    })
     return schedule
 
 
@@ -347,9 +356,18 @@ def update_content_schedule(schedule_id: str, body: ContentScheduleUpdate, curre
     db.commit()
     db.refresh(schedule)
 
-    sync_to_google_calendar(schedule.title, schedule.schedule_date, schedule.google_event_id)
+    new_event_id = sync_to_google_calendar(
+        schedule.title,
+        schedule.schedule_date,
+        schedule.google_event_id,
+        description=f"[{schedule.type}] via Kantor Teman Kalender · status {schedule.status}",
+    )
+    if new_event_id and new_event_id != schedule.google_event_id:
+        schedule.google_event_id = new_event_id
+        db.commit()
+        db.refresh(schedule)
 
-    log_audit(db, current_user.name, "UPDATE", "content_schedules", schedule_id, {"title": schedule.title})
+    log_audit(db, current_user.name, "UPDATE", "content_schedules", schedule_id, {"title": schedule.title, "type": schedule.type})
     return schedule
 
 

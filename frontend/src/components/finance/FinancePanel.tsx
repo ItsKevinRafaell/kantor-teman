@@ -9,6 +9,7 @@ import { downloadBlob } from "../../utils/download";
 import Modal from "../Modal";
 import Toast from "../Toast";
 import Pagination from "../Pagination";
+import { SearchableSelect } from "../ui/SearchableSelect";
 
 interface WalletData {
   id: number;
@@ -469,10 +470,20 @@ export default function FinancePanel() {
                   </label>
                   {linkClient && (
                     <div className="mt-2">
-                      <select value={txnForm.lead_id || ""} onChange={e => setTxnForm(f => ({ ...f, lead_id: Number(e.target.value) || null }))} className={inputCls}>
-                        <option value="">— Pilih Klien —</option>
-                        {clients.map(c => <option key={c.id} value={c.lead_id}>{c.business_name}</option>)}
-                      </select>
+                      <SearchableSelect
+                        options={clients
+                          .filter(c => c.lead_id)
+                          .map(c => ({
+                            value: String(c.lead_id),
+                            label: c.business_name,
+                            sub: `Lead #${c.lead_id}`,
+                          }))}
+                        value={txnForm.lead_id ? String(txnForm.lead_id) : ""}
+                        onChange={(v) => setTxnForm(f => ({ ...f, lead_id: v ? Number(v) : null }))}
+                        placeholder="Cari klien…"
+                        searchPlaceholder="Ketik nama klien…"
+                        maxDisplay={80}
+                      />
                     </div>
                   )}
                 </div>

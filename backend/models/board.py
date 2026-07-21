@@ -40,6 +40,7 @@ class BoardCard(Base):
     updated_at = Column(String(255), nullable=True)
     lead_id = Column(Integer, ForeignKey("leads.id"), nullable=True)
     color = Column(String(50), nullable=True, default="gray")
+    google_event_id = Column(String(255), nullable=True)
     column = relationship("BoardColumn", foreign_keys=[column_id])
     lead = relationship("Lead", foreign_keys=[lead_id])
 

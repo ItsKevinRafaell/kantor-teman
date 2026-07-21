@@ -304,6 +304,12 @@ export default function WorkspaceDetailPage() {
 
       {mainTab === "riwayat" && (
         <div className="space-y-4">
+          <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3 text-xs text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-200">
+            <p className="font-semibold">Apa itu Riwayat?</p>
+            <p className="mt-1 leading-relaxed opacity-90">
+              Timeline project (catatan handover, status, invoice, file, milestone). Bukan sheet kerja — sheet untuk task/SOP; riwayat untuk jejak keputusan & komunikasi. Audit log sistem (Settings) terpisah.
+            </p>
+          </div>
           {/* Form tambah */}
           <div className="rounded-xl border border-amber-100 bg-white p-4 dark:border-amber-900/40 dark:bg-[var(--bg-surface)]">
             <h3 className="mb-3 text-sm font-bold text-neutral-800 dark:text-neutral-100">Tambah Riwayat</h3>

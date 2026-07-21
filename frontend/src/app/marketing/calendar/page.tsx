@@ -169,8 +169,8 @@ export default function ContentCalendarPage() {
       <Toast message={toast?.message ?? null} type={toast?.type} onClose={() => setToast(null)} />
       <Modal
         open={!!deleteId}
-        title="Hapus Jadwal Konten?"
-        message="Item yang dihapus tidak bisa dikembalikan."
+        title="Hapus Jadwal?"
+        message="Event dihapus dari kalender app + Google Calendar (jika ter-sync)."
         confirmLabel="Hapus"
         confirmClass="bg-red-600 hover:bg-red-700"
         onConfirm={() => deleteId !== null && deleteSchedule(deleteId!)}
@@ -187,15 +187,15 @@ export default function ContentCalendarPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">Content Calendar</h1>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">Jadwal tayang konten agensi (sync Google Calendar)</p>
+          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">Kalender</h1>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">Kalender umum — meeting, deadline, konten, reminder. Sync ke Google Calendar akun kamu.</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowTypesModal(true)} className="btn-ghost flex items-center gap-1.5 text-xs">
             <Settings size={14} /> Kelola Tipe
           </button>
           <button onClick={() => openNewOnDate(todayStr)} className="btn-primary flex items-center gap-1.5 text-sm text-white">
-            <Plus size={16} /> Jadwalkan Konten
+            <Plus size={16} /> Jadwalkan
           </button>
         </div>
       </div>

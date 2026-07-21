@@ -26,7 +26,7 @@ const PAGES: SearchResult[] = [
   { id: "p-docs", kind: "page", title: "Dokumen & Laporan", href: "/documents" },
   { id: "p-generator", kind: "page", title: "Dokumen Resmi", href: "/documents/generator" },
   { id: "p-reports", kind: "page", title: "Laporan Klien", href: "/documents/reports" },
-  { id: "p-calendar", kind: "page", title: "Kalender Konten", href: "/marketing/calendar" },
+  { id: "p-calendar", kind: "page", title: "Kalender", href: "/marketing/calendar" },
   { id: "p-blast", kind: "page", title: "Analitik Pesan", href: "/marketing/blast-analytics" },
   { id: "p-campaigns", kind: "page", title: "Campaign & Kuota", href: "/marketing/campaigns" },
   { id: "p-content", kind: "page", title: "Generator Konten", href: "/content-generator" },

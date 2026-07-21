@@ -469,17 +469,22 @@ def list_generated_documents(
 
 @router.delete("/api/documents/generated/{did}", status_code=204)
 def delete_generated_document(did: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Soft-archive only — never hard-delete PDF/file so dokumen resmi tidak hilang."""
     d = db.query(GeneratedDocument).filter(GeneratedDocument.id == did).first()
     if not d:
         raise HTTPException(status_code=404, detail="Document tidak ditemukan")
-    if d.file_url:
-        fpath = _resolve_generated_document_file(d.file_url)
-        if fpath:
-            try:
-                os.remove(fpath)
-            except Exception:
-                pass
-    db.delete(d)
+    now = datetime.now(timezone.utc).isoformat()
+    # Soft archive: keep file on disk + DB row for audit/history
+    d.status = "Diarsipkan" if "Diarsipkan" in DOCUMENT_STATUSES else (d.status or "Draft")
+    d.archived_at = now
+    try:
+        log_audit(db, current_user.name, "ARCHIVE", "generated_documents", did, {
+            "template_name": d.template_name,
+            "file_url": d.file_url,
+            "soft": True,
+        })
+    except Exception:
+        pass
     db.commit()
 
 
