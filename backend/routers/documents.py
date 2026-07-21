@@ -628,7 +628,10 @@ def _build_brand_context(db: Session) -> dict:
         if match:
             chosen_url = match.file_url
     if chosen_url:
-        ctx["logo"] = f'<img src="{chosen_url}" alt="logo" style="max-height:60px"/>'
+        ctx["logo"] = (
+            f'<img src="{chosen_url}" alt="logo" '
+            f'style="max-height:48pt;max-width:150pt;height:auto;display:block"/>'
+        )
         ctx["logo_url"] = chosen_url
 
     for a in assets:
@@ -1214,7 +1217,14 @@ def _document_template_html(template: DocumentTemplate) -> str:
         and "{{brand_name}}" not in html_template
         and "{{nama_perusahaan}}" in html_template
     )
-    if (is_legacy or has_wrong_builtin_type or uses_deprecated_company_scope) and starter:
+    # Built-in proposal template: always prefer code starter so design polish
+    # (header-band, accent bar) ships without a manual DB seed step.
+    uses_old_proposal_layout = (
+        template_type == "proposal_pdf"
+        and starter
+        and "header-band" not in html_template
+    )
+    if (is_legacy or has_wrong_builtin_type or uses_deprecated_company_scope or uses_old_proposal_layout) and starter:
         return starter["html_template"]
     return html_template
 

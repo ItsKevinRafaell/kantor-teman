@@ -1156,6 +1156,43 @@ def render_pdf_with_xhtml2pdf(rendered_html: str, uploads_dir: str | None = None
     return pdf
 
 
+def _rewrite_uploads_to_file_urls(html: str, uploads_dir: str | None) -> str:
+    """Rewrite /uploads/... (and file:///uploads/...) to absolute file:// URLs.
+
+    WeasyPrint resolves root-relative `/uploads/x` to `file:///uploads/x`
+    (filesystem root, not the app uploads dir). Point them at the real disk
+    path so logos/images embed without depending on the custom fetcher alone.
+    """
+    if not uploads_dir or not html:
+        return html
+    uploads_real = os.path.realpath(uploads_dir)
+
+    def _abs_file_url(match: re.Match) -> str:
+        rel = match.group(1)
+        # strip query/hash if any slipped in
+        rel = rel.split("?", 1)[0].split("#", 1)[0]
+        local = os.path.normpath(os.path.join(uploads_real, rel))
+        if not (local.startswith(uploads_real + os.sep) or local == uploads_real):
+            return match.group(0)
+        if not os.path.isfile(local):
+            return match.group(0)
+        return f'file://{local}'
+
+    # src="/uploads/..." or src='/uploads/...'
+    html = re.sub(
+        r"""(?i)(?<=src=["'])/uploads/([^"']+)""",
+        _abs_file_url,
+        html,
+    )
+    # WeasyPrint-normalized form: file:///uploads/...
+    html = re.sub(
+        r"""(?i)(?<=src=["'])file:///uploads/([^"']+)""",
+        _abs_file_url,
+        html,
+    )
+    return html
+
+
 def render_pdf_with_weasyprint(rendered_html: str, uploads_dir: str | None = None) -> bytes:
     from weasyprint import HTML
 
@@ -1166,12 +1203,38 @@ def render_pdf_with_weasyprint(rendered_html: str, uploads_dir: str | None = Non
     for candidate in _DOC_FONT_CANDIDATES:
         if candidate and os.path.isfile(candidate):
             _font_allow.add(os.path.realpath(candidate))
+    uploads_real = os.path.realpath(uploads_dir) if uploads_dir else ""
 
     def _pdf_url_fetcher(url: str, **_kw):
         parsed = urlparse(url)
         path = parsed.path if parsed.scheme else url
 
-        # 1) Explicit font files via file:// or absolute path
+        # 1) /uploads/ assets — handle both /uploads/x and file:///uploads/x
+        #    and already-rewritten file:///abs/path/to/uploads/x
+        if uploads_real:
+            rel = None
+            if "/uploads/" in path:
+                rel = path.split("/uploads/", 1)[1]
+            elif path.startswith(uploads_real + os.sep):
+                rel = path[len(uploads_real) + 1:]
+            if rel is not None:
+                local_path = os.path.normpath(os.path.join(uploads_real, rel))
+                if (
+                    (local_path.startswith(uploads_real + os.sep) or local_path == uploads_real)
+                    and os.path.isfile(local_path)
+                ):
+                    ext = os.path.splitext(local_path)[1].lower().lstrip(".")
+                    mime = {
+                        "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+                        "webp": "image/webp", "gif": "image/gif", "svg": "image/svg+xml",
+                        "pdf": "application/pdf",
+                        "ttf": "font/ttf", "otf": "font/otf", "woff": "font/woff", "woff2": "font/woff2",
+                    }.get(ext, "application/octet-stream")
+                    with open(local_path, "rb") as f:
+                        data = f.read()
+                    return {"string": data, "mime_type": mime}
+
+        # 2) Explicit font files via file:// or absolute path
         if parsed.scheme in ("file", "") and path.startswith("/"):
             real = os.path.realpath(path)
             if real in _font_allow:
@@ -1179,32 +1242,12 @@ def render_pdf_with_weasyprint(rendered_html: str, uploads_dir: str | None = Non
                     data = f.read()
                 return {"string": data, "mime_type": "font/ttf"}
 
-        # 2) Local /uploads/ assets (images, logos)
-        if not uploads_dir:
-            return {"string": b"", "mime_type": "text/plain"}
-        marker = "/uploads/"
-        if marker not in path:
-            return {"string": b"", "mime_type": "text/plain"}
-        rel = path.split(marker, 1)[1]
-        # Security: reject traversal, scope to uploads_dir only.
-        local_path = os.path.normpath(os.path.join(uploads_dir, rel))
-        uploads_real = os.path.realpath(uploads_dir)
-        if not local_path.startswith(uploads_real + os.sep) and local_path != uploads_real:
-            return {"string": b"", "mime_type": "text/plain"}
-        if not os.path.exists(local_path) or not os.path.isfile(local_path):
-            return {"string": b"", "mime_type": "text/plain"}
-        ext = os.path.splitext(local_path)[1].lower().lstrip(".")
-        mime = {
-            "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
-            "webp": "image/webp", "gif": "image/gif", "svg": "image/svg+xml",
-            "pdf": "application/pdf",
-            "ttf": "font/ttf", "otf": "font/otf", "woff": "font/woff", "woff2": "font/woff2",
-        }.get(ext, "application/octet-stream")
-        with open(local_path, "rb") as f:
-            data = f.read()
-        return {"string": data, "mime_type": mime}
+        return {"string": b"", "mime_type": "text/plain"}
 
-    pdf = HTML(string=rendered_html, url_fetcher=_pdf_url_fetcher).write_pdf()
+    # Rewrite logo/image paths before render so WeasyPrint never asks for
+    # the broken file:///uploads/... root path.
+    rendered_html = _rewrite_uploads_to_file_urls(rendered_html, uploads_dir)
+    pdf = HTML(string=rendered_html, url_fetcher=_pdf_url_fetcher, base_url=f"file://{uploads_real}/" if uploads_real else None).write_pdf()
     if not _is_valid_pdf(pdf):
         raise RuntimeError("WeasyPrint menghasilkan PDF invalid")
     # NB: do NOT reject small PDFs by byte count. A valid report with one

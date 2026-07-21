@@ -90,33 +90,47 @@ PROPOSAL_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <style>
-@page{size:A4;margin:28pt 34pt}
-body{font-family:Helvetica,Arial,sans-serif;color:#1f2937;font-size:10.5pt;line-height:1.45}
+@page{size:A4;margin:22pt 26pt}
+body{font-family:Helvetica,Arial,sans-serif;color:#1f2937;font-size:10pt;line-height:1.5;margin:0}
 table{border-collapse:collapse}
 .w100{width:100%}
-.top{border-bottom:2pt solid #111827;margin-bottom:16pt;padding-bottom:12pt}
-.logo img{max-height:48pt;max-width:150pt}
-.eyebrow{font-size:8pt;font-weight:bold;color:#6b7280;text-transform:uppercase}
-.title{font-size:22pt;font-weight:bold;color:#111827}
-.accent{color:#b45309}
-.right{text-align:right}
-.muted{font-size:9pt;color:#6b7280}
+/* Header band */
+.header-band{background:#111827;color:#fff;padding:16pt 18pt;margin:0 0 16pt 0}
+.header-band td{vertical-align:middle;border:0;padding:0}
+.header-band .logo img{max-height:42pt;max-width:140pt}
+.header-band .eyebrow{font-size:7.5pt;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;color:#fbbf24;margin:0 0 4pt 0}
+.header-band .title{font-size:20pt;font-weight:bold;color:#ffffff;margin:0;line-height:1.15}
+.header-band .meta{text-align:right;font-size:8.5pt;color:#d1d5db;line-height:1.55}
+.header-band .meta .strong{color:#ffffff;font-weight:bold}
+/* Accent bar under header */
+.accent-bar{height:4pt;background:#f5a700;margin:0 0 14pt 0}
+/* Cards */
+.box{border:1pt solid #e5e7eb;border-radius:4pt;padding:10pt 12pt;vertical-align:top;background:#fafafa}
+.box-title{font-size:7.5pt;font-weight:bold;color:#b45309;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 6pt 0;border-bottom:1.5pt solid #fde68a;padding-bottom:3pt}
 .strong{font-weight:bold;color:#111827}
-.box{border:1pt solid #d1d5db;padding:9pt;vertical-align:top}
-.box-title{font-size:8pt;font-weight:bold;color:#6b7280;text-transform:uppercase;margin-bottom:4pt}
-.section-title{font-size:8pt;font-weight:bold;color:#4b5563;text-transform:uppercase;border-bottom:1pt solid #d1d5db;padding-bottom:3pt;margin-top:14pt;margin-bottom:6pt}
-.note{border:1pt solid #f59e0b;background-color:#fffbeb;color:#92400e;padding:8pt}
-.soft{background-color:#f8fafc;padding:8pt}
-.footer{border-top:1pt solid #d1d5db;margin-top:18pt;padding-top:8pt;font-size:8pt;color:#6b7280}
+.muted{font-size:8.5pt;color:#6b7280;line-height:1.45}
+/* Sections */
+.section-title{font-size:8pt;font-weight:bold;color:#111827;text-transform:uppercase;letter-spacing:0.05em;border-left:3pt solid #f5a700;padding:2pt 0 2pt 8pt;margin:14pt 0 6pt 0;background:#fffbeb}
+.soft{background:#f8fafc;border:1pt solid #e5e7eb;padding:10pt 12pt;line-height:1.5}
+.soft .strong{color:#b45309;font-size:11pt}
+/* Note / validity */
+.note{border:1pt solid #f59e0b;background:#fffbeb;color:#92400e;padding:9pt 12pt;margin-top:14pt;font-size:9pt}
+/* Footer */
+.footer{border-top:1.5pt solid #111827;margin-top:18pt;padding-top:8pt;font-size:8pt;color:#6b7280}
+.footer .strong{color:#111827}
+/* Investment table polish (items_rows is injected HTML) */
+.section-title + table,
+body table[style*="width:100%"]{margin-top:2pt}
 </style>
 </head>
 <body>
-<table class="w100 top">
+<table class="w100 header-band">
 <tr>
-<td width="58%" valign="top"><div class="logo">{{logo}}</div><div class="eyebrow">{{brand_name}}</div><div class="title">PROPOSAL PENAWARAN</div><div class="muted">No. <span class="strong">{{nomor}}</span></div></td>
-<td width="42%" valign="top" class="right muted">Tanggal: <span class="strong">{{tanggal}}</span><br/>Berlaku hingga: <span class="strong">{{valid_until}}</span></td>
+<td width="58%"><div class="logo">{{logo}}</div><div class="eyebrow">{{brand_name}}</div><div class="title">PROPOSAL PENAWARAN</div></td>
+<td width="42%" class="meta">No. <span class="strong">{{nomor}}</span><br/>Tanggal: <span class="strong">{{tanggal}}</span><br/>Berlaku hingga: <span class="strong">{{valid_until}}</span></td>
 </tr>
 </table>
+<div class="accent-bar"></div>
 <table class="w100">
 <tr>
 <td width="49%" class="box">
@@ -139,7 +153,7 @@ table{border-collapse:collapse}
 <div class="section-title">Rincian Investasi</div>
 {{items_rows}}
 <div class="note">Penawaran ini berlaku hingga <span class="strong">{{valid_until}}</span>. Harga dan jadwal pengerjaan dapat berubah setelah tanggal tersebut.</div>
-<div class="footer"><span class="strong">{{brand_name}}</span><br/>{{tagline}}<br/>Proposal penawaran layanan.</div>
+<div class="footer"><span class="strong">{{brand_name}}</span><br/>{{tagline}}<br/>Proposal penawaran layanan profesional.</div>
 </body>
 </html>"""
 
