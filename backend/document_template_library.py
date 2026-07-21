@@ -90,34 +90,41 @@ PROPOSAL_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <style>
-@page{size:A4;margin:32pt 36pt}
+@page{size:A4;margin:28pt 32pt}
 *{box-sizing:border-box}
-body{font-family:Helvetica,Arial,sans-serif;color:#1a1a1a;font-size:10pt;line-height:1.6;margin:0;padding:0;background:#ffffff}
+body{font-family:Helvetica,Arial,sans-serif;color:#1a1a1a;font-size:10pt;line-height:1.55;margin:0;padding:0;background:#ffffff}
 table{border-collapse:collapse;border-spacing:0}
 .w100{width:100%}
 a{color:#1a1a1a;text-decoration:none}
-.header{width:100%;margin:0 0 18pt 0}
+.header{width:100%;margin:0 0 14pt 0}
 .header td{vertical-align:top;padding:0;border:0}
-.logo img{max-height:36pt;max-width:120pt;display:block}
-.brandline{font-size:8pt;color:#6b7280;margin-top:6pt;text-transform:uppercase}
-.title{font-size:18pt;font-weight:bold;color:#111827;margin:0 0 3pt 0;line-height:1.15}
+.logo img{max-height:32pt;max-width:110pt;display:block}
+.brandline{font-size:7.5pt;color:#9ca3af;margin-top:6pt;text-transform:uppercase}
+.title{font-size:17pt;font-weight:bold;color:#111827;margin:0 0 2pt 0;line-height:1.15}
 .meta{text-align:right;font-size:8.5pt;color:#6b7280;line-height:1.6}
 .meta b{color:#111827}
-.rule{border:0;border-top:0.6pt solid #e5e7eb;margin:0 0 18pt 0;height:0}
-.parties{margin:0 0 4pt 0}
+.rule{border:0;border-top:0.8pt solid #f3f4f6;margin:0 0 16pt 0;height:0}
+.parties{margin:0 0 2pt 0}
 .parties td{vertical-align:top;padding:0;border:0}
-.eyebrow{font-size:7pt;font-weight:bold;color:#9ca3af;text-transform:uppercase;margin:0 0 5pt 0}
-.identity{font-size:11pt;font-weight:bold;color:#111827;margin:0 0 3pt 0;line-height:1.25}
-.detail{font-size:8.5pt;color:#4b5563;line-height:1.5}
+.eyebrow{font-size:6.5pt;font-weight:bold;color:#9ca3af;text-transform:uppercase;margin:0 0 4pt 0}
+.identity{font-size:10.5pt;font-weight:bold;color:#111827;margin:0 0 2pt 0;line-height:1.2}
+.detail{font-size:8.5pt;color:#6b7280;line-height:1.5}
 .detail:empty{display:none}
-.section{margin:20pt 0 0 0}
-.section-eyebrow{font-size:7pt;font-weight:bold;color:#9ca3af;text-transform:uppercase;margin:0 0 6pt 0}
-.section-title{font-size:11pt;font-weight:bold;color:#111827;margin:0 0 5pt 0;line-height:1.25}
-.section-body{font-size:9pt;color:#1f2937;line-height:1.65}
+.section{margin:18pt 0 0 0}
+.section-eyebrow{font-size:6pt;font-weight:bold;color:{{brand_accent or '#f5a700'}};text-transform:uppercase;margin:0 0 4pt 0;padding-left:8pt;border-left:3pt solid {{brand_accent or '#f5a700'}}}
+.section-title{font-size:11pt;font-weight:bold;color:#111827;margin:0 0 4pt 0;line-height:1.25}
+.section-body{font-size:9pt;color:#374151;line-height:1.65}
 .section-body b,.section-body strong{font-weight:bold;color:#111827}
-.validity{margin-top:20pt;font-size:8.5pt;color:#6b7280;line-height:1.5}
-.validity b{color:#111827}
-.footer{margin-top:28pt;padding-top:10pt;border-top:0.6pt solid #e5e7eb;font-size:8pt;color:#9ca3af;line-height:1.5}
+.inv-wrap{margin-top:0}
+.inv-wrap table{width:100%;border-collapse:collapse;font-size:9pt}
+.inv-wrap table thead th{font-size:6.5pt;font-weight:bold;color:#ffffff;text-transform:uppercase;text-align:left;padding:6pt 6pt 5pt 6pt;background:{{brand_accent or '#f5a700'}};vertical-align:bottom}
+.inv-wrap table thead th:last-child{border-radius:0 3pt 0 0}
+.inv-wrap table thead th:first-child{border-radius:3pt 0 0 0}
+.inv-wrap table tbody td{padding:9pt 6pt;border-bottom:0.6pt solid #f3f4f6;vertical-align:top;color:#1f2937}
+.inv-wrap table tfoot td{border-top:1.2pt solid #111827;font-weight:bold;color:#111827;padding:10pt 6pt 0 6pt}
+.validity{margin-top:18pt;font-size:8pt;color:#9ca3af;padding:8pt 10pt;border-left:3pt solid {{brand_accent or '#f5a700'}};line-height:1.5}
+.validity b{color:#6b7280}
+.footer{margin-top:24pt;padding-top:8pt;border-top:0.6pt solid #e5e7eb;font-size:7.5pt;color:#9ca3af;line-height:1.5}
 .footer b{color:#6b7280}
 </style>
 </head>
@@ -125,11 +132,11 @@ a{color:#1a1a1a;text-decoration:none}
 
 <table class="w100 header">
 <tr>
-<td width="54%" style="padding:0 12pt 10pt 0">
+<td width="54%" style="padding:0 12pt 6pt 0">
   {% if logo %}<div class="logo">{{logo}}</div>{% endif %}
   {% if brand_name %}<div class="brandline">{{brand_name}}</div>{% endif %}
 </td>
-<td width="46%" class="meta" style="padding:0 0 10pt 12pt;text-align:right">
+<td width="46%" class="meta" style="padding:0 0 6pt 12pt;text-align:right">
   <div class="title">Proposal Penawaran</div>
   {% if nomor %}No. <b>{{nomor}}</b><br/>{% endif %}
   {% if tanggal %}Tanggal <b>{{tanggal}}</b><br/>{% endif %}
@@ -141,7 +148,7 @@ a{color:#1a1a1a;text-decoration:none}
 
 <table class="w100 parties">
 <tr>
-<td width="50%" style="padding:0 20pt 0 0">
+<td width="50%" style="padding:0 18pt 0 0">
   <div class="eyebrow">Penyedia jasa</div>
   {% if brand_name %}<div class="identity">{{brand_name}}</div>{% endif %}
   <div class="detail">
@@ -150,7 +157,8 @@ a{color:#1a1a1a;text-decoration:none}
     {% if email_perusahaan %}{{email_perusahaan}}{% endif %}
   </div>
 </td>
-<td width="50%" style="padding:0 0 0 20pt">
+<td width="4%"></td>
+<td width="50%" style="padding:0 0 0 18pt">
   <div class="eyebrow">Disiapkan untuk</div>
   {% if klien %}<div class="identity">{{klien}}</div>{% endif %}
   <div class="detail">
@@ -178,7 +186,7 @@ a{color:#1a1a1a;text-decoration:none}
 {% if items_rows and items_rows.strip() %}
 <div class="section">
   <div class="section-eyebrow">Rincian investasi</div>
-  <div class="section-body">{{items_rows}}</div>
+  <div class="inv-wrap">{{items_rows}}</div>
 </div>
 {% endif %}
 

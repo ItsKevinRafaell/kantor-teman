@@ -634,6 +634,20 @@ def _build_brand_context(db: Session) -> dict:
         )
         ctx["logo_url"] = chosen_url
 
+    # Brand accent color (yellow #f5a700) for proposal highlights
+    fallback_accent = "#f5a700"
+    if not ctx.get("brand_accent"):
+        # prefer yellow / Optimism Yellow
+        for pref in ("optimism_yellow", "yellow", "brand_yellow", "accent", "primary_yellow"):
+            for key in (pref, pref.replace("_", " "), pref.replace("_", "-")):
+                v = ctx.get("colors", {}).get(key.lower()) or ""
+                if v and v.startswith("#"):
+                    ctx["brand_accent"] = v
+                    break
+            if ctx.get("brand_accent"):
+                break
+        ctx.setdefault("brand_accent", fallback_accent)
+
     for a in assets:
         if a.asset_type == "color":
             ctx["colors"][a.name.lower().replace(" ", "_")] = a.value or ""
