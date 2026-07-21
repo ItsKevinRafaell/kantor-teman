@@ -11,8 +11,56 @@ from html.parser import HTMLParser
 from urllib.parse import urlparse
 
 
-PDF_FONT_CSS = """
-* { font-family: "Liberation", Helvetica, Arial, sans-serif; box-sizing: border-box; }
+# Shared-host WeasyPrint blank-text root cause (audited 2026-07-21):
+# inject_pdf_font used `font-family: "Liberation"` which is NOT installed.
+# WeasyPrint then fell back to URW Type1 (Nimbus) and emitted a PDF whose
+# CMap rendered blank in browsers (Ctrl+A shows "TEMAN TEMAN / No. No.").
+# Fix: embed a real TTF via @font-face with file:// absolute path. Bare
+# paths and src: local() are ignored by WeasyPrint on this host.
+_DOC_FONT_CANDIDATES = (
+    # Project-bundled TTFs (deployed under backend/uploads/)
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "DejaVuSans.ttf"),
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "LiberationSans-Regular.ttf"),
+    # Production absolute paths (LiteSpeed shared host)
+    "/home/qqwtlphb/backend/uploads/DejaVuSans.ttf",
+    "/home/qqwtlphb/backend/uploads/LiberationSans-Regular.ttf",
+    # System fallback (CJK-capable but works for Latin)
+    "/usr/share/fonts/google-droid-sans-fonts/DroidSansFallbackFull.ttf",
+)
+
+
+def _resolve_doc_font_path() -> str | None:
+    for path in _DOC_FONT_CANDIDATES:
+        if path and os.path.isfile(path):
+            return os.path.realpath(path)
+    return None
+
+
+def _pdf_font_css() -> str:
+    font_path = _resolve_doc_font_path()
+    if not font_path:
+        # Last resort — no TTF available; hope fontconfig aliases work.
+        return "* { font-family: Helvetica, Arial, sans-serif; box-sizing: border-box; }"
+    # file:// is REQUIRED. Without the scheme WeasyPrint silently ignores the
+    # @font-face and falls back to broken Type1 fonts.
+    uri = "file://" + font_path
+    return f"""
+@font-face {{
+  font-family: "DocFont";
+  src: url("{uri}") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}}
+@font-face {{
+  font-family: "DocFont";
+  src: url("{uri}") format("truetype");
+  font-weight: bold;
+  font-style: normal;
+}}
+html, body, table, td, th, div, span, p, h1, h2, h3, * {{
+  font-family: "DocFont", sans-serif !important;
+  box-sizing: border-box;
+}}
 """
 
 
@@ -23,7 +71,7 @@ def visible_text_from_html(rendered_html: str) -> str:
 
 
 def inject_pdf_font(rendered_html: str) -> str:
-    font_tag = f"<style>{PDF_FONT_CSS}</style>"
+    font_tag = f"<style>{_pdf_font_css()}</style>"
     if "<head>" in rendered_html:
         return rendered_html.replace("<head>", f"<head>{font_tag}", 1)
     if "<html>" in rendered_html:
@@ -1111,13 +1159,29 @@ def render_pdf_with_xhtml2pdf(rendered_html: str, uploads_dir: str | None = None
 def render_pdf_with_weasyprint(rendered_html: str, uploads_dir: str | None = None) -> bytes:
     from weasyprint import HTML
 
+    # Allowlisted absolute TTF paths for @font-face (file://). Without this the
+    # url_fetcher returns empty bytes for non-/uploads/ URLs and WeasyPrint
+    # silently falls back to URW Type1 → blank text in browser PDF viewers.
+    _font_allow = set()
+    for candidate in _DOC_FONT_CANDIDATES:
+        if candidate and os.path.isfile(candidate):
+            _font_allow.add(os.path.realpath(candidate))
+
     def _pdf_url_fetcher(url: str, **_kw):
-        # Resolve only local /uploads/ files to their bytes so embedded <img>
-        # screenshots render. External URLs return empty bytes (no network).
-        if not uploads_dir:
-            return {"string": b"", "mime_type": "text/plain"}
         parsed = urlparse(url)
         path = parsed.path if parsed.scheme else url
+
+        # 1) Explicit font files via file:// or absolute path
+        if parsed.scheme in ("file", "") and path.startswith("/"):
+            real = os.path.realpath(path)
+            if real in _font_allow:
+                with open(real, "rb") as f:
+                    data = f.read()
+                return {"string": data, "mime_type": "font/ttf"}
+
+        # 2) Local /uploads/ assets (images, logos)
+        if not uploads_dir:
+            return {"string": b"", "mime_type": "text/plain"}
         marker = "/uploads/"
         if marker not in path:
             return {"string": b"", "mime_type": "text/plain"}
@@ -1134,6 +1198,7 @@ def render_pdf_with_weasyprint(rendered_html: str, uploads_dir: str | None = Non
             "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
             "webp": "image/webp", "gif": "image/gif", "svg": "image/svg+xml",
             "pdf": "application/pdf",
+            "ttf": "font/ttf", "otf": "font/otf", "woff": "font/woff", "woff2": "font/woff2",
         }.get(ext, "application/octet-stream")
         with open(local_path, "rb") as f:
             data = f.read()
@@ -1207,33 +1272,32 @@ def _renderer_chain(env_value: str, template_type: str | None) -> tuple[str, ...
     ReportLab first. ReportLab embeds its built-in Helvetica-Bold and is
     unaffected by system fonts.
     """
+    # With @font-face file:// DejaVu inject, WeasyPrint now embeds legible text
+    # on this shared host. Prefer it for HTML-shaped templates (proposals).
     if env_value == "weasyprint":
-        order = ["textfb", "reportlab", "xhtml2pdf"]
+        order = ["weasyprint", "xhtml2pdf", "textfb"]
     elif env_value == "xhtml2pdf":
         order = ["xhtml2pdf", "reportlab", "textfb"]
     elif env_value == "auto":
         if template_type in _REPORT_TYPES:
-            # Client reports go straight to text-fallback — never reportlab
-            # (which can't lay out CSS-grid KPIs) and never weasyprint (whose
-            # Type1 path emits a sparse CMap on this host).
             order = ["textfb"]
         elif template_type in _REPORTLAB_FIRST_TYPES:
             order = ["reportlab", "xhtml2pdf", "textfb"]
         elif template_type in _HTML_FIRST_TYPES:
-            order = ["xhtml2pdf", "reportlab", "textfb"]
+            order = ["weasyprint", "xhtml2pdf", "textfb"]
         else:
-            order = ["textfb", "reportlab", "xhtml2pdf"]
+            order = ["weasyprint", "xhtml2pdf", "textfb"]
     else:
-        # Default (reportlab) — explicit reportlab-first, but skip for
-        # templates whose HTML ReportLab can't parse (reports, proposals, etc.)
+        # PDF_RENDERER=reportlab (prod .env) — still route HTML templates
+        # through WeasyPrint so proposal/CSS layouts stay intact.
         if template_type in _REPORT_TYPES:
             order = ["textfb"]
         elif template_type in _REPORTLAB_FIRST_TYPES:
             order = ["reportlab", "xhtml2pdf", "textfb"]
         elif template_type in _HTML_FIRST_TYPES:
-            order = ["xhtml2pdf", "textfb"]
+            order = ["weasyprint", "xhtml2pdf", "textfb"]
         else:
-            order = ["textfb", "reportlab", "xhtml2pdf"]
+            order = ["weasyprint", "xhtml2pdf", "textfb"]
     return tuple(order)
 
 
