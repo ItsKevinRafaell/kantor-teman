@@ -172,7 +172,17 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
+export default function Sidebar({
+  open,
+  onClose,
+  desktopCollapsed = false,
+  onToggleDesktop,
+}: {
+  open?: boolean;
+  onClose?: () => void;
+  desktopCollapsed?: boolean;
+  onToggleDesktop?: () => void;
+}) {
   const pathname = usePathname();
   const { isAdmin } = useAuth();
   const [customizing, setCustomizing] = useState(false);
@@ -201,20 +211,46 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
       {open && (
         <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={onClose} />
       )}
-      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-60 shrink-0 bg-[var(--bg-surface)] dark:bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] flex flex-col h-full transform transition-transform duration-200 ease-in-out ${open ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}>
-        <div className="px-6 py-5 border-b border-[var(--border-subtle)] flex items-center justify-between">
-          <div>
-            <Logo variant="secondary" color={logoColor} size={32} src={logoUrl ?? undefined} className="h-8 w-auto object-contain" />
-            <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 font-medium uppercase tracking-widest">CRM Internal</p>
-          </div>
+      <aside
+        className={[
+          "fixed lg:static inset-y-0 left-0 z-50 shrink-0 bg-[var(--bg-surface)] dark:bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] flex flex-col h-full transform transition-all duration-200 ease-in-out",
+          open ? "translate-x-0" : "-translate-x-full",
+          "lg:translate-x-0",
+          desktopCollapsed ? "lg:w-16" : "lg:w-60",
+          "w-60",
+        ].join(" ")}
+      >
+        <div className={`py-5 border-b border-[var(--border-subtle)] flex items-center ${desktopCollapsed ? "px-2 justify-center" : "px-6 justify-between"}`}>
+          {!desktopCollapsed ? (
+            <div>
+              <Logo variant="secondary" color={logoColor} size={32} src={logoUrl ?? undefined} className="h-8 w-auto object-contain" />
+              <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 font-medium uppercase tracking-widest">CRM Internal</p>
+            </div>
+          ) : (
+            <Logo variant="secondary" color={logoColor} size={28} src={logoUrl ?? undefined} className="h-7 w-7 object-contain" />
+          )}
           <div className="relative flex items-center gap-1">
+            {onToggleDesktop && (
+              <button
+                type="button"
+                onClick={onToggleDesktop}
+                className="hidden lg:inline-flex p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                title={desktopCollapsed ? "Perluas sidebar" : "Ciutkan sidebar"}
+              >
+                {desktopCollapsed ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
+                )}
+              </button>
+            )}
             <button onClick={onClose} className="lg:hidden p-1 text-neutral-400 hover:text-neutral-600">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </button>
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+        <nav className={`flex-1 py-4 space-y-5 overflow-y-auto ${desktopCollapsed ? "px-2" : "px-3"}`}>
           {NAV_GROUPS.map((group) => {
             const visibleItems = group.items
               .filter(i => isAdmin || !i.adminOnly)
@@ -222,14 +258,16 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
             if (visibleItems.length === 0 && !customizing) return null;
             return (
             <div key={group.title}>
-              <p className="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-neutral-400/70 dark:text-neutral-600">
-                {group.title}
-              </p>
+              {!desktopCollapsed && (
+                <p className="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-neutral-400/70 dark:text-neutral-600">
+                  {group.title}
+                </p>
+              )}
               <div className="space-y-0.5">
                 {visibleItems.map((item) => {
                   const active = pathname === item.href || pathname === item.href + "/" || (item.href !== "/dashboard" && pathname.startsWith(item.href) && !NAV_GROUPS.some(g => g.items.some(i => i.href !== item.href && i.href.startsWith(item.href) && pathname.startsWith(i.href))));
                   const isHidden = hiddenItems.has(item.href);
-                  if (customizing) {
+                  if (customizing && !desktopCollapsed) {
                     return (
                       <button key={item.href} onClick={() => toggleItem(item.href)}
                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium transition-all ${isHidden ? "opacity-40 line-through" : ""} text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100/80 dark:hover:bg-neutral-800/60`}>
@@ -240,13 +278,13 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
                     );
                   }
                   return (
-                    <Link key={item.href} href={item.href} onClick={onClose}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-200 group ${active ? "bg-brand-yellow/10 text-brand-yellow shadow-sm" : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100/80 dark:hover:bg-neutral-800/60 hover:text-neutral-800 dark:hover:text-neutral-200"}`}>
+                    <Link key={item.href} href={item.href} onClick={onClose} title={item.label}
+                      className={`flex items-center rounded-xl text-[13px] font-medium transition-all duration-200 group ${desktopCollapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2"} ${active ? "bg-brand-yellow/10 text-brand-yellow shadow-sm" : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100/80 dark:hover:bg-neutral-800/60 hover:text-neutral-800 dark:hover:text-neutral-200"}`}>
                       <span className={`transition-colors duration-200 ${active ? "text-brand-yellow" : "text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300"}`}>
                         {item.icon}
                       </span>
-                      <span className="truncate">{item.label}</span>
-                      {active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-brand-yellow animate-pulse" />}
+                      {!desktopCollapsed && <span className="truncate">{item.label}</span>}
+                      {!desktopCollapsed && active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-brand-yellow animate-pulse" />}
                     </Link>
                   );
                 })}
@@ -256,13 +294,20 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
           })}
         </nav>
 
-        <div className="px-3 py-3 border-t border-[var(--border-subtle)] flex items-center justify-between">
-          <p className="text-[11px] text-neutral-400 dark:text-neutral-600 font-medium px-2">v1.0</p>
-          <button onClick={() => setCustomizing(!customizing)}
-            className={`text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors ${customizing ? "bg-brand-yellow text-white" : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
-            title="Pilih menu mana yang tampil di sidebar">
-            {customizing ? "Selesai" : "Atur Menu"}
-          </button>
+        <div className={`py-3 border-t border-[var(--border-subtle)] flex items-center ${desktopCollapsed ? "px-2 justify-center" : "px-3 justify-between"}`}>
+          {!desktopCollapsed && <p className="text-[11px] text-neutral-400 dark:text-neutral-600 font-medium px-2">v1.0</p>}
+          {!desktopCollapsed && (
+            <button onClick={() => setCustomizing(!customizing)}
+              className={`text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors ${customizing ? "bg-brand-yellow text-white" : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
+              title="Pilih menu mana yang tampil di sidebar">
+              {customizing ? "Selesai" : "Atur Menu"}
+            </button>
+          )}
+          {desktopCollapsed && onToggleDesktop && (
+            <button type="button" onClick={onToggleDesktop} className="p-2 rounded-lg text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800" title="Perluas sidebar">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
+            </button>
+          )}
         </div>
       </aside>
     </>

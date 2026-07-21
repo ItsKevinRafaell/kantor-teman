@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { Sun, Moon, Menu, Bell } from "lucide-react";
+import { Sun, Moon, Menu, Bell, Search, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { apiFetch } from "../lib/api";
 
@@ -15,7 +15,19 @@ interface NotificationItem {
   is_read?: boolean;
 }
 
-export default function TopBar({ onMenuClick, hideMenu }: { onMenuClick?: () => void; hideMenu?: boolean }) {
+export default function TopBar({
+  onMenuClick,
+  hideMenu,
+  onSearchClick,
+  onToggleDesktopSidebar,
+  desktopSidebarCollapsed,
+}: {
+  onMenuClick?: () => void;
+  hideMenu?: boolean;
+  onSearchClick?: () => void;
+  onToggleDesktopSidebar?: () => void;
+  desktopSidebarCollapsed?: boolean;
+}) {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -49,17 +61,43 @@ export default function TopBar({ onMenuClick, hideMenu }: { onMenuClick?: () => 
 
   return (
     <header className="h-14 shrink-0 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)] flex items-center px-4 sm:px-6 justify-between">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 min-w-0">
         {!hideMenu && (
           <button onClick={onMenuClick} className="lg:hidden p-2 -ml-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all" aria-label="Open menu">
             <Menu size={20} className="text-neutral-600 dark:text-neutral-300" />
           </button>
         )}
-        <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">
+        {onToggleDesktopSidebar && (
+          <button
+            type="button"
+            onClick={onToggleDesktopSidebar}
+            className="hidden lg:inline-flex p-2 -ml-1 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all"
+            aria-label={desktopSidebarCollapsed ? "Tampilkan sidebar" : "Sembunyikan sidebar"}
+            title={desktopSidebarCollapsed ? "Tampilkan sidebar" : "Sembunyikan sidebar"}
+          >
+            {desktopSidebarCollapsed
+              ? <PanelLeftOpen size={18} className="text-neutral-500 dark:text-neutral-300" />
+              : <PanelLeftClose size={18} className="text-neutral-500 dark:text-neutral-300" />}
+          </button>
+        )}
+        <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-200 truncate">
           Halo, {name}!
         </p>
       </div>
       <div className="flex items-center gap-1.5">
+        {onSearchClick && (
+          <button
+            type="button"
+            onClick={onSearchClick}
+            className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 text-xs text-neutral-500 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800/60 dark:text-neutral-300 dark:hover:bg-neutral-800"
+            aria-label="Global search"
+            title="Cari (⌘K / Ctrl+K)"
+          >
+            <Search size={14} />
+            <span className="hidden sm:inline">Cari…</span>
+            <kbd className="hidden md:inline rounded border border-neutral-200 bg-white px-1 py-0.5 text-[10px] text-neutral-400 dark:border-neutral-600 dark:bg-neutral-900">⌘K</kbd>
+          </button>
+        )}
         <div className="relative">
           <button
             onClick={() => setNotificationsOpen(v => !v)}
