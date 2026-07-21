@@ -1198,6 +1198,25 @@ def _prepare_document_vars(
         full_vars[key] = value if value is not None else ""
     for key, value in list(full_vars.items()):
         full_vars[key] = _normalize_document_variable(key, value)
+
+    # Alias map: frontend/API often sends client_name/nama_klien while templates use {{klien}}/{{nama}}
+    client_aliases = (
+        "klien", "nama", "nama_klien", "client_name", "perusahaan_klien",
+        "client", "nama_client", "nama_pelanggan",
+    )
+    client_val = next(
+        (str(full_vars[k]).strip() for k in client_aliases if str(full_vars.get(k) or "").strip()),
+        "",
+    )
+    if client_val:
+        for k in ("klien", "nama", "nama_klien", "perusahaan_klien", "client_name"):
+            if not str(full_vars.get(k) or "").strip():
+                full_vars[k] = client_val
+        if not str(full_vars.get("nama_klien") or "").strip():
+            full_vars["nama_klien"] = client_val
+        if not str(full_vars.get("perusahaan_klien") or "").strip():
+            full_vars["perusahaan_klien"] = client_val
+
     if "logo" not in body.variables or body.variables.get("logo", "").strip() == "":
         full_vars["logo"] = brand_ctx.get("logo", "")
     if reserve_number:
