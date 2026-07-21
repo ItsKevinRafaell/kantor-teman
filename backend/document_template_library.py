@@ -90,70 +90,138 @@ PROPOSAL_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <style>
-@page{size:A4;margin:22pt 26pt}
-body{font-family:Helvetica,Arial,sans-serif;color:#1f2937;font-size:10pt;line-height:1.5;margin:0}
-table{border-collapse:collapse}
+/* Force print backgrounds — WeasyPrint/Chrome otherwise strip table/div fills */
+*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
+@page{size:A4;margin:0}
+body{font-family:Helvetica,Arial,sans-serif;color:#1f2937;font-size:10pt;line-height:1.5;margin:0;padding:0;background:#ffffff}
+table{border-collapse:collapse;border-spacing:0}
 .w100{width:100%}
-/* Header band */
-.header-band{background:#111827;color:#fff;padding:16pt 18pt;margin:0 0 16pt 0}
-.header-band td{vertical-align:middle;border:0;padding:0}
-.header-band .logo img{max-height:42pt;max-width:140pt}
-.header-band .eyebrow{font-size:7.5pt;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;color:#fbbf24;margin:0 0 4pt 0}
+.page-pad{padding:0 26pt 22pt 26pt}
+
+/* Header: put background on TD (WeasyPrint often ignores table-level bg) */
+.header-band{width:100%;border-collapse:collapse;margin:0}
+.header-band td{
+  background-color:#111827;
+  color:#ffffff;
+  vertical-align:middle;
+  border:0;
+  padding:16pt 18pt;
+}
+.header-band .logo img{max-height:42pt;max-width:140pt;display:block}
+.header-band .eyebrow{
+  font-size:7.5pt;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;
+  color:#fbbf24;margin:6pt 0 4pt 0;
+}
 .header-band .title{font-size:20pt;font-weight:bold;color:#ffffff;margin:0;line-height:1.15}
 .header-band .meta{text-align:right;font-size:8.5pt;color:#d1d5db;line-height:1.55}
 .header-band .meta .strong{color:#ffffff;font-weight:bold}
-/* Accent bar under header */
-.accent-bar{height:4pt;background:#f5a700;margin:0 0 14pt 0}
+
+/* Amber accent strip under header */
+.accent-bar{
+  width:100%;height:5pt;background-color:#f5a700;
+  margin:0 0 16pt 0;border:0;padding:0;line-height:0;font-size:0;
+}
+
 /* Cards */
-.box{border:1pt solid #e5e7eb;border-radius:4pt;padding:10pt 12pt;vertical-align:top;background:#fafafa}
-.box-title{font-size:7.5pt;font-weight:bold;color:#b45309;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 6pt 0;border-bottom:1.5pt solid #fde68a;padding-bottom:3pt}
+.card-table{width:100%;margin:0 0 4pt 0}
+.box{
+  border:1.5pt solid #e5e7eb;
+  padding:10pt 12pt;
+  vertical-align:top;
+  background-color:#f9fafb;
+}
+.box-title{
+  font-size:7.5pt;font-weight:bold;color:#b45309;text-transform:uppercase;
+  letter-spacing:0.06em;margin:0 0 6pt 0;
+  border-bottom:1.5pt solid #fcd34d;padding-bottom:3pt;
+}
 .strong{font-weight:bold;color:#111827}
-.muted{font-size:8.5pt;color:#6b7280;line-height:1.45}
-/* Sections */
-.section-title{font-size:8pt;font-weight:bold;color:#111827;text-transform:uppercase;letter-spacing:0.05em;border-left:3pt solid #f5a700;padding:2pt 0 2pt 8pt;margin:14pt 0 6pt 0;background:#fffbeb}
-.soft{background:#f8fafc;border:1pt solid #e5e7eb;padding:10pt 12pt;line-height:1.5}
+.muted{font-size:8.5pt;color:#4b5563;line-height:1.45}
+
+/* Sections — amber left rail + warm fill */
+.section-title{
+  font-size:8pt;font-weight:bold;color:#111827;text-transform:uppercase;
+  letter-spacing:0.05em;
+  border-left:4pt solid #f5a700;
+  padding:5pt 0 5pt 10pt;
+  margin:14pt 0 6pt 0;
+  background-color:#fffbeb;
+}
+.soft{
+  background-color:#f8fafc;
+  border:1pt solid #e5e7eb;
+  padding:10pt 12pt;
+  line-height:1.5;
+}
 .soft .strong{color:#b45309;font-size:11pt}
-/* Note / validity */
-.note{border:1pt solid #f59e0b;background:#fffbeb;color:#92400e;padding:9pt 12pt;margin-top:14pt;font-size:9pt}
+
+/* Validity callout */
+.note{
+  border:1.5pt solid #f59e0b;
+  background-color:#fffbeb;
+  color:#92400e;
+  padding:9pt 12pt;
+  margin-top:14pt;
+  font-size:9pt;
+}
+
 /* Footer */
-.footer{border-top:1.5pt solid #111827;margin-top:18pt;padding-top:8pt;font-size:8pt;color:#6b7280}
+.footer{
+  border-top:2pt solid #111827;
+  margin-top:18pt;
+  padding-top:8pt;
+  font-size:8pt;
+  color:#6b7280;
+}
 .footer .strong{color:#111827}
-/* Investment table polish (items_rows is injected HTML) */
-.section-title + table,
-body table[style*="width:100%"]{margin-top:2pt}
 </style>
 </head>
 <body>
-<table class="w100 header-band">
+<table class="header-band w100">
 <tr>
-<td width="58%"><div class="logo">{{logo}}</div><div class="eyebrow">{{brand_name}}</div><div class="title">PROPOSAL PENAWARAN</div></td>
-<td width="42%" class="meta">No. <span class="strong">{{nomor}}</span><br/>Tanggal: <span class="strong">{{tanggal}}</span><br/>Berlaku hingga: <span class="strong">{{valid_until}}</span></td>
+<td width="58%" style="background-color:#111827;color:#ffffff;padding:16pt 18pt">
+  <div class="logo">{{logo}}</div>
+  <div class="eyebrow">{{brand_name}}</div>
+  <div class="title">PROPOSAL PENAWARAN</div>
+</td>
+<td width="42%" class="meta" style="background-color:#111827;color:#d1d5db;padding:16pt 18pt;text-align:right">
+  No. <span class="strong" style="color:#ffffff">{{nomor}}</span><br/>
+  Tanggal: <span class="strong" style="color:#ffffff">{{tanggal}}</span><br/>
+  Berlaku hingga: <span class="strong" style="color:#ffffff">{{valid_until}}</span>
+</td>
 </tr>
 </table>
-<div class="accent-bar"></div>
-<table class="w100">
+<div class="accent-bar" style="background-color:#f5a700;height:5pt;width:100%"></div>
+<div class="page-pad">
+<table class="w100 card-table">
 <tr>
-<td width="49%" class="box">
-<div class="box-title">Penyedia Jasa</div>
-<div class="strong">{{brand_name}}</div>
-<div class="muted">{{alamat_perusahaan}}<br/>{{phone_perusahaan}}<br/>{{email_perusahaan}}</div>
+<td width="49%" class="box" style="background-color:#f9fafb;border:1.5pt solid #e5e7eb;padding:10pt 12pt">
+  <div class="box-title">Penyedia Jasa</div>
+  <div class="strong">{{brand_name}}</div>
+  <div class="muted">{{alamat_perusahaan}}<br/>{{phone_perusahaan}}<br/>{{email_perusahaan}}</div>
 </td>
 <td width="2%"></td>
-<td width="49%" class="box">
-<div class="box-title">Disiapkan Untuk</div>
-<div class="strong">{{klien}}</div>
-<div class="muted">{{alamat}}<br/>{{phone}}</div>
+<td width="49%" class="box" style="background-color:#f9fafb;border:1.5pt solid #e5e7eb;padding:10pt 12pt">
+  <div class="box-title">Disiapkan Untuk</div>
+  <div class="strong">{{klien}}</div>
+  <div class="muted">{{alamat}}<br/>{{phone}}</div>
 </td>
 </tr>
 </table>
-<div class="section-title">Layanan Utama</div>
-<div class="soft"><span class="strong">{{layanan}}</span></div>
-<div class="section-title">Lingkup Pekerjaan</div>
-<div class="soft">{{scope}}</div>
-<div class="section-title">Rincian Investasi</div>
+<div class="section-title" style="background-color:#fffbeb;border-left:4pt solid #f5a700">Layanan Utama</div>
+<div class="soft" style="background-color:#f8fafc"><span class="strong" style="color:#b45309">{{layanan}}</span></div>
+<div class="section-title" style="background-color:#fffbeb;border-left:4pt solid #f5a700">Lingkup Pekerjaan</div>
+<div class="soft" style="background-color:#f8fafc">{{scope}}</div>
+<div class="section-title" style="background-color:#fffbeb;border-left:4pt solid #f5a700">Rincian Investasi</div>
 {{items_rows}}
-<div class="note">Penawaran ini berlaku hingga <span class="strong">{{valid_until}}</span>. Harga dan jadwal pengerjaan dapat berubah setelah tanggal tersebut.</div>
-<div class="footer"><span class="strong">{{brand_name}}</span><br/>{{tagline}}<br/>Proposal penawaran layanan profesional.</div>
+<div class="note" style="background-color:#fffbeb;border:1.5pt solid #f59e0b;color:#92400e">
+  Penawaran ini berlaku hingga <span class="strong">{{valid_until}}</span>.
+  Harga dan jadwal pengerjaan dapat berubah setelah tanggal tersebut.
+</div>
+<div class="footer">
+  <span class="strong">{{brand_name}}</span><br/>{{tagline}}<br/>Proposal penawaran layanan profesional.
+</div>
+</div>
 </body>
 </html>"""
 
