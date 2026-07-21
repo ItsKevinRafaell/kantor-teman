@@ -518,6 +518,9 @@ def update_generated_document_workflow(
         doc.signed_at = now
     elif body.status == "Diarsipkan":
         doc.archived_at = now
+    elif doc.archived_at and body.status != "Diarsipkan":
+        # Un-archive when moving back to an active workflow status
+        doc.archived_at = None
 
     archive_doc = db.query(Document).filter(Document.source_type == "generated_document", Document.source_id == did).first()
     if archive_doc:
