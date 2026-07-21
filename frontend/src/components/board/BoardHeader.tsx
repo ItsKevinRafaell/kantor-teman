@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { Plus, Archive, ArchiveRestore } from "lucide-react";
 
 const COLORS = {
@@ -34,25 +35,36 @@ export default function BoardHeader({
               Semua Proyek
             </button>
             <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">{currentProject.name}</h1>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Kanban harian · deadline sync ke Google Calendar</p>
           </div>
         ) : (
           <div>
-            <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">Board Proyek</h1>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Pantau tugas proyek dari rencana sampai selesai.</p>
+            <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">Board</h1>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Kanban eksekusi harian (tugas, assignee, deadline). Sheet retainer bulanan ada di Workspace.</p>
           </div>
         )}
       </div>
       <div className="flex items-center gap-2 flex-wrap justify-end">
         {viewMode === "overview" && (
-          <label className="flex items-center gap-2 px-3 py-2 text-sm rounded-xl cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
-            <input type="checkbox" checked={showArchivedProjects} onChange={e => setShowArchivedProjects(e.target.checked)} className="accent-amber-500 w-4 h-4" />
-            Tampilkan arsip
-          </label>
+          <>
+            <Link href="/workspace" className={`px-3 py-2 text-sm rounded-xl ${COLORS.secondary}`}>
+              Ke Workspace
+            </Link>
+            <label className="flex items-center gap-2 px-3 py-2 text-sm rounded-xl cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+              <input type="checkbox" checked={showArchivedProjects} onChange={e => setShowArchivedProjects(e.target.checked)} className="accent-amber-500 w-4 h-4" />
+              Tampilkan arsip
+            </label>
+          </>
         )}
         {isAdmin && (
           <button onClick={onNewProject} className={`px-3 py-2 text-sm rounded-xl flex items-center gap-1 ${COLORS.secondary}`}>
             <Plus className="w-4 h-4" /> Proyek Baru
           </button>
+        )}
+        {board && currentProject && (
+          <Link href={`/workspace/${currentProject.id}`} className={`px-3 py-2 text-sm rounded-xl ${COLORS.secondary}`}>
+            Sheet Workspace
+          </Link>
         )}
         {board && (
           <>

@@ -20,6 +20,18 @@ interface NavGroup {
   items: NavItem[];
 }
 
+/** Secondary routes: hidden by default, still available via Atur Menu / ⌘K / URL */
+const DEFAULT_HIDDEN_HREFS = [
+  "/docs",
+  "/content-generator",
+  "/tasks",
+  "/documents/generator",
+  "/documents/reports",
+];
+
+const SIDEBAR_HIDDEN_KEY = "sidebar_hidden_items";
+const SIDEBAR_DEFAULTS_SEEDED_KEY = "sidebar_defaults_v2";
+
 const NAV_GROUPS: NavGroup[] = [
   {
     title: "MENU UTAMA",
@@ -46,12 +58,12 @@ const NAV_GROUPS: NavGroup[] = [
       },
       {
         href: "/board",
-        label: "Board Proyek",
+        label: "Board",
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="5" height="18" rx="1" /><rect x="10" y="3" width="5" height="12" rx="1" /><rect x="17" y="3" width="5" height="15" rx="1" /></svg>,
       },
       {
         href: "/workspace",
-        label: "Workspace Klien",
+        label: "Workspace",
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>,
       },
     ],
@@ -104,11 +116,11 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    title: "DOKUMEN & LAPORAN",
+    title: "DOKUMEN",
     items: [
       {
         href: "/documents",
-        label: "Dokumen & Laporan",
+        label: "Dokumen",
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>,
       },
       {
@@ -185,7 +197,18 @@ export default function Sidebar({
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem("sidebar_hidden_items");
+      const seeded = localStorage.getItem(SIDEBAR_DEFAULTS_SEEDED_KEY);
+      const stored = localStorage.getItem(SIDEBAR_HIDDEN_KEY);
+      if (!seeded) {
+        // One-time seed: hide secondary routes so core CRM nav stays short.
+        // Users who already customized keep their list; seed only merges defaults once.
+        const existing = stored ? (JSON.parse(stored) as string[]) : [];
+        const merged = Array.from(new Set([...existing, ...DEFAULT_HIDDEN_HREFS]));
+        localStorage.setItem(SIDEBAR_HIDDEN_KEY, JSON.stringify(merged));
+        localStorage.setItem(SIDEBAR_DEFAULTS_SEEDED_KEY, "1");
+        setHiddenItems(new Set(merged));
+        return;
+      }
       if (stored) setHiddenItems(new Set(JSON.parse(stored)));
     } catch { /* silent */ }
   }, []);
@@ -195,7 +218,7 @@ export default function Sidebar({
       const next = new Set(prev);
       if (next.has(href)) next.delete(href);
       else next.add(href);
-      localStorage.setItem("sidebar_hidden_items", JSON.stringify(Array.from(next)));
+      localStorage.setItem(SIDEBAR_HIDDEN_KEY, JSON.stringify(Array.from(next)));
       return next;
     });
   }

@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { Suspense, useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { apiFetch } from "../../lib/api";
 import { Search, User } from "lucide-react";
 import type { DragEvent } from "react";
@@ -14,8 +15,9 @@ import { CardModal } from "../../components/board/CardModal";
 import { COLUMN_COLORS, BOARD_TOP_BORDER } from "../../components/board/types";
 import type { Lead, Project, BoardCard, BoardColumn, Board, BoardOverview, BoardUser } from "../../components/board/types";
 
-export default function BoardPage() {
+function BoardPageInner() {
   const { isAdmin } = useAuth();
+  const searchParams = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [users, setUsers] = useState<BoardUser[]>([]);
@@ -69,6 +71,10 @@ export default function BoardPage() {
 
   useEffect(() => { fetchProjects(); fetchOverview(false); fetchLeads(); fetchUsers(); }, []);
   useEffect(() => { fetchOverview(showArchivedProjects); }, [showArchivedProjects]);
+  useEffect(() => {
+    const pid = searchParams.get("project_id") || searchParams.get("project") || "";
+    if (pid) setSelectedProject(pid);
+  }, [searchParams]);
   useEffect(() => { if (selectedProject) { fetchBoard(selectedProject, showArchived); setViewMode("board"); } else { setBoard(null); setViewMode("overview"); } }, [selectedProject, showArchived]);
 
   // Project CRUD
@@ -442,5 +448,13 @@ export default function BoardPage() {
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
+  );
+}
+
+export default function BoardPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-neutral-400">Memuat board...</div>}>
+      <BoardPageInner />
+    </Suspense>
   );
 }

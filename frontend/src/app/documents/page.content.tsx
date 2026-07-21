@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "../../lib/api";
 import {
   BarChart3, ChevronLeft, ChevronRight, Edit2, ExternalLink, Eye, FileText,
-  Folder, FolderOpen, Home, Panel, Plus, Search, Trash2,
+  Folder, FolderOpen, Home, Plus, Search, Trash2,
 } from "lucide-react";
 import Toast from "../../components/Toast";
 import ConfirmModal from "../../components/Modal";
@@ -466,8 +466,8 @@ export default function DocumentsContent() {
         <div className="rounded-2xl border border-amber-100 bg-white p-4 shadow-sm dark:border-amber-900/40 dark:bg-[var(--bg-surface)]">
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>
-              <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-50">Dokumen & Laporan</h1>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">Pilih flow dulu supaya dokumen resmi, proposal, laporan klien, dan arsip tidak tercampur.</p>
+              <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-50">Dokumen</h1>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">Hub: dokumen resmi, proposal, laporan klien (delivery), audit lead, dan arsip tim.</p>
             </div>
             <button type="button" onClick={toggleFlowCards}
               className="shrink-0 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">
@@ -488,13 +488,13 @@ export default function DocumentsContent() {
               </Link>
               <Link href="/documents/reports" className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 transition hover:border-amber-300 hover:bg-amber-50 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:bg-amber-950/20">
                 <BarChart3 className="mb-2 h-5 w-5 text-amber-600" />
-                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Buat Laporan Klien</p>
+                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Laporan Klien (delivery)</p>
                 <p className="mt-1 text-xs text-neutral-500">Bulanan/selesai proyek dari workspace, metric, dan bukti kerja.</p>
               </Link>
               <Link href="/leads" className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 transition hover:border-amber-300 hover:bg-amber-50 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:bg-amber-950/20">
                 <Search className="mb-2 h-5 w-5 text-amber-600" />
-                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Audit Lead</p>
-                <p className="mt-1 text-xs text-neutral-500">Pre-sales report untuk prospek dari scrape/lead.</p>
+                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Laporan Audit Lead</p>
+                <p className="mt-1 text-xs text-neutral-500">Pre-sales audit report (beda dari laporan delivery klien).</p>
               </Link>
             </div>
           )}

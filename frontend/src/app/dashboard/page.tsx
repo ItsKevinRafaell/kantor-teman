@@ -23,10 +23,12 @@ const STATUS_COLORS: Record<string, string> = {
 const QUICK_ACTIONS = [
   { href: "/leads?tab=scrape", title: "Mulai Scrape Maps", desc: "Cari bisnis baru dari Google Places", bg: "bg-amber-500",
     icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg> },
-  { href: "/leads", title: "Lihat Pipeline CRM", desc: "Kelola dan update status semua leads", bg: "bg-neutral-800 dark:bg-neutral-700",
+  { href: "/leads", title: "Pipeline Prospek", desc: "Kelola status leads → proposal", bg: "bg-neutral-800 dark:bg-neutral-700",
     icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg> },
-  { href: "/clients", title: "Buku Klien", desc: "Lihat dan kelola klien aktif", bg: "bg-neutral-800 dark:bg-neutral-700",
+  { href: "/clients", title: "Klien & Proyek", desc: "Klien aktif, board, workspace", bg: "bg-neutral-800 dark:bg-neutral-700",
     icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg> },
+  { href: "/documents", title: "Dokumen", desc: "Resmi, laporan klien, arsip", bg: "bg-amber-600",
+    icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg> },
 ];
 
 const TABS = [

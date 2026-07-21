@@ -269,11 +269,16 @@ export default function WorkspaceDetailPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-xl font-bold text-neutral-800 dark:text-neutral-100">{workspace.project_name || "Workspace"}</h1>
-          {getServiceLabel(workspace.service_type) && (
-            <p className="text-xs text-gray-500">{getServiceLabel(workspace.service_type)}</p>
-          )}
+          <p className="text-xs text-gray-500">
+            {[getServiceLabel(workspace.service_type), "sheet retainer bulanan"].filter(Boolean).join(" · ")}
+          </p>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href={`/board?project_id=${projectId}`}
+            className="rounded-lg border border-amber-100 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-50 dark:border-amber-900/40 dark:bg-[var(--bg-surface)] dark:text-amber-200">
+            Buka Board
+          </Link>
           <select
             value={reportMonth}
             onChange={e => setReportMonth(Number(e.target.value))}

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Archive, ArchiveRestore, Trash2, User } from "lucide-react";
 import type { BoardOverview, Project } from "./types";
 import { useAuth } from "../../contexts/AuthContext";
@@ -75,7 +76,7 @@ export function BoardOverviewCard({ item, projects, onSelectProject, onArchivePr
       </div>
 
       {((item.overdue_cards?.length || 0) > 0 || (item.due_soon_cards?.length || 0) > 0) && (
-        <div className="flex gap-1 flex-wrap">
+        <div className="flex gap-1 flex-wrap mb-2">
           {(item.overdue_cards?.length || 0) > 0 && (
             <span className="text-xs bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full">{item.overdue_cards?.length} overdue</span>
           )}
@@ -84,6 +85,22 @@ export function BoardOverviewCard({ item, projects, onSelectProject, onArchivePr
           )}
         </div>
       )}
+
+      <div className="mt-2 flex flex-wrap gap-2" onClick={e => e.stopPropagation()}>
+        <button
+          type="button"
+          onClick={() => !item.is_archived && onSelectProject(item.project_id)}
+          className="rounded-lg bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200 hover:bg-amber-50 dark:bg-neutral-900/60 dark:text-amber-200 dark:ring-amber-900/50"
+        >
+          Buka Board
+        </button>
+        <Link
+          href={`/workspace/${item.project_id}`}
+          className="rounded-lg bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-neutral-700 ring-1 ring-neutral-200 hover:bg-neutral-50 dark:bg-neutral-900/60 dark:text-neutral-200 dark:ring-neutral-700"
+        >
+          Sheet Workspace
+        </Link>
+      </div>
     </div>
   );
 }
