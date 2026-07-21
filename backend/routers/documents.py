@@ -586,6 +586,7 @@ def _build_brand_context(db: Session) -> dict:
     ctx["phone_perusahaan"] = getattr(kit, "phone", None) or ""
     ctx["email_perusahaan"] = getattr(kit, "email", None) or ""
     assets = db.query(BrandAsset).filter(BrandAsset.kit_id == kit.id).all()
+    # company_email asset may override below; final fallback after loop
 
     # Choose logo for documents. Admin can pin any asset via
     # `default_document_asset_id`; otherwise fall back through the 6-slot
@@ -661,6 +662,9 @@ def _build_brand_context(db: Session) -> dict:
             ctx["phone_perusahaan"] = a.value
         elif a.asset_type == "company_email" and a.value:
             ctx["email_perusahaan"] = a.value
+    # Never leave empty — templates/email must not fall back to noreply
+    if not (ctx.get("email_perusahaan") or "").strip():
+        ctx["email_perusahaan"] = "temanumkm.kita@gmail.com"
     return ctx
 
 
@@ -1488,12 +1492,22 @@ def email_document(did: str, body: DocumentEmailIn, current_user: User = Depends
     from email.mime.text import MIMEText
     from email.mime.application import MIMEApplication
 
+    brand_ctx = _build_brand_context(db)
+    brand_name = brand_ctx.get("brand_name") or "Kantor Teman"
+    brand_email = (brand_ctx.get("email_perusahaan") or "").strip() or "temanumkm.kita@gmail.com"
+
     msg = MIMEMultipart()
     msg["From"] = smtp_from
     msg["To"] = body.to_email
-    brand_name = _build_brand_context(db).get("brand_name") or "Kantor Teman"
+    # Reply-To uses BrandKit email (never noreply) so clients reply to real inbox
+    msg["Reply-To"] = brand_email
     msg["Subject"] = body.subject or f"{doc.template_name or 'Dokumen'} dari {brand_name}"
-    msg.attach(MIMEText(body.body or "Terlampir dokumen yang Anda minta. Hubungi kami jika ada pertanyaan.", "plain"))
+    default_body = (
+        f"Terlampir dokumen yang Anda minta.\n\n"
+        f"Hubungi kami di {brand_email} jika ada pertanyaan.\n\n"
+        f"— {brand_name}"
+    )
+    msg.attach(MIMEText(body.body or default_body, "plain"))
 
     with open(fpath, "rb") as f:
         part = MIMEApplication(f.read(), _subtype="pdf")
@@ -2076,18 +2090,32 @@ def update_archive_folder(
     folder = db.query(DocumentFolder).filter(DocumentFolder.id == folder_id).first()
     if not folder:
         raise HTTPException(status_code=404, detail="Folder tidak ditemukan")
-    if body.name is not None:
-        folder.name = body.name.strip()
-    if body.color is not None:
-        folder.color = body.color
     changes = body.model_dump(exclude_unset=True)
+
+    if "name" in changes and body.name is not None:
+        name = (body.name or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Nama folder tidak boleh kosong")
+        folder.name = name
+    if "color" in changes and body.color is not None:
+        color = (body.color or "").strip() or "#6B7280"
+        if len(color) > 20:
+            raise HTTPException(status_code=400, detail="Warna folder tidak valid")
+        folder.color = color
     if "parent_id" in changes:
-        if body.parent_id and not db.query(DocumentFolder).filter(DocumentFolder.id == body.parent_id).first():
+        parent_id = body.parent_id or None
+        if parent_id == folder.id:
+            raise HTTPException(status_code=400, detail="Folder tidak bisa jadi parent dirinya sendiri")
+        if parent_id and not db.query(DocumentFolder).filter(DocumentFolder.id == parent_id).first():
             raise HTTPException(status_code=400, detail="Parent folder tidak ditemukan")
-        if _archive_parent_creates_cycle(db, folder.id, body.parent_id):
+        if parent_id and _archive_parent_creates_cycle(db, folder.id, parent_id):
             raise HTTPException(status_code=400, detail="Parent folder akan membuat siklus")
-        folder.parent_id = body.parent_id or None
-    db.commit()
+        folder.parent_id = parent_id
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Gagal menyimpan folder: {exc}")
     return {"id": folder.id, "name": folder.name, "parent_id": folder.parent_id, "color": folder.color, "created_at": folder.created_at}
 
 

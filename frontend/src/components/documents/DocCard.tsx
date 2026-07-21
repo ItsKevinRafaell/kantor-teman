@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Edit2, Trash2, GripVertical } from "lucide-react";
+import { ExternalLink, Edit2, Trash2, Eye, FolderInput } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -20,11 +20,13 @@ interface DocCardProps {
   doc: Document;
   folderColor?: string;
   folderName?: string;
+  onView: () => void;
   onEdit: () => void;
   onDelete?: () => void;
+  onMove?: () => void;
 }
 
-export function DocCard({ doc, folderColor, folderName, onEdit, onDelete }: DocCardProps) {
+export function DocCard({ doc, folderColor, folderName, onView, onEdit, onDelete, onMove }: DocCardProps) {
   const dateStr = new Date(doc.updated_at || doc.created_at).toLocaleDateString("id-ID", {
     day: "2-digit",
     month: "short",
@@ -41,7 +43,8 @@ export function DocCard({ doc, folderColor, folderName, onEdit, onDelete }: DocC
         e.dataTransfer.setData("text/plain", doc.id);
         e.dataTransfer.effectAllowed = "move";
       }}
-      className="group relative flex flex-col gap-2 rounded-2xl border border-amber-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-amber-900/40 dark:bg-[var(--bg-surface)] cursor-move"
+      onClick={onView}
+      className="group relative flex flex-col gap-2 rounded-2xl border border-amber-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-amber-900/40 dark:bg-[var(--bg-surface)] cursor-pointer"
     >
       {folderColor && (
         <div className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl" style={{ backgroundColor: folderColor }} />
@@ -49,12 +52,20 @@ export function DocCard({ doc, folderColor, folderName, onEdit, onDelete }: DocC
 
       <div className="flex items-start justify-between gap-2 mt-1">
         <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-50 leading-snug line-clamp-2 flex-1">{doc.title}</h3>
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-          <button onClick={onEdit} className="p-1.5 text-neutral-400 hover:text-amber-500 rounded-lg transition-colors">
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()}>
+          <button type="button" onClick={onView} title="Lihat" className="p-1.5 text-neutral-400 hover:text-amber-600 rounded-lg transition-colors">
+            <Eye size={13} />
+          </button>
+          {onMove && (
+            <button type="button" onClick={onMove} title="Pindah folder" className="p-1.5 text-neutral-400 hover:text-blue-500 rounded-lg transition-colors">
+              <FolderInput size={13} />
+            </button>
+          )}
+          <button type="button" onClick={onEdit} title="Edit" className="p-1.5 text-neutral-400 hover:text-amber-500 rounded-lg transition-colors">
             <Edit2 size={13} />
           </button>
           {onDelete && (
-            <button onClick={onDelete} className="p-1.5 text-neutral-400 hover:text-red-500 rounded-lg transition-colors">
+            <button type="button" onClick={onDelete} title="Hapus" className="p-1.5 text-neutral-400 hover:text-red-500 rounded-lg transition-colors">
               <Trash2 size={13} />
             </button>
           )}

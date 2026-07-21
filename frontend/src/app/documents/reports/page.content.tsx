@@ -82,190 +82,63 @@ const TARGET_TYPES = [
   { value: "empty", label: "Tanpa target", helper: "Untuk catatan internal atau laporan umum." },
 ];
 
-const SEO_CURRENT_FIELDS: MetricField[] = [
+// Minimal detection fields only — prev/baseline/target digabung ke 1 notes.
+// Comparison tables opsional via comparisonGroups UI di bawah form.
+
+const SEO_FIELDS: MetricField[] = [
   { key: "website_url", label: "URL website", placeholder: "https://domain-klien.com" },
-  { key: "gsc_clicks", label: "GSC clicks periode ini", type: "number" },
-  { key: "gsc_impressions", label: "GSC impressions periode ini", type: "number" },
-  { key: "gsc_ctr", label: "CTR periode ini", placeholder: "3,2%" },
-  { key: "gsc_average_position", label: "Average position periode ini", placeholder: "12,4" },
-  { key: "gbp_views", label: "Google Business views", type: "number" },
-  { key: "gbp_calls", label: "Google Business calls", type: "number" },
-  { key: "gbp_directions", label: "Direction requests", type: "number" },
-  { key: "gbp_website_clicks", label: "Website clicks dari GBP", type: "number" },
+  { key: "gsc_clicks", label: "GSC clicks", type: "number" },
+  { key: "gsc_impressions", label: "GSC impressions", type: "number" },
+  { key: "gsc_ctr", label: "CTR", placeholder: "3,2%" },
+  { key: "gsc_average_position", label: "Avg position", placeholder: "12,4" },
+  { key: "gbp_views", label: "GBP views", type: "number" },
+  { key: "gbp_calls", label: "GBP calls", type: "number" },
+  { key: "gsc_comparison_notes", label: "Analisis & catatan", type: "textarea", placeholder: "Clicks naik karena 2 artikel baru. Target bulan depan: optimasi meta title." },
 ];
 
-const SEO_MONTHLY_FIELDS: MetricField[] = [
-  { key: "website_url", label: "URL website", placeholder: "https://domain-klien.com" },
-  // GSC Current Month
-  { key: "gsc_clicks", label: "GSC Clicks (Bulan Ini)", type: "number" },
-  { key: "gsc_impressions", label: "GSC Impressions (Bulan Ini)", type: "number" },
-  { key: "gsc_ctr", label: "GSC CTR (Bulan Ini)", placeholder: "8.78%" },
-  { key: "gsc_average_position", label: "GSC Avg Position (Bulan Ini)", placeholder: "13.85" },
-  // GSC Previous Month (Comparison)
-  { key: "gsc_clicks_previous", label: "GSC Clicks (Bulan Lalu)", type: "number" },
-  { key: "gsc_impressions_previous", label: "GSC Impressions (Bulan Lalu)", type: "number" },
-  { key: "gsc_ctr_previous", label: "GSC CTR (Bulan Lalu)", placeholder: "8.5%" },
-  { key: "gsc_average_position_previous", label: "GSC Avg Position (Bulan Lalu)", placeholder: "15.0" },
-  // Google Business Profile
-  { key: "gbp_views", label: "GBP Views", type: "number" },
-  { key: "gbp_searches", label: "GBP Searches (Direct+Indirect)", type: "number" },
-  { key: "gbp_directions", label: "GBP Directions", type: "number" },
-  { key: "gbp_calls", label: "GBP Calls", type: "number" },
-  { key: "gbp_website_clicks", label: "GBP Website Clicks", type: "number" },
-  // Top Queries & Pages
-  { key: "top_queries", label: "Top 5 Queries (1 per baris)", type: "textarea", placeholder: "jasa pembangunan rumah\npembangunan rumah jogja\n..." },
-  { key: "top_pages", label: "Top 5 Pages (1 per baris)", placeholder: "/layanan/pembangunan-rumah\n/layanan/desain-interior\n..." },
-  // Notes
-  { key: "gsc_comparison_notes", label: "Analisis & Catatan", type: "textarea", placeholder: "Clicks naik 9.3% karena 2 artikel baru masuk halaman 1. CTR sedikit turun karena impressions naik lebih cepat. Perlu optimasi meta title untuk improve CTR." },
-  // Target
-  { key: "gsc_clicks_target_next_month", label: "Target GSC Clicks (Bulan Depan)", type: "number" },
-  { key: "gsc_impressions_target_next_month", label: "Target GSC Impressions (Bulan Depan)", type: "number" },
-  { key: "gsc_ctr_target_next_month", label: "Target CTR (Bulan Depan)", placeholder: "9.0%" },
-  { key: "gsc_average_position_target_next_month", label: "Target Avg Position (Bulan Depan)", placeholder: "12.0" },
-  { key: "seo_next_month_target_notes", label: "Notes Target Bulan Depan", type: "textarea", placeholder: "Target realistis: publish 2 artikel baru, optimasi 3 meta title existing, update GBP posting rutin." },
-];
-
-const SEO_COMPLETION_FIELDS: MetricField[] = [
-  ...SEO_CURRENT_FIELDS,
-  { key: "gsc_clicks_baseline", label: "GSC clicks data awal proyek", type: "number" },
-  { key: "gsc_impressions_baseline", label: "GSC impressions data awal proyek", type: "number" },
-  { key: "gsc_ctr_baseline", label: "CTR data awal proyek", placeholder: "1,9%" },
-  { key: "gsc_average_position_baseline", label: "Average position data awal proyek", placeholder: "28,5" },
-  { key: "gsc_comparison_notes", label: "Notes komparasi awal vs akhir proyek", type: "textarea", placeholder: "Contoh: impressions naik tajam dari baseline, tetapi beberapa query transaksi masih butuh optimasi lanjutan." },
-];
-
-const SERVICE_COMPARISON_FIELDS: Record<string, MetricField[]> = {
-  seo_gmaps: [
-    { key: "gsc_clicks", label: "GSC clicks", type: "number" },
-    { key: "gsc_impressions", label: "GSC impressions", type: "number" },
-    { key: "gsc_ctr", label: "CTR", placeholder: "3,2%" },
-    { key: "gsc_average_position", label: "Average position", placeholder: "12,4" },
-  ],
+const SERVICE_FIELDS: Record<string, MetricField[]> = {
+  seo_gmaps: SEO_FIELDS,
   maintenance: [
+    { key: "website_url", label: "URL website", placeholder: "https://domain-klien.com" },
+    { key: "last_backup_at", label: "Backup terakhir", type: "date" },
+    { key: "backup_status", label: "Status backup", placeholder: "Berhasil / Gagal" },
     { key: "uptime", label: "Uptime", placeholder: "99.9%" },
-    { key: "security_score", label: "Security/site health score", type: "number" },
-    { key: "incidents", label: "Jumlah insiden", type: "number" },
-    { key: "resolved_issues", label: "Issue terselesaikan", type: "number" },
+    { key: "work_done", label: "Pekerjaan dilakukan", type: "textarea", placeholder: "Update plugin, optimasi, fix bug…" },
+    { key: "incidents", label: "Insiden/downtime", placeholder: "Tidak ada / 1x 15 menit" },
+    { key: "maintenance_notes", label: "Catatan & rekomendasi", type: "textarea", placeholder: "Website normal. Rekomendasi: upgrade PHP." },
   ],
   sosmed: [
     { key: "posts", label: "Konten publish", type: "number" },
     { key: "reach", label: "Reach", type: "number" },
     { key: "engagement", label: "Engagement", type: "number" },
-    { key: "followers_delta", label: "Perubahan followers", placeholder: "+42" },
+    { key: "followers_delta", label: "Δ followers", placeholder: "+42" },
+    { key: "sosmed_notes", label: "Catatan", type: "textarea", placeholder: "Highlight konten / insight periode ini" },
   ],
   web_dev: [
-    { key: "pages_done_count", label: "Jumlah halaman selesai", type: "number" },
-    { key: "features_done_count", label: "Jumlah fitur selesai", type: "number" },
+    { key: "pages_done_count", label: "Halaman selesai", type: "number" },
+    { key: "features_done_count", label: "Fitur selesai", type: "number" },
     { key: "open_bugs", label: "Bug terbuka", type: "number" },
-    { key: "qa_passed_count", label: "QA passed", type: "number" },
+    { key: "qa_status", label: "Status QA", placeholder: "Mobile OK, form OK" },
+    { key: "handover_link", label: "Link handover", placeholder: "Drive/Notion" },
   ],
   web_dev_bulanan: [
-    { key: "pages_done_count", label: "Jumlah update/halaman selesai", type: "number" },
-    { key: "features_done_count", label: "Jumlah fitur/maintenance selesai", type: "number" },
+    { key: "pages_done_count", label: "Update/halaman selesai", type: "number" },
+    { key: "features_done_count", label: "Fitur/maintenance selesai", type: "number" },
     { key: "open_bugs", label: "Bug terbuka", type: "number" },
-    { key: "qa_passed_count", label: "QA passed", type: "number" },
+    { key: "qa_status", label: "Status QA", placeholder: "Mobile OK" },
+    { key: "handover_link", label: "Link bukti", placeholder: "Drive/Notion" },
   ],
   branding: [
     { key: "deliverables_done_count", label: "Deliverables selesai", type: "number" },
     { key: "approved_assets_count", label: "Asset approved", type: "number" },
     { key: "revision_round", label: "Putaran revisi", type: "number" },
-  ],
-  general: [
-    { key: "progress_score", label: "Progress score", type: "number" },
-    { key: "completed_items", label: "Item selesai", type: "number" },
-    { key: "open_issues", label: "Issue terbuka", type: "number" },
-  ],
-};
-
-const SERVICE_FIELDS: Record<string, MetricField[]> = {
-  seo_gmaps: SEO_MONTHLY_FIELDS,
-  maintenance: [
-    // Website Info
-    { key: "website_url", label: "URL Website", placeholder: "https://domain-klien.com" },
-    { key: "wp_version", label: "Versi WordPress", placeholder: "WordPress 6.5.5" },
-    // Backup Section
-    { key: "last_backup_at", label: "Tanggal Backup Terakhir", type: "date" },
-    { key: "backup_status", label: "Status Backup", placeholder: "Berhasil / Gagal / Pending" },
-    { key: "backup_link", label: "Link/File Backup", placeholder: "https://drive.google.com/..." },
-    { key: "backup_size", label: "Ukuran Backup", placeholder: "1.2 GB" },
-    // WordPress Updates
-    { key: "core_updates", label: "Update WordPress Core", placeholder: "6.5.4 -> 6.5.5 (1 update)" },
-    { key: "plugin_updates", label: "Update Plugin", placeholder: "Plugin A (1.2.3 -> 1.2.4), Plugin B (2.0.0 -> 2.0.1)" },
-    { key: "theme_updates", label: "Update Theme", placeholder: "Tema aktif sudah terbaru / Theme X updated" },
-    // Security & Health
-    { key: "security_status", label: "Status Security/Site Health", placeholder: "Aman - Tidak ada critical issue" },
-    { key: "security_issues", label: "Issue Keamanan (jika ada)", placeholder: "Tidak ada / wp-config.php exposed" },
-    { key: "uptime", label: "Uptime", placeholder: "99.9%" },
-    // Work Done
-    { key: "work_done", label: "Pekerjaan yang Dilakukan", type: "textarea", placeholder: "1. Update plugin A ke versi terbaru\n2. Backup manual setelah update major\n3. Optimasi gambar di halaman layanan" },
-    { key: "incidents", label: "Insiden/Downtime", placeholder: "Tidak ada / 1x downtime 15 menit (server overload)" },
-    { key: "resolved_issues", label: "Issue yang Diselesaikan", placeholder: "1. Error 500 di halaman kontak\n2. Plugin conflict dengan PHP 8.2" },
-    // Notes
-    { key: "maintenance_notes", label: "Catatan & Rekomendasi", type: "textarea", placeholder: "Website berjalan normal. Rekomendasi: upgrade PHP ke 8.3 semester ini untuk performa lebih baik." },
-  ],
-  sosmed: [
-    { key: "posts", label: "Konten publish", type: "number" },
-    { key: "reach", label: "Reach", type: "number" },
-    { key: "engagement", label: "Engagement/interactions", type: "number" },
-    { key: "followers_delta", label: "Perubahan followers", placeholder: "+42" },
-  ],
-  web_dev: [
-    { key: "website_url", label: "URL staging/live", placeholder: "https://..." },
-    { key: "pages_done", label: "Halaman selesai", placeholder: "Home, Tentang, Layanan" },
-    { key: "pages_done_count", label: "Jumlah halaman selesai", type: "number" },
-    { key: "features_done", label: "Fitur selesai", placeholder: "Form WA, katalog, checkout" },
-    { key: "features_done_count", label: "Jumlah fitur selesai", type: "number" },
-    { key: "qa_status", label: "Status QA", placeholder: "Mobile OK, form OK" },
-    { key: "qa_passed_count", label: "QA passed", type: "number" },
-    { key: "open_bugs", label: "Bug terbuka", type: "number" },
-    { key: "handover_link", label: "Link handover", placeholder: "Drive/Notion/Docs" },
-  ],
-  web_dev_bulanan: [
-    { key: "website_url", label: "URL website", placeholder: "https://..." },
-    { key: "pages_done", label: "Perbaikan/halaman selesai", placeholder: "Landing promo, update menu" },
-    { key: "pages_done_count", label: "Jumlah update/halaman selesai", type: "number" },
-    { key: "features_done", label: "Fitur/maintenance selesai", placeholder: "Form, CTA, tracking" },
-    { key: "features_done_count", label: "Jumlah fitur/maintenance selesai", type: "number" },
-    { key: "qa_status", label: "Status QA", placeholder: "Mobile OK, form OK" },
-    { key: "qa_passed_count", label: "QA passed", type: "number" },
-    { key: "open_bugs", label: "Bug terbuka", type: "number" },
-    { key: "handover_link", label: "Link bukti/handover", placeholder: "Drive/Notion/Docs" },
-  ],
-  branding: [
-    { key: "deliverables", label: "Deliverables", placeholder: "Logo, brand guide, template feed" },
-    { key: "deliverables_done_count", label: "Deliverables selesai", type: "number" },
-    { key: "revision_round", label: "Putaran revisi", placeholder: "Revisi 2 selesai" },
-    { key: "approved_assets_count", label: "Asset approved", type: "number" },
-    { key: "approval_status", label: "Status approval", placeholder: "Disetujui / menunggu review" },
     { key: "asset_link", label: "Link asset final", placeholder: "Drive/Figma/Canva" },
   ],
   general: [
-    { key: "website_url", label: "URL terkait", placeholder: "Opsional" },
-    { key: "highlights", label: "Highlight singkat", placeholder: "Tugas penting yang selesai" },
+    { key: "progress_score", label: "Progress score", type: "number" },
+    { key: "highlights", label: "Highlight singkat", type: "textarea", placeholder: "Tugas penting yang selesai" },
   ],
 };
-
-function reportComparisonFields(serviceType: string | null | undefined, reportType: string): MetricField[] {
-  const serviceKey = serviceType || "general";
-  const fields = SERVICE_COMPARISON_FIELDS[serviceKey] || SERVICE_COMPARISON_FIELDS.general;
-  if (reportType === "completion") {
-    return [
-      ...fields.map(field => ({ ...field, key: `${field.key}_baseline`, label: `${field.label} data awal proyek` })),
-      { key: `${serviceKey}_comparison_notes`, label: "Notes komparasi data awal vs akhir proyek", type: "textarea", placeholder: "Contoh: progress naik signifikan dari baseline, tetapi ada bagian yang perlu dipantau setelah handover." },
-    ];
-  }
-  if (reportType === "monthly") {
-    return [
-      ...fields.map(field => ({ ...field, key: `${field.key}_previous`, label: `${field.label} bulan lalu` })),
-      { key: `${serviceKey}_comparison_notes`, label: "Notes komparasi bulan ini vs bulan lalu", type: "textarea", placeholder: "Contoh: performa naik karena eksekusi bulan ini, tapi beberapa metric masih perlu perhatian." },
-      ...fields.map(field => ({ ...field, key: `${field.key}_target_next_month`, label: `Target ${field.label} bulan depan` })),
-      { key: `${serviceKey}_next_month_target_notes`, label: "Notes target bulan depan", type: "textarea", placeholder: "Contoh: target realistis setelah task prioritas bulan depan selesai." },
-    ];
-  }
-  return [
-    { key: `${serviceKey}_comparison_notes`, label: "Notes komparasi", type: "textarea", placeholder: "Opsional jika laporan ini punya pembanding manual." },
-  ];
-}
 
 function uniqueMetricFields(fields: MetricField[]) {
   const seen = new Set<string>();
@@ -276,20 +149,19 @@ function uniqueMetricFields(fields: MetricField[]) {
   });
 }
 
-function getMetricFields(serviceType: string | null | undefined, reportType: string) {
+function getMetricFields(serviceType: string | null | undefined, _reportType: string) {
   const serviceKey = serviceType || "general";
-  const baseFields = serviceKey === "seo_gmaps" ? SEO_CURRENT_FIELDS : (SERVICE_FIELDS[serviceKey] || SERVICE_FIELDS.general);
-  return uniqueMetricFields([...baseFields, ...reportComparisonFields(serviceKey, reportType)]);
+  return uniqueMetricFields(SERVICE_FIELDS[serviceKey] || SERVICE_FIELDS.general);
 }
 
 function getMetricHelper(serviceType: string | null | undefined, reportType: string) {
   if (reportType === "completion") {
-    return "Data akhir proyek dibandingkan dengan data pertama/baseline awal proyek";
+    return "Field deteksi minimal — detail komparasi baseline bisa lewat tabel comparison opsional di bawah";
   }
   if (reportType === "monthly") {
-    return "Data bulan ini dibandingkan bulan lalu, plus target bulan depan";
+    return "Field deteksi minimal — notes untuk prev/target; tabel comparison opsional jika butuh angka lengkap";
   }
-  return serviceType === "seo_gmaps" ? "Isi metric audit SEO periode ini" : "Isi metric periode ini; notes komparasi opsional";
+  return serviceType === "seo_gmaps" ? "Isi metric SEO periode ini (field deteksi minimal)" : "Isi metric periode ini (field deteksi minimal)";
 }
 
 function toNumberIfPossible(value: string) {

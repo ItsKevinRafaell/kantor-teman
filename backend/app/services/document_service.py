@@ -163,6 +163,9 @@ def build_brand_context(db: Session) -> dict:
             ctx["phone_perusahaan"] = a.value
         elif a.asset_type == "company_email" and a.value:
             ctx["email_perusahaan"] = a.value
+    # Never leave empty — templates/email must not fall back to noreply
+    if not (ctx.get("email_perusahaan") or "").strip():
+        ctx["email_perusahaan"] = "temanumkm.kita@gmail.com"
     return ctx
 
 
