@@ -1231,7 +1231,7 @@ def _renderer_chain(env_value: str, template_type: str | None) -> tuple[str, ...
         elif template_type in _REPORTLAB_FIRST_TYPES:
             order = ["reportlab", "xhtml2pdf", "textfb"]
         elif template_type in _HTML_FIRST_TYPES:
-            order = ["weasyprint", "xhtml2pdf", "textfb"]
+            order = ["xhtml2pdf", "textfb"]
         else:
             order = ["textfb", "reportlab", "xhtml2pdf"]
     return tuple(order)
