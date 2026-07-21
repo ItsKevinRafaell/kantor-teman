@@ -117,7 +117,12 @@ def build_brand_context(db: Session) -> dict:
     ctx["tagline"] = getattr(kit, "tagline", None) or ""
     ctx["alamat_perusahaan"] = getattr(kit, "address", None) or ""
     ctx["phone_perusahaan"] = getattr(kit, "phone", None) or ""
-    ctx["email_perusahaan"] = getattr(kit, "email", None) or ""
+    raw_email = (getattr(kit, "email", None) or "").strip()
+    # Reject noreply / no-reply placeholders — never show on client-facing docs
+    if raw_email and "noreply" not in raw_email.lower() and "no-reply" not in raw_email.lower():
+        ctx["email_perusahaan"] = raw_email
+    else:
+        ctx["email_perusahaan"] = ""
     assets = db.query(BrandAsset).filter(BrandAsset.kit_id == kit.id).all()
 
     # Choose logo for documents. Admin can pin any asset via
@@ -162,9 +167,12 @@ def build_brand_context(db: Session) -> dict:
         elif a.asset_type == "company_phone" and a.value:
             ctx["phone_perusahaan"] = a.value
         elif a.asset_type == "company_email" and a.value:
-            ctx["email_perusahaan"] = a.value
-    # Never leave empty — templates/email must not fall back to noreply
-    if not (ctx.get("email_perusahaan") or "").strip():
+            val = (a.value or "").strip()
+            if val and "noreply" not in val.lower() and "no-reply" not in val.lower():
+                ctx["email_perusahaan"] = val
+    # Never leave empty / noreply — templates + Reply-To use real inbox
+    final = (ctx.get("email_perusahaan") or "").strip()
+    if not final or "noreply" in final.lower() or "no-reply" in final.lower():
         ctx["email_perusahaan"] = "temanumkm.kita@gmail.com"
     return ctx
 

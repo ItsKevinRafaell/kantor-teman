@@ -62,6 +62,7 @@ class BoardCardOut(BaseModel):
     lead_id: Optional[int] = None
     lead: Optional[LeadMin] = None
     color: Optional[str] = "gray"
+    google_event_id: Optional[str] = None
     is_workspace_linked: bool = False
     comments: list[BoardCardCommentOut] = []
     checklist: list[BoardCardChecklistOut] = []
