@@ -1259,9 +1259,9 @@ def render_pdf_with_weasyprint(rendered_html: str, uploads_dir: str | None = Non
     # url_fetcher returns empty bytes for non-/uploads/ URLs and WeasyPrint
     # silently falls back to URW Type1 → blank text in browser PDF viewers.
     _font_allow = set()
-    for candidate in _DOC_FONT_CANDIDATES:
-        if candidate and os.path.isfile(candidate):
-            _font_allow.add(os.path.realpath(candidate))
+    for font_path in _resolve_doc_fonts().values():
+        if font_path and os.path.isfile(font_path):
+            _font_allow.add(os.path.realpath(font_path))
     uploads_real = os.path.realpath(uploads_dir) if uploads_dir else ""
 
     def _pdf_url_fetcher(url: str, **_kw):

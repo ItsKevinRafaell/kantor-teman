@@ -90,77 +90,34 @@ PROPOSAL_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <style>
-/* Bundled font helpers are replaced by @font-face in pdf_renderer.inject_pdf_font() */
-@page{size:A4;margin:28pt 32pt}
+@page{size:A4;margin:32pt 36pt}
 *{box-sizing:border-box}
-body{
-  font-family:Helvetica,Arial,sans-serif;
-  color:#111827;
-  font-size:10pt;
-  line-height:1.55;
-  margin:0;padding:0;background:#ffffff
-}
+body{font-family:Helvetica,Arial,sans-serif;color:#1a1a1a;font-size:10pt;line-height:1.6;margin:0;padding:0;background:#ffffff}
 table{border-collapse:collapse;border-spacing:0}
 .w100{width:100%}
-a{color:#111827;text-decoration:none}
-
-/* Header — logo + title left, meta right, hairline rule */
-.header td{vertical-align:top;padding:0 0 12pt 0;border:0}
-.logo img{max-height:36pt;max-width:128pt;display:block}
-.brandline{font-size:8pt;color:#6b7280;margin-top:6pt;letter-spacing:0.04em}
-.title{
-  font-size:19pt;font-weight:bold;color:#111827;
-  margin:0 0 4pt 0;letter-spacing:-0.02em;line-height:1.1;
-}
-.meta{text-align:right;font-size:9pt;color:#6b7280;line-height:1.6}
+a{color:#1a1a1a;text-decoration:none}
+.header{width:100%;margin:0 0 18pt 0}
+.header td{vertical-align:top;padding:0;border:0}
+.logo img{max-height:36pt;max-width:120pt;display:block}
+.brandline{font-size:8pt;color:#6b7280;margin-top:6pt;text-transform:uppercase}
+.title{font-size:18pt;font-weight:bold;color:#111827;margin:0 0 3pt 0;line-height:1.15}
+.meta{text-align:right;font-size:8.5pt;color:#6b7280;line-height:1.6}
 .meta b{color:#111827}
-.rule{border:0;border-top:0.8pt solid #e5e7eb;margin:0 0 18pt 0;height:0}
-
-/* Two-column identity */
+.rule{border:0;border-top:0.6pt solid #e5e7eb;margin:0 0 18pt 0;height:0}
+.parties{margin:0 0 4pt 0}
 .parties td{vertical-align:top;padding:0;border:0}
-.eyebrow{
-  font-size:7pt;font-weight:bold;color:#6b7280;text-transform:uppercase;
-  letter-spacing:0.12em;margin:0 0 5pt 0;
-}
-.identity{
-  font-size:11pt;font-weight:bold;color:#111827;
-  margin:0 0 3pt 0;line-height:1.2;
-}
-.detail{font-size:9pt;color:#4b5563;line-height:1.5}
+.eyebrow{font-size:7pt;font-weight:bold;color:#9ca3af;text-transform:uppercase;margin:0 0 5pt 0}
+.identity{font-size:11pt;font-weight:bold;color:#111827;margin:0 0 3pt 0;line-height:1.25}
+.detail{font-size:8.5pt;color:#4b5563;line-height:1.5}
 .detail:empty{display:none}
-
-/* Sections — no background fill, no left rail, just eyebrow + body */
 .section{margin:20pt 0 0 0}
-.section:first-of-type{margin-top:6pt}
-.section-eyebrow{
-  font-size:7pt;font-weight:bold;color:#9ca3af;text-transform:uppercase;
-  letter-spacing:0.12em;margin:0 0 6pt 0;
-}
-.section-title{
-  font-size:11pt;font-weight:bold;color:#111827;
-  margin:0 0 6pt 0;line-height:1.25;
-}
-.section-body{font-size:10pt;color:#1f2937;line-height:1.6}
+.section-eyebrow{font-size:7pt;font-weight:bold;color:#9ca3af;text-transform:uppercase;margin:0 0 6pt 0}
+.section-title{font-size:11pt;font-weight:bold;color:#111827;margin:0 0 5pt 0;line-height:1.25}
+.section-body{font-size:9pt;color:#1f2937;line-height:1.65}
 .section-body b,.section-body strong{font-weight:bold;color:#111827}
-
-/* Investment table — injected HTML lives here; keep unobtrusive */
-.inv-table{width:100%;margin-top:2pt;font-size:9.5pt;border-collapse:collapse}
-.inv-table th{
-  text-align:left;font-size:7pt;font-weight:bold;color:#6b7280;
-  text-transform:uppercase;letter-spacing:0.06em;
-  padding:7pt 6pt 6pt 0;border-bottom:1pt solid #e5e7eb;
-}
-.inv-table td{padding:9pt 6pt 8pt 0;border-bottom:0.8pt solid #f3f4f6;vertical-align:top;color:#1f2937}
-.inv-table tfoot td{border-bottom:0;border-top:1.2pt solid #111827;font-weight:bold;color:#111827;padding-top:10pt}
-.inv-table strong{font-weight:bold;color:#111827}
-.inv-table .sub{font-size:8.5pt;color:#6b7280;margin-top:3pt;line-height:1.45}
-
-/* Validity — quiet */
-.validity{margin-top:22pt;font-size:9pt;color:#6b7280;line-height:1.5}
+.validity{margin-top:20pt;font-size:8.5pt;color:#6b7280;line-height:1.5}
 .validity b{color:#111827}
-
-/* Footer — minimal */
-.footer{margin-top:30pt;padding-top:10pt;border-top:0.8pt solid #e5e7eb;font-size:8.5pt;color:#9ca3af;line-height:1.5}
+.footer{margin-top:28pt;padding-top:10pt;border-top:0.6pt solid #e5e7eb;font-size:8pt;color:#9ca3af;line-height:1.5}
 .footer b{color:#6b7280}
 </style>
 </head>
@@ -168,11 +125,11 @@ a{color:#111827;text-decoration:none}
 
 <table class="w100 header">
 <tr>
-<td width="54%" style="padding:0 12pt 12pt 0">
+<td width="54%" style="padding:0 12pt 10pt 0">
   {% if logo %}<div class="logo">{{logo}}</div>{% endif %}
   {% if brand_name %}<div class="brandline">{{brand_name}}</div>{% endif %}
 </td>
-<td width="46%" class="meta" style="padding:0 0 12pt 12pt;text-align:right">
+<td width="46%" class="meta" style="padding:0 0 10pt 12pt;text-align:right">
   <div class="title">Proposal Penawaran</div>
   {% if nomor %}No. <b>{{nomor}}</b><br/>{% endif %}
   {% if tanggal %}Tanggal <b>{{tanggal}}</b><br/>{% endif %}
@@ -184,7 +141,7 @@ a{color:#111827;text-decoration:none}
 
 <table class="w100 parties">
 <tr>
-<td width="48%">
+<td width="50%" style="padding:0 20pt 0 0">
   <div class="eyebrow">Penyedia jasa</div>
   {% if brand_name %}<div class="identity">{{brand_name}}</div>{% endif %}
   <div class="detail">
@@ -193,8 +150,7 @@ a{color:#111827;text-decoration:none}
     {% if email_perusahaan %}{{email_perusahaan}}{% endif %}
   </div>
 </td>
-<td width="4%"></td>
-<td width="48%">
+<td width="50%" style="padding:0 0 0 20pt">
   <div class="eyebrow">Disiapkan untuk</div>
   {% if klien %}<div class="identity">{{klien}}</div>{% endif %}
   <div class="detail">
@@ -205,7 +161,7 @@ a{color:#111827;text-decoration:none}
 </tr>
 </table>
 
-{% if layanan %}
+{% if layanan and layanan.strip() %}
 <div class="section">
   <div class="section-eyebrow">Layanan utama</div>
   <div class="section-title">{{layanan}}</div>
@@ -226,7 +182,7 @@ a{color:#111827;text-decoration:none}
 </div>
 {% endif %}
 
-{% if valid_until %}
+{% if valid_until and valid_until.strip() %}
 <div class="validity">
   Penawaran ini berlaku hingga <b>{{valid_until}}</b>. Harga dan jadwal dapat berubah setelah tanggal tersebut.
 </div>
