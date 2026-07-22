@@ -1447,6 +1447,13 @@ def generate_document(request: Request, body: DocumentGenerateIn, current_user: 
         db.add(doc)
         db.flush()
         try:
+            archive_lead_id = None
+            if body.target_type == "lead" and body.target_id and str(body.target_id).isdigit():
+                archive_lead_id = int(body.target_id)
+            elif body.target_type == "project" and body.target_id:
+                proj = db.query(Project).filter(Project.id == body.target_id).first()
+                if proj and proj.lead_id:
+                    archive_lead_id = proj.lead_id
             archive_generated_document(
                 db,
                 doc,
@@ -1454,6 +1461,8 @@ def generate_document(request: Request, body: DocumentGenerateIn, current_user: 
                 full_vars.get("klien") or full_vars.get("nama") or "Klien",
                 full_vars.get("layanan") or body.target_type or "Dokumen",
                 template.name or _document_template_type(template),
+                folder_id=getattr(body, "archive_folder_id", None),
+                lead_id=archive_lead_id,
             )
         except Exception as archive_err:
             print(f"[GENERATED_DOC_ARCHIVE] skip: {archive_err}", flush=True)

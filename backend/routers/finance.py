@@ -59,12 +59,76 @@ def update_wallet(wallet_id: int, body: WalletIn, current_user: User = Depends(r
 
 
 @router.delete("/api/finance/wallets/{wallet_id}", status_code=204)
-def delete_wallet(wallet_id: int, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+def delete_wallet(
+    wallet_id: int,
+    reassign_to: Optional[int] = Query(None, description="Pindahkan semua transaksi/langganan ke dompet ini, lalu hapus"),
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Hapus dompet.
+
+    Saldo 0 ≠ kosong: riwayat transaksi masih menempel ke wallet_id.
+    - Tanpa reassign_to: tolak kalau masih ada transaksi/langganan (pesan detail).
+    - Dengan reassign_to: pindahkan semua txn + langganan ke dompet tujuan, lalu hapus.
+    """
     wallet = db.query(Wallet).filter(Wallet.id == wallet_id).first()
     if not wallet:
         raise HTTPException(status_code=404, detail="Wallet tidak ditemukan")
-    if wallet.transactions or wallet.subscriptions:
-        raise HTTPException(status_code=409, detail="Wallet masih memiliki transaksi atau langganan. Arsipkan data terkait terlebih dahulu.")
+
+    txn_count = db.query(Transaction).filter(Transaction.wallet_id == wallet_id).count()
+    active_txn = db.query(Transaction).filter(
+        Transaction.wallet_id == wallet_id, Transaction.is_archived == False
+    ).count()
+    sub_count = db.query(Subscription).filter(Subscription.wallet_id == wallet_id).count()
+
+    if reassign_to is not None:
+        if reassign_to == wallet_id:
+            raise HTTPException(status_code=400, detail="Dompet tujuan harus berbeda dari yang dihapus")
+        target = db.query(Wallet).filter(Wallet.id == reassign_to).first()
+        if not target:
+            raise HTTPException(status_code=404, detail="Dompet tujuan tidak ditemukan")
+        # Move history + subs (balance already on source; target balance unchanged by design —
+        # historical txs keep their amounts; source balance should already reflect net).
+        db.query(Transaction).filter(Transaction.wallet_id == wallet_id).update(
+            {Transaction.wallet_id: reassign_to}, synchronize_session=False
+        )
+        db.query(Subscription).filter(Subscription.wallet_id == wallet_id).update(
+            {Subscription.wallet_id: reassign_to}, synchronize_session=False
+        )
+        # Fold remaining source balance into target so money isn't lost on delete
+        if wallet.balance:
+            target.balance = (target.balance or 0) + (wallet.balance or 0)
+            wallet.balance = 0
+        log_audit(
+            db,
+            current_user.name,
+            "DELETE",
+            "wallets",
+            wallet_id,
+            {
+                "name": wallet.name,
+                "reassign_to": reassign_to,
+                "moved_transactions": txn_count,
+                "moved_subscriptions": sub_count,
+            },
+        )
+        db.delete(wallet)
+        db.commit()
+        clear_cache_prefix("cache:/api/finance/wallets")
+        clear_cache_prefix("cache:/api/finance/transactions")
+        return
+
+    if txn_count or sub_count:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Dompet «{wallet.name}» masih punya {txn_count} transaksi"
+                f" ({active_txn} aktif) dan {sub_count} langganan. "
+                f"Saldo {wallet.balance or 0:.0f} bisa 0 tapi riwayat tetap menempel. "
+                f"Pindahkan ke dompet lain dulu (hapus dengan reassign_to), atau biarkan dompet ini."
+            ),
+        )
+    log_audit(db, current_user.name, "DELETE", "wallets", wallet_id, {"name": wallet.name})
     db.delete(wallet)
     db.commit()
     clear_cache_prefix("cache:/api/finance/wallets")

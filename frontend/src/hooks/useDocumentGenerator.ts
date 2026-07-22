@@ -122,6 +122,8 @@ export function useDocumentGenerator() {
   const [previewing, setPreviewing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [generatedDoc, setGeneratedDoc] = useState<GeneratedDoc | null>(null);
+  const [archiveFolders, setArchiveFolders] = useState<{ id: string; name: string; parent_id: string | null; lead_id?: number | null }[]>([]);
+  const [archiveFolderId, setArchiveFolderId] = useState<string>("");
   const [emailModal, setEmailModal] = useState(false);
   const [emailTo, setEmailTo] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
@@ -143,6 +145,14 @@ export function useDocumentGenerator() {
     variables: {} as Record<string, string>,
     lineItems: {} as Record<string, LineItem[]>,
   });
+
+  // Archive folders for optional save destination
+  useEffect(() => {
+    apiFetch("/api/archive/folders")
+      .then(r => (r.ok ? r.json() : []))
+      .then((rows: any[]) => setArchiveFolders(Array.isArray(rows) ? rows : []))
+      .catch(() => setArchiveFolders([]));
+  }, []);
 
   // Keep refs in sync
   useEffect(() => {
@@ -536,7 +546,13 @@ export function useDocumentGenerator() {
     // Read from ref so we always get the latest variables — the React state
     // closure can be stale after updateLineItem/setVariables inside setLineItems.
     const latestVars = draftStateRef.current.variables ?? variables;
-    return { template_id: selectedTemplate?.id, target_type: ttype, target_id: tid !== null ? String(tid) : null, variables: latestVars };
+    return {
+      template_id: selectedTemplate?.id,
+      target_type: ttype,
+      target_id: tid !== null ? String(tid) : null,
+      variables: latestVars,
+      archive_folder_id: archiveFolderId || null,
+    };
   }
 
   async function handlePreview() {
@@ -649,6 +665,7 @@ export function useDocumentGenerator() {
     showSeqEditor, setShowSeqEditor, seqStartFrom, setSeqStartFrom,
     generating, previewing, previewUrl, setPreviewUrl,
     generatedDoc, setGeneratedDoc,
+    archiveFolders, archiveFolderId, setArchiveFolderId,
     emailModal, setEmailModal, emailTo, setEmailTo, emailSubject, setEmailSubject, sendingEmail,
     toast, setToast, paymentMethods, scopeTemplates,
     klienSearch, setKlienSearch, klienDropdownOpen, setKlienDropdownOpen, klienRef,

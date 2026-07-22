@@ -1,6 +1,13 @@
 "use client";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+interface ArchiveFolder {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  lead_id?: number | null;
+}
+
 interface GeneratorPreviewProps {
   selectedTemplate: any;
   selectedProject: any;
@@ -12,11 +19,27 @@ interface GeneratorPreviewProps {
   generating: boolean;
   handleGenerate: () => Promise<void>;
   setStep: (s: number) => void;
+  archiveFolders?: ArchiveFolder[];
+  archiveFolderId?: string;
+  setArchiveFolderId?: (id: string) => void;
+}
+
+function folderLabel(folders: ArchiveFolder[], folder: ArchiveFolder): string {
+  const parts: string[] = [folder.name];
+  let current = folder.parent_id ? folders.find(f => f.id === folder.parent_id) : null;
+  const seen = new Set<string>([folder.id]);
+  while (current && !seen.has(current.id)) {
+    parts.unshift(current.name);
+    seen.add(current.id);
+    current = current.parent_id ? folders.find(f => f.id === current!.parent_id) : null;
+  }
+  return parts.join(" / ");
 }
 
 export default function GeneratorPreview({
   selectedTemplate, selectedProject, selectedLead, selectedContact,
   previewUrl, previewing, handlePreview, generating, handleGenerate, setStep,
+  archiveFolders = [], archiveFolderId = "", setArchiveFolderId,
 }: GeneratorPreviewProps) {
   const targetLabel = selectedProject
     ? selectedProject.name
@@ -25,6 +48,10 @@ export default function GeneratorPreview({
       : selectedContact
         ? selectedContact.business_name
         : "";
+
+  const sortedFolders = [...archiveFolders].sort((a, b) =>
+    folderLabel(archiveFolders, a).localeCompare(folderLabel(archiveFolders, b), "id"),
+  );
 
   return (
     <div className="space-y-4">
@@ -43,6 +70,28 @@ export default function GeneratorPreview({
           <div className="flex h-80 items-center justify-center text-sm text-gray-400">Preview PDF belum tersedia.</div>
         )}
       </div>
+
+      {setArchiveFolderId && (
+        <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-3 dark:border-amber-900/40 dark:bg-amber-950/10">
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">
+            Simpan salinan ke folder arsip
+          </label>
+          <select
+            value={archiveFolderId}
+            onChange={e => setArchiveFolderId(e.target.value)}
+            className="w-full rounded-xl border-0 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:bg-neutral-900"
+          >
+            <option value="">— Otomatis (folder klien/proyek) —</option>
+            {sortedFolders.map(f => (
+              <option key={f.id} value={f.id}>{folderLabel(archiveFolders, f)}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-[11px] text-neutral-500">
+            PDF resmi tetap di Dokumen Resmi. Opsi ini memilih folder di Arsip Tim untuk salinan/link-nya.
+          </p>
+        </div>
+      )}
+
       <div className="flex justify-between pt-2">
         <button onClick={() => setStep(2)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-gray-600 border border-gray-200 rounded-xl">
           <ChevronLeft size={16} /> Kembali

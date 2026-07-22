@@ -98,6 +98,8 @@ export default function FinancePanel() {
   const [categoryMode, setCategoryMode] = useState<"preset" | "custom">("preset");
   const [linkClient, setLinkClient] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; type: "wallet" | "transaction" } | null>(null);
+  const [walletDeleteModal, setWalletDeleteModal] = useState<{ id: number; name: string; balance: number } | null>(null);
+  const [reassignWalletId, setReassignWalletId] = useState<number | "">("");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
   const fetchAll = useCallback(async () => {
@@ -152,16 +154,30 @@ export default function FinancePanel() {
     }
   }
 
-  async function deleteWallet(id: number) {
-    const res = await apiFetch(`/api/finance/wallets/${id}`, { method: "DELETE" });
+  function openDeleteWallet(w: WalletData) {
+    setWalletDeleteModal({ id: w.id, name: w.name, balance: w.balance });
+    const other = wallets.find(x => x.id !== w.id);
+    setReassignWalletId(other?.id ?? "");
+  }
+
+  async function deleteWallet(id: number, reassignTo?: number | "") {
+    const qs = reassignTo ? `?reassign_to=${reassignTo}` : "";
+    const res = await apiFetch(`/api/finance/wallets/${id}${qs}`, { method: "DELETE" });
     if (res.ok) {
-      setToast({ message: "Dompet berhasil dihapus.", type: "success" });
+      setToast({
+        message: reassignTo
+          ? "Dompet dihapus. Semua transaksi/langganan dipindah ke dompet tujuan."
+          : "Dompet berhasil dihapus.",
+        type: "success",
+      });
+      setWalletDeleteModal(null);
+      setReassignWalletId("");
       fetchAll();
     } else {
       setToast({
         message: await readApiError(
           res,
-          "Gagal hapus dompet. Dompet yang masih punya transaksi/langganan tidak bisa dihapus.",
+          "Gagal hapus dompet. Saldo 0 tidak berarti kosong — riwayat transaksi masih menempel.",
         ),
         type: "error",
       });
@@ -289,22 +305,63 @@ export default function FinancePanel() {
     <div className="space-y-6">
       <Toast message={toast?.message ?? null} type={toast?.type} onClose={() => setToast(null)} />
       <Modal
-        open={!!deleteTarget}
-        title={deleteTarget?.type === "wallet" ? "Hapus Dompet?" : "Hapus Transaksi?"}
-        message={
-          deleteTarget?.type === "wallet"
-            ? "Dompet hanya bisa dihapus jika kosong. Kalau masih ada transaksi/langganan, arsipkan atau pindahkan dulu — server akan menolak dengan pesan jelas."
-            : "Transaksi yang dihapus tidak bisa dikembalikan."
-        }
+        open={!!deleteTarget && deleteTarget.type === "transaction"}
+        title="Hapus Transaksi?"
+        message="Transaksi diarsipkan (soft-delete). Saldo dompet disesuaikan."
         confirmLabel="Hapus"
         confirmClass="bg-red-600 hover:bg-red-700"
         onConfirm={() => {
-          if (!deleteTarget) return;
-          if (deleteTarget.type === "wallet") deleteWallet(deleteTarget.id);
-          else deleteTransaction(deleteTarget.id);
+          if (!deleteTarget || deleteTarget.type !== "transaction") return;
+          deleteTransaction(deleteTarget.id);
         }}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      {/* Wallet delete / reassign modal */}
+      {walletDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setWalletDeleteModal(null)} />
+          <div className="relative w-full max-w-md space-y-4 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-50">Hapus dompet «{walletDeleteModal.name}»?</h3>
+                <p className="mt-1 text-xs text-neutral-500">
+                  Saldo {formatRupiah(walletDeleteModal.balance)} bisa 0, tapi riwayat transaksi tetap menempel ke dompet ini.
+                  Pilih dompet tujuan untuk memindahkan semua transaksi + langganan, lalu hapus.
+                </p>
+              </div>
+              <button type="button" onClick={() => setWalletDeleteModal(null)} className="p-1 text-neutral-400 hover:text-neutral-600"><X size={18} /></button>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase text-neutral-500">Pindahkan ke dompet</label>
+              <select
+                value={reassignWalletId === "" ? "" : String(reassignWalletId)}
+                onChange={e => setReassignWalletId(e.target.value ? Number(e.target.value) : "")}
+                className={inputCls}
+              >
+                <option value="">— Pilih dompet tujuan —</option>
+                {wallets.filter(w => w.id !== walletDeleteModal.id).map(w => (
+                  <option key={w.id} value={w.id}>{w.name} ({formatRupiah(w.balance)})</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 pt-1">
+              <button type="button" onClick={() => setWalletDeleteModal(null)} className="rounded-xl bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">Batal</button>
+              <button
+                type="button"
+                disabled={!reassignWalletId}
+                onClick={() => deleteWallet(walletDeleteModal.id, reassignWalletId)}
+                className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                Pindah & hapus
+              </button>
+            </div>
+            <p className="text-[11px] text-neutral-400">
+              Tanpa pindah, hapus ditolak kalau masih ada transaksi. Dompet kosong total (0 txn, 0 langganan) juga bisa dihapus lewat API tanpa reassign.
+            </p>
+          </div>
+        </div>
+      )}
       {/* Action buttons */}
       <div className="flex flex-wrap gap-2 justify-end">
         <button onClick={exportCSV} className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-4 sm:py-2.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs sm:text-sm font-semibold rounded-xl transition-colors">
@@ -370,7 +427,7 @@ export default function FinancePanel() {
                   </div>
                   <div className="flex gap-1">
                     <button onClick={() => openEditWallet(w)} className="p-1.5 text-gray-400 hover:text-brand-yellow rounded-lg transition-colors"><Edit2 size={13} /></button>
-                    <button onClick={() => setDeleteTarget({ id: w.id, type: "wallet" })} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors"><Trash2 size={13} /></button>
+                    <button onClick={() => openDeleteWallet(w)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors" title="Hapus / pindah riwayat"><Trash2 size={13} /></button>
                   </div>
                 </div>
                 <p className={`text-xl font-bold ${w.balance >= 0 ? "text-neutral-900 dark:text-neutral-50" : "text-red-500"}`}>{formatRupiah(w.balance)}</p>

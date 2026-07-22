@@ -589,13 +589,13 @@ export default function DocumentsContent() {
               </Link>
               <Link href="/documents/reports" className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 transition hover:border-amber-300 hover:bg-amber-50 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:bg-amber-950/20">
                 <BarChart3 className="mb-2 h-5 w-5 text-amber-600" />
-                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Laporan Klien (delivery)</p>
-                <p className="mt-1 text-xs text-neutral-500">Bulanan/selesai proyek dari workspace, metric, dan bukti kerja.</p>
+                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Laporan Delivery (PDF)</p>
+                <p className="mt-1 text-xs text-neutral-500">PDF bulanan/selesai proyek + link tracked /client-report. Beda dari report web audit di Prospek.</p>
               </Link>
               <Link href="/leads" className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 transition hover:border-amber-300 hover:bg-amber-50 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:bg-amber-950/20">
                 <Search className="mb-2 h-5 w-5 text-amber-600" />
-                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Laporan Audit Lead</p>
-                <p className="mt-1 text-xs text-neutral-500">Pre-sales audit report (beda dari laporan delivery klien).</p>
+                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Report Web (WA blast)</p>
+                <p className="mt-1 text-xs text-neutral-500">Audit digital interaktif /report/&#123;slug&#125; — tombol di Prospek (Lihat Report / Chat WA). Bukan PDF delivery.</p>
               </Link>
             </div>
           )}

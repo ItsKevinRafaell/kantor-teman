@@ -212,6 +212,9 @@ function DocumentNewPageInner() {
           generating={ctx.generating}
           handleGenerate={ctx.handleGenerate}
           setStep={ctx.setStep}
+          archiveFolders={ctx.archiveFolders}
+          archiveFolderId={ctx.archiveFolderId}
+          setArchiveFolderId={ctx.setArchiveFolderId}
         />
       )}
 

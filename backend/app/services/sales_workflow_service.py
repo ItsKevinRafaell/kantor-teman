@@ -139,18 +139,40 @@ def archive_generated_document(
     client_name: str,
     project_name: str,
     doc_type: str,
+    folder_id: Optional[str] = None,
+    lead_id: Optional[int] = None,
 ) -> Optional[Document]:
-    folder = ensure_archive_folder_tree(db, client_name, project_name, doc_type)
+    """Copy generated PDF into Arsip Tim.
+
+    folder_id: if set, use that folder (must exist). Else auto-create client/project tree.
+    lead_id: optional CRM link for hub.
+    """
     user_id = _first_admin_user_id(db)
-    if not folder or not user_id:
+    if not user_id:
+        return None
+    folder = None
+    if folder_id:
+        folder = db.query(DocumentFolder).filter(DocumentFolder.id == folder_id).first()
+        if not folder:
+            return None
+    else:
+        folder = ensure_archive_folder_tree(db, client_name, project_name, doc_type)
+    if not folder:
         return None
     existing = db.query(Document).filter(Document.source_type == "generated_document", Document.source_id == generated_doc.id).first()
     if existing:
+        if folder_id and existing.folder_id != folder.id:
+            existing.folder_id = folder.id
+            existing.updated_at = _now()
+        if lead_id is not None and getattr(existing, "lead_id", None) != lead_id:
+            existing.lead_id = lead_id
+            existing.updated_at = _now()
         return existing
     doc = Document(
         id=str(uuid.uuid4()),
         user_id=user_id,
         folder_id=folder.id,
+        lead_id=lead_id,
         name=title,
         type="pdf",
         content=None,

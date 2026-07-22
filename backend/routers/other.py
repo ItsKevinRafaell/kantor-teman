@@ -628,6 +628,8 @@ class DocumentGenerateIn(BaseModel):
     target_type: Optional[str] = None
     target_id: Optional[str] = None
     variables: dict = Field(default_factory=dict)
+    # Optional: pin archive copy into a specific Arsip Tim folder instead of auto tree
+    archive_folder_id: Optional[str] = None
 
 
 class DocumentEmailIn(BaseModel):
