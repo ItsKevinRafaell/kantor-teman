@@ -1,8 +1,8 @@
 """
 Localized Search Volume Heuristic Engine
 Estimasi volume pencarian bulanan Google berdasarkan kategori bisnis dan kota.
+Honesty: no random invent — unmatched category/city returns 0 (FE hides).
 """
-import random
 
 SEARCH_VOLUME_DATA = {
     "KONTRAKTOR": {
@@ -125,21 +125,44 @@ CITY_SCALE = {
 
 
 def get_monthly_search_volume(category: str, city: str) -> int:
-    cat_upper = category.upper().strip().replace(" ", "_")
-    city_lower = city.lower().strip()
+    """Return heuristic monthly search estimate, or 0 if no table match.
 
+    Honesty policy: never invent random numbers. FE should label non-zero
+    values as internal estimates (not live Keyword Planner / Google Ads).
+    """
+    if not category:
+        return 0
+
+    cat_upper = category.upper().strip().replace(" ", "_")
+    city_lower = (city or "").lower().strip()
+
+    # Direct key
     if cat_upper in SEARCH_VOLUME_DATA:
         city_data = SEARCH_VOLUME_DATA[cat_upper]
-        for key in city_data:
-            if key in city_lower or city_lower in key:
-                return city_data[key]
+        if city_lower:
+            for key in city_data:
+                if key in city_lower or city_lower in key:
+                    return city_data[key]
+        # Category known, city unknown → use median of known cities (still labeled estimasi)
+        vals = list(city_data.values())
+        if vals:
+            vals_sorted = sorted(vals)
+            return vals_sorted[len(vals_sorted) // 2]
+        return 0
 
-    # Fallback: angka acak berdasarkan skala kota
-    scale = 0.3
-    for key, val in CITY_SCALE.items():
-        if key in city_lower or city_lower in key:
-            scale = val
-            break
+    # Fuzzy: category substring match against table keys
+    for key, city_data in SEARCH_VOLUME_DATA.items():
+        key_norm = key.replace("_", " ").lower()
+        cat_norm = category.lower()
+        if key_norm in cat_norm or cat_norm in key_norm or key.lower() in cat_upper.lower():
+            if city_lower:
+                for ckey, vol in city_data.items():
+                    if ckey in city_lower or city_lower in ckey:
+                        return vol
+            vals = list(city_data.values())
+            if vals:
+                vals_sorted = sorted(vals)
+                return vals_sorted[len(vals_sorted) // 2]
 
-    base = random.randint(300, 800)
-    return int(base * (scale / 0.3))
+    # No match → hide number in UI (0)
+    return 0

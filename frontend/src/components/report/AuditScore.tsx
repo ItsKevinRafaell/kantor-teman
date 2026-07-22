@@ -36,7 +36,12 @@ export function AuditScore({ competitor_count, monthly_search_volume, painPoints
 
   return (
     <section className="bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-700 rounded-2xl p-6 shadow-sm">
-      <p className="text-[10px] uppercase tracking-widest text-zinc-600 dark:text-zinc-400 font-bold mb-4">Skor Kesehatan Digital</p>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[10px] uppercase tracking-widest text-zinc-600 dark:text-zinc-400 font-bold">Skor kesehatan digital (internal)</p>
+        <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[10px] font-semibold text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+          Heuristik · bukan PageSpeed live
+        </span>
+      </div>
       <div className="flex items-center gap-6">
         {/* Speedometer */}
         <div className="relative w-28 h-28 shrink-0">
@@ -55,9 +60,14 @@ export function AuditScore({ competitor_count, monthly_search_volume, painPoints
           <p className="text-base font-bold text-zinc-900 dark:text-white">{scoreLabel}</p>
           <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
             {hasDigitalAnalysis
-              ? `Skor ini dihitung dari hasil AI analysis, sinyal visibilitas Google, tingkat kompetisi di ${city}, dan kesiapan digital ${nama_usaha || "bisnis ini"} saat ini.`
-              : `Skor ini adalah estimasi awal dari data lead, kategori, estimasi pencarian, dan pembanding bisnis sejenis di ${city}. Audit teknis tetap perlu dilakukan sebelum mengambil keputusan besar.`}
+              ? `Skor internal dari analysis profil, estimasi pencarian (jika ada), dan jumlah bisnis sejenis di database lead untuk ${city}. Bukan skor Lighthouse/PageSpeed resmi.`
+              : `Skor internal dari data lead, kategori, estimasi pencarian (jika ada), dan pembanding di database kami untuk ${city}. Audit teknis tetap perlu sebelum keputusan besar.`}
           </p>
+          {competitor_count > 0 && (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Pembanding: {competitor_count} bisnis sejenis di database lead · {city} (bukan hitungan live Google Maps).
+            </p>
+          )}
           <div className="flex flex-wrap gap-2 mt-2">
             {badges.map((badge) => (
               <span key={badge.label} className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${badge.className}`}>{badge.label}</span>

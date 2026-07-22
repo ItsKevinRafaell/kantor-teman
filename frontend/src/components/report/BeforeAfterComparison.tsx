@@ -205,6 +205,7 @@ export function BeforeAfterComparison({
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">Perbandingan</p>
           <h2 className="text-lg font-black text-zinc-900 dark:text-white">Kondisi sekarang → target perbaikan</h2>
+          <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">Kolom kanan = target kerja 30–90 hari, bukan hasil terukur hari ini.</p>
         </div>
         <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[10px] font-semibold text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
           Kanal utama: {primary}
@@ -242,9 +243,9 @@ export function BeforeAfterComparison({
         {/* After */}
         <div className="rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/80 to-white p-5 shadow-sm dark:border-amber-900/50 dark:from-amber-950/30 dark:to-zinc-900">
           <div className="mb-4 flex items-center justify-between gap-2">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">Proyeksi perbaikan</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">Target perbaikan</p>
             <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
-              Target 30–90 hari
+              Target 30–90 hari · ilustratif
             </span>
           </div>
           <h3 className="mb-4 text-base font-bold text-zinc-900 dark:text-white">Bersama Kantor Teman</h3>

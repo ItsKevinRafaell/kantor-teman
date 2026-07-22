@@ -70,21 +70,29 @@ export function ReportHero({
             </p>
           </div>
           <div className="rounded-xl border border-zinc-200/80 bg-white/70 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900/60">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">Pencarian/bln</p>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">Est. pencarian/bln</p>
             <p className="text-lg font-black text-amber-600">
               {monthly_search_volume > 0 ? monthly_search_volume.toLocaleString("id-ID") : "—"}
             </p>
           </div>
         </div>
 
-        {monthly_search_volume > 0 && (
+        {monthly_search_volume > 0 ? (
           <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-            Estimasi <span className="font-bold text-amber-600">{monthly_search_volume.toLocaleString("id-ID")}</span> pencarian/bulan
-            di <span className="font-semibold">{city}</span> terkait{" "}
-            <span className="font-semibold">{category || "kategori ini"}</span>.
-            Audit ini memetakan celah profil digital Anda supaya peluang itu tidak hilang ke kompetitor.
+            <span className="font-bold text-amber-600">{monthly_search_volume.toLocaleString("id-ID")}</span>{" "}
+            <span className="font-semibold">estimasi internal</span> pencarian/bulan di{" "}
+            <span className="font-semibold">{city}</span> terkait{" "}
+            <span className="font-semibold">{category || "kategori ini"}</span>
+            {" "}— bukan data live Google Ads/Keyword Planner. Dipakai sebagai sinyal pasar, bukan angka resmi.
+          </p>
+        ) : (
+          <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+            Estimasi volume pencarian belum tersedia untuk kombinasi kategori/kota ini. Fokus audit: kelengkapan profil digital & jalur kontak.
           </p>
         )}
+        <p className="text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+          Rating, ulasan, website, dan link sosmed di laporan ini mengikuti data profil lead (scrape/manual). Angka estimasi dilabeli terpisah.
+        </p>
       </div>
     </section>
   );

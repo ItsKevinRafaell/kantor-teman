@@ -460,7 +460,7 @@ def get_public_report_by_slug(slug: str, request: Request, db: Session = Depends
         "monthly_search_volume": get_monthly_search_volume(
             lead.product_interest or "",
             city if lead and lead.address else ""
-        ) if lead else 500,
+        ) if lead else 0,
         "selected_addons": (
             json.loads(proposal.selected_addons)
             if proposal.selected_addons and proposal.selected_addons not in ("[]", "null", "")

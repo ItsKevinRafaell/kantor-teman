@@ -241,9 +241,8 @@ export default function PublicReportPage() {
             <h1 className="text-base font-bold text-zinc-900 dark:text-white truncate">{report.nama_usaha}</h1>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 border-2 border-amber-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-              <span className="text-[10px] font-bold text-amber-700">Live</span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-100 border border-zinc-300 dark:bg-zinc-800 dark:border-zinc-600">
+              <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-300">Audit profil</span>
             </span>
           </div>
         </div>
@@ -303,17 +302,28 @@ export default function PublicReportPage() {
 
         <BeforeAfterComparison nama_usaha={report.nama_usaha} category={report.category} city={city} slug={report.slug} base_price={report.base_price} discount_price={report.discount_price} hasDigitalAnalysis={!!report.digital_analysis} presence={buildPresence(report)} />
 
-        {/* Pleasure Bridge */}
+        {/* Pleasure Bridge — illustrative only */}
         {!discountExpired ? (
           <section ref={pleasureBridgeRef} className="bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-700 rounded-2xl p-6 shadow-sm print:hidden">
-            <p className="text-sm text-zinc-900 dark:text-zinc-100 font-medium mb-5">Geser slider di bawah untuk memvisualisasikan potensi pertumbuhan bisnis Anda jika masalah digital di atas diperbaiki.</p>
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Simulator skenario</p>
+                <p className="text-sm text-zinc-900 dark:text-zinc-100 font-medium">Geser slider untuk melihat ilustrasi dampak jika profil digital dirapikan.</p>
+              </div>
+              <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                Ilustrasi · bukan jaminan
+              </span>
+            </div>
+            <p className="mb-5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+              Angka leads/omzet dihitung dari asumsi internal sektor (trafik dasar × konversi × nilai transaksi tipikal). Bukan forecast terukur dari analytics Anda.
+            </p>
             <div className="space-y-5">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-700 dark:text-zinc-300 uppercase tracking-widest font-bold">Kenaikan Trafik</span>
+                <span className="text-xs text-zinc-700 dark:text-zinc-300 uppercase tracking-widest font-bold">Skenario kenaikan trafik</span>
                 <span className="text-2xl font-black text-amber-600">{sliderValue}%</span>
               </div>
               <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 border border-zinc-200 dark:border-zinc-700">
-                <p className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase tracking-widest font-bold mb-3">Proyeksi Keuntungan 6 Bulan ke Depan</p>
+                <p className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase tracking-widest font-bold mb-3">Ilustrasi omzet 6 bulan (skenario)</p>
                 <div className="flex items-end gap-2" style={{ height: "90px" }}>
                   {[1, 2, 3, 4, 5, 6].map((month) => {
                     const growth = 1 + (sliderValue / 100) * 0.3 * month;
@@ -332,36 +342,44 @@ export default function PublicReportPage() {
               <div className="relative w-full h-3 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden"><div className="absolute inset-y-0 left-0 bg-amber-500 rounded-full transition-all duration-150" style={{ width: `${sliderPercent}%` }}></div></div>
               <input type="range" min={10} max={100} step={5} value={sliderValue} onChange={e => setSliderValue(Number(e.target.value))}
                 className="w-full h-3 -mt-3 relative z-10 appearance-none bg-transparent cursor-pointer touch-none accent-amber-500 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-7 [&::-webkit-slider-thumb]:w-7 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-amber-500 [&::-webkit-slider-thumb]:border-4 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-lg [&::-moz-range-thumb]:h-7 [&::-moz-range-thumb]:w-7 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-amber-500" />
-              <p className="text-center text-xs text-zinc-500 dark:text-zinc-400 font-medium">Geser untuk melihat proyeksi</p>
+              <p className="text-center text-xs text-zinc-500 dark:text-zinc-400 font-medium">Geser untuk mengubah skenario ilustrasi</p>
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-amber-50 dark:bg-amber-950/30 border-2 border-amber-200 dark:border-amber-800 rounded-xl p-3 text-center">
-                  <p className="text-[10px] text-zinc-700 dark:text-zinc-300 uppercase tracking-widest font-bold mb-1">Proyeksi Leads Baru</p>
+                  <p className="text-[10px] text-zinc-700 dark:text-zinc-300 uppercase tracking-widest font-bold mb-1">Ilustrasi leads</p>
                   <p className="text-2xl font-black text-amber-600">+{projectedLeads}</p>
-                  <p className="text-[11px] text-zinc-600 dark:text-zinc-400 font-medium mt-0.5">leads/bulan</p>
+                  <p className="text-[11px] text-zinc-600 dark:text-zinc-400 font-medium mt-0.5">/bulan · skenario</p>
                 </div>
                 <div className="bg-amber-50 dark:bg-amber-950/30 border-2 border-amber-200 dark:border-amber-800 rounded-xl p-3 text-center overflow-hidden">
-                  <p className="text-[10px] text-zinc-700 dark:text-zinc-300 uppercase tracking-widest font-bold mb-1">Tambahan Omzet</p>
+                  <p className="text-[10px] text-zinc-700 dark:text-zinc-300 uppercase tracking-widest font-bold mb-1">Ilustrasi omzet</p>
                   <p className="text-lg md:text-2xl font-extrabold text-amber-600 tracking-tight truncate">{formatRupiah(projectedRevenue)}</p>
-                  <p className="text-[11px] text-zinc-600 dark:text-zinc-400 font-medium mt-0.5">per bulan</p>
+                  <p className="text-[11px] text-zinc-600 dark:text-zinc-400 font-medium mt-0.5">/bulan · skenario</p>
                 </div>
               </div>
               {report.competitor_count > 0 && (
                 <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0"><span className="text-red-600 font-black text-sm">{report.competitor_count}</span></div>
-                    <div><p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">Ada pembanding bisnis sejenis di {city}</p><p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">Angka ini berasal dari database lead, lalu dipakai sebagai sinyal awal untuk melihat peluang posisi lokal Anda.</p></div>
+                    <div>
+                      <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">Pembanding di database lead · {city}</p>
+                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                        {report.competitor_count} bisnis sejenis tercatat di database lead kami (bukan hitungan live Google Maps). Dipakai sebagai sinyal awal posisi lokal.
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
               <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-700 rounded-xl p-4">
                 <div className="flex items-start gap-3">
                   <div className="w-8 h-8 rounded-full bg-amber-200 dark:bg-amber-800 flex items-center justify-center shrink-0 mt-0.5"><span className="text-amber-700 dark:text-amber-300 text-xs font-black">!</span></div>
-                  <div><p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">Slot terbatas: Maks. 5 klien per kota</p><p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">Kami membatasi jumlah klien per wilayah.</p></div>
+                  <div>
+                    <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">Kapasitas layanan terbatas per wilayah</p>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">Kami membatasi jumlah klien aktif per sektor/wilayah agar eksekusi tetap terkontrol.</p>
+                  </div>
                 </div>
               </div>
               <div className="bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl p-4 text-center">
-                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mb-1">Jika Anda mulai 3 bulan lalu, estimasi Anda sudah mendapat:</p>
-                <p className="text-base font-bold text-zinc-800 dark:text-zinc-200">+{projectedLeads * 3} leads &amp; <span className="text-amber-600">{formatRupiah(projectedRevenue * 3)}</span> tambahan omzet</p>
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mb-1">Ilustrasi kumulatif 3 bulan (skenario yang sama, bukan histori nyata):</p>
+                <p className="text-base font-bold text-zinc-800 dark:text-zinc-200">+{projectedLeads * 3} leads &amp; <span className="text-amber-600">{formatRupiah(projectedRevenue * 3)}</span></p>
               </div>
             </div>
           </section>
@@ -379,8 +397,11 @@ export default function PublicReportPage() {
 
         <ReportFOMOCloser report={report} city={city} discountExpired={discountExpired} timeLeft={timeLeft} getProvinceForCity={getProvinceForCity} apiBase={API_BASE} />
 
-        <footer className="text-center text-xs text-zinc-600 py-6 print:hidden">
-          <p>Laporan ini dibuat otomatis oleh sistem audit digital Kantor Teman.</p>
+        <footer className="space-y-2 text-center text-xs text-zinc-600 py-6 print:hidden">
+          <p>Laporan dibuat otomatis dari data profil lead + heuristik internal Kantor Teman.</p>
+          <p className="mx-auto max-w-lg leading-relaxed text-zinc-500">
+            Rating/ulasan/website/sosmed = data profil (scrape atau input manual). Volume pencarian &amp; simulator = estimasi/ilustrasi, bukan data live Google atau jaminan hasil.
+          </p>
           <p className="mt-1">&copy; {new Date().getFullYear()} Kantor Teman</p>
         </footer>
 

@@ -31,7 +31,10 @@ export default function ReportFOMOCloser({ report, city, discountExpired, timeLe
       </p>
       {report.competitor_count > 0 && (
         <div className="rounded-xl bg-amber-50 dark:bg-amber-950/30 border-2 border-amber-200 dark:border-amber-800 px-4 py-2.5 text-center">
-          <p className="text-sm text-zinc-900 dark:text-zinc-100 font-medium">Database lead kami mencatat <span className="font-black text-amber-600">{report.competitor_count} bisnis sejenis</span> di {city} sebagai pembanding awal.</p>
+          <p className="text-sm text-zinc-900 dark:text-zinc-100 font-medium">
+            Database lead kami mencatat <span className="font-black text-amber-600">{report.competitor_count} bisnis sejenis</span> di {city} sebagai pembanding awal
+            <span className="block text-[11px] font-normal text-zinc-500 mt-1">(bukan hitungan live Google Maps)</span>
+          </p>
         </div>
       )}
       {!discountExpired && (

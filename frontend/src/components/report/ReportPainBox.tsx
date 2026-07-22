@@ -37,13 +37,21 @@ export default function ReportPainBox({ painPoints, monthly_search_volume, city,
       </div>
       {monthly_search_volume > 0 && (
         <div className="mt-6 pt-5 border-t-2 border-amber-200 dark:border-amber-800">
-          <p className="text-[10px] uppercase tracking-widest text-zinc-700 dark:text-zinc-300 font-bold mb-3">Fakta Pasar Digital — {city}</p>
-          <div className="flex items-end gap-3 mb-3">
-            <span className="text-4xl md:text-5xl font-black text-amber-600 tracking-tight">{monthly_search_volume.toLocaleString("id-ID")}</span>
-            <span className="text-sm text-zinc-700 dark:text-zinc-300 font-medium pb-1">pencarian/bulan</span>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <p className="text-[10px] uppercase tracking-widest text-zinc-700 dark:text-zinc-300 font-bold">Sinyal pasar (estimasi) — {city}</p>
+            <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+              Bukan live Google
+            </span>
           </div>
-          <div className="w-full h-2 bg-amber-200 rounded-full overflow-hidden"><div className="bg-amber-500 h-full rounded-full" style={{ width: "75%" }}></div></div>
-          <p className="text-sm text-zinc-900 dark:text-zinc-100 mt-3 leading-relaxed">Ada estimasi <span className="font-bold text-amber-600">{monthly_search_volume.toLocaleString("id-ID")}</span> pencarian per bulan di <span className="font-bold text-zinc-900 dark:text-zinc-50">{city}</span> untuk kebutuhan <span className="font-bold text-zinc-900 dark:text-zinc-50">{category || "bisnis ini"}</span>.</p>
+          <div className="flex items-end gap-3 mb-2">
+            <span className="text-4xl md:text-5xl font-black text-amber-600 tracking-tight">{monthly_search_volume.toLocaleString("id-ID")}</span>
+            <span className="text-sm text-zinc-700 dark:text-zinc-300 font-medium pb-1">est. pencarian/bulan</span>
+          </div>
+          <p className="text-sm text-zinc-900 dark:text-zinc-100 mt-2 leading-relaxed">
+            Estimasi internal untuk kebutuhan{" "}
+            <span className="font-bold text-zinc-900 dark:text-zinc-50">{category || "bisnis ini"}</span> di{" "}
+            <span className="font-bold text-zinc-900 dark:text-zinc-50">{city}</span>. Dipakai sebagai konteks peluang, bukan metrik terverifikasi.
+          </p>
         </div>
       )}
     </section>
