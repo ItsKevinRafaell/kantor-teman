@@ -21,6 +21,8 @@ class Document(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     folder_id = Column(String(36), ForeignKey("document_folders.id"), nullable=True)
+    # Optional link to CRM lead/client so arsip appears in client hub.
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=True, index=True)
     # Legacy columns are still present in existing SQLite/MySQL tables.
     # Keep them mapped so inserts satisfy NOT NULL constraints while newer UI uses title/body.
     name = Column(String(255), nullable=False, default="")
@@ -44,6 +46,7 @@ class Document(Base):
     updated_at = Column(String(255), nullable=True)
     user = relationship("User", backref="documents")
     folder = relationship("DocumentFolder", backref="documents")
+    lead = relationship("Lead", foreign_keys=[lead_id])
 
 
 class BrandKit(Base):

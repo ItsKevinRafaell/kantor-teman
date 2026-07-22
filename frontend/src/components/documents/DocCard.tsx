@@ -12,6 +12,8 @@ interface Document {
   url: string | null;
   tags: string[];
   file_size?: number | null;
+  lead_id?: number | null;
+  lead_name?: string | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -20,13 +22,14 @@ interface DocCardProps {
   doc: Document;
   folderColor?: string;
   folderName?: string;
+  clientName?: string | null;
   onView: () => void;
   onEdit: () => void;
   onDelete?: () => void;
   onMove?: () => void;
 }
 
-export function DocCard({ doc, folderColor, folderName, onView, onEdit, onDelete, onMove }: DocCardProps) {
+export function DocCard({ doc, folderColor, folderName, clientName, onView, onEdit, onDelete, onMove }: DocCardProps) {
   const dateStr = new Date(doc.updated_at || doc.created_at).toLocaleDateString("id-ID", {
     day: "2-digit",
     month: "short",
@@ -57,7 +60,7 @@ export function DocCard({ doc, folderColor, folderName, onView, onEdit, onDelete
             <Eye size={13} />
           </button>
           {onMove && (
-            <button type="button" onClick={onMove} title="Pindah folder" className="p-1.5 text-neutral-400 hover:text-blue-500 rounded-lg transition-colors">
+            <button type="button" onClick={onMove} title="Pindah ke folder…" className="p-1.5 text-neutral-400 hover:text-blue-500 rounded-lg transition-colors">
               <FolderInput size={13} />
             </button>
           )}
@@ -86,8 +89,13 @@ export function DocCard({ doc, folderColor, folderName, onView, onEdit, onDelete
         </p>
       )}
 
-      {doc.tags.length > 0 && (
+      {(doc.tags.length > 0 || clientName || doc.lead_name) && (
         <div className="flex flex-wrap gap-1">
+          {(clientName || doc.lead_name) && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">
+              {clientName || doc.lead_name}
+            </span>
+          )}
           {doc.tags.map(tag => (
             <span key={tag} className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400">
               {tag}

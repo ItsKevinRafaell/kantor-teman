@@ -268,6 +268,23 @@ export default function Sidebar({
         </div>
 
         <nav className={`flex-1 py-4 space-y-5 overflow-y-auto ${desktopCollapsed ? "px-2" : "px-3"}`}>
+          {customizing && !desktopCollapsed && (
+            <div className="mx-1 mb-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+              Centang = tampil di sidebar. Menu tersembunyi tetap bisa dibuka lewat ⌘K / URL.
+              <button
+                type="button"
+                onClick={() => {
+                  if (!confirm("Kembalikan menu default lean (sembunyikan menu sekunder)?")) return;
+                  const next = new Set(DEFAULT_HIDDEN_HREFS);
+                  localStorage.setItem(SIDEBAR_HIDDEN_KEY, JSON.stringify(Array.from(next)));
+                  setHiddenItems(next);
+                }}
+                className="mt-1.5 block font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-950 dark:text-amber-300"
+              >
+                Reset ke default lean
+              </button>
+            </div>
+          )}
           {NAV_GROUPS.map((group) => {
             const visibleItems = group.items
               .filter(i => isAdmin || !i.adminOnly)
@@ -311,13 +328,13 @@ export default function Sidebar({
           })}
         </nav>
 
-        <div className={`py-3 border-t border-[var(--border-subtle)] flex items-center ${desktopCollapsed ? "px-2 justify-center" : "px-3 justify-between"}`}>
-          {!desktopCollapsed && <p className="text-[11px] text-neutral-400 dark:text-neutral-600 font-medium px-2">v1.0</p>}
+        <div className={`py-3 border-t border-[var(--border-subtle)] flex items-center ${desktopCollapsed ? "px-2 justify-center" : "px-3 justify-between gap-2"}`}>
+          {!desktopCollapsed && <p className="text-[11px] text-neutral-400 dark:text-neutral-600 font-medium px-2 shrink-0">v1.0</p>}
           {!desktopCollapsed && (
             <button onClick={() => setCustomizing(!customizing)}
-              className={`text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors ${customizing ? "bg-brand-yellow text-white" : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
+              className={`text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors text-right ${customizing ? "bg-brand-yellow text-white" : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
               title="Pilih menu mana yang tampil di sidebar">
-              {customizing ? "Selesai" : "Atur Menu"}
+              {customizing ? "Selesai" : "Atur Menu (tampil/sembunyi)"}
             </button>
           )}
           {desktopCollapsed && onToggleDesktop && (

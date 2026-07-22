@@ -2221,6 +2221,7 @@ def list_archive_docs(
     search: Optional[str] = Query(default=None),
     limit: int = Query(default=50, le=200),
     unfoldered: Optional[bool] = Query(default=None),
+    lead_id: Optional[int] = Query(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -2229,10 +2230,13 @@ def list_archive_docs(
         q = q.filter(Document.folder_id == None)
     elif folder_id is not None:
         q = q.filter(Document.folder_id == folder_id)
+    if lead_id is not None:
+        q = q.filter(Document.lead_id == lead_id)
     if search:
         q = q.filter(Document.title.ilike(f"%{search}%"))
     docs = q.order_by(Document.updated_at.desc(), Document.created_at.desc()).limit(limit).all()
-    return [_archive_doc_to_dict(d) for d in docs]
+    lead_names = _archive_lead_names(db, docs)
+    return [_archive_doc_to_dict(d, lead_names.get(getattr(d, "lead_id", None))) for d in docs]
 
 
 
@@ -2247,10 +2251,13 @@ def create_archive_doc(
         raise HTTPException(status_code=400, detail="Folder tidak ditemukan")
     if body.status and body.status not in DOCUMENT_STATUSES:
         raise HTTPException(status_code=400, detail=f"Status harus salah satu: {', '.join(sorted(DOCUMENT_STATUSES))}")
+    if body.lead_id is not None and not db.query(Lead).filter(Lead.id == body.lead_id).first():
+        raise HTTPException(status_code=400, detail="Klien/lead tidak ditemukan")
     doc = Document(
         id=str(uuid.uuid4()),
         user_id=current_user.id,
         folder_id=body.folder_id or None,
+        lead_id=body.lead_id,
         name=body.title.strip(),
         type="document" if body.body else ("link" if body.url else "document"),
         content=body.body or None,
@@ -2264,7 +2271,11 @@ def create_archive_doc(
     )
     db.add(doc)
     db.commit()
-    return _archive_doc_to_dict(doc)
+    lead_name = None
+    if doc.lead_id:
+        lead = db.query(Lead).filter(Lead.id == doc.lead_id).first()
+        lead_name = lead.business_name if lead else None
+    return _archive_doc_to_dict(doc, lead_name)
 
 
 @router.post("/api/archive/{doc_id}/attachment", status_code=201)
@@ -2312,7 +2323,11 @@ def get_archive_doc(
     doc = db.query(Document).filter(Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
-    return _archive_doc_to_dict(doc)
+    lead_name = None
+    if getattr(doc, "lead_id", None):
+        lead = db.query(Lead).filter(Lead.id == doc.lead_id).first()
+        lead_name = lead.business_name if lead else None
+    return _archive_doc_to_dict(doc, lead_name)
 
 
 
@@ -2348,9 +2363,17 @@ def update_archive_doc(
         if body.folder_id and not db.query(DocumentFolder).filter(DocumentFolder.id == body.folder_id).first():
             raise HTTPException(status_code=400, detail="Folder tidak ditemukan")
         doc.folder_id = body.folder_id or None
+    if "lead_id" in changes:
+        if body.lead_id is not None and not db.query(Lead).filter(Lead.id == body.lead_id).first():
+            raise HTTPException(status_code=400, detail="Klien/lead tidak ditemukan")
+        doc.lead_id = body.lead_id
     doc.updated_at = datetime.now(timezone.utc).isoformat()
     db.commit()
-    return _archive_doc_to_dict(doc)
+    lead_name = None
+    if doc.lead_id:
+        lead = db.query(Lead).filter(Lead.id == doc.lead_id).first()
+        lead_name = lead.business_name if lead else None
+    return _archive_doc_to_dict(doc, lead_name)
 
 
 
@@ -2367,7 +2390,16 @@ def delete_archive_doc(
     db.commit()
 
 
-def _archive_doc_to_dict(doc: Document) -> dict:
+def _archive_lead_names(db: Session, docs: list) -> dict:
+    ids = {getattr(d, "lead_id", None) for d in docs}
+    ids.discard(None)
+    if not ids:
+        return {}
+    rows = db.query(Lead.id, Lead.business_name).filter(Lead.id.in_(ids)).all()
+    return {row[0]: row[1] for row in rows}
+
+
+def _archive_doc_to_dict(doc: Document, lead_name: str | None = None) -> dict:
     try:
         tags = json.loads(doc.tags) if doc.tags else []
     except Exception:
@@ -2381,6 +2413,8 @@ def _archive_doc_to_dict(doc: Document) -> dict:
     return {
         "id": doc.id,
         "folder_id": doc.folder_id,
+        "lead_id": getattr(doc, "lead_id", None),
+        "lead_name": lead_name,
         "title": doc.title,
         "body": doc.body,
         "url": url,

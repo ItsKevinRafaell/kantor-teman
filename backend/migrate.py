@@ -102,6 +102,7 @@ if "mysql" in _db_url:
         ("documents", "source_type", "ALTER TABLE documents ADD COLUMN source_type VARCHAR(50) NULL"),
         ("documents", "source_id", "ALTER TABLE documents ADD COLUMN source_id VARCHAR(255) NULL"),
         ("documents", "updated_at", "ALTER TABLE documents ADD COLUMN updated_at VARCHAR(255) NULL"),
+        ("documents", "lead_id", "ALTER TABLE documents ADD COLUMN lead_id INT NULL"),
         ("provider_configs", "monthly_quota", "ALTER TABLE provider_configs ADD COLUMN monthly_quota FLOAT NOT NULL DEFAULT 0"),
         ("scrape_history", "batch_name", "ALTER TABLE scrape_history ADD COLUMN batch_name VARCHAR(255) NULL"),
         ("users", "role", "ALTER TABLE users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT 'admin'"),
@@ -1193,6 +1194,7 @@ if doc_cols:
         ("source_type", "TEXT"),
         ("source_id", "TEXT"),
         ("updated_at", "TEXT"),
+        ("lead_id", "INTEGER REFERENCES leads(id)"),
     ]:
         if col not in doc_cols:
             cur.execute(f"ALTER TABLE documents ADD COLUMN {col} {defn}")

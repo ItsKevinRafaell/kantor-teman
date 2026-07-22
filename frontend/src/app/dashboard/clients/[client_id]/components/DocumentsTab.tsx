@@ -35,6 +35,17 @@ interface GeneratedDocumentData {
   generated_at: string;
 }
 
+interface ArchiveDocumentData {
+  id: string;
+  title: string;
+  body: string | null;
+  url: string | null;
+  folder_id: string | null;
+  tags: string[];
+  created_at: string;
+  updated_at: string | null;
+}
+
 function generatedDocTypeLabel(doc: GeneratedDocumentData) {
   if (doc.template_type && DOC_TYPE_LABELS[doc.template_type]) return DOC_TYPE_LABELS[doc.template_type];
   const name = (doc.template_name || doc.display_filename || "").toLowerCase();
@@ -50,6 +61,7 @@ function generatedDocTypeLabel(doc: GeneratedDocumentData) {
 export default function DocumentsTab({ leadId }: { leadId: number | null }) {
   const [documents, setDocuments] = useState<DocumentData[]>([]);
   const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocumentData[]>([]);
+  const [archiveDocuments, setArchiveDocuments] = useState<ArchiveDocumentData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ title: "", cloud_url: "" });
@@ -61,16 +73,20 @@ export default function DocumentsTab({ leadId }: { leadId: number | null }) {
     if (!leadId) {
       setDocuments([]);
       setGeneratedDocuments([]);
+      setArchiveDocuments([]);
       setLoading(false);
       return;
     }
     try {
-      const [manualRes, generatedRes] = await Promise.all([
+      const [manualRes, generatedRes, archiveRes] = await Promise.all([
         apiFetch(`/api/documents?lead_id=${leadId}`),
         apiFetch(`/api/generated-documents?lead_id=${leadId}`),
+        apiFetch(`/api/archive?lead_id=${leadId}&limit=100`),
       ]);
       if (manualRes.ok) setDocuments(await manualRes.json());
       if (generatedRes.ok) setGeneratedDocuments(await generatedRes.json());
+      if (archiveRes.ok) setArchiveDocuments(await archiveRes.json());
+      else setArchiveDocuments([]);
     } finally {
       setLoading(false);
     }
@@ -111,7 +127,7 @@ export default function DocumentsTab({ leadId }: { leadId: number | null }) {
     return <div className="p-6"><div className="h-32 bg-neutral-100 dark:bg-neutral-800 rounded-xl animate-pulse" /></div>;
   }
 
-  const hasAnyDocument = documents.length > 0 || generatedDocuments.length > 0;
+  const hasAnyDocument = documents.length > 0 || generatedDocuments.length > 0 || archiveDocuments.length > 0;
 
   return (
     <div>
@@ -128,17 +144,30 @@ export default function DocumentsTab({ leadId }: { leadId: number | null }) {
       <div className="px-5 py-4 border-b border-[var(--border-default)] flex items-center justify-between">
         <div>
           <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-50">Dokumen & Media</h2>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Link cloud dan dokumen resmi milik klien ini.</p>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+            Hub: link cloud, PDF generator, dan arsip tim yang ditautkan ke klien. Password/API key → tab Kredensial.
+          </p>
         </div>
-        <button onClick={() => setShowModal(true)} disabled={!leadId} className="btn-primary flex items-center gap-1.5 text-xs disabled:opacity-50">
-          <Plus size={14} /> Tambah
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href={leadId ? `/documents?search=` : "/documents"}
+            className="rounded-xl border border-neutral-200 px-2.5 py-1.5 text-xs font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          >
+            Buka Arsip Tim
+          </a>
+          <button onClick={() => setShowModal(true)} disabled={!leadId} className="btn-primary flex items-center gap-1.5 text-xs disabled:opacity-50">
+            <Plus size={14} /> Tambah link
+          </button>
+        </div>
       </div>
 
       {!leadId ? (
         <div className="text-center py-12 text-amber-600 dark:text-amber-400 text-sm">Kontak ini belum memiliki relasi lead.</div>
       ) : !hasAnyDocument ? (
-        <div className="text-center py-12 text-neutral-400 text-sm">Belum ada dokumen tersimpan.</div>
+        <div className="space-y-2 px-5 py-10 text-center text-sm text-neutral-400">
+          <p>Belum ada dokumen tersimpan untuk klien ini.</p>
+          <p className="text-xs">Tambah link cloud di sini, generate PDF di Dokumen Resmi, atau tautkan arsip di /documents (field Terkait klien).</p>
+        </div>
       ) : (
         <div className="divide-y divide-[var(--border-subtle)]">
           {generatedDocuments.length > 0 && (
@@ -172,7 +201,7 @@ export default function DocumentsTab({ leadId }: { leadId: number | null }) {
               </div>
             </div>
           ))}
-          {documents.length > 0 && generatedDocuments.length > 0 && (
+          {documents.length > 0 && (
             <div className="px-5 py-3 text-[11px] font-bold uppercase tracking-wide text-neutral-400">
               Link Cloud Manual
             </div>
@@ -200,6 +229,41 @@ export default function DocumentsTab({ leadId }: { leadId: number | null }) {
               </div>
             </div>
           ))}
+          {archiveDocuments.length > 0 && (
+            <div className="px-5 py-3 text-[11px] font-bold uppercase tracking-wide text-neutral-400">
+              Arsip Tim (ditautkan)
+            </div>
+          )}
+          {archiveDocuments.map(doc => {
+            const href = doc.url
+              ? (doc.url.startsWith("/") ? `${API_BASE}${doc.url}` : doc.url)
+              : `/documents`;
+            return (
+              <div key={doc.id} className="px-5 py-4 flex items-center justify-between hover:bg-[var(--bg-surface-hover)] transition-colors group">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 flex items-center justify-center shrink-0">
+                    <FileText size={16} className="text-emerald-600 dark:text-emerald-300" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">{doc.title}</p>
+                    <p className="text-xs text-neutral-500 truncate">
+                      {doc.body ? doc.body.slice(0, 80) : "Catatan arsip"}
+                      {doc.tags?.length ? ` · ${doc.tags.slice(0, 3).join(", ")}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] text-neutral-400">
+                    {new Date(doc.updated_at || doc.created_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
+                  </span>
+                  <a href={href} target="_blank" rel="noopener noreferrer"
+                    className="p-1.5 text-neutral-400 hover:text-emerald-600 rounded-lg transition-colors">
+                    <Download size={13} />
+                  </a>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

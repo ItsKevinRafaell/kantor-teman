@@ -108,7 +108,7 @@ def parent_creates_cycle(folder_id: str, parent_id: Optional[str], db: Session) 
 
 # ─── Archive Document CRUD ────────────────────────────────────────────────────
 
-def _archive_doc_to_dict(doc: Document) -> dict:
+def _archive_doc_to_dict(doc: Document, lead_name: Optional[str] = None) -> dict:
     try:
         tags = json.loads(doc.tags) if doc.tags else []
     except Exception:
@@ -116,6 +116,8 @@ def _archive_doc_to_dict(doc: Document) -> dict:
     return {
         "id": doc.id,
         "folder_id": doc.folder_id,
+        "lead_id": getattr(doc, "lead_id", None),
+        "lead_name": lead_name,
         "title": doc.title,
         "body": doc.body,
         "url": doc.url,
@@ -136,12 +138,15 @@ def list_archive_docs(
     search: Optional[str],
     limit: int = 50,
     unfoldered: Optional[bool] = None,
+    lead_id: Optional[int] = None,
 ) -> list[dict]:
     q = db.query(Document)
     if unfoldered:
         q = q.filter(Document.folder_id == None)
     elif folder_id is not None:
         q = q.filter(Document.folder_id == folder_id)
+    if lead_id is not None:
+        q = q.filter(Document.lead_id == lead_id)
     if search:
         q = q.filter(Document.title.ilike(f"%{search}%"))
     docs = q.order_by(Document.updated_at.desc(), Document.created_at.desc()).limit(limit).all()
@@ -163,6 +168,7 @@ def create_archive_doc(
     url: Optional[str],
     tags: Optional[list],
     folder_id: Optional[str],
+    lead_id: Optional[int] = None,
 ) -> dict:
     now = datetime.now(timezone.utc).isoformat()
     if folder_id and not db.query(DocumentFolder).filter(DocumentFolder.id == folder_id).first():
@@ -171,6 +177,7 @@ def create_archive_doc(
         id=str(uuid.uuid4()),
         user_id=user_id,
         folder_id=folder_id or None,
+        lead_id=lead_id,
         name=title.strip(),
         type="document" if body else ("link" if url else "document"),
         content=body or None,
@@ -208,6 +215,8 @@ def update_archive_doc(db: Session, doc_id: str, updates: dict) -> dict:
         if folder_id and not db.query(DocumentFolder).filter(DocumentFolder.id == folder_id).first():
             raise ValueError("Folder tidak ditemukan")
         doc.folder_id = folder_id or None
+    if "lead_id" in updates:
+        doc.lead_id = updates["lead_id"]
     doc.updated_at = datetime.now(timezone.utc).isoformat()
     db.commit()
     return _archive_doc_to_dict(doc)

@@ -18,6 +18,7 @@ import { DocCard } from "../../components/documents/DocCard";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const SIDEBAR_KEY = "kt_docs_sidebar_collapsed";
 const FLOW_CARDS_KEY = "kt_docs_flow_hidden";
+const FOLDER_TREE_KEY = "kt_docs_folder_tree_collapsed";
 
 interface DocumentFolder {
   id: string; name: string; parent_id: string | null; color: string; created_at: string;
@@ -25,7 +26,14 @@ interface DocumentFolder {
 
 interface Document {
   id: string; folder_id: string | null; title: string; body: string | null;
-  url: string | null; tags: string[]; file_size?: number | null; created_at: string; updated_at: string | null;
+  url: string | null; tags: string[]; file_size?: number | null;
+  lead_id?: number | null; lead_name?: string | null;
+  created_at: string; updated_at: string | null;
+}
+
+interface ClientOption {
+  lead_id: number;
+  business_name: string;
 }
 
 interface FolderDeleteSummary {
@@ -80,7 +88,7 @@ export default function DocumentsContent() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: "doc" | "folder"; summary?: FolderDeleteSummary } | null>(null);
   const [docModal, setDocModal] = useState(false);
   const [editingDoc, setEditingDoc] = useState<Document | null>(null);
-  const [docForm, setDocForm] = useState({ title: "", body: "", url: "", tags: "", folder_id: "" });
+  const [docForm, setDocForm] = useState({ title: "", body: "", url: "", tags: "", folder_id: "", lead_id: "" });
   const [docFile, setDocFile] = useState<File | null>(null);
   const [folderModal, setFolderModal] = useState(false);
   const [editingFolder, setEditingFolder] = useState<DocumentFolder | null>(null);
@@ -92,10 +100,30 @@ export default function DocumentsContent() {
   const [viewDoc, setViewDoc] = useState<Document | null>(null);
   const [moveDoc, setMoveDoc] = useState<Document | null>(null);
   const [moveFolderId, setMoveFolderId] = useState("");
+  const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(new Set());
+  const [clients, setClients] = useState<ClientOption[]>([]);
 
   useEffect(() => {
     setSidebarCollapsed(readFlag(SIDEBAR_KEY));
     setFlowHidden(readFlag(FLOW_CARDS_KEY));
+    try {
+      const raw = localStorage.getItem(FOLDER_TREE_KEY);
+      if (raw) setCollapsedFolderIds(new Set(JSON.parse(raw) as string[]));
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    apiFetch("/api/contacts")
+      .then(r => (r.ok ? r.json() : []))
+      .then((rows: { lead_id?: number | null; business_name?: string }[]) => {
+        const mapped = (Array.isArray(rows) ? rows : [])
+          .filter(c => c.lead_id)
+          .map(c => ({ lead_id: c.lead_id as number, business_name: c.business_name || `Lead #${c.lead_id}` }));
+        // de-dupe by lead_id
+        const seen = new Set<number>();
+        setClients(mapped.filter(c => (seen.has(c.lead_id) ? false : (seen.add(c.lead_id), true))));
+      })
+      .catch(() => setClients([]));
   }, []);
 
   const showUnfoldered = searchParams.get("unfoldered") === "1";
@@ -203,7 +231,7 @@ export default function DocumentsContent() {
 
   function openNewDoc() {
     setEditingDoc(null);
-    setDocForm({ title: "", body: "", url: "", tags: "", folder_id: selectedFolder || "" });
+    setDocForm({ title: "", body: "", url: "", tags: "", folder_id: selectedFolder || "", lead_id: "" });
     setDocFile(null);
     setDocModal(true);
   }
@@ -211,9 +239,40 @@ export default function DocumentsContent() {
   function openEditDoc(doc: Document) {
     setEditingDoc(doc);
     setViewDoc(null);
-    setDocForm({ title: doc.title, body: doc.body || "", url: doc.url || "", tags: doc.tags.join(", "), folder_id: doc.folder_id || "" });
+    setDocForm({
+      title: doc.title,
+      body: doc.body || "",
+      url: doc.url || "",
+      tags: doc.tags.join(", "),
+      folder_id: doc.folder_id || "",
+      lead_id: doc.lead_id ? String(doc.lead_id) : "",
+    });
     setDocFile(null);
     setDocModal(true);
+  }
+
+  function toggleFolderExpand(folderId: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    setCollapsedFolderIds(prev => {
+      const next = new Set(prev);
+      if (next.has(folderId)) next.delete(folderId);
+      else next.add(folderId);
+      try { localStorage.setItem(FOLDER_TREE_KEY, JSON.stringify(Array.from(next))); } catch { /* ignore */ }
+      return next;
+    });
+  }
+
+  function folderPathLabel(folderId: string | null): string {
+    if (!folderId) return "Tanpa Folder";
+    const parts: string[] = [];
+    let current = folderById.get(folderId);
+    const seen = new Set<string>();
+    while (current && !seen.has(current.id)) {
+      parts.unshift(current.name);
+      seen.add(current.id);
+      current = current.parent_id ? folderById.get(current.parent_id) : undefined;
+    }
+    return parts.join(" / ") || "Folder";
   }
 
   function openMoveDoc(doc: Document) {
@@ -240,7 +299,14 @@ export default function DocumentsContent() {
     if (!docForm.title.trim()) return;
     setSaving(true);
     const tags = docForm.tags.split(",").map(t => t.trim()).filter(Boolean);
-    const payload = { title: docForm.title.trim(), body: docForm.body || null, url: docForm.url || null, tags, folder_id: docForm.folder_id || null };
+    const payload = {
+      title: docForm.title.trim(),
+      body: docForm.body || null,
+      url: docForm.url || null,
+      tags,
+      folder_id: docForm.folder_id || null,
+      lead_id: docForm.lead_id ? Number(docForm.lead_id) : null,
+    };
     try {
       const method = editingDoc ? "PUT" : "POST";
       const url = editingDoc ? `/api/archive/${editingDoc.id}` : "/api/archive";
@@ -377,6 +443,19 @@ export default function DocumentsContent() {
       .map(folder => {
         const isSelected = selectedFolder === folder.id;
         const hasChildren = folders.some(f => f.parent_id === folder.id);
+        const isCollapsed = collapsedFolderIds.has(folder.id);
+        // Keep ancestors of selected folder expanded even if marked collapsed
+        const onSelectedPath = !!selectedFolder && (() => {
+          let cur = selectedFolder ? folderById.get(selectedFolder) : null;
+          const seen = new Set<string>();
+          while (cur && !seen.has(cur.id)) {
+            if (cur.id === folder.id) return true;
+            seen.add(cur.id);
+            cur = cur.parent_id ? folderById.get(cur.parent_id) : undefined;
+          }
+          return false;
+        })();
+        const showChildren = hasChildren && (!isCollapsed || onSelectedPath);
         const bgClass = folderBgClass(folder.color);
         const textClass = folderTextClass(folder.color);
         const isDragOver = dragOverFolder === folder.id;
@@ -388,7 +467,19 @@ export default function DocumentsContent() {
             <div onClick={() => selectFolder(folder.id)}
               className={`group flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${isSelected ? `${bgClass} ${textClass} font-semibold` : "text-neutral-600 dark:text-neutral-400 hover:bg-amber-50/70 dark:hover:bg-amber-950/20"} ${isDragOver ? "ring-2 ring-amber-400 bg-amber-50 dark:bg-amber-950/30" : ""}`}
               style={{ paddingLeft: `${12 + depth * 14}px` }}>
-              {hasChildren ? <ChevronRight size={12} className="shrink-0 text-neutral-400" /> : <span className="w-3 shrink-0" />}
+              {hasChildren ? (
+                <button
+                  type="button"
+                  onClick={e => toggleFolderExpand(folder.id, e)}
+                  className="shrink-0 rounded p-0.5 text-neutral-400 hover:bg-amber-100 hover:text-amber-700 dark:hover:bg-amber-950/30"
+                  title={showChildren ? "Ciutkan subfolder" : "Perluas subfolder"}
+                  aria-label={showChildren ? "Ciutkan" : "Perluas"}
+                >
+                  {showChildren ? <ChevronLeft size={12} className="rotate-[-90deg]" /> : <ChevronRight size={12} />}
+                </button>
+              ) : (
+                <span className="w-3 shrink-0" />
+              )}
               <span className="w-2.5 h-2.5 rounded-full shrink-0 mt-px" style={{ backgroundColor: folder.color }} />
               <span className="flex-1 truncate">{folder.name}</span>
               <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
@@ -398,7 +489,7 @@ export default function DocumentsContent() {
                 )}
               </div>
             </div>
-            {renderFolderTree(folder.id, depth + 1)}
+            {showChildren && renderFolderTree(folder.id, depth + 1)}
           </div>
         );
       });
@@ -450,6 +541,9 @@ export default function DocumentsContent() {
               className="mt-2 flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/20">
               <Plus size={13} /> Folder Baru
             </button>
+            <p className="mt-1 px-2 text-[10px] leading-relaxed text-neutral-400">
+              Drag kartu ke folder, atau ikon pindah. Chevron ciutkan subfolder. Kredensial klien ≠ folder arsip.
+            </p>
           </>
         )}
 
@@ -588,6 +682,7 @@ export default function DocumentsContent() {
               <DocCard key={doc.id} doc={doc}
                 folderColor={folders.find(f => f.id === doc.folder_id)?.color}
                 folderName={folders.find(f => f.id === doc.folder_id)?.name}
+                clientName={doc.lead_name || clients.find(c => c.lead_id === doc.lead_id)?.business_name || null}
                 onView={() => setViewDoc(doc)}
                 onEdit={() => openEditDoc(doc)}
                 onMove={() => openMoveDoc(doc)}
@@ -599,8 +694,8 @@ export default function DocumentsContent() {
       </div>
 
       {/* Document Modal */}
-      <Modal open={docModal} onClose={() => setDocModal(false)} title={editingDoc ? "Edit Dokumen" : "Dokumen Baru"}>
-        <DocForm form={docForm} onChange={setDocForm} folders={folders}
+      <Modal open={docModal} onClose={() => setDocModal(false)} title={editingDoc ? "Edit Dokumen" : "Dokumen Baru"} size="lg">
+        <DocForm form={docForm} onChange={setDocForm} folders={folders} clients={clients}
           attachmentFile={docFile} onFileChange={setDocFile}
           onSave={saveDoc} onCancel={() => setDocModal(false)} saving={saving} />
       </Modal>
@@ -612,9 +707,17 @@ export default function DocumentsContent() {
       </Modal>
 
       {/* View-only Modal */}
-      <Modal open={!!viewDoc} onClose={() => setViewDoc(null)} title={viewDoc?.title || "Dokumen"}>
+      <Modal open={!!viewDoc} onClose={() => setViewDoc(null)} title={viewDoc?.title || "Dokumen"} size="xl">
         {viewDoc && (
           <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+              <span className="rounded-lg bg-neutral-100 px-2 py-1 dark:bg-neutral-800">{folderPathLabel(viewDoc.folder_id)}</span>
+              {(viewDoc.lead_name || clients.find(c => c.lead_id === viewDoc.lead_id)?.business_name) && (
+                <span className="rounded-lg bg-blue-50 px-2 py-1 font-medium text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
+                  {viewDoc.lead_name || clients.find(c => c.lead_id === viewDoc.lead_id)?.business_name}
+                </span>
+              )}
+            </div>
             {viewUrl && (
               <a href={viewUrl} target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 rounded-xl bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-300">
@@ -622,7 +725,7 @@ export default function DocumentsContent() {
               </a>
             )}
             {viewDoc.body ? (
-              <div className="whitespace-pre-wrap rounded-xl bg-neutral-50 p-4 text-sm text-neutral-700 dark:bg-neutral-900 dark:text-neutral-200">
+              <div className="max-h-[50vh] overflow-y-auto whitespace-pre-wrap rounded-xl bg-neutral-50 p-4 text-sm text-neutral-700 dark:bg-neutral-900 dark:text-neutral-200">
                 {viewDoc.body}
               </div>
             ) : (
@@ -637,7 +740,7 @@ export default function DocumentsContent() {
             )}
             <div className="flex flex-wrap justify-end gap-2 pt-2">
               <button type="button" onClick={() => openMoveDoc(viewDoc)} className="rounded-xl bg-neutral-100 px-3 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200">
-                Pindah folder
+                Pindah ke folder…
               </button>
               <button type="button" onClick={() => openEditDoc(viewDoc)} className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-600">
                 <Edit2 size={14} /> Edit
@@ -648,20 +751,27 @@ export default function DocumentsContent() {
       </Modal>
 
       {/* Move folder Modal */}
-      <Modal open={!!moveDoc} onClose={() => setMoveDoc(null)} title="Pindah ke Folder">
+      <Modal open={!!moveDoc} onClose={() => setMoveDoc(null)} title="Pindah ke Folder" size="lg">
         {moveDoc && (
           <div className="space-y-4">
             <p className="text-sm text-neutral-600 dark:text-neutral-300">
-              Pindahkan <span className="font-semibold">{moveDoc.title}</span> ke:
+              Pindahkan <span className="font-semibold">{moveDoc.title}</span>
+            </p>
+            <p className="text-xs text-neutral-500">
+              Saat ini: <span className="font-semibold text-neutral-700 dark:text-neutral-200">{folderPathLabel(moveDoc.folder_id)}</span>
+              {" → "}
+              target: <span className="font-semibold text-amber-700 dark:text-amber-300">{folderPathLabel(moveFolderId || null)}</span>
             </p>
             <select value={moveFolderId} onChange={e => setMoveFolderId(e.target.value)}
               className="w-full rounded-xl border-0 bg-gray-100 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:bg-neutral-800/70">
               <option value="">— Tanpa Folder —</option>
-              {folders.map(f => (
-                <option key={f.id} value={f.id}>{f.parent_id ? `— ${f.name}` : f.name}</option>
-              ))}
+              {[...folders]
+                .sort((a, b) => folderPathLabel(a.id).localeCompare(folderPathLabel(b.id), "id"))
+                .map(f => (
+                  <option key={f.id} value={f.id}>{folderPathLabel(f.id)}</option>
+                ))}
             </select>
-            <p className="text-[11px] text-neutral-400">Tip: drag-drop kartu ke folder di sidebar juga bisa.</p>
+            <p className="text-[11px] text-neutral-400">Tip: drag-drop kartu ke folder di sidebar juga bisa. Kredensial/password → tab Kredensial di detail klien, bukan folder arsip.</p>
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setMoveDoc(null)} className="rounded-xl bg-gray-100 px-4 py-2 text-sm dark:bg-neutral-800">Batal</button>
               <button type="button" onClick={() => moveDocument(moveDoc.id, moveFolderId || null)}

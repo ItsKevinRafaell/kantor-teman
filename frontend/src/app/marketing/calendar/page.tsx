@@ -127,8 +127,19 @@ export default function ContentCalendarPage() {
         body: JSON.stringify(form),
       });
       if (res.ok) {
+        const created = await res.json().catch(() => null);
         setShowModal(false);
         fetchItems();
+        if (created && !created.google_event_id) {
+          setToast({
+            message: "Jadwal disimpan di web, tapi belum ter-sync ke Google Calendar. Cek Settings → test-calendar.",
+            type: "info",
+          });
+        } else {
+          setToast({ message: "Jadwal dibuat & disync ke Google Calendar.", type: "success" });
+        }
+      } else {
+        setToast({ message: "Gagal membuat jadwal.", type: "error" });
       }
     } finally { setSaving(false); }
   }
@@ -188,7 +199,10 @@ export default function ContentCalendarPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">Kalender</h1>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">Kalender umum — meeting, deadline, konten, reminder. Sync ke Google Calendar akun kamu.</p>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">Kalender umum — meeting, deadline, konten, reminder.</p>
+          <p className="mt-1 inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+            Google Calendar: one-way (web → Google). Event di Google tidak ditarik ke sini.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowTypesModal(true)} className="btn-ghost flex items-center gap-1.5 text-xs">

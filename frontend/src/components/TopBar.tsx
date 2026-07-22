@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { Sun, Moon, Menu, Bell, Search, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Sun, Moon, Menu, Bell, Search } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { apiFetch } from "../lib/api";
 
@@ -19,14 +19,10 @@ export default function TopBar({
   onMenuClick,
   hideMenu,
   onSearchClick,
-  onToggleDesktopSidebar,
-  desktopSidebarCollapsed,
 }: {
   onMenuClick?: () => void;
   hideMenu?: boolean;
   onSearchClick?: () => void;
-  onToggleDesktopSidebar?: () => void;
-  desktopSidebarCollapsed?: boolean;
 }) {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
@@ -65,19 +61,6 @@ export default function TopBar({
         {!hideMenu && (
           <button onClick={onMenuClick} className="lg:hidden p-2 -ml-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all" aria-label="Open menu">
             <Menu size={20} className="text-neutral-600 dark:text-neutral-300" />
-          </button>
-        )}
-        {onToggleDesktopSidebar && (
-          <button
-            type="button"
-            onClick={onToggleDesktopSidebar}
-            className="hidden lg:inline-flex p-2 -ml-1 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all"
-            aria-label={desktopSidebarCollapsed ? "Tampilkan sidebar" : "Sembunyikan sidebar"}
-            title={desktopSidebarCollapsed ? "Tampilkan sidebar" : "Sembunyikan sidebar"}
-          >
-            {desktopSidebarCollapsed
-              ? <PanelLeftOpen size={18} className="text-neutral-500 dark:text-neutral-300" />
-              : <PanelLeftClose size={18} className="text-neutral-500 dark:text-neutral-300" />}
           </button>
         )}
         <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-200 truncate">

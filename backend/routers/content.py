@@ -897,6 +897,7 @@ class ArchiveDocIn(BaseModel):
     url: Optional[str] = None
     tags: Optional[List[str]] = []
     folder_id: Optional[str] = None
+    lead_id: Optional[int] = None
 
 
 class ArchiveDocUpdate(BaseModel):
@@ -905,6 +906,7 @@ class ArchiveDocUpdate(BaseModel):
     url: Optional[str] = None
     tags: Optional[List[str]] = None
     folder_id: Optional[str] = None
+    lead_id: Optional[int] = None
 
 
 def _archive_parent_creates_cycle(db: Session, folder_id: str, parent_id: Optional[str]) -> bool:

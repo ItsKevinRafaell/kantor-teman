@@ -49,6 +49,32 @@ interface ClientData {
 
 const COLORS = ["#737373", "#a3a3a3", "#525252", "#d4d4d4", "#78716c", "#94a3b8", "#71717a", "#9ca3af"];
 
+const CATEGORY_PRESETS = [
+  "Makanan",
+  "Tools & Langganan",
+  "Pemasukan",
+  "Refund",
+  "Transfer",
+  "Biaya Admin",
+  "Bunga",
+  "Gaji",
+  "Internet",
+  "Transport",
+  "Marketing",
+  "Operasional",
+] as const;
+
+async function readApiError(res: Response, fallback: string): Promise<string> {
+  try {
+    const body = await res.json();
+    if (typeof body?.detail === "string" && body.detail.trim()) return body.detail;
+    if (Array.isArray(body?.detail)) {
+      return body.detail.map((d: { msg?: string } | string) => (typeof d === "string" ? d : d.msg || "")).filter(Boolean).join(", ") || fallback;
+    }
+  } catch { /* ignore */ }
+  return fallback;
+}
+
 export default function FinancePanel() {
   const [wallets, setWallets] = useState<WalletData[]>([]);
   const [transactions, setTransactions] = useState<TransactionData[]>([]);
@@ -68,6 +94,7 @@ export default function FinancePanel() {
   // Transaction modal
   const [txnModal, setTxnModal] = useState(false);
   const [txnForm, setTxnForm] = useState({ wallet_id: 0, type: "expense", amount: 0, category: "", date: new Date().toISOString().slice(0, 10), notes: "", lead_id: null as number | null, is_billed: false });
+  const [categoryMode, setCategoryMode] = useState<"preset" | "custom">("preset");
   const [linkClient, setLinkClient] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; type: "wallet" | "transaction" } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
@@ -130,7 +157,13 @@ export default function FinancePanel() {
       setToast({ message: "Dompet berhasil dihapus.", type: "success" });
       fetchAll();
     } else {
-      setToast({ message: "Gagal hapus dompet.", type: "error" });
+      setToast({
+        message: await readApiError(
+          res,
+          "Gagal hapus dompet. Dompet yang masih punya transaksi/langganan tidak bisa dihapus.",
+        ),
+        type: "error",
+      });
     }
     setDeleteTarget(null);
   }
@@ -154,6 +187,7 @@ export default function FinancePanel() {
       setToast({ message: "Transaksi berhasil disimpan.", type: "success" });
       setTxnModal(false);
       setTxnForm({ wallet_id: 0, type: "expense", amount: 0, category: "", date: new Date().toISOString().slice(0, 10), notes: "", lead_id: null, is_billed: false });
+      setCategoryMode("preset");
       setLinkClient(false);
       fetchAll();
     }
@@ -165,7 +199,7 @@ export default function FinancePanel() {
       setToast({ message: "Transaksi berhasil dihapus.", type: "success" });
       fetchAll();
     } else {
-      setToast({ message: "Gagal hapus transaksi.", type: "error" });
+      setToast({ message: await readApiError(res, "Gagal hapus transaksi."), type: "error" });
     }
     setDeleteTarget(null);
   }
@@ -201,7 +235,8 @@ export default function FinancePanel() {
   }
 
   function openNewTransaction() {
-    setTxnForm({ wallet_id: wallets[0]?.id || 0, type: "expense", amount: 0, category: "", date: new Date().toISOString().slice(0, 10), notes: "", lead_id: null, is_billed: false });
+    setTxnForm({ wallet_id: wallets[0]?.id || 0, type: "expense", amount: 0, category: "Tools & Langganan", date: new Date().toISOString().slice(0, 10), notes: "", lead_id: null, is_billed: false });
+    setCategoryMode("preset");
     setLinkClient(false);
     setTxnModal(true);
   }
@@ -226,7 +261,11 @@ export default function FinancePanel() {
       <Modal
         open={!!deleteTarget}
         title={deleteTarget?.type === "wallet" ? "Hapus Dompet?" : "Hapus Transaksi?"}
-        message={deleteTarget?.type === "wallet" ? "Semua data dompet ini akan dihapus permanen." : "Transaksi yang dihapus tidak bisa dikembalikan."}
+        message={
+          deleteTarget?.type === "wallet"
+            ? "Dompet hanya bisa dihapus jika kosong. Kalau masih ada transaksi/langganan, arsipkan atau pindahkan dulu — server akan menolak dengan pesan jelas."
+            : "Transaksi yang dihapus tidak bisa dikembalikan."
+        }
         confirmLabel="Hapus"
         confirmClass="bg-red-600 hover:bg-red-700"
         onConfirm={() => {
@@ -451,7 +490,46 @@ export default function FinancePanel() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Kategori</label>
-                <input value={txnForm.category} onChange={e => setTxnForm(f => ({ ...f, category: e.target.value }))} className={inputCls} placeholder="Contoh: Internet, Gaji, Tools, dll" />
+                {categoryMode === "preset" ? (
+                  <select
+                    value={CATEGORY_PRESETS.includes(txnForm.category as typeof CATEGORY_PRESETS[number]) ? txnForm.category : ""}
+                    onChange={e => {
+                      if (e.target.value === "__custom__") {
+                        setCategoryMode("custom");
+                        setTxnForm(f => ({ ...f, category: "" }));
+                        return;
+                      }
+                      setTxnForm(f => ({ ...f, category: e.target.value }));
+                    }}
+                    className={inputCls}
+                  >
+                    <option value="" disabled>Pilih kategori…</option>
+                    {CATEGORY_PRESETS.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                    <option value="__custom__">Lainnya…</option>
+                  </select>
+                ) : (
+                  <div className="space-y-1.5">
+                    <input
+                      value={txnForm.category}
+                      onChange={e => setTxnForm(f => ({ ...f, category: e.target.value }))}
+                      className={inputCls}
+                      placeholder="Kategori custom, mis. Sewa kantor"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCategoryMode("preset");
+                        setTxnForm(f => ({ ...f, category: "Tools & Langganan" }));
+                      }}
+                      className="text-[11px] font-semibold text-brand-yellow hover:underline"
+                    >
+                      Kembali ke daftar preset
+                    </button>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Tanggal</label>

@@ -21,7 +21,7 @@ export default function ClientTabs({ leadId, initialNotes }: ClientTabsProps) {
   const tabs = [
     { key: "notes" as const, label: "Timeline Notes", icon: <FileText size={14} /> },
     { key: "credentials" as const, label: "Kredensial & Akses", icon: <Key size={14} /> },
-    { key: "documents" as const, label: "Dokumen & Media", icon: <ExternalLink size={14} /> },
+    { key: "documents" as const, label: "Hub Dokumen", icon: <ExternalLink size={14} /> },
   ];
 
   return (

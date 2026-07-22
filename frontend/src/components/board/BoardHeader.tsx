@@ -35,7 +35,7 @@ export default function BoardHeader({
               Semua Proyek
             </button>
             <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">{currentProject.name}</h1>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Kanban harian · deadline sync ke Google Calendar</p>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Kanban harian · deadline push one-way ke Google Calendar (web → Google)</p>
           </div>
         ) : (
           <div>
