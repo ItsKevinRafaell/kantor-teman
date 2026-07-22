@@ -12,8 +12,11 @@ class DocumentFolder(Base):
     name = Column(String(255), nullable=False)
     parent_id = Column(String(36), ForeignKey("document_folders.id"), nullable=True)
     color = Column(String(20), nullable=False, default="#6B7280")
+    # Optional link to CRM lead/client so whole folder appears in client hub.
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=True, index=True)
     created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
     user = relationship("User", backref="document_folders")
+    lead = relationship("Lead", foreign_keys=[lead_id])
 
 
 class Document(Base):

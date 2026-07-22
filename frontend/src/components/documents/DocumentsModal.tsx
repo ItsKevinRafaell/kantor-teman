@@ -8,6 +8,8 @@ interface DocumentFolder {
   name: string;
   parent_id: string | null;
   color: string;
+  lead_id?: number | null;
+  lead_name?: string | null;
   created_at: string;
 }
 
@@ -184,19 +186,21 @@ interface FolderFormState {
   name: string;
   color: string;
   parent_id: string;
+  lead_id: string;
 }
 
 interface FolderFormProps {
   form: FolderFormState;
   onChange: (f: FolderFormState) => void;
   folders: DocumentFolder[];
+  clients?: ClientOption[];
   onSave: () => void;
   onCancel: () => void;
   saving: boolean;
   editingId?: string | null;
 }
 
-export function FolderForm({ form, onChange, folders, onSave, onCancel, saving, editingId }: FolderFormProps) {
+export function FolderForm({ form, onChange, folders, clients = [], onSave, onCancel, saving, editingId }: FolderFormProps) {
   return (
     <div className="space-y-4">
       <div>
@@ -214,6 +218,17 @@ export function FolderForm({ form, onChange, folders, onSave, onCancel, saving, 
             <option key={f.id} value={f.id}>{folderOptionLabel(folders, f)}</option>
           ))}
         </select>
+      </div>
+      <div>
+        <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Terkait klien</label>
+        <select value={form.lead_id} onChange={e => onChange({ ...form, lead_id: e.target.value })}
+          className="w-full px-3 py-2 bg-gray-100 dark:bg-neutral-800/70 border-0 rounded-xl text-sm focus:ring-2 focus:ring-amber-300 outline-none">
+          <option value="">— Tidak ditautkan —</option>
+          {clients.map(c => (
+            <option key={c.lead_id} value={String(c.lead_id)}>{c.business_name}</option>
+          ))}
+        </select>
+        <p className="mt-1 text-[11px] text-neutral-400">Opsional. Folder + isinya muncul di hub detail klien.</p>
       </div>
       <div>
         <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-2">Warna</label>

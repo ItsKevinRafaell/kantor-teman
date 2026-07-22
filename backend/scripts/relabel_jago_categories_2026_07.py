@@ -31,14 +31,15 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 from models import SessionLocal, Transaction, log_audit  # noqa: E402
 
 CATEGORY_MAP = {
-    "food": "Makanan",
+    "Makanan": "Tools & Langganan",
+    "food": "Tools & Langganan",
     "tools": "Tools & Langganan",
     "income": "Pemasukan",
     "transfer": "Transfer",
     "fee": "Biaya Admin",
     "interest": "Bunga",
     # already-nice aliases (no-op if same)
-    "makanan": "Makanan",
+    "makanan": "Tools & Langganan",
     "tools & langganan": "Tools & Langganan",
     "pemasukan": "Pemasukan",
     "biaya admin": "Biaya Admin",

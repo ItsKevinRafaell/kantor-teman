@@ -2074,20 +2074,38 @@ def get_template_stats(template_id: str, days: int = 30, current_user: User = De
 
 
 
+def _archive_folder_to_dict(folder: DocumentFolder, lead_name: str | None = None) -> dict:
+    return {
+        "id": folder.id,
+        "name": folder.name,
+        "parent_id": folder.parent_id,
+        "color": folder.color,
+        "lead_id": getattr(folder, "lead_id", None),
+        "lead_name": lead_name,
+        "created_at": folder.created_at,
+    }
+
+
 @router.get("/api/archive/folders")
 def list_archive_folders(
+    lead_id: Optional[int] = Query(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    folders = db.query(DocumentFolder).order_by(DocumentFolder.created_at).all()
-    return [
-        {
-            "id": f.id,
-            "name": f.name,
-            "parent_id": f.parent_id,
-            "color": f.color,
-            "created_at": f.created_at,
+    q = db.query(DocumentFolder)
+    if lead_id is not None:
+        q = q.filter(DocumentFolder.lead_id == lead_id)
+    folders = q.order_by(DocumentFolder.created_at).all()
+    lead_ids = {getattr(f, "lead_id", None) for f in folders}
+    lead_ids.discard(None)
+    lead_names = {}
+    if lead_ids:
+        lead_names = {
+            row[0]: row[1]
+            for row in db.query(Lead.id, Lead.business_name).filter(Lead.id.in_(lead_ids)).all()
         }
+    return [
+        _archive_folder_to_dict(f, lead_names.get(getattr(f, "lead_id", None)))
         for f in folders
     ]
 
@@ -2101,17 +2119,24 @@ def create_archive_folder(
 ):
     if body.parent_id and not db.query(DocumentFolder).filter(DocumentFolder.id == body.parent_id).first():
         raise HTTPException(status_code=400, detail="Parent folder tidak ditemukan")
+    if body.lead_id is not None and not db.query(Lead).filter(Lead.id == body.lead_id).first():
+        raise HTTPException(status_code=400, detail="Klien/lead tidak ditemukan")
     folder = DocumentFolder(
         id=str(uuid.uuid4()),
         user_id=current_user.id,
         name=body.name.strip(),
         parent_id=body.parent_id or None,
         color=body.color or "#6B7280",
+        lead_id=body.lead_id,
         created_at=datetime.now(timezone.utc).isoformat(),
     )
     db.add(folder)
     db.commit()
-    return {"id": folder.id, "name": folder.name, "parent_id": folder.parent_id, "color": folder.color, "created_at": folder.created_at}
+    lead_name = None
+    if folder.lead_id:
+        lead = db.query(Lead).filter(Lead.id == folder.lead_id).first()
+        lead_name = lead.business_name if lead else None
+    return _archive_folder_to_dict(folder, lead_name)
 
 
 
@@ -2146,12 +2171,20 @@ def update_archive_folder(
         if parent_id and _archive_parent_creates_cycle(db, folder.id, parent_id):
             raise HTTPException(status_code=400, detail="Parent folder akan membuat siklus")
         folder.parent_id = parent_id
+    if "lead_id" in changes:
+        if body.lead_id is not None and not db.query(Lead).filter(Lead.id == body.lead_id).first():
+            raise HTTPException(status_code=400, detail="Klien/lead tidak ditemukan")
+        folder.lead_id = body.lead_id
     try:
         db.commit()
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Gagal menyimpan folder: {exc}")
-    return {"id": folder.id, "name": folder.name, "parent_id": folder.parent_id, "color": folder.color, "created_at": folder.created_at}
+    lead_name = None
+    if getattr(folder, "lead_id", None):
+        lead = db.query(Lead).filter(Lead.id == folder.lead_id).first()
+        lead_name = lead.business_name if lead else None
+    return _archive_folder_to_dict(folder, lead_name)
 
 
 def _archive_folder_descendant_ids(db: Session, folder_id: str) -> list[str]:

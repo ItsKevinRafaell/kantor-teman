@@ -6,12 +6,14 @@ class ArchiveFolderIn(BaseModel):
     name: str
     parent_id: Optional[str] = None
     color: Optional[str] = "#6B7280"
+    lead_id: Optional[int] = None
 
 
 class ArchiveFolderUpdate(BaseModel):
     name: Optional[str] = None
     parent_id: Optional[str] = None
     color: Optional[str] = None
+    lead_id: Optional[int] = None
 
 
 class ArchiveDocIn(BaseModel):

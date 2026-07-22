@@ -21,7 +21,8 @@ const FLOW_CARDS_KEY = "kt_docs_flow_hidden";
 const FOLDER_TREE_KEY = "kt_docs_folder_tree_collapsed";
 
 interface DocumentFolder {
-  id: string; name: string; parent_id: string | null; color: string; created_at: string;
+  id: string; name: string; parent_id: string | null; color: string;
+  lead_id?: number | null; lead_name?: string | null; created_at: string;
 }
 
 interface Document {
@@ -92,7 +93,7 @@ export default function DocumentsContent() {
   const [docFile, setDocFile] = useState<File | null>(null);
   const [folderModal, setFolderModal] = useState(false);
   const [editingFolder, setEditingFolder] = useState<DocumentFolder | null>(null);
-  const [folderForm, setFolderForm] = useState({ name: "", color: "#6B7280", parent_id: "" });
+  const [folderForm, setFolderForm] = useState({ name: "", color: "#6B7280", parent_id: "", lead_id: "" });
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const [dragOverRoot, setDragOverRoot] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -335,14 +336,14 @@ export default function DocumentsContent() {
 
   function openNewFolder() {
     setEditingFolder(null);
-    setFolderForm({ name: "", color: "#6B7280", parent_id: selectedFolder || "" });
+    setFolderForm({ name: "", color: "#6B7280", parent_id: selectedFolder || "", lead_id: "" });
     setFolderModal(true);
   }
 
   function openEditFolder(folder: DocumentFolder, e: React.MouseEvent) {
     e.stopPropagation();
     setEditingFolder(folder);
-    setFolderForm({ name: folder.name, color: folder.color || "#6B7280", parent_id: folder.parent_id || "" });
+    setFolderForm({ name: folder.name, color: folder.color || "#6B7280", parent_id: folder.parent_id || "", lead_id: folder.lead_id ? String(folder.lead_id) : "" });
     setFolderModal(true);
   }
 
@@ -356,6 +357,7 @@ export default function DocumentsContent() {
         name: folderForm.name.trim(),
         color: folderForm.color || "#6B7280",
         parent_id: folderForm.parent_id || null,
+        lead_id: folderForm.lead_id ? Number(folderForm.lead_id) : null,
       };
       const res = await apiFetch(url, { method, body: JSON.stringify(payload) });
       if (res.ok) {
@@ -482,6 +484,11 @@ export default function DocumentsContent() {
               )}
               <span className="w-2.5 h-2.5 rounded-full shrink-0 mt-px" style={{ backgroundColor: folder.color }} />
               <span className="flex-1 truncate">{folder.name}</span>
+              {(folder.lead_name || clients.find(c => c.lead_id === folder.lead_id)?.business_name) && (
+                <span className="max-w-[72px] truncate rounded bg-blue-50 px-1 text-[9px] font-semibold text-blue-700 dark:bg-blue-950/30 dark:text-blue-300" title={folder.lead_name || clients.find(c => c.lead_id === folder.lead_id)?.business_name || ""}>
+                  {folder.lead_name || clients.find(c => c.lead_id === folder.lead_id)?.business_name}
+                </span>
+              )}
               <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                 <button type="button" onClick={e => openEditFolder(folder, e)} className="p-0.5 hover:text-neutral-500 transition-colors"><Edit2 size={11} /></button>
                 {isAdmin && (
@@ -702,7 +709,7 @@ export default function DocumentsContent() {
 
       {/* Folder Modal */}
       <Modal open={folderModal} onClose={() => setFolderModal(false)} title={editingFolder ? "Edit Folder" : "Folder Baru"}>
-        <FolderForm form={folderForm} onChange={setFolderForm} folders={folders}
+        <FolderForm form={folderForm} onChange={setFolderForm} folders={folders} clients={clients}
           onSave={saveFolder} onCancel={() => setFolderModal(false)} saving={saving} editingId={editingFolder?.id} />
       </Modal>
 

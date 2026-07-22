@@ -103,6 +103,7 @@ if "mysql" in _db_url:
         ("documents", "source_id", "ALTER TABLE documents ADD COLUMN source_id VARCHAR(255) NULL"),
         ("documents", "updated_at", "ALTER TABLE documents ADD COLUMN updated_at VARCHAR(255) NULL"),
         ("documents", "lead_id", "ALTER TABLE documents ADD COLUMN lead_id INT NULL"),
+        ("document_folders", "lead_id", "ALTER TABLE document_folders ADD COLUMN lead_id INT NULL"),
         ("provider_configs", "monthly_quota", "ALTER TABLE provider_configs ADD COLUMN monthly_quota FLOAT NOT NULL DEFAULT 0"),
         ("scrape_history", "batch_name", "ALTER TABLE scrape_history ADD COLUMN batch_name VARCHAR(255) NULL"),
         ("users", "role", "ALTER TABLE users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT 'admin'"),
@@ -1165,12 +1166,21 @@ if df_cols:
     for col, defn in [
         ("parent_id", "TEXT REFERENCES document_folders(id)"),
         ("color", "TEXT NOT NULL DEFAULT '#6B7280'"),
+        ("lead_id", "INTEGER REFERENCES leads(id)"),
     ]:
         if col not in df_cols:
             cur.execute(f"ALTER TABLE document_folders ADD COLUMN {col} {defn}")
             print(f"+ document_folders.{col} ditambahkan")
 
 # Add missing columns to documents (safe re-run)
+
+# document_folders.lead_id (client link)
+cur.execute("PRAGMA table_info(document_folders)")
+_df_cols = {row[1] for row in cur.fetchall()}
+if _df_cols and "lead_id" not in _df_cols:
+    cur.execute("ALTER TABLE document_folders ADD COLUMN lead_id INTEGER REFERENCES leads(id)")
+    print("+ document_folders.lead_id ditambahkan")
+
 cur.execute("PRAGMA table_info(documents)")
 doc_cols = {row[1] for row in cur.fetchall()}
 if doc_cols:

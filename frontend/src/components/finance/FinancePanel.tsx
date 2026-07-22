@@ -93,6 +93,7 @@ export default function FinancePanel() {
 
   // Transaction modal
   const [txnModal, setTxnModal] = useState(false);
+  const [editingTxn, setEditingTxn] = useState<TransactionData | null>(null);
   const [txnForm, setTxnForm] = useState({ wallet_id: 0, type: "expense", amount: 0, category: "", date: new Date().toISOString().slice(0, 10), notes: "", lead_id: null as number | null, is_billed: false });
   const [categoryMode, setCategoryMode] = useState<"preset" | "custom">("preset");
   const [linkClient, setLinkClient] = useState(false);
@@ -182,14 +183,19 @@ export default function FinancePanel() {
       return;
     }
     const payload = { ...txnForm, lead_id: linkClient ? txnForm.lead_id : null };
-    const res = await apiFetch("/api/finance/transactions", { method: "POST", body: JSON.stringify(payload) });
+    const url = editingTxn ? `/api/finance/transactions/${editingTxn.id}` : "/api/finance/transactions";
+    const method = editingTxn ? "PUT" : "POST";
+    const res = await apiFetch(url, { method, body: JSON.stringify(payload) });
     if (res.ok) {
-      setToast({ message: "Transaksi berhasil disimpan.", type: "success" });
+      setToast({ message: editingTxn ? "Transaksi berhasil diperbarui." : "Transaksi berhasil disimpan.", type: "success" });
       setTxnModal(false);
+      setEditingTxn(null);
       setTxnForm({ wallet_id: 0, type: "expense", amount: 0, category: "", date: new Date().toISOString().slice(0, 10), notes: "", lead_id: null, is_billed: false });
       setCategoryMode("preset");
       setLinkClient(false);
       fetchAll();
+    } else {
+      setToast({ message: await readApiError(res, "Gagal menyimpan transaksi."), type: "error" });
     }
   }
 
@@ -235,9 +241,33 @@ export default function FinancePanel() {
   }
 
   function openNewTransaction() {
+    setEditingTxn(null);
     setTxnForm({ wallet_id: wallets[0]?.id || 0, type: "expense", amount: 0, category: "Tools & Langganan", date: new Date().toISOString().slice(0, 10), notes: "", lead_id: null, is_billed: false });
     setCategoryMode("preset");
     setLinkClient(false);
+    setTxnModal(true);
+  }
+
+  function openEditTransaction(t: TransactionData) {
+    if (t.is_archived) {
+      setToast({ message: "Restore dulu sebelum mengedit transaksi terarsip.", type: "info" });
+      return;
+    }
+    setEditingTxn(t);
+    const cat = t.category || "";
+    const isPreset = CATEGORY_PRESETS.includes(cat as typeof CATEGORY_PRESETS[number]);
+    setCategoryMode(isPreset || !cat ? "preset" : "custom");
+    setTxnForm({
+      wallet_id: t.wallet_id,
+      type: t.type === "income" ? "income" : "expense",
+      amount: t.amount,
+      category: cat || "Tools & Langganan",
+      date: t.date?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+      notes: t.notes || "",
+      lead_id: t.lead_id,
+      is_billed: t.is_billed,
+    });
+    setLinkClient(!!t.lead_id);
     setTxnModal(true);
   }
 
@@ -414,7 +444,10 @@ export default function FinancePanel() {
                   {t.is_archived ? (
                     <button onClick={() => restoreTransaction(t.id)} className="p-1 text-blue-400 hover:text-blue-600 transition-colors" title="Restore"><RotateCcw size={13} /></button>
                   ) : (
-                    <button onClick={() => setDeleteTarget({ id: t.id, type: "transaction" })} className="p-1 text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={13} /></button>
+                    <>
+                      <button onClick={() => openEditTransaction(t)} className="p-1 text-gray-300 hover:text-brand-yellow transition-colors" title="Edit transaksi"><Edit2 size={13} /></button>
+                      <button onClick={() => setDeleteTarget({ id: t.id, type: "transaction" })} className="p-1 text-gray-300 hover:text-red-500 transition-colors" title="Hapus"><Trash2 size={13} /></button>
+                    </>
                   )}
                 </div>
               </div>
@@ -464,11 +497,11 @@ export default function FinancePanel() {
       {/* Transaction Modal */}
       {txnModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setTxnModal(false)} />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setTxnModal(false); setEditingTxn(null); }} />
           <div className="relative bg-[var(--bg-surface)] rounded-2xl shadow-2xl border border-[var(--border-default)] w-full max-w-md p-6 space-y-4 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-50">Tambah Transaksi</h3>
-              <button onClick={() => setTxnModal(false)} className="p-1 text-gray-400 hover:text-gray-600"><X size={18} /></button>
+              <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-50">{editingTxn ? "Edit Transaksi" : "Tambah Transaksi"}</h3>
+              <button onClick={() => { setTxnModal(false); setEditingTxn(null); }} className="p-1 text-gray-400 hover:text-gray-600"><X size={18} /></button>
             </div>
             <div className="space-y-3">
               <div>
@@ -568,7 +601,7 @@ export default function FinancePanel() {
               )}
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => setTxnModal(false)} className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl transition-colors">Batal</button>
+              <button onClick={() => { setTxnModal(false); setEditingTxn(null); }} className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl transition-colors">Batal</button>
               <button onClick={saveTransaction} className="px-4 py-2 text-sm font-semibold bg-brand-yellow hover:bg-amber-600 text-white rounded-xl transition-colors">Simpan</button>
             </div>
           </div>

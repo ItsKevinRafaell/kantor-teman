@@ -46,6 +46,16 @@ interface ArchiveDocumentData {
   updated_at: string | null;
 }
 
+interface ArchiveFolderData {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  color: string;
+  lead_id?: number | null;
+  lead_name?: string | null;
+  created_at: string;
+}
+
 function generatedDocTypeLabel(doc: GeneratedDocumentData) {
   if (doc.template_type && DOC_TYPE_LABELS[doc.template_type]) return DOC_TYPE_LABELS[doc.template_type];
   const name = (doc.template_name || doc.display_filename || "").toLowerCase();
@@ -62,6 +72,7 @@ export default function DocumentsTab({ leadId }: { leadId: number | null }) {
   const [documents, setDocuments] = useState<DocumentData[]>([]);
   const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocumentData[]>([]);
   const [archiveDocuments, setArchiveDocuments] = useState<ArchiveDocumentData[]>([]);
+  const [archiveFolders, setArchiveFolders] = useState<ArchiveFolderData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ title: "", cloud_url: "" });
@@ -74,19 +85,23 @@ export default function DocumentsTab({ leadId }: { leadId: number | null }) {
       setDocuments([]);
       setGeneratedDocuments([]);
       setArchiveDocuments([]);
+      setArchiveFolders([]);
       setLoading(false);
       return;
     }
     try {
-      const [manualRes, generatedRes, archiveRes] = await Promise.all([
+      const [manualRes, generatedRes, archiveRes, folderRes] = await Promise.all([
         apiFetch(`/api/documents?lead_id=${leadId}`),
         apiFetch(`/api/generated-documents?lead_id=${leadId}`),
         apiFetch(`/api/archive?lead_id=${leadId}&limit=100`),
+        apiFetch(`/api/archive/folders?lead_id=${leadId}`),
       ]);
       if (manualRes.ok) setDocuments(await manualRes.json());
       if (generatedRes.ok) setGeneratedDocuments(await generatedRes.json());
       if (archiveRes.ok) setArchiveDocuments(await archiveRes.json());
       else setArchiveDocuments([]);
+      if (folderRes.ok) setArchiveFolders(await folderRes.json());
+      else setArchiveFolders([]);
     } finally {
       setLoading(false);
     }
@@ -127,7 +142,7 @@ export default function DocumentsTab({ leadId }: { leadId: number | null }) {
     return <div className="p-6"><div className="h-32 bg-neutral-100 dark:bg-neutral-800 rounded-xl animate-pulse" /></div>;
   }
 
-  const hasAnyDocument = documents.length > 0 || generatedDocuments.length > 0 || archiveDocuments.length > 0;
+  const hasAnyDocument = documents.length > 0 || generatedDocuments.length > 0 || archiveDocuments.length > 0 || archiveFolders.length > 0;
 
   return (
     <div>
@@ -228,6 +243,28 @@ export default function DocumentsTab({ leadId }: { leadId: number | null }) {
                 </button>
               </div>
             </div>
+          ))}
+          {archiveFolders.length > 0 && (
+            <div className="px-5 py-3 text-[11px] font-bold uppercase tracking-wide text-neutral-400">
+              Folder Arsip (ditautkan)
+            </div>
+          )}
+          {archiveFolders.map(folder => (
+            <a
+              key={folder.id}
+              href={`/documents?folder=${folder.id}`}
+              className="px-5 py-4 flex items-center justify-between hover:bg-[var(--bg-surface-hover)] transition-colors group"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${folder.color || "#6B7280"}22` }}>
+                  <FileText size={16} style={{ color: folder.color || "#6B7280" }} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">{folder.name}</p>
+                  <p className="text-xs text-neutral-500">Buka folder di Arsip Tim</p>
+                </div>
+              </div>
+            </a>
           ))}
           {archiveDocuments.length > 0 && (
             <div className="px-5 py-3 text-[11px] font-bold uppercase tracking-wide text-neutral-400">
