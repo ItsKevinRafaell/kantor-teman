@@ -10,6 +10,7 @@ import Modal from "../Modal";
 import Toast from "../Toast";
 import Pagination from "../Pagination";
 import { SearchableSelect } from "../ui/SearchableSelect";
+import NativeSelect from "../ui/NativeSelect";
 
 interface WalletData {
   id: number;
@@ -335,16 +336,17 @@ export default function FinancePanel() {
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase text-neutral-500">Pindahkan ke dompet</label>
-              <select
+              <NativeSelect
                 value={reassignWalletId === "" ? "" : String(reassignWalletId)}
-                onChange={e => setReassignWalletId(e.target.value ? Number(e.target.value) : "")}
-                className={inputCls}
-              >
-                <option value="">— Pilih dompet tujuan —</option>
-                {wallets.filter(w => w.id !== walletDeleteModal.id).map(w => (
-                  <option key={w.id} value={w.id}>{w.name} ({formatRupiah(w.balance)})</option>
-                ))}
-              </select>
+                onChange={v => setReassignWalletId(v ? Number(v) : "")}
+                placeholder="— Pilih dompet tujuan —"
+                searchPlaceholder="Cari dompet…"
+                options={wallets.filter(w => w.id !== walletDeleteModal.id).map(w => ({
+                  value: String(w.id),
+                  label: w.name,
+                  sub: formatRupiah(w.balance),
+                }))}
+              />
             </div>
             <div className="flex flex-wrap justify-end gap-2 pt-1">
               <button type="button" onClick={() => setWalletDeleteModal(null)} className="rounded-xl bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">Batal</button>
@@ -580,9 +582,13 @@ export default function FinancePanel() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Dompet</label>
-                <select value={txnForm.wallet_id} onChange={e => setTxnForm(f => ({ ...f, wallet_id: Number(e.target.value) }))} className={inputCls}>
-                  {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                </select>
+                <NativeSelect
+                  value={String(txnForm.wallet_id || "")}
+                  onChange={v => setTxnForm(f => ({ ...f, wallet_id: Number(v) }))}
+                  placeholder="Pilih dompet"
+                  clearable={false}
+                  options={wallets.map(w => ({ value: String(w.id), label: w.name }))}
+                />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Jumlah (Rp)</label>
@@ -591,24 +597,22 @@ export default function FinancePanel() {
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Kategori</label>
                 {categoryMode === "preset" ? (
-                  <select
+                  <NativeSelect
                     value={CATEGORY_PRESETS.includes(txnForm.category as typeof CATEGORY_PRESETS[number]) ? txnForm.category : ""}
-                    onChange={e => {
-                      if (e.target.value === "__custom__") {
+                    onChange={v => {
+                      if (v === "__custom__") {
                         setCategoryMode("custom");
                         setTxnForm(f => ({ ...f, category: "" }));
                         return;
                       }
-                      setTxnForm(f => ({ ...f, category: e.target.value }));
+                      setTxnForm(f => ({ ...f, category: v }));
                     }}
-                    className={inputCls}
-                  >
-                    <option value="" disabled>Pilih kategori…</option>
-                    {CATEGORY_PRESETS.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                    <option value="__custom__">Lainnya…</option>
-                  </select>
+                    placeholder="Pilih kategori…"
+                    options={[
+                      ...CATEGORY_PRESETS.map(c => ({ value: c, label: c })),
+                      { value: "__custom__", label: "Lainnya…" },
+                    ]}
+                  />
                 ) : (
                   <div className="space-y-1.5">
                     <input

@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../ui/NativeSelect";
 
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "../../lib/api";
@@ -296,10 +297,7 @@ export default function CampaignsPanel() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-neutral-500 uppercase mb-1">Status Awal</label>
-                <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className="input-field">
-                  <option value="PLANNING">Planning (belum potong saldo)</option>
-                  <option value="ACTIVE">Active (otomatis potong saldo)</option>
-                </select>
+                <NativeSelect value={form.status} onChange={v => setForm(f => ({ ...f, status: v }))} clearable={false} options={[{value:"PLANNING",label:"Planning"},{value:"ACTIVE",label:"Active"},{value:"PAUSED",label:"Paused"},{value:"COMPLETED",label:"Completed"}]} />
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-2">

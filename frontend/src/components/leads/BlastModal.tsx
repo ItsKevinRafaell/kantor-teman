@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../ui/NativeSelect";
 
 import { useState } from "react";
 
@@ -57,35 +58,19 @@ export default function BlastModal({
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Batch</label>
-            <select value={blastBatch} onChange={e => onBatchChange(e.target.value)}
-              className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
-              <option value="">— Semua —</option>
-              {batches.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
+            <NativeSelect value={blastBatch} onChange={onBatchChange} placeholder="Pilih batch" searchPlaceholder="Cari batch…" options={batches.filter(Boolean).map((b: string) => ({ value: b, label: b }))} />
           </div>
           <div>
             <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Kategori</label>
-            <select value={blastCategoryId} onChange={e => { onCategoryChange(e.target.value); onTemplateChange(""); }}
-              className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
-              <option value="">— Semua —</option>
-              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <NativeSelect value={blastCategoryId} onChange={v => { onCategoryChange(v); onTemplateChange(""); }} placeholder="Kategori" options={categories.map((c: any) => ({ value: String(c.id), label: c.name }))} />
           </div>
           <div>
             <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Min. Rating</label>
-            <select value={blastMinRating} onChange={e => onMinRatingChange(Number(e.target.value))}
-              className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
-              <option value={0}>Semua</option>
-              {[1,2,3,4,5].map(r => <option key={r} value={r}>{r === 5 ? "5 saja" : `Min. ${r}`}</option>)}
-            </select>
+            <NativeSelect value={String(blastMinRating)} onChange={v => onMinRatingChange(Number(v || 0))} clearable={false} options={[{value:"0",label:"Semua rating"},{value:"4",label:"Min 4★"},{value:"5",label:"5★"}]} />
           </div>
           <div>
             <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Template</label>
-            <select value={blastTemplateId} onChange={e => onTemplateChange(e.target.value)}
-              className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
-              <option value="">— pilih —</option>
-              {templates.filter(t => !blastCategoryId || t.category_id === blastCategoryId).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
+            <NativeSelect value={blastTemplateId} onChange={onTemplateChange} placeholder="Template" options={templates.map((t: any) => ({ value: t.id, label: t.name }))} />
           </div>
         </div>
 

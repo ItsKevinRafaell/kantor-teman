@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../ui/NativeSelect";
 import { formatRupiah } from "../../utils/formatter";
 
 import { useState, useEffect, useCallback } from "react";
@@ -287,12 +288,11 @@ export default function QuotaPanel() {
               <div className="space-y-3">
                 <div>
                   <label className="block text-xs font-semibold text-neutral-500 uppercase mb-1">Pilih Paket</label>
-                  <select value={topUpPackage} onChange={e => { setTopUpPackage(e.target.value); setTopUpValue(e.target.value); }}
-                    className="input-field">
-                    <option value="1000">1.000 pesan — Rp 25.000 (Rp 25/pesan)</option>
-                    <option value="10000">10.000 pesan — Rp 66.000 (Rp 6,6/pesan)</option>
-                    <option value="25000">25.000 pesan — Rp 110.000 (Rp 4,4/pesan)</option>
-                  </select>
+                  <NativeSelect value={topUpPackage} onChange={v => { setTopUpPackage(v); setTopUpValue(v); }} clearable={false} options={[
+                    { value: "1000", label: "1.000 pesan" },
+                    { value: "10000", label: "10.000 pesan" },
+                    { value: "50000", label: "50.000 pesan" },
+                  ]} />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-neutral-500 uppercase mb-1">Jumlah Kuota (pesan)</label>

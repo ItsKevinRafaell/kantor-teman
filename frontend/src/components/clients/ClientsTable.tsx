@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../ui/NativeSelect";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../lib/api";
@@ -196,11 +197,7 @@ export default function ClientsTable() {
       <div className="flex items-center gap-3 flex-wrap">
         <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari nama bisnis atau owner..."
           className="flex-1 max-w-sm px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-neutral-50 dark:bg-neutral-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-yellow/50 transition" />
-        <select value={sortField} onChange={e => setSortField(e.target.value as "business_name" | "id")}
-          className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-xs bg-neutral-50 dark:bg-neutral-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-yellow/50">
-          <option value="id">Urut: Terbaru</option>
-          <option value="business_name">Urut: Nama</option>
-        </select>
+        <NativeSelect value={sortField} onChange={v => setSortField(v as any)} clearable={false} options={[{value:"business_name",label:"Nama bisnis"},{value:"id",label:"Terbaru"}]} />
         <button onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")}
           className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-semibold bg-neutral-50 dark:bg-neutral-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
           {sortDir === "asc" ? "A-Z" : "Z-A"}

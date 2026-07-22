@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Calculator, HelpCircle, Search, Download, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { SearchableSelect } from "../ui/SearchableSelect";
+import NativeSelect from "../ui/NativeSelect";
 
 interface LeadFilters {
   status: string;
@@ -109,22 +110,35 @@ export default function LeadsFilterBar({
 
           <label className="space-y-1">
             <span className="block text-[11px] font-semibold uppercase tracking-wide text-gray-400">Rating</span>
-            <select value={filters.rating} onChange={e => onRatingChange(Number(e.target.value))}
-              className="w-full rounded-lg border border-gray-200 bg-white px-2 py-2 text-xs text-gray-700 outline-none transition focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-[var(--bg-surface)] dark:text-neutral-50">
-              <option value={0}>Semua rating</option>
-              {[5,4,3,2,1].map(v => <option key={v} value={v}>{v === 5 ? "5 bintang" : `Minimal ${v} bintang`}</option>)}
-            </select>
+            <NativeSelect
+              size="sm"
+              value={String(filters.rating || 0)}
+              onChange={v => onRatingChange(Number(v || 0))}
+              placeholder="Semua rating"
+              options={[
+                { value: "0", label: "Semua rating" },
+                { value: "5", label: "5 bintang" },
+                { value: "4", label: "Minimal 4 bintang" },
+                { value: "3", label: "Minimal 3 bintang" },
+                { value: "2", label: "Minimal 2 bintang" },
+                { value: "1", label: "Minimal 1 bintang" },
+              ]}
+            />
           </label>
 
           <label className="space-y-1">
             <span className="block text-[11px] font-semibold uppercase tracking-wide text-gray-400">Score</span>
-            <select value={filters.score} onChange={e => onScoreChange(e.target.value as "" | "hot" | "warm" | "cold")}
-              className="w-full rounded-lg border border-gray-200 bg-white px-2 py-2 text-xs text-gray-700 outline-none transition focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-[var(--bg-surface)] dark:text-neutral-50">
-              <option value="">Semua score</option>
-              <option value="hot">Siap closing</option>
-              <option value="warm">Perlu pendekatan</option>
-              <option value="cold">Belum match</option>
-            </select>
+            <NativeSelect
+              size="sm"
+              value={filters.score}
+              onChange={v => onScoreChange((v || "") as "" | "hot" | "warm" | "cold")}
+              placeholder="Semua score"
+              options={[
+                { value: "hot", label: "Siap closing" },
+                { value: "warm", label: "Perlu pendekatan" },
+                { value: "cold", label: "Belum match" },
+              ]}
+            />
           </label>
 
           <div className="flex flex-wrap items-end gap-2 lg:justify-end">

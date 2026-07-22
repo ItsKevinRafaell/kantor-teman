@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../ui/NativeSelect";
 
 import { useState } from "react";
 import { Upload, X } from "lucide-react";
@@ -149,24 +150,24 @@ export function DocForm({ form, onChange, folders, clients = [], attachmentFile,
       </div>
       <div>
         <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Folder</label>
-        <select value={form.folder_id} onChange={e => onChange({ ...form, folder_id: e.target.value })}
-          className="w-full px-3 py-2 bg-gray-100 dark:bg-neutral-800/70 border-0 rounded-xl text-sm focus:ring-2 focus:ring-amber-300 outline-none">
-          <option value="">— Tanpa Folder —</option>
-          {sortedFolders.map(f => (
-            <option key={f.id} value={f.id}>{folderOptionLabel(folders, f)}</option>
-          ))}
-        </select>
+        <NativeSelect
+          value={form.folder_id}
+          onChange={v => onChange({ ...form, folder_id: v })}
+          placeholder="— Tanpa Folder —"
+          searchPlaceholder="Cari folder…"
+          options={sortedFolders.map(f => ({ value: f.id, label: folderOptionLabel(folders, f) }))}
+        />
         <p className="mt-1 text-[11px] text-neutral-400">Folder = organisasi arsip. Password/API key simpan di tab Kredensial klien, bukan di sini.</p>
       </div>
       <div>
         <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Terkait klien</label>
-        <select value={form.lead_id} onChange={e => onChange({ ...form, lead_id: e.target.value })}
-          className="w-full px-3 py-2 bg-gray-100 dark:bg-neutral-800/70 border-0 rounded-xl text-sm focus:ring-2 focus:ring-amber-300 outline-none">
-          <option value="">— Tidak ditautkan —</option>
-          {clients.map(c => (
-            <option key={c.lead_id} value={String(c.lead_id)}>{c.business_name}</option>
-          ))}
-        </select>
+        <NativeSelect
+          value={form.lead_id}
+          onChange={v => onChange({ ...form, lead_id: v })}
+          placeholder="— Tidak ditautkan —"
+          searchPlaceholder="Cari klien…"
+          options={clients.map(c => ({ value: String(c.lead_id), label: c.business_name }))}
+        />
         <p className="mt-1 text-[11px] text-neutral-400">Opsional. Dokumen terkait muncul di hub detail klien.</p>
       </div>
       <div className="flex justify-end gap-2 pt-1">
@@ -211,23 +212,23 @@ export function FolderForm({ form, onChange, folders, clients = [], onSave, onCa
       </div>
       <div>
         <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Parent Folder</label>
-        <select value={form.parent_id} onChange={e => onChange({ ...form, parent_id: e.target.value })}
-          className="w-full px-3 py-2 bg-gray-100 dark:bg-neutral-800/70 border-0 rounded-xl text-sm focus:ring-2 focus:ring-amber-300 outline-none">
-          <option value="">— Folder Utama —</option>
-          {folders.filter(f => f.id !== editingId).map(f => (
-            <option key={f.id} value={f.id}>{folderOptionLabel(folders, f)}</option>
-          ))}
-        </select>
+        <NativeSelect
+          value={form.parent_id}
+          onChange={v => onChange({ ...form, parent_id: v })}
+          placeholder="— Folder Utama —"
+          searchPlaceholder="Cari folder parent…"
+          options={folders.filter(f => f.id !== editingId).map(f => ({ value: f.id, label: folderOptionLabel(folders, f) }))}
+        />
       </div>
       <div>
         <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Terkait klien</label>
-        <select value={form.lead_id} onChange={e => onChange({ ...form, lead_id: e.target.value })}
-          className="w-full px-3 py-2 bg-gray-100 dark:bg-neutral-800/70 border-0 rounded-xl text-sm focus:ring-2 focus:ring-amber-300 outline-none">
-          <option value="">— Tidak ditautkan —</option>
-          {clients.map(c => (
-            <option key={c.lead_id} value={String(c.lead_id)}>{c.business_name}</option>
-          ))}
-        </select>
+        <NativeSelect
+          value={form.lead_id}
+          onChange={v => onChange({ ...form, lead_id: v })}
+          placeholder="— Tidak ditautkan —"
+          searchPlaceholder="Cari klien…"
+          options={clients.map(c => ({ value: String(c.lead_id), label: c.business_name }))}
+        />
         <p className="mt-1 text-[11px] text-neutral-400">Opsional. Folder + isinya muncul di hub detail klien.</p>
       </div>
       <div>

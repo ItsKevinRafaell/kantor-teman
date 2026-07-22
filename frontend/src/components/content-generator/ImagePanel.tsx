@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../ui/NativeSelect";
 
 import { useState } from "react";
 import { apiFetch } from "../../lib/api";
@@ -69,10 +70,7 @@ export default function ImagePanel({ sessionId, sharedContext, providers, showTo
         <>
           <div>
             <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Provider</label>
-            <select value={providerId} onChange={e => setProviderId(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none">
-              {providers.map(p => <option key={p.id} value={p.id}>{p.name} ({p.model})</option>)}
-            </select>
+            <NativeSelect value={providerId} onChange={setProviderId} clearable={false} options={(providers || []).map((p: any) => ({ value: String(p.id || p.value || p), label: p.name || p.label || String(p) }))} />
           </div>
           <div>
             <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Prompt *</label>
@@ -89,12 +87,7 @@ export default function ImagePanel({ sessionId, sharedContext, providers, showTo
             </div>
             <div>
               <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Ukuran</label>
-              <select value={size} onChange={e => setSize(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none">
-                {["512x512", "768x768", "1024x1024", "1024x576", "576x1024"].map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+              <NativeSelect value={size} onChange={setSize} clearable={false} options={["1024x1024","1024x1536","1536x1024"].map(s => ({ value: s, label: s }))} />
             </div>
           </div>
           <button onClick={generate} disabled={loading || !prompt.trim() || !providerId}

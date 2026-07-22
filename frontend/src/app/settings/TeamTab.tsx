@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../../components/ui/NativeSelect";
 
 import { useEffect, useState } from "react";
 import { Plus, Save, Trash2, Users } from "lucide-react";
@@ -126,11 +127,7 @@ export default function TeamTab() {
           <input type="password" value={form.password} onChange={e => setForm(prev => ({ ...prev, password: e.target.value }))}
             className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-neutral-700 dark:bg-neutral-900"
             placeholder="Password awal" />
-          <select value={form.role} onChange={e => setForm(prev => ({ ...prev, role: e.target.value as "admin" | "member" }))}
-            className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-neutral-700 dark:bg-neutral-900">
-            <option value="member">Member</option>
-            <option value="admin">Admin</option>
-          </select>
+          <NativeSelect value={form.role} onChange={v => setForm(prev => ({ ...prev, role: v as any }))} clearable={false} options={[{value:"admin",label:"Admin"},{value:"member",label:"Member"}]} />
           <button onClick={createUser} disabled={saving}
             className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white hover:bg-amber-600 disabled:opacity-50">
             <Plus size={15} /> Buat
@@ -149,11 +146,7 @@ export default function TeamTab() {
                   className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-neutral-700 dark:bg-neutral-900" />
                 <input value={user.email} onChange={e => patchUser(user.id, { email: e.target.value })}
                   className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-neutral-700 dark:bg-neutral-900" />
-                <select value={user.role} onChange={e => patchUser(user.id, { role: e.target.value as "admin" | "member" })}
-                  className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-neutral-700 dark:bg-neutral-900">
-                  <option value="member">Member</option>
-                  <option value="admin">Admin</option>
-                </select>
+                <NativeSelect value={user.role} onChange={v => patchUser(user.id, { role: v as any })} clearable={false} options={[{value:"admin",label:"Admin"},{value:"member",label:"Member"}]} />
                 <input type="password" value={editPassword[user.id] || ""} onChange={e => setEditPassword(prev => ({ ...prev, [user.id]: e.target.value }))}
                   className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-neutral-700 dark:bg-neutral-900"
                   placeholder="Reset password" />

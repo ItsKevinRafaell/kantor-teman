@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../../components/ui/NativeSelect";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -345,12 +346,7 @@ function SettingsContent() {
               {followupEnabled && (
                 <div>
                   <label className={labelCls}>Jam Pengiriman (WIB)</label>
-                  <select value={followupHour} onChange={(e) => setFollowupHour(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
-                    {["7","8","9","10","11","13","14","16"].map(h => (
-                      <option key={h} value={h}>{h.padStart(2,"0")}:00 WIB{h === "9" ? " (Recommended)" : ""}</option>
-                    ))}
-                  </select>
+                  <NativeSelect value={String(followupHour)} onChange={setFollowupHour} clearable={false} options={Array.from({length:24},(_,h)=>({value:String(h),label:`${String(h).padStart(2,"0")}:00`}))} />
                 </div>
               )}
             </div>

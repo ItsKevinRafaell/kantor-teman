@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../../../components/ui/NativeSelect";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { apiFetch } from "../../../lib/api";
@@ -296,15 +297,9 @@ export default function DocumentGeneratorPage() {
                   {doc.generated_by && <span className="ml-2 text-gray-400">oleh {doc.generated_by}</span>}
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <select value={doc.status || "Draft"} onChange={e => updateWorkflow(doc, e.target.value)}
-                    className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
-                    {DOC_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  <NativeSelect value={doc.status || "Draft"} onChange={v => updateWorkflow(doc, v)} clearable={false} options={["Draft","Review","Disetujui","Dikirim","Ditandatangani","Diarsipkan"].map(s=>({value:s,label:s}))} />
                   {(doc.template_name || "").toLowerCase().includes("invoice") && (
-                    <select value={doc.payment_status || "Belum Dibayar"} onChange={e => updateWorkflow(doc, doc.status || "Draft", e.target.value)}
-                      className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
-                      {PAYMENT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    <NativeSelect value={doc.payment_status || "Belum Dibayar"} onChange={v => updateWorkflow(doc, doc.status || "Draft", v)} clearable={false} options={["Belum Dibayar","DP","Lunas","Overdue"].map(s=>({value:s,label:s}))} />
                   )}
                 </div>
               </div>

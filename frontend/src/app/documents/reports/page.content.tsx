@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../../../components/ui/NativeSelect";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -470,15 +471,11 @@ export default function ReportsContent() {
           <div className="grid gap-3 md:grid-cols-2">
             <label>
               <span className="mb-1 block text-xs font-semibold text-neutral-500">Flow laporan</span>
-              <select value={reportType} onChange={e => setReportType(e.target.value)} className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800">
-                {REPORT_TYPES.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
-              </select>
+              <NativeSelect value={reportType} onChange={setReportType} clearable={false} options={REPORT_TYPES.map(r => ({ value: r.value, label: r.label }))} />
             </label>
             <label>
               <span className="mb-1 block text-xs font-semibold text-neutral-500">Target</span>
-              <select value={targetType} onChange={e => { setTargetType(e.target.value); setTargetId(""); }} className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800">
-                {TARGET_TYPES.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
-              </select>
+              <NativeSelect value={targetType} onChange={v => { setTargetType(v); setTargetId(""); }} clearable={false} options={TARGET_TYPES.map(r => ({ value: r.value, label: r.label, sub: r.helper }))} />
             </label>
           </div>
           <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/20 dark:text-amber-200">{targetHelper}</p>
@@ -526,9 +523,7 @@ export default function ReportsContent() {
             {targetType === "project" && reportType === "monthly" && (
               <label>
                 <span className="mb-1 block text-xs font-semibold text-neutral-500">Bulan ke</span>
-                <select value={monthNumber} onChange={e => setMonthNumber(Number(e.target.value))} className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800">
-                  {Array.from({ length: selectedProject?.contract_months || 12 }, (_, i) => i + 1).map(month => <option key={month} value={month}>Bulan {month}</option>)}
-                </select>
+                <NativeSelect value={String(monthNumber)} onChange={v => setMonthNumber(Number(v || 1))} clearable={false} options={Array.from({length:12}, (_,i)=>({value:String(i+1), label:`Bulan ${i+1}`}))} />
               </label>
             )}
             <label>

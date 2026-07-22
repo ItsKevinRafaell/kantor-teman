@@ -67,12 +67,9 @@ export function CardModal({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">PIC</label>
-            <select value={cardForm.assignee} onChange={e => setCardForm((p: any) => ({ ...p, assignee: e.target.value }))}
-              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-amber-300 dark:focus:ring-amber-700 outline-none">
-              <option value="">Tanpa PIC</option>
-              {users.filter(u => u.role !== "admin").length === 0 && <option disabled>Tidak ada anggota</option>}
-              {users.map(u => <option key={u.id} value={u.name}>{u.name}{u.role === "admin" ? " (admin)" : ""}</option>)}
-            </select>
+            <input type="text" value={cardForm.assignee || ""} onChange={e => setCardForm((p: any) => ({ ...p, assignee: e.target.value }))}
+              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none"
+              placeholder="Nama PIC..." list="kt-assignee-suggestions" />
           </div>
           <div>
             <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Deadline</label>

@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../ui/NativeSelect";
 
 import { useState } from "react";
 import { apiFetch } from "../../lib/api";
@@ -135,22 +136,11 @@ export default function SeoArticlePanel({ sessionId, sharedContext, showToast, o
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Search Intent</label>
-          <select value={searchIntent} onChange={e => setSearchIntent(e.target.value)}
-            className="w-full px-3 py-2 bg-gray-100 dark:bg-neutral-800/70 border-0 rounded-lg text-sm focus:ring-2 focus:ring-amber-300 outline-none">
-            <option value="informational">Informational — edukasi</option>
-            <option value="commercial">Commercial — pertimbangan</option>
-            <option value="transactional">Transactional — konversi</option>
-            <option value="navigational">Navigational — brand</option>
-          </select>
+          <NativeSelect value={searchIntent} onChange={setSearchIntent} clearable={false} options={[{value:"informational",label:"Informational"},{value:"commercial",label:"Commercial"},{value:"transactional",label:"Transactional"},{value:"navigational",label:"Navigational"}]} />
         </div>
         <div>
           <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Tone</label>
-          <select value={tone} onChange={e => setTone(e.target.value)}
-            className="w-full px-3 py-2 bg-gray-100 dark:bg-neutral-800/70 border-0 rounded-lg text-sm focus:ring-2 focus:ring-amber-300 outline-none">
-            {["informatif", "persuasif", "edukatif", "casual"].map(t => (
-              <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-            ))}
-          </select>
+          <NativeSelect value={tone} onChange={setTone} clearable={false} options={[{value:"profesional",label:"Profesional"},{value:"santai",label:"Santai"},{value:"edukatif",label:"Edukatif"},{value:"promosi",label:"Promosi"}]} />
         </div>
       </div>
 

@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "./ui/NativeSelect";
 
 import { useState } from "react";
 import { useLeadsTable } from "../hooks/useLeads";
@@ -75,7 +76,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
   async function handleChatWA(lead: any) {
     let reportLink = "";
     try {
-      const reportRes = await apiFetch(`/api/leads/${lead.id}/generate-report`, { method: "POST" });
+      const reportRes = await apiFetch(`/api/leads/${lead.id}/generate-report?force=1`, { method: "POST" });
       if (reportRes.ok) { const d = await reportRes.json(); if (d.report_url) reportLink = d.report_url; }
     } catch {}
     const msg = DEFAULT_TEMPLATE.replace(/\{\{business_name\}\}/g, lead.business_name).replace(/\{\{proposal_link\}\}/g, reportLink);
@@ -84,7 +85,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
 
   async function handleViewReport(lead: any) {
     try {
-      const reportRes = await apiFetch(`/api/leads/${lead.id}/generate-report`, { method: "POST" });
+      const reportRes = await apiFetch(`/api/leads/${lead.id}/generate-report?force=1`, { method: "POST" });
       if (reportRes.ok) {
         const d = await reportRes.json();
         if (d.report_url) {
@@ -409,34 +410,19 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Batch</label>
-                <select value={blastBatch} onChange={e => setBlastBatch(e.target.value)}
-                  className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
-                  <option value="">— Semua —</option>
-                  {batches.map((b: string) => <option key={b} value={b}>{b}</option>)}
-                </select>
+                <NativeSelect value={blastBatch} onChange={setBlastBatch} placeholder="Pilih batch" searchPlaceholder="Cari batch…" options={batches.filter(Boolean).map((b: string) => ({ value: b, label: b }))} />
               </div>
               <div>
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Kategori</label>
-                <select value={blastCategoryId} onChange={e => { setBlastCategoryId(e.target.value); setBlastTemplateId(""); }}
-                  className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
-                  <option value="">— Semua —</option>
-                  {blastCategories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <NativeSelect value={blastCategoryId} onChange={v => { setBlastCategoryId(v); setBlastTemplateId(""); }} placeholder="Pilih kategori" searchPlaceholder="Cari kategori…" options={blastCategories.map((c: any) => ({ value: String(c.id), label: c.name }))} />
               </div>
               <div>
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Min. Rating</label>
-                <select value={blastMinRating} onChange={e => setBlastMinRating(Number(e.target.value))}
-                  className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
-                  <option value={0}>Semua</option>{[1,2,3,4,5].map(v => <option key={v} value={v}>{v === 5 ? "5 saja" : `Min. ${v}`}</option>)}
-                </select>
+                <NativeSelect value={String(blastMinRating)} onChange={v => setBlastMinRating(Number(v || 0))} clearable={false} options={[{value:"0",label:"Semua rating"},{value:"4",label:"Min 4★"},{value:"4.5",label:"Min 4.5★"},{value:"5",label:"5★"}]} />
               </div>
               <div>
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Template</label>
-                <select value={blastTemplateId} onChange={e => setBlastTemplateId(e.target.value)}
-                  className="w-full px-2.5 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-xs bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
-                  <option value="">— pilih —</option>
-                  {blastTemplates.filter((t: any) => !blastCategoryId || t.category_id === blastCategoryId).map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
+                <NativeSelect value={blastTemplateId} onChange={setBlastTemplateId} placeholder="Pilih template" searchPlaceholder="Cari template…" options={blastTemplates.filter((t: any) => !blastCategoryId || t.category_id === blastCategoryId).map((t: any) => ({ value: t.id, label: t.name }))} />
               </div>
             </div>
             {blastTemplates.length === 0 && (
@@ -550,11 +536,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
             className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
           <input type="text" placeholder="Alamat" value={leadForm.address} onChange={e => setLeadForm(f => ({ ...f, address: e.target.value }))}
             className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
-          <select value={leadForm.product_interest} onChange={e => setLeadForm(f => ({ ...f, product_interest: e.target.value }))}
-            className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
-            <option value="">— Pilih Layanan —</option>
-            {blastCategories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
-          </select>
+          <NativeSelect value={leadForm.product_interest} onChange={v => setLeadForm(f => ({ ...f, product_interest: v }))} placeholder="Pilih minat produk" options={blastCategories.map((c: any) => ({ value: c.name, label: c.name }))} />
         </div>
       </Modal>
 
@@ -567,11 +549,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
             className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
           <input type="text" placeholder="Alamat" value={leadForm.address} onChange={e => setLeadForm(f => ({ ...f, address: e.target.value }))}
             className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
-          <select value={leadForm.product_interest} onChange={e => setLeadForm(f => ({ ...f, product_interest: e.target.value }))}
-            className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition">
-            <option value="">— Pilih Layanan —</option>
-            {blastCategories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
-          </select>
+          <NativeSelect value={leadForm.product_interest} onChange={v => setLeadForm(f => ({ ...f, product_interest: v }))} placeholder="Pilih minat produk" options={blastCategories.map((c: any) => ({ value: c.name, label: c.name }))} />
         </div>
       </Modal>
 

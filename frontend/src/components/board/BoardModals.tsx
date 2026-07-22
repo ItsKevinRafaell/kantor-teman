@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../ui/NativeSelect";
 import { useMemo } from "react";
 import { Modal } from "./SharedModal";
 import { SearchableSelect } from "../ui/SearchableSelect";
@@ -70,11 +71,7 @@ export function ProjectModal({ open, form, setForm, leads, saving, onCreate, onC
         </div>
         <div>
           <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Tipe proyek</label>
-          <select value={form.type} onChange={e => setForm((p: any) => ({ ...p, type: e.target.value }))}
-            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm">
-            <option value="FIXED">Fixed</option>
-            <option value="RETAINER">Retainer</option>
-          </select>
+          <NativeSelect value={form.type} onChange={v => setForm((p: any) => ({ ...p, type: v }))} clearable={false} options={[{value:"FIXED",label:"Fixed"},{value:"RETAINER",label:"Retainer"}]} />
         </div>
         <div>
           <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Klien (opsional)</label>
@@ -119,11 +116,7 @@ export function EditProjectModal({ open, form, setForm, leads, saving, onSave, o
         </div>
         <div>
           <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Tipe proyek</label>
-          <select value={form.type} onChange={e => setForm((p: any) => ({ ...p, type: e.target.value }))}
-            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm">
-            <option value="FIXED">Fixed</option>
-            <option value="RETAINER">Retainer</option>
-          </select>
+          <NativeSelect value={form.type} onChange={v => setForm((p: any) => ({ ...p, type: v }))} clearable={false} options={[{value:"FIXED",label:"Fixed"},{value:"RETAINER",label:"Retainer"}]} />
         </div>
         <div>
           <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Klien (opsional)</label>

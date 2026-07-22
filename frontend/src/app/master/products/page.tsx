@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../../../components/ui/NativeSelect";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "../../../lib/api";
@@ -159,18 +160,8 @@ export default function ProductsPage() {
             placeholder="Cari produk, kategori, atau fitur..."
             className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-neutral-800/70 dark:text-neutral-100" />
         </label>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as "all" | "active" | "inactive")}
-          className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-neutral-800/70 dark:text-neutral-100">
-          <option value="all">Semua status</option>
-          <option value="active">Aktif</option>
-          <option value="inactive">Nonaktif</option>
-        </select>
-        <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
-          className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-neutral-800/70 dark:text-neutral-100">
-          <option value="all">Semua kategori</option>
-          <option value="">Tanpa kategori</option>
-          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        <NativeSelect value={statusFilter} onChange={v => setStatusFilter((v || "all") as any)} clearable={false} options={[{value:"all",label:"Semua status"},{value:"active",label:"Aktif"},{value:"inactive",label:"Nonaktif"}]} />
+        <NativeSelect value={categoryFilter} onChange={setCategoryFilter} placeholder="Semua kategori" searchPlaceholder="Cari kategori…" options={categories.map((c: any) => ({ value: String(c.id), label: c.name }))} />
       </div>
 
       {products.length === 0 ? (
@@ -252,10 +243,7 @@ export default function ProductsPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Kategori</label>
-                  <select value={form.category_id} onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))} className={inputCls}>
-                    <option value="">— Tanpa Kategori —</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  <NativeSelect value={form.category_id} onChange={v => setForm(f => ({ ...f, category_id: v }))} placeholder="Pilih kategori" options={categories.map((c: any) => ({ value: String(c.id), label: c.name }))} />
                 </div>
               </div>
               <div>

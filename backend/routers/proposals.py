@@ -241,6 +241,10 @@ def get_public_proposal_by_slug(slug: str, db: Session = Depends(get_db)):
         "phone_number": lead.phone_number if lead else None,
         "address": lead.address if lead else None,
         "category": lead.product_interest if lead else None,
+        "google_rating": getattr(lead, "google_rating", None) if lead else (getattr(lead, "rating", None) if lead else None),
+        "review_count": getattr(lead, "review_count", None) if lead else None,
+        "website_url": getattr(lead, "website_url", None) if lead else None,
+        "rating": (getattr(lead, "google_rating", None) or getattr(lead, "rating", None)) if lead else None,
         "services_detail": services,
         "total_price": proposal.total_price,
         "base_price": proposal.base_price,
@@ -453,7 +457,15 @@ def get_public_report_by_slug(slug: str, request: Request, db: Session = Depends
             lead.product_interest or "",
             city if lead and lead.address else ""
         ) if lead else 500,
-        "selected_addons": json.loads(proposal.selected_addons) if proposal.selected_addons and proposal.selected_addons != "[]" else [{"id": p.id, "name": p.name, "price": p.base_price} for p in db.query(Product).filter(Product.is_active == True).all()],
+        "selected_addons": (
+            json.loads(proposal.selected_addons)
+            if proposal.selected_addons and proposal.selected_addons not in ("[]", "null", "")
+            else [
+                {"id": s.get("id") or f"svc-{i}", "name": s.get("name"), "price": s.get("price") or 0}
+                for i, s in enumerate(services[:3])
+                if s.get("name")
+            ]
+        ),
         "timeline_data": sorted(json.loads(proposal.timeline_data), key=lambda x: x["sequence"]) if proposal.timeline_data else [],
         "admin_wa": _get_setting("admin_wa", ADMIN_WA),
         "admin_name": _get_setting("admin_name", "Admin"),

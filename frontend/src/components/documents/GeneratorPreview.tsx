@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../ui/NativeSelect";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface ArchiveFolder {
@@ -76,16 +77,13 @@ export default function GeneratorPreview({
           <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">
             Simpan salinan ke folder arsip
           </label>
-          <select
+          <NativeSelect
             value={archiveFolderId}
-            onChange={e => setArchiveFolderId(e.target.value)}
-            className="w-full rounded-xl border-0 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:bg-neutral-900"
-          >
-            <option value="">— Otomatis (folder klien/proyek) —</option>
-            {sortedFolders.map(f => (
-              <option key={f.id} value={f.id}>{folderLabel(archiveFolders, f)}</option>
-            ))}
-          </select>
+            onChange={setArchiveFolderId}
+            placeholder="— Otomatis (folder klien/proyek) —"
+            searchPlaceholder="Cari folder arsip…"
+            options={sortedFolders.map(f => ({ value: f.id, label: folderLabel(archiveFolders, f) }))}
+          />
           <p className="mt-1 text-[11px] text-neutral-500">
             PDF resmi tetap di Dokumen Resmi. Opsi ini memilih folder di Arsip Tim untuk salinan/link-nya.
           </p>

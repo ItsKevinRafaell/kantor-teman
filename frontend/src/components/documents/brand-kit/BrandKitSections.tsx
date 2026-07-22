@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../../ui/NativeSelect";
 
 import { useState } from "react";
 import { Plus, Trash2, Copy, Check } from "lucide-react";
@@ -196,11 +197,7 @@ export function TemplateSection({ templates, copiedId, onCopy, onSave, onDelete,
           <div className="flex gap-2">
             <input type="text" placeholder="Nama template" value={newName} onChange={e => setNewName(e.target.value)}
               className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-900" />
-            <select value={newType} onChange={e => setNewType(e.target.value)}
-              className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-900">
-              <option value="custom">Custom</option><option value="tagline">Tagline</option>
-              <option value="template_sosmed">Sosmed</option><option value="template_proposal">Proposal</option>
-            </select>
+            <NativeSelect value={newType} onChange={setNewType} clearable={false} options={["color","font","logo","other"].map(x=>({value:x,label:x}))} />
           </div>
           <textarea placeholder="Isi template..." value={newValue} onChange={e => setNewValue(e.target.value)} rows={3}
             className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 resize-none" />

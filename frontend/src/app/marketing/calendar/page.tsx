@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../../../components/ui/NativeSelect";
 
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "../../../lib/api";
@@ -320,11 +321,7 @@ export default function ContentCalendarPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-neutral-500 uppercase mb-1">Tipe Konten</label>
-                <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} className="input-field">
-                  {contentTypes.map(t => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
+                <NativeSelect value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))} clearable={false} options={contentTypes.map((t: any) => ({ value: t.value, label: t.label }))} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-neutral-500 uppercase mb-1">Tanggal Tayang</label>
@@ -332,11 +329,7 @@ export default function ContentCalendarPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-neutral-500 uppercase mb-1">Status</label>
-                <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className="input-field">
-                  <option value="DRAFT">Draft</option>
-                  <option value="SCHEDULED">Scheduled</option>
-                  <option value="PUBLISHED">Published</option>
-                </select>
+                <NativeSelect value={form.status} onChange={v => setForm(f => ({ ...f, status: v }))} clearable={false} options={[{value:"DRAFT",label:"Draft"},{value:"SCHEDULED",label:"Scheduled"},{value:"PUBLISHED",label:"Published"},{value:"CANCELLED",label:"Cancelled"}]} />
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-2">

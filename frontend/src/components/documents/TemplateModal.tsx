@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../ui/NativeSelect";
 
 import { X } from "lucide-react";
 
@@ -52,10 +53,7 @@ export function TemplateModal({
             </div>
             <div>
               <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">Type</label>
-              <select value={form.type} onChange={e => onTypeChange(e.target.value)}
-                className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800">
-                {TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+              <NativeSelect value={form.type} onChange={onTypeChange} clearable={false} options={[{value:"invoice",label:"Invoice"},{value:"receipt",label:"Kwitansi"},{value:"proposal_pdf",label:"Proposal PDF"},{value:"kontrak",label:"Kontrak"},{value:"mou",label:"MoU"},{value:"surat_penawaran",label:"Surat Penawaran"},{value:"custom",label:"Custom"}]} />
             </div>
           </div>
           <div>

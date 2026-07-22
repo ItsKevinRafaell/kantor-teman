@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../ui/NativeSelect";
 
 import { useState, useEffect } from "react";
 import { apiFetch } from "../../lib/api";
@@ -95,10 +96,7 @@ export default function NotesModal({ contact, open, onClose }: NotesModalProps) 
 
         {/* Add note form */}
         <div className="flex gap-2">
-          <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-            className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-xs bg-neutral-50 dark:bg-neutral-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-yellow/50">
-            {NOTE_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-          </select>
+          <NativeSelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} clearable={false} options={["NOTE","CALL","MEETING","EMAIL","OTHER"].map(c => ({ value: c, label: c }))} />
           <input value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
             onKeyDown={e => { if (e.key === "Enter") handleSaveNote(); }}
             className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-neutral-50 dark:bg-neutral-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-yellow/50"

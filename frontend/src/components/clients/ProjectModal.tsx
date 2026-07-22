@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../ui/NativeSelect";
 
 import { useState, useEffect } from "react";
 import { apiFetch } from "../../lib/api";
@@ -148,18 +149,11 @@ export default function ProjectModal({ contactId, contactLeadId, editingProject,
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Tipe</label>
-              <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} className={inputCls}>
-                <option value="RETAINER">Retainer (Bulanan)</option>
-                <option value="FIXED">Fixed (Sekali)</option>
-              </select>
+              <NativeSelect value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))} clearable={false} options={[{value:"FIXED",label:"Fixed"},{value:"RETAINER",label:"Retainer"}]} />
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Status</label>
-              <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className={inputCls}>
-                <option value="ACTIVE">Active</option>
-                <option value="COMPLETED">Completed</option>
-                <option value="HOLD">Hold</option>
-              </select>
+              <NativeSelect value={form.status} onChange={v => setForm(f => ({ ...f, status: v }))} clearable={false} options={[{value:"ACTIVE",label:"Aktif"},{value:"PAUSED",label:"Pause"},{value:"COMPLETED",label:"Selesai"},{value:"CANCELLED",label:"Batal"}]} />
             </div>
           </div>
           <div>

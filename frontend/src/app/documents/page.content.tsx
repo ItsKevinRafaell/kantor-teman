@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../../components/ui/NativeSelect";
 
 import { useState, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
@@ -769,15 +770,15 @@ export default function DocumentsContent() {
               {" → "}
               target: <span className="font-semibold text-amber-700 dark:text-amber-300">{folderPathLabel(moveFolderId || null)}</span>
             </p>
-            <select value={moveFolderId} onChange={e => setMoveFolderId(e.target.value)}
-              className="w-full rounded-xl border-0 bg-gray-100 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:bg-neutral-800/70">
-              <option value="">— Tanpa Folder —</option>
-              {[...folders]
+            <NativeSelect
+              value={moveFolderId}
+              onChange={setMoveFolderId}
+              placeholder="— Tanpa Folder —"
+              searchPlaceholder="Cari folder…"
+              options={[...folders]
                 .sort((a, b) => folderPathLabel(a.id).localeCompare(folderPathLabel(b.id), "id"))
-                .map(f => (
-                  <option key={f.id} value={f.id}>{folderPathLabel(f.id)}</option>
-                ))}
-            </select>
+                .map(f => ({ value: f.id, label: folderPathLabel(f.id) }))}
+            />
             <p className="text-[11px] text-neutral-400">Tip: drag-drop kartu ke folder di sidebar juga bisa. Kredensial/password → tab Kredensial di detail klien, bukan folder arsip.</p>
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setMoveDoc(null)} className="rounded-xl bg-gray-100 px-4 py-2 text-sm dark:bg-neutral-800">Batal</button>

@@ -891,10 +891,27 @@ def get_hot_leads(current_user: User = Depends(get_current_user), db: Session = 
 
 
 @router.post("/api/leads/{lead_id}/generate-report")
-def generate_report_endpoint(lead_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def generate_report_endpoint(
+    lead_id: int,
+    force: bool = Query(False, description="Buat ulang report (ignore cache report lama)"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
+    if force:
+        # Soft-retire old Report proposals so generate_report_for_lead creates fresh data
+        old_reports = db.query(Proposal).filter(Proposal.lead_id == lead_id, Proposal.status == "Report").all()
+        for r in old_reports:
+            r.status = "ReportArchived"
+        # Also drop stale fallback analysis so next gen rebuilds facts
+        try:
+            from models import LeadAnalysis
+            db.query(LeadAnalysis).filter(LeadAnalysis.lead_id == lead_id).delete(synchronize_session=False)
+        except Exception:
+            pass
+        db.commit()
     slug = generate_report_for_lead(lead, db)
     frontend_url = (_get_setting("frontend_url", os.environ.get("FRONTEND_URL", FRONTEND_URL)) or FRONTEND_URL).rstrip("/")
     return {"slug": slug, "report_url": f"{frontend_url}/r/{slug}"}

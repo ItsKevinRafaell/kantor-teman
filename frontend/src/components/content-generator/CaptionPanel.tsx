@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../ui/NativeSelect";
 
 import { useState } from "react";
 import { apiFetch } from "../../lib/api";
@@ -64,22 +65,11 @@ export default function CaptionPanel({ sessionId, sharedContext, showToast, onRe
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Platform</label>
-          <select value={platform} onChange={e => setPlatform(e.target.value)}
-            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none">
-            <option value="instagram">Instagram</option>
-            <option value="tiktok">TikTok</option>
-            <option value="facebook">Facebook</option>
-            <option value="linkedin">LinkedIn</option>
-          </select>
+          <NativeSelect value={platform} onChange={setPlatform} clearable={false} options={[{value:"instagram",label:"Instagram"},{value:"tiktok",label:"TikTok"},{value:"linkedin",label:"LinkedIn"},{value:"facebook",label:"Facebook"},{value:"twitter",label:"X/Twitter"}]} />
         </div>
         <div>
           <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Tone</label>
-          <select value={tone} onChange={e => setTone(e.target.value)}
-            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none">
-            {["casual", "profesional", "fun", "edukatif", "persuasif"].map(t => (
-              <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-            ))}
-          </select>
+          <NativeSelect value={tone} onChange={setTone} clearable={false} options={[{value:"profesional",label:"Profesional"},{value:"santai",label:"Santai"},{value:"promosi",label:"Promosi"},{value:"edukatif",label:"Edukatif"}]} />
         </div>
       </div>
       <div>

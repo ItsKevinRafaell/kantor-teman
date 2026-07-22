@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../../../../../components/ui/NativeSelect";
 
 import { useState, type Dispatch, type SetStateAction } from "react";
 import { Plus } from "lucide-react";
@@ -137,18 +138,11 @@ export default function ProjectModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-neutral-500 uppercase mb-1">Tipe</label>
-              <select value={form.type} onChange={e => setForm(prev => ({ ...prev, type: e.target.value }))} className={inputCls}>
-                <option value="RETAINER">Retainer (Bulanan)</option>
-                <option value="FIXED">Fixed (Sekali)</option>
-              </select>
+              <NativeSelect value={form.type} onChange={v => setForm(prev => ({ ...prev, type: v }))} clearable={false} options={[{value:"FIXED",label:"Fixed"},{value:"RETAINER",label:"Retainer"}]} />
             </div>
             <div>
               <label className="block text-xs font-semibold text-neutral-500 uppercase mb-1">Status</label>
-              <select value={form.status} onChange={e => setForm(prev => ({ ...prev, status: e.target.value }))} className={inputCls}>
-                <option value="ACTIVE">Active</option>
-                <option value="COMPLETED">Completed</option>
-                <option value="HOLD">Hold</option>
-              </select>
+              <NativeSelect value={form.status} onChange={v => setForm(prev => ({ ...prev, status: v }))} clearable={false} options={[{value:"ACTIVE",label:"Aktif"},{value:"PAUSED",label:"Pause"},{value:"COMPLETED",label:"Selesai"},{value:"CANCELLED",label:"Batal"}]} />
             </div>
           </div>
           <div>

@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../../../../../components/ui/NativeSelect";
 import { useState, useEffect } from "react";
 import { apiFetch } from "../../../../../lib/api";
 import Toast from "../../../../../components/Toast";
@@ -87,12 +88,7 @@ export default function NotesTimelineTab({ leadId, initialNotes }: { leadId: num
             />
           </div>
           <div className="flex flex-col gap-2 shrink-0">
-            <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-              className="px-3 py-2 border border-neutral-200 dark:border-neutral-700 rounded-xl text-xs bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 focus:outline-none focus:ring-2 focus:ring-amber-300">
-              <option value="BISNIS">Bisnis</option>
-              <option value="TEKNIS">Teknis</option>
-              <option value="PENTING">Penting</option>
-            </select>
+            <NativeSelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} clearable={false} options={["NOTE","CALL","MEETING","EMAIL","OTHER"].map(c=>({value:c,label:c}))} />
             <button onClick={submitNote} disabled={submitting || !leadId || !form.content.trim()} className="btn-primary text-xs px-3 py-2 disabled:opacity-50">
               {!leadId ? "Lead belum terkait" : submitting ? "..." : "Kirim"}
             </button>

@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../../../components/ui/NativeSelect";
 import { inputCls } from "../../../lib/inputCls";
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -202,23 +203,9 @@ export default function DynamicTemplatesPage() {
             placeholder="Cari nama, isi template, atau kategori..."
             className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-neutral-800/70 dark:text-neutral-100" />
         </label>
-        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
-          className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-neutral-800/70 dark:text-neutral-100">
-          <option value="all">Semua tipe</option>
-          {TEMPLATE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </select>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as "all" | "active" | "inactive")}
-          className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-neutral-800/70 dark:text-neutral-100">
-          <option value="all">Semua status</option>
-          <option value="active">Aktif</option>
-          <option value="inactive">Nonaktif</option>
-        </select>
-        <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
-          className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-neutral-800/70 dark:text-neutral-100 lg:col-span-4">
-          <option value="all">Semua kategori</option>
-          <option value="">Tanpa kategori</option>
-          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        <NativeSelect value={typeFilter} onChange={setTypeFilter} placeholder="Semua tipe" options={[{value:"",label:"Semua tipe"},{value:"WA_BLAST",label:"WA Blast"},{value:"FOLLOW_UP",label:"Follow Up"},{value:"EMAIL",label:"Email"}]} />
+        <NativeSelect value={statusFilter} onChange={v => setStatusFilter((v || "all") as any)} clearable={false} options={[{value:"all",label:"Semua"},{value:"active",label:"Aktif"},{value:"inactive",label:"Nonaktif"}]} />
+        <NativeSelect value={categoryFilter} onChange={setCategoryFilter} placeholder="Semua kategori" options={categories.map((c: any) => ({ value: String(c.id), label: c.name }))} />
       </div>
 
       {filtered.length === 0 ? (
@@ -277,17 +264,12 @@ export default function DynamicTemplatesPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Tipe</label>
-                <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} className={inputCls}>
-                  {TEMPLATE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
+                <NativeSelect value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))} clearable={false} options={[{value:"WA_BLAST",label:"WA Blast"},{value:"FOLLOW_UP",label:"Follow Up"},{value:"EMAIL",label:"Email"}]} />
                 <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">{TEMPLATE_TYPES.find(t => t.value === form.type)?.hint}</p>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Kategori Produk</label>
-                <select value={form.category_id} onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))} className={inputCls}>
-                  <option value="">— Tanpa Kategori —</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <NativeSelect value={form.category_id} onChange={v => setForm(f => ({ ...f, category_id: v }))} placeholder="Kategori" options={categories.map((c: any) => ({ value: String(c.id), label: c.name }))} />
                 <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">Untuk WA Blast: template akan difilter berdasarkan kategori saat eksekusi.</p>
               </div>
               <div>

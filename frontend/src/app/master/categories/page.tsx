@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../../../components/ui/NativeSelect";
 import { inputCls, inputClsLarge } from "../../../lib/inputCls";
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -128,12 +129,7 @@ export default function CategoriesPage() {
             placeholder="Cari kategori atau deskripsi..."
             className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-neutral-800/70 dark:text-neutral-100" />
         </label>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as "all" | "active" | "inactive")}
-          className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-neutral-800/70 dark:text-neutral-100">
-          <option value="all">Semua status</option>
-          <option value="active">Aktif</option>
-          <option value="inactive">Nonaktif</option>
-        </select>
+        <NativeSelect value={statusFilter} onChange={v => setStatusFilter((v || "all") as any)} clearable={false} options={[{value:"all",label:"Semua"},{value:"active",label:"Aktif"},{value:"inactive",label:"Nonaktif"}]} />
       </div>
 
       {categories.length === 0 ? (

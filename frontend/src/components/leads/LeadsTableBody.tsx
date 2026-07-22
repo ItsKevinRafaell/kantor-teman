@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../ui/NativeSelect";
 import { Star, Flame, Mail, Target, Pencil } from "lucide-react";
 import { getScoreLabel, getScoreColor } from "../../lib/leadScore";
 
@@ -167,12 +168,14 @@ export default function LeadsTableBody({
           <td className="px-4 py-3 text-gray-500 dark:text-gray-400 max-w-[180px] text-xs leading-relaxed">{lead.address ?? "—"}</td>
           <td className="px-4 py-3 font-mono text-gray-600 dark:text-gray-400 text-xs whitespace-nowrap">+{lead.phone_number}</td>
           <td className="px-4 py-3">
-            <select value={lead.product_interest ?? ""} disabled={updating === lead.id || lead.is_archived}
-              onChange={e => onUpdateProduct(lead.id, e.target.value)}
-              className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-[var(--bg-surface)] text-gray-700 dark:text-neutral-50 cursor-pointer hover:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-50 transition-colors">
-              <option value="">— pilih —</option>
-              {blastCategories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-            </select>
+            <NativeSelect
+                size="sm"
+                value={lead.product_interest ?? ""}
+                disabled={updating === lead.id || lead.is_archived}
+                placeholder="Pilih produk"
+                onChange={v => onUpdateProduct(lead.id, v)}
+                options={blastCategories.map(c => ({ value: c.name, label: c.name }))}
+              />
           </td>
           <td className="px-4 py-3 text-xs">
             {lead.website_url ? (
@@ -271,11 +274,14 @@ export default function LeadsTableBody({
                     className="p-1.5 text-neutral-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all">
                     <Target size={12} />
                   </button>
-                  <select value={lead.status} disabled={updating === lead.id}
-                    onChange={e => onUpdateStatus(lead.id, e.target.value)}
-                    className="text-[11px] border border-neutral-200 dark:border-neutral-700 rounded-lg px-1.5 py-1.5 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 cursor-pointer focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50 transition-colors w-[90px]">
-                    {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s] || s}</option>)}
-                  </select>
+                  <NativeSelect
+                size="sm"
+                value={lead.status}
+                disabled={updating === lead.id}
+                clearable={false}
+                onChange={v => v && onUpdateStatus(lead.id, v)}
+                options={STATUSES.map(s => ({ value: s, label: STATUS_LABELS[s] || s }))}
+              />
                   {!["Closed/Client", "Klien Aktif"].includes(lead.status) && (
                     <button onClick={() => onConvert(lead)} disabled={updating === lead.id} title="Jadikan Klien"
                       className="p-1.5 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all disabled:opacity-50">

@@ -27,6 +27,10 @@ interface ReportData {
   monthly_search_volume: number;
   selected_addons: { id: string; name: string; price: number }[];
   admin_wa?: string; admin_name?: string;
+  google_rating?: number | null;
+  review_count?: number | null;
+  website_url?: string | null;
+  rating?: number | null;
 }
 
 function extractCity(address: string | null): string {
@@ -215,7 +219,42 @@ export default function PublicReportPage() {
           discount_expires_at={report.discount_expires_at}
           is_discount_expired={report.is_discount_expired}
           active_price={report.active_price}
+          rating={report.google_rating ?? report.rating}
+          reviews={report.review_count}
+          website={report.website_url}
         />
+
+        {/* Recommended packages — only matched services, not full catalog */}
+        {report.services_detail?.length > 0 && (
+          <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">Rekomendasi paket</p>
+            <h2 className="mb-4 text-lg font-black text-zinc-900 dark:text-white">Solusi yang relevan untuk {report.nama_usaha}</h2>
+            <div className="space-y-3">
+              {report.services_detail.slice(0, 3).map((svc, i) => (
+                <div key={i} className="rounded-xl border border-zinc-100 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-bold text-zinc-900 dark:text-zinc-50">{svc.name}</p>
+                      {svc.features?.length > 0 && (
+                        <ul className="mt-2 space-y-1">
+                          {svc.features.slice(0, 4).map((f, fi) => (
+                            <li key={fi} className="flex gap-2 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
+                              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                              <span>{f}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    {svc.price > 0 && (
+                      <p className="shrink-0 text-sm font-black text-amber-600">{formatRupiah(svc.price)}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <ReportPainBox painPoints={painPoints} monthly_search_volume={report.monthly_search_volume} city={city} category={report.category} hasDigitalAnalysis={!!report.digital_analysis} />
 

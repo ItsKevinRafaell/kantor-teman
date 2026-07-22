@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../ui/NativeSelect";
 import { inputCls, inputClsLarge } from "../../lib/inputCls";
 
 import { useState, useEffect, useCallback } from "react";
@@ -235,9 +236,7 @@ export default function SubscriptionsPanel() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Dompet</label>
-                <select value={form.wallet_id} onChange={e => setForm(f => ({ ...f, wallet_id: Number(e.target.value) }))} className={inputCls}>
-                  {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                </select>
+                <NativeSelect value={String(form.wallet_id || "")} onChange={v => setForm(f => ({ ...f, wallet_id: Number(v) }))} clearable={false} placeholder="Pilih dompet" options={wallets.map((w: any) => ({ value: String(w.id), label: w.name }))} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Jumlah (Rp)</label>
@@ -245,10 +244,7 @@ export default function SubscriptionsPanel() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Siklus Billing</label>
-                <select value={form.billing_cycle} onChange={e => setForm(f => ({ ...f, billing_cycle: e.target.value }))} className={inputCls}>
-                  <option value="monthly">Bulanan</option>
-                  <option value="yearly">Tahunan</option>
-                </select>
+                <NativeSelect value={form.billing_cycle} onChange={v => setForm(f => ({ ...f, billing_cycle: v }))} clearable={false} options={[{value:"monthly",label:"Bulanan"},{value:"yearly",label:"Tahunan"},{value:"weekly",label:"Mingguan"},{value:"daily",label:"Harian"}]} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Tanggal Jatuh Tempo Berikutnya</label>

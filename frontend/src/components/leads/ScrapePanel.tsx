@@ -1,4 +1,5 @@
 "use client";
+import NativeSelect from "../ui/NativeSelect";
 
 import { useState, useEffect, useCallback, FormEvent } from "react";
 import { apiFetch } from "../../lib/api";
@@ -235,18 +236,11 @@ export default function ScrapePanel({ onBatchSelect }: Props) {
           <div className="flex items-end gap-4 flex-wrap">
             <div>
               <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">Target Layanan</label>
-              <select value={productInterest} onChange={(e) => setProductInterest(e.target.value)} disabled={loading}
-                className="px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-60 transition">
-                {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-                {categories.length === 0 && <option value="">— Belum ada kategori —</option>}
-              </select>
+              <NativeSelect value={productInterest} onChange={setProductInterest} disabled={loading} placeholder="Minat produk" options={(categories || []).map((c: any) => ({ value: c.name, label: c.name }))} />
             </div>
             <div>
               <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1.5">Maks. Hasil</label>
-              <select value={maxResults} onChange={(e) => setMaxResults(Number(e.target.value))} disabled={loading}
-                className="px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-gray-50 dark:bg-[var(--bg-surface)] dark:text-neutral-50 focus:bg-white dark:focus:bg-[#333] focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-60 transition">
-                {[10, 20, 40, 60].map((n) => <option key={n} value={n}>{n} hasil</option>)}
-              </select>
+              <NativeSelect value={String(maxResults)} onChange={v => setMaxResults(Number(v || 20))} disabled={loading} clearable={false} options={[10,20,40,60].map(n => ({ value: String(n), label: `${n} hasil` }))} />
             </div>
             <label className="flex items-center gap-2 cursor-pointer pb-1">
               <input type="checkbox" checked={aiAnalysis} onChange={(e) => setAiAnalysis(e.target.checked)} disabled={loading}
