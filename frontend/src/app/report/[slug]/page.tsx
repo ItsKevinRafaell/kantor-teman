@@ -30,7 +30,48 @@ interface ReportData {
   google_rating?: number | null;
   review_count?: number | null;
   website_url?: string | null;
+  original_url?: string | null;
+  instagram_url?: string | null;
+  facebook_url?: string | null;
+  tiktok_url?: string | null;
   rating?: number | null;
+}
+
+function buildPresence(report: ReportData) {
+  const website = (report.website_url || "").trim();
+  const gbp = (report.original_url || "").trim();
+  const ig = (report.instagram_url || "").trim();
+  const fb = (report.facebook_url || "").trim();
+  const tt = (report.tiktok_url || "").trim();
+  const hasWebsite = !!website;
+  const hasGbp = !!gbp;
+  const hasInstagram = !!ig;
+  const hasFacebook = !!fb;
+  const hasTiktok = !!tt;
+  const primaryChannel = hasWebsite
+    ? "website" as const
+    : hasGbp
+      ? "gbp" as const
+      : hasInstagram
+        ? "instagram" as const
+        : hasFacebook
+          ? "facebook" as const
+          : hasTiktok
+            ? "tiktok" as const
+            : "none" as const;
+  return {
+    hasWebsite,
+    hasGbp,
+    hasInstagram,
+    hasFacebook,
+    hasTiktok,
+    googleRating: report.google_rating ?? report.rating ?? null,
+    reviewCount: report.review_count ?? null,
+    websiteUrl: website || null,
+    gbpUrl: gbp || null,
+    instagramUrl: ig || null,
+    primaryChannel,
+  };
 }
 
 function extractCity(address: string | null): string {
@@ -260,7 +301,7 @@ export default function PublicReportPage() {
 
         <AuditScore competitor_count={report.competitor_count} monthly_search_volume={report.monthly_search_volume} painPoints={painPoints} hasDigitalAnalysis={!!report.digital_analysis} city={city} nama_usaha={report.nama_usaha} />
 
-        <BeforeAfterComparison nama_usaha={report.nama_usaha} category={report.category} city={city} slug={report.slug} base_price={report.base_price} discount_price={report.discount_price} hasDigitalAnalysis={!!report.digital_analysis} />
+        <BeforeAfterComparison nama_usaha={report.nama_usaha} category={report.category} city={city} slug={report.slug} base_price={report.base_price} discount_price={report.discount_price} hasDigitalAnalysis={!!report.digital_analysis} presence={buildPresence(report)} />
 
         {/* Pleasure Bridge */}
         {!discountExpired ? (

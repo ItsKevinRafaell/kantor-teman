@@ -92,6 +92,9 @@ export interface Lead {
   action_recommendation?: string;
   is_ghost_viewer: boolean;
   website_url?: string | null;
+  instagram_url?: string | null;
+  facebook_url?: string | null;
+  tiktok_url?: string | null;
   google_rating?: number | null;
   review_count?: number | null;
   sales_owner?: string | null;

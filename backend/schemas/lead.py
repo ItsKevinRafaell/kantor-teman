@@ -30,6 +30,9 @@ class LeadOut(BaseModel):
     google_rating: Optional[float] = None
     review_count: Optional[int] = None
     website_url: Optional[str] = None
+    instagram_url: Optional[str] = None
+    facebook_url: Optional[str] = None
+    tiktok_url: Optional[str] = None
     sales_owner: Optional[str] = None
     next_action_at: Optional[str] = None
     loss_reason: Optional[str] = None
@@ -120,6 +123,13 @@ class LeadCreate(BaseModel):
     address: Optional[str] = Field(None, max_length=500)
     product_interest: Optional[str] = Field(None, max_length=100)
     batch_name: Optional[str] = Field(None, max_length=100)
+    website_url: Optional[str] = Field(None, max_length=500)
+    original_url: Optional[str] = Field(None, max_length=500)  # GBP / Google Maps URL
+    instagram_url: Optional[str] = Field(None, max_length=500)
+    facebook_url: Optional[str] = Field(None, max_length=500)
+    tiktok_url: Optional[str] = Field(None, max_length=500)
+    google_rating: Optional[float] = None
+    review_count: Optional[int] = None
 
 
 class LeadEdit(BaseModel):
@@ -128,6 +138,13 @@ class LeadEdit(BaseModel):
     address: Optional[str] = Field(None, max_length=500)
     product_interest: Optional[str] = Field(None, max_length=100)
     batch_name: Optional[str] = Field(None, max_length=100)
+    website_url: Optional[str] = Field(None, max_length=500)
+    original_url: Optional[str] = Field(None, max_length=500)  # GBP / Google Maps URL
+    instagram_url: Optional[str] = Field(None, max_length=500)
+    facebook_url: Optional[str] = Field(None, max_length=500)
+    tiktok_url: Optional[str] = Field(None, max_length=500)
+    google_rating: Optional[float] = None
+    review_count: Optional[int] = None
 
 
 class WaSendIn(BaseModel):

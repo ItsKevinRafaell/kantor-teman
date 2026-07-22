@@ -244,6 +244,10 @@ def get_public_proposal_by_slug(slug: str, db: Session = Depends(get_db)):
         "google_rating": getattr(lead, "google_rating", None) if lead else (getattr(lead, "rating", None) if lead else None),
         "review_count": getattr(lead, "review_count", None) if lead else None,
         "website_url": getattr(lead, "website_url", None) if lead else None,
+        "original_url": getattr(lead, "original_url", None) if lead else None,
+        "instagram_url": getattr(lead, "instagram_url", None) if lead else None,
+        "facebook_url": getattr(lead, "facebook_url", None) if lead else None,
+        "tiktok_url": getattr(lead, "tiktok_url", None) if lead else None,
         "rating": (getattr(lead, "google_rating", None) or getattr(lead, "rating", None)) if lead else None,
         "services_detail": services,
         "total_price": proposal.total_price,
@@ -469,6 +473,14 @@ def get_public_report_by_slug(slug: str, request: Request, db: Session = Depends
         "timeline_data": sorted(json.loads(proposal.timeline_data), key=lambda x: x["sequence"]) if proposal.timeline_data else [],
         "admin_wa": _get_setting("admin_wa", ADMIN_WA),
         "admin_name": _get_setting("admin_name", "Admin"),
+        "google_rating": getattr(lead, "google_rating", None) if lead else None,
+        "review_count": getattr(lead, "review_count", None) if lead else None,
+        "website_url": getattr(lead, "website_url", None) if lead else None,
+        "original_url": getattr(lead, "original_url", None) if lead else None,
+        "instagram_url": getattr(lead, "instagram_url", None) if lead else None,
+        "facebook_url": getattr(lead, "facebook_url", None) if lead else None,
+        "tiktok_url": getattr(lead, "tiktok_url", None) if lead else None,
+        "rating": (getattr(lead, "google_rating", None) or getattr(lead, "rating", None)) if lead else None,
     }
 
 

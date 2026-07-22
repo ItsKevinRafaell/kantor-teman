@@ -7,7 +7,19 @@ import type { Lead } from "../types";
 
 interface Category { id: string; name: string }
 interface BlastTemplate { id: string; name: string; content: string; category_id: string | null }
-interface LeadFormData { business_name: string; phone_number: string; address: string; product_interest: string }
+interface LeadFormData {
+  business_name: string;
+  phone_number: string;
+  address?: string;
+  product_interest?: string;
+  website_url?: string;
+  original_url?: string;
+  instagram_url?: string;
+  facebook_url?: string;
+  tiktok_url?: string;
+  google_rating?: number | null;
+  review_count?: number | null;
+}
 
 interface UseLeadsTableReturn {
   leads: Lead[];

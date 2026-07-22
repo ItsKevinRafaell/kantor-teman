@@ -44,7 +44,20 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
   // Add/Edit lead
   const [addLeadModal, setAddLeadModal] = useState(false);
   const [editLeadModal, setEditLeadModal] = useState<{ open: boolean; lead: any | null }>({ open: false, lead: null });
-  const [leadForm, setLeadForm] = useState({ business_name: "", phone_number: "", address: "", product_interest: "" });
+  const emptyLeadForm = {
+    business_name: "",
+    phone_number: "",
+    address: "",
+    product_interest: "",
+    website_url: "",
+    original_url: "",
+    instagram_url: "",
+    facebook_url: "",
+    tiktok_url: "",
+    google_rating: "" as string | number,
+    review_count: "" as string | number,
+  };
+  const [leadForm, setLeadForm] = useState({ ...emptyLeadForm });
 
   // Preview modals (inline)
   const [followUpPreview, setFollowUpPreview] = useState<{ open: boolean; lead: any | null; message: string; templates: any[] }>({ open: false, lead: null, message: "", templates: [] });
@@ -213,13 +226,31 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
     showToast("Batch berhasil diarsipkan.");
   }
 
+  function payloadFromLeadForm() {
+    const ratingRaw = leadForm.google_rating === "" ? null : Number(leadForm.google_rating);
+    const reviewsRaw = leadForm.review_count === "" ? null : Number(leadForm.review_count);
+    return {
+      business_name: leadForm.business_name,
+      phone_number: leadForm.phone_number,
+      address: leadForm.address || undefined,
+      product_interest: leadForm.product_interest || undefined,
+      website_url: leadForm.website_url || undefined,
+      original_url: leadForm.original_url || undefined,
+      instagram_url: leadForm.instagram_url || undefined,
+      facebook_url: leadForm.facebook_url || undefined,
+      tiktok_url: leadForm.tiktok_url || undefined,
+      google_rating: ratingRaw != null && !Number.isNaN(ratingRaw) ? ratingRaw : null,
+      review_count: reviewsRaw != null && !Number.isNaN(reviewsRaw) ? reviewsRaw : null,
+    };
+  }
+
   async function handleCreateLead() {
     if (!leadForm.business_name || !leadForm.phone_number) return;
     setSavingLead(true);
     try {
-      await createLead(leadForm);
+      await createLead(payloadFromLeadForm());
       setAddLeadModal(false);
-      setLeadForm({ business_name: "", phone_number: "", address: "", product_interest: "" });
+      setLeadForm({ ...emptyLeadForm });
       showToast("Lead berhasil ditambahkan.");
     } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Gagal menambah lead.", "error"); }
     finally { setSavingLead(false); }
@@ -229,16 +260,28 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
     if (!editLeadModal.lead || !leadForm.business_name || !leadForm.phone_number) return;
     setSavingLead(true);
     try {
-      await updateLead(editLeadModal.lead.id, leadForm);
+      await updateLead(editLeadModal.lead.id, payloadFromLeadForm());
       setEditLeadModal({ open: false, lead: null });
-      setLeadForm({ business_name: "", phone_number: "", address: "", product_interest: "" });
+      setLeadForm({ ...emptyLeadForm });
       showToast("Lead berhasil diperbarui.");
     } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Gagal memperbarui lead.", "error"); }
     finally { setSavingLead(false); }
   }
 
   function openEditLead(lead: any) {
-    setLeadForm({ business_name: lead.business_name, phone_number: lead.phone_number, address: lead.address || "", product_interest: lead.product_interest || "" });
+    setLeadForm({
+      business_name: lead.business_name,
+      phone_number: lead.phone_number,
+      address: lead.address || "",
+      product_interest: lead.product_interest || "",
+      website_url: lead.website_url || "",
+      original_url: lead.original_url || "",
+      instagram_url: lead.instagram_url || "",
+      facebook_url: lead.facebook_url || "",
+      tiktok_url: lead.tiktok_url || "",
+      google_rating: lead.google_rating ?? "",
+      review_count: lead.review_count ?? "",
+    });
     setEditLeadModal({ open: true, lead });
   }
 
@@ -465,7 +508,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
         filters={filters} batches={batches}
         onStatusChange={setFilterStatus} onBatchChange={setFilterBatch}
         onScoreChange={setFilterScore} onRatingChange={setFilterRating}
-        onAddLead={() => { setLeadForm({ business_name: "", phone_number: "", address: "", product_interest: "" }); setAddLeadModal(true); }}
+        onAddLead={() => { setLeadForm({ ...emptyLeadForm }); setAddLeadModal(true); }}
         onExportCSV={exportCSV} onOpenBlast={() => { setBlastBatch(filters.batch); setBlastOpen(true); }}
         onRecalculate={handleRecalculateAll} onRefresh={refresh}
         recalculating={recalculating} showArchived={showArchived}
@@ -528,8 +571,8 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
       )}
 
       {/* Add Lead */}
-      <Modal open={addLeadModal} title="Tambah Prospek Baru" confirmLabel={savingLead ? "Menyimpan..." : "Simpan"} onConfirm={handleCreateLead} onCancel={() => setAddLeadModal(false)}>
-        <div className="space-y-3">
+      <Modal open={addLeadModal} title="Tambah Prospek Baru" confirmLabel={savingLead ? "Menyimpan..." : "Simpan"} onConfirm={handleCreateLead} onCancel={() => { setAddLeadModal(false); setLeadForm({ ...emptyLeadForm }); }}>
+        <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
           <input type="text" placeholder="Nama Bisnis *" value={leadForm.business_name} onChange={e => setLeadForm(f => ({ ...f, business_name: e.target.value }))}
             className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
           <input type="text" placeholder="Nomor WhatsApp * (cth: 6281234567890)" value={leadForm.phone_number} onChange={e => setLeadForm(f => ({ ...f, phone_number: e.target.value }))}
@@ -537,12 +580,29 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
           <input type="text" placeholder="Alamat" value={leadForm.address} onChange={e => setLeadForm(f => ({ ...f, address: e.target.value }))}
             className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
           <NativeSelect value={leadForm.product_interest} onChange={v => setLeadForm(f => ({ ...f, product_interest: v }))} placeholder="Pilih minat produk" options={blastCategories.map((c: any) => ({ value: c.name, label: c.name }))} />
+          <p className="pt-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">Jejak digital (opsional)</p>
+          <input type="url" placeholder="Website (https://...)" value={leadForm.website_url} onChange={e => setLeadForm(f => ({ ...f, website_url: e.target.value }))}
+            className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
+          <input type="url" placeholder="Google Business / Maps URL" value={leadForm.original_url} onChange={e => setLeadForm(f => ({ ...f, original_url: e.target.value }))}
+            className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
+          <input type="url" placeholder="Instagram URL" value={leadForm.instagram_url} onChange={e => setLeadForm(f => ({ ...f, instagram_url: e.target.value }))}
+            className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
+          <input type="url" placeholder="Facebook URL" value={leadForm.facebook_url} onChange={e => setLeadForm(f => ({ ...f, facebook_url: e.target.value }))}
+            className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
+          <input type="url" placeholder="TikTok URL" value={leadForm.tiktok_url} onChange={e => setLeadForm(f => ({ ...f, tiktok_url: e.target.value }))}
+            className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
+          <div className="grid grid-cols-2 gap-2">
+            <input type="number" step="0.1" min="0" max="5" placeholder="Rating Maps" value={leadForm.google_rating} onChange={e => setLeadForm(f => ({ ...f, google_rating: e.target.value }))}
+              className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
+            <input type="number" min="0" placeholder="Jumlah ulasan" value={leadForm.review_count} onChange={e => setLeadForm(f => ({ ...f, review_count: e.target.value }))}
+              className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
+          </div>
         </div>
       </Modal>
 
       {/* Edit Lead */}
-      <Modal open={editLeadModal.open} title="Edit Lead" confirmLabel={savingLead ? "Menyimpan..." : "Simpan"} onConfirm={handleEditLead} onCancel={() => setEditLeadModal({ open: false, lead: null })}>
-        <div className="space-y-3">
+      <Modal open={editLeadModal.open} title="Edit Lead" confirmLabel={savingLead ? "Menyimpan..." : "Simpan"} onConfirm={handleEditLead} onCancel={() => { setEditLeadModal({ open: false, lead: null }); setLeadForm({ ...emptyLeadForm }); }}>
+        <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
           <input type="text" placeholder="Nama Bisnis *" value={leadForm.business_name} onChange={e => setLeadForm(f => ({ ...f, business_name: e.target.value }))}
             className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
           <input type="text" placeholder="Nomor WhatsApp *" value={leadForm.phone_number} onChange={e => setLeadForm(f => ({ ...f, phone_number: e.target.value }))}
@@ -550,6 +610,23 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
           <input type="text" placeholder="Alamat" value={leadForm.address} onChange={e => setLeadForm(f => ({ ...f, address: e.target.value }))}
             className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
           <NativeSelect value={leadForm.product_interest} onChange={v => setLeadForm(f => ({ ...f, product_interest: v }))} placeholder="Pilih minat produk" options={blastCategories.map((c: any) => ({ value: c.name, label: c.name }))} />
+          <p className="pt-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">Jejak digital (opsional)</p>
+          <input type="url" placeholder="Website (https://...)" value={leadForm.website_url} onChange={e => setLeadForm(f => ({ ...f, website_url: e.target.value }))}
+            className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
+          <input type="url" placeholder="Google Business / Maps URL" value={leadForm.original_url} onChange={e => setLeadForm(f => ({ ...f, original_url: e.target.value }))}
+            className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
+          <input type="url" placeholder="Instagram URL" value={leadForm.instagram_url} onChange={e => setLeadForm(f => ({ ...f, instagram_url: e.target.value }))}
+            className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
+          <input type="url" placeholder="Facebook URL" value={leadForm.facebook_url} onChange={e => setLeadForm(f => ({ ...f, facebook_url: e.target.value }))}
+            className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
+          <input type="url" placeholder="TikTok URL" value={leadForm.tiktok_url} onChange={e => setLeadForm(f => ({ ...f, tiktok_url: e.target.value }))}
+            className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
+          <div className="grid grid-cols-2 gap-2">
+            <input type="number" step="0.1" min="0" max="5" placeholder="Rating Maps" value={leadForm.google_rating} onChange={e => setLeadForm(f => ({ ...f, google_rating: e.target.value }))}
+              className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
+            <input type="number" min="0" placeholder="Jumlah ulasan" value={leadForm.review_count} onChange={e => setLeadForm(f => ({ ...f, review_count: e.target.value }))}
+              className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-neutral-800 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-amber-300 transition" />
+          </div>
         </div>
       </Modal>
 

@@ -402,6 +402,13 @@ class LeadCreate(BaseModel):
     address: Optional[str] = Field(None, max_length=500)
     product_interest: Optional[str] = Field(None, max_length=100)
     batch_name: Optional[str] = Field(None, max_length=100)
+    website_url: Optional[str] = Field(None, max_length=500)
+    original_url: Optional[str] = Field(None, max_length=500)
+    instagram_url: Optional[str] = Field(None, max_length=500)
+    facebook_url: Optional[str] = Field(None, max_length=500)
+    tiktok_url: Optional[str] = Field(None, max_length=500)
+    google_rating: Optional[float] = None
+    review_count: Optional[int] = None
 
 
 class LeadEdit(BaseModel):
@@ -410,6 +417,13 @@ class LeadEdit(BaseModel):
     address: Optional[str] = Field(None, max_length=500)
     product_interest: Optional[str] = Field(None, max_length=100)
     batch_name: Optional[str] = Field(None, max_length=100)
+    website_url: Optional[str] = Field(None, max_length=500)
+    original_url: Optional[str] = Field(None, max_length=500)
+    instagram_url: Optional[str] = Field(None, max_length=500)
+    facebook_url: Optional[str] = Field(None, max_length=500)
+    tiktok_url: Optional[str] = Field(None, max_length=500)
+    google_rating: Optional[float] = None
+    review_count: Optional[int] = None
 
 
 
@@ -446,6 +460,13 @@ def create_lead_manual(body: LeadCreate, current_user: User = Depends(require_ad
         address=body.address,
         product_interest=body.product_interest,
         batch_name=body.batch_name or "Manual",
+        website_url=(body.website_url or None),
+        original_url=(body.original_url or None),
+        instagram_url=(body.instagram_url or None),
+        facebook_url=(body.facebook_url or None),
+        tiktok_url=(body.tiktok_url or None),
+        google_rating=body.google_rating,
+        review_count=body.review_count,
         status="Scraped",
         rating=0,
         lead_score=0,
@@ -485,6 +506,18 @@ def update_lead(lead_id: int, body: LeadEdit, current_user: User = Depends(requi
     if body.batch_name is not None:
         changes["batch_name"] = {"old": lead.batch_name, "new": body.batch_name}
         lead.batch_name = body.batch_name
+    for field in (
+        "website_url", "original_url", "instagram_url", "facebook_url", "tiktok_url",
+        "google_rating", "review_count",
+    ):
+        if getattr(body, field, None) is not None:
+            old = getattr(lead, field, None)
+            new = getattr(body, field)
+            # Allow clearing URL fields with empty string
+            if isinstance(new, str):
+                new = new.strip() or None
+            changes[field] = {"old": old, "new": new}
+            setattr(lead, field, new)
     db.commit()
     db.refresh(lead)
     lead.lead_score, _ = calculate_lead_score(lead)

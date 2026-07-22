@@ -182,28 +182,45 @@ def _generate_fallback_analysis(lead) -> dict:
         f"Saat orang mencari «{category}» di Google / Maps untuk {area}, bisnis tanpa profil lengkap + kata kunci yang rapi mudah tenggelam di bawah kompetitor yang sudah dioptimasi."
     )
 
-    # Point 3: website / contact path
+    # Point 3: channel mix (website / GBP / social)
+    gbp = (getattr(lead, "original_url", None) or "").strip()
+    ig = (getattr(lead, "instagram_url", None) or "").strip()
+    fb = (getattr(lead, "facebook_url", None) or "").strip()
+    tt = (getattr(lead, "tiktok_url", None) or "").strip()
     if website:
         pain_points.append(
-            f"Website terdeteksi ({website[:48]}{'…' if len(website) > 48 else ''}), tapi jalur dari pencarian → halaman penawaran → WhatsApp perlu dicek: banyak bisnis kehilangan prospek di langkah ini."
+            f"Website terdeteksi ({website[:48]}{'…' if len(website) > 48 else ''}), tapi jalur pencarian → penawaran → WhatsApp perlu dicek agar prospek tidak hilang."
+        )
+    elif gbp:
+        pain_points.append(
+            f"Google Business Profile terdeteksi, tapi website belum. Untuk {category}, lengkapi GBP + landing ringkas biasanya cukup menaikkan chat masuk."
+        )
+    elif ig or fb or tt:
+        ch = "Instagram" if ig else ("Facebook" if fb else "TikTok")
+        pain_points.append(
+            f"{name} aktif di {ch}, tapi jejak di Google/Maps masih lemah — orang yang search «{category}» di {area} sering tidak menemukan Anda."
         )
     else:
         pain_points.append(
-            f"{name} belum punya website yang terdeteksi di data kami. Untuk {category}, satu halaman penawaran + tombol WhatsApp saja sudah bisa menaikkan konversi dari penelusuran lokal."
+            f"{name} belum punya website/GBP/sosmed yang terdeteksi di data kami. Satu profil inti + tombol WhatsApp sudah bisa membuka konversi dari penelusuran lokal."
         )
 
     facts = []
     if rating: facts.append(f"rating Maps {float(rating):.1f}")
     if reviews: facts.append(f"{int(reviews)} ulasan")
-    if website: facts.append("website terdeteksi")
-    else: facts.append("belum ada website terdeteksi")
+    if website: facts.append("website ada")
+    if gbp: facts.append("GBP/Maps link ada")
+    if ig: facts.append("Instagram ada")
+    if fb: facts.append("Facebook ada")
+    if tt: facts.append("TikTok ada")
+    if not any([website, gbp, ig, fb, tt]): facts.append("belum ada kanal digital terdeteksi")
     if city: facts.append(f"area {city}")
     fact_line = ", ".join(facts) if facts else "data profil masih minim"
 
     return {
         "analysis": (
             f"Ringkasan audit awal untuk {name}: {fact_line}. "
-            f"Fokus perbaikan: kelengkapan profil digital, bukti sosial, dan jalur kontak yang mudah dari Google ke WhatsApp."
+            f"Fokus perbaikan: kanal yang sudah ada dirapikan, celah Google/Maps ditutup, dan jalur kontak ke WhatsApp dibuat sejelas mungkin."
         ),
         "pain_points": pain_points[:3],
         "suggested_product": lead.product_interest or "SEO & Google Maps Optimization",
@@ -284,10 +301,18 @@ def generate_report_for_lead(lead, db: Session, product_category: str = None, fo
         if existing_reports and not product_category:
             return existing_reports[0].slug
     existing_analysis = db.query(LeadAnalysis).filter(LeadAnalysis.lead_id == lead.id).order_by(LeadAnalysis.id.desc()).first()
-    if existing_analysis:
+    fallback = _generate_fallback_analysis(lead)
+    if existing_analysis and not force:
+        analysis = existing_analysis
+    elif existing_analysis and force:
+        # Refresh stale analysis when presence/profile data changed
+        existing_analysis.analysis = fallback["analysis"]
+        existing_analysis.pain_points = json.dumps(fallback["pain_points"])
+        existing_analysis.suggested_product = fallback["suggested_product"]
+        existing_analysis.analyzed_at = datetime.now(timezone.utc).isoformat()
+        db.commit()
         analysis = existing_analysis
     else:
-        fallback = _generate_fallback_analysis(lead)
         analysis = LeadAnalysis(
             lead_id=lead.id,
             analysis=fallback["analysis"],
