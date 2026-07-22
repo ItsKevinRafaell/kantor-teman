@@ -901,18 +901,14 @@ def generate_report_endpoint(
     if not lead:
         raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
     if force:
-        # Soft-retire old Report proposals so generate_report_for_lead creates fresh data
-        old_reports = db.query(Proposal).filter(Proposal.lead_id == lead_id, Proposal.status == "Report").all()
-        for r in old_reports:
-            r.status = "ReportArchived"
-        # Also drop stale fallback analysis so next gen rebuilds facts
+        # Drop stale analysis so next gen rebuilds fact-based copy
         try:
             from models import LeadAnalysis
             db.query(LeadAnalysis).filter(LeadAnalysis.lead_id == lead_id).delete(synchronize_session=False)
+            db.commit()
         except Exception:
-            pass
-        db.commit()
-    slug = generate_report_for_lead(lead, db)
+            db.rollback()
+    slug = generate_report_for_lead(lead, db, force=force)
     frontend_url = (_get_setting("frontend_url", os.environ.get("FRONTEND_URL", FRONTEND_URL)) or FRONTEND_URL).rstrip("/")
     return {"slug": slug, "report_url": f"{frontend_url}/r/{slug}"}
 

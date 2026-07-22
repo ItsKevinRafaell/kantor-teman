@@ -248,20 +248,22 @@ def _match_products_for_category(db: Session, category: str) -> list:
 
     scored = []
     for p in products:
-        hay = f"{p.name or ''} {p.description or ''}".lower()
-        score = sum(1 for k in expanded if k in hay)
+        name = (p.name or "").lower()
+        desc = (p.description or "").lower()
+        # Name matches weigh 3x so "Maintenance" doesn't win on the word "website" in body copy
+        score = sum(3 for k in expanded if k in name) + sum(1 for k in expanded if k in desc and k not in name)
         if score:
             scored.append((score, p))
     scored.sort(key=lambda x: (-x[0], x[1].base_price or 0))
     matched = [p for _, p in scored[:3]]
     if matched:
         return matched
-    # Soft fallback: single cheapest starter-like product, not whole catalog
-    starters = [p for p in products if "starter" in (p.name or "").lower() or "pro" in (p.name or "").lower()]
+    # Soft fallback: web/seo starters only when category empty-ish
+    starters = [p for p in products if any(k in (p.name or "").lower() for k in ("starter", "seo", "maps", "web pro", "web starter"))]
     return (starters or products)[:2]
 
 
-def generate_report_for_lead(lead, db: Session, product_category: str = None) -> str:
+def generate_report_for_lead(lead, db: Session, product_category: str = None, force: bool = False) -> str:
     from app.core.services.settings_service import _get_setting
     from app.core.services.slug_service import generate_unique_slug
 
@@ -270,16 +272,17 @@ def generate_report_for_lead(lead, db: Session, product_category: str = None) ->
         Proposal.lead_id == lead.id,
         Proposal.status == "Report",
     ).order_by(Proposal.created_at.desc()).all()
-    for r in existing_reports:
-        try:
-            services = json.loads(r.services_detail) if r.services_detail else []
-            report_products = " ".join(s.get("name", "") for s in services).lower()
-            if category.lower() in report_products:
-                return r.slug
-        except Exception:
-            pass
-    if existing_reports and not product_category:
-        return existing_reports[0].slug
+    if not force:
+        for r in existing_reports:
+            try:
+                services = json.loads(r.services_detail) if r.services_detail else []
+                report_products = " ".join(s.get("name", "") for s in services).lower()
+                if category.lower() and category.lower() in report_products:
+                    return r.slug
+            except Exception:
+                pass
+        if existing_reports and not product_category:
+            return existing_reports[0].slug
     existing_analysis = db.query(LeadAnalysis).filter(LeadAnalysis.lead_id == lead.id).order_by(LeadAnalysis.id.desc()).first()
     if existing_analysis:
         analysis = existing_analysis
@@ -313,26 +316,42 @@ def generate_report_for_lead(lead, db: Session, product_category: str = None) ->
         "features": ["Audit posisi digital", "Rencana prioritas 30 hari", "Setup jalur kontak WhatsApp"],
     }]
     base_total = sum(s["price"] for s in services)
+    faqs = json.dumps([
+        {"question": "Apakah audit ini gratis?", "answer": "Ya, audit digital ini 100% gratis dan tanpa kewajiban apapun. Kami ingin Anda melihat sendiri peluang yang selama ini terlewat."},
+        {"question": "Berapa lama sampai terlihat hasilnya?", "answer": "Dengan eksekusi yang tepat, sinyal awal (klik, arah, atau chat) biasanya mulai terbaca dalam 14–30 hari — tergantung kelengkapan data bisnis Anda."},
+        {"question": "Apa yang kami butuhkan dari Anda?", "answer": "Akses singkat ke Google Business / website (jika ada) dan konfirmasi layanan utama + area kerja. Tanpa itu, optimasi hanya bisa setengah jalan."},
+    ])
+    addons = _build_addons_from_products(db, matched_products)
+    discount = round(base_total * (1 - float(_get_setting("proposal_discount_percent", "15")) / 100)) if base_total else 0
+
+    # Force refresh: overwrite newest Report (or revive archived with same business slug)
+    if force and existing_reports:
+        report = existing_reports[0]
+        report.services_detail = json.dumps(services)
+        report.total_price = base_total
+        report.base_price = base_total
+        report.discount_price = discount
+        report.faqs = faqs
+        report.selected_addons = addons
+        report.status = "Report"
+        db.commit()
+        return report.slug
+
     slug = generate_unique_slug(db, lead.business_name)
-    # Prefer real city for slug context is handled by slug service; keep business name
     report = Proposal(
         id=str(uuid.uuid4()),
         lead_id=lead.id,
         services_detail=json.dumps(services),
         total_price=base_total,
         base_price=base_total,
-        discount_price=round(base_total * (1 - float(_get_setting("proposal_discount_percent", "15")) / 100)) if base_total else 0,
+        discount_price=discount,
         discount_expires_at=None,
         additional_options=None,
         status="Report",
         created_at=datetime.now(timezone.utc).isoformat(),
         slug=slug,
-        faqs=json.dumps([
-            {"question": "Apakah audit ini gratis?", "answer": "Ya, audit digital ini 100% gratis dan tanpa kewajiban apapun. Kami ingin Anda melihat sendiri peluang yang selama ini terlewat."},
-            {"question": "Berapa lama sampai terlihat hasilnya?", "answer": "Dengan eksekusi yang tepat, sinyal awal (klik, arah, atau chat) biasanya mulai terbaca dalam 14–30 hari — tergantung kelengkapan data bisnis Anda."},
-            {"question": "Apa yang kami butuhkan dari Anda?", "answer": "Akses singkat ke Google Business / website (jika ada) dan konfirmasi layanan utama + area kerja. Tanpa itu, optimasi hanya bisa setengah jalan."},
-        ]),
-        selected_addons=_build_addons_from_products(db, matched_products),
+        faqs=faqs,
+        selected_addons=addons,
         timeline_data=None,
     )
     db.add(report)
