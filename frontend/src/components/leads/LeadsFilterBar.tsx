@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Calculator, HelpCircle, Search, Download, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { SearchableSelect } from "../ui/SearchableSelect";
 
 interface LeadFilters {
   status: string;
@@ -84,20 +85,26 @@ export default function LeadsFilterBar({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <label className="space-y-1">
             <span className="block text-[11px] font-semibold uppercase tracking-wide text-gray-400">Status</span>
-            <select value={filters.status} onChange={e => onStatusChange(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-white px-2 py-2 text-xs text-gray-700 outline-none transition focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-[var(--bg-surface)] dark:text-neutral-50">
-              <option value="">Semua status</option>
-              {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s] || s}</option>)}
-            </select>
+            <SearchableSelect
+              value={filters.status}
+              onChange={onStatusChange}
+              placeholder="Semua status"
+              searchPlaceholder="Cari status…"
+              maxDisplay={30}
+              options={STATUSES.map(s => ({ value: s, label: STATUS_LABELS[s] || s }))}
+            />
           </label>
 
           <label className="space-y-1">
             <span className="block text-[11px] font-semibold uppercase tracking-wide text-gray-400">Batch</span>
-            <select value={filters.batch} onChange={e => onBatchChange(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-white px-2 py-2 text-xs text-gray-700 outline-none transition focus:ring-2 focus:ring-amber-300 dark:border-gray-700 dark:bg-[var(--bg-surface)] dark:text-neutral-50">
-              <option value="">Semua batch</option>
-              {batches.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
+            <SearchableSelect
+              value={filters.batch}
+              onChange={onBatchChange}
+              placeholder="Semua batch"
+              searchPlaceholder="Ketik nama batch…"
+              maxDisplay={40}
+              options={batches.filter(Boolean).map(b => ({ value: b, label: b }))}
+            />
           </label>
 
           <label className="space-y-1">

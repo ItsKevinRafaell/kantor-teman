@@ -518,6 +518,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
             </thead>
             <tbody className="divide-y divide-[var(--border-subtle)]">
               <LeadsTableBody
+                showArchived={showArchived}
                 leads={leads} filters={filters} searchQuery={searchQuery}
                 blastCategories={blastCategories} updating={updating}
                 page={leadsPage} pageSize={LEADS_PAGE_SIZE}

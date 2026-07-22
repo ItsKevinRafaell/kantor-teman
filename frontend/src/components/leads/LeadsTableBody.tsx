@@ -65,7 +65,7 @@ interface Lead {
 
 interface LeadsTableBodyProps {
   leads: Lead[];
-  filters: { rating: number; score: string };
+  filters: { status: string; batch: string; rating: number; score: string };
   searchQuery: string;
   blastCategories: { id: string; name: string }[];
   updating: number | null;
@@ -116,13 +116,24 @@ function getScoreBreakdown(lead: Lead): string[] {
 
 export default function LeadsTableBody({
   leads, filters, searchQuery, blastCategories, updating, page = 1, pageSize = 25,
+  showArchived = false,
   onUpdateStatus, onUpdateProduct, onChatWA, onFollowUp, onStartSequence,
   onOpenSales, onConvert, onAdjustScore, onEdit, onArchive, onRestore, onViewReport,
-}: LeadsTableBodyProps) {
+}: LeadsTableBodyProps & { showArchived?: boolean }) {
   const filtered = leads.filter(l => {
-    if (filters.rating !== 0 && l.rating < filters.rating) return false;
-    if (searchQuery && !l.business_name.toLowerCase().includes(searchQuery.toLowerCase())
-      && !(l.address || "").toLowerCase().includes(searchQuery.toLowerCase()) && !l.phone_number.includes(searchQuery)) return false;
+    if (!showArchived && l.is_archived) return false;
+    // Status / batch were missing → dropdown "worked" but table never filtered.
+    if (filters.status && l.status !== filters.status) return false;
+    if (filters.batch) {
+      const batch = (l.batch_name || "").trim();
+      if (batch !== filters.batch) return false;
+    }
+    if (filters.rating !== 0 && (l.rating ?? 0) < filters.rating) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const hay = `${l.business_name || ""} ${l.address || ""} ${l.phone_number || ""} ${l.product_interest || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
     const s = l.lead_score ?? 0;
     if (filters.score === "hot" && s < 80) return false;
     if (filters.score === "warm" && (s < 50 || s >= 80)) return false;

@@ -98,7 +98,7 @@ export default function FinancePanel() {
   const [categoryMode, setCategoryMode] = useState<"preset" | "custom">("preset");
   const [linkClient, setLinkClient] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; type: "wallet" | "transaction" } | null>(null);
-  const [walletDeleteModal, setWalletDeleteModal] = useState<{ id: number; name: string; balance: number } | null>(null);
+  const [walletDeleteModal, setWalletDeleteModal] = useState<{ id: number; name: string; balance: number; txnCount: number } | null>(null);
   const [reassignWalletId, setReassignWalletId] = useState<number | "">("");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
@@ -155,7 +155,8 @@ export default function FinancePanel() {
   }
 
   function openDeleteWallet(w: WalletData) {
-    setWalletDeleteModal({ id: w.id, name: w.name, balance: w.balance });
+    const txnCount = transactions.filter(t => t.wallet_id === w.id).length;
+    setWalletDeleteModal({ id: w.id, name: w.name, balance: w.balance, txnCount });
     const other = wallets.find(x => x.id !== w.id);
     setReassignWalletId(other?.id ?? "");
   }
@@ -326,8 +327,8 @@ export default function FinancePanel() {
               <div>
                 <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-50">Hapus dompet «{walletDeleteModal.name}»?</h3>
                 <p className="mt-1 text-xs text-neutral-500">
-                  Saldo {formatRupiah(walletDeleteModal.balance)} bisa 0, tapi riwayat transaksi tetap menempel ke dompet ini.
-                  Pilih dompet tujuan untuk memindahkan semua transaksi + langganan, lalu hapus.
+                  Saldo {formatRupiah(walletDeleteModal.balance)}. Di list aktif kelihatan ~{walletDeleteModal.txnCount} transaksi menempel (bisa lebih di server/arsip).
+                  Saldo 0 ≠ kosong. Pilih dompet tujuan → pindah semua riwayat → hapus.
                 </p>
               </div>
               <button type="button" onClick={() => setWalletDeleteModal(null)} className="p-1 text-neutral-400 hover:text-neutral-600"><X size={18} /></button>
@@ -347,6 +348,15 @@ export default function FinancePanel() {
             </div>
             <div className="flex flex-wrap justify-end gap-2 pt-1">
               <button type="button" onClick={() => setWalletDeleteModal(null)} className="rounded-xl bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">Batal</button>
+              {walletDeleteModal.txnCount === 0 && (
+                <button
+                  type="button"
+                  onClick={() => deleteWallet(walletDeleteModal.id)}
+                  className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950/30"
+                >
+                  Hapus (tanpa pindah)
+                </button>
+              )}
               <button
                 type="button"
                 disabled={!reassignWalletId}
