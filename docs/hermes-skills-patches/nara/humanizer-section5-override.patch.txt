@@ -1,0 +1,8 @@
+# Apply to: /root/.hermes/profiles/nara/skills/humanizer-bahasa-indonesia.md
+# Location: right after the heading "### 5. Penggunaan Tanda Hubung Berlebihan"
+# (Mika already has this; Nara still missing as of 2026-07-23)
+
+### 5. Penggunaan Tanda Hubung Berlebihan
+> ATURAN KERAS KEVIN (override untuk media sosial): Di post/media sosial, em-dash (—), en-dash (–), dan tanda hubung sebagai pemisah DILARANG SAMA SEKALI — bukan cuma "berlebihan". Ganti dengan ", " atau pisah jadi dua kalimat. Contoh skill di atas yang pakai "—" hanya berlaku untuk artikel formal, BUKAN caption/post Kevin.
+
+**Masalah:** AI menggunakan tanda hubung (-) untuk menyisipkan klausa, mirip dengan penggunaan em dash berlebihan dalam tulisan AI bahasa Inggris. Dalam banyak kasus, koma, tanda titik, atau penyusunan ulang kalimat lebih bersih.
