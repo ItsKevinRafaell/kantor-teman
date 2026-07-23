@@ -200,7 +200,7 @@ background_scheduler = _start_background_scheduler()
 
 from routers import (  # noqa: E402
     auth, leads, proposals, finance, clients, workspace,
-    documents, reports, content, campaign, analytics, office, integrations, other,
+    documents, reports, content, campaign, analytics, office, integrations, other, images,
 )
 from routers import settings as settings_router  # noqa: E402
 
@@ -219,6 +219,7 @@ app.include_router(analytics.router)
 app.include_router(office.router)
 app.include_router(integrations.router)
 app.include_router(other.router)
+app.include_router(images.router)
 
 # ── Backward compatibility: re-export functions used by tests/scripts ─────────
 from routers.auth import login, logout, list_users, get_me, update_me  # noqa: E402
