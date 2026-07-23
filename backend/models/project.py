@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Text, Float, Boolean, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from .base import Base
 
 
@@ -67,4 +67,7 @@ class ProjectRiwayat(Base):
     category = Column(String(50), nullable=False)  # STATUS / INVOICE / NOTE / FILE / MILESTONE / OTHER
     content = Column(Text, nullable=False)
     attachments = Column(Text, nullable=True)  # JSON list of file URLs
-    project = relationship("Project", backref="riwayat")
+    project = relationship(
+        "Project",
+        backref=backref("riwayat", passive_deletes=True, cascade="all, delete-orphan"),
+    )

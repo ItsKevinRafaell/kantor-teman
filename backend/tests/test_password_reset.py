@@ -64,11 +64,11 @@ def test_password_reset_confirm_changes_password_once(client: TestClient, db_ses
     ))
     db_session.commit()
 
-    response = client.post("/api/auth/password/reset", json={"token": raw_token, "password": "newpassword"})
+    response = client.post("/api/auth/password/reset", json={"token": raw_token, "password": "NewP4ssword!"})
 
     assert response.status_code == 200
     db_session.refresh(user)
-    assert verify_password("newpassword", user.hashed_password)
+    assert verify_password("NewP4ssword!", user.hashed_password)
 
-    second = client.post("/api/auth/password/reset", json={"token": raw_token, "password": "anotherpassword"})
+    second = client.post("/api/auth/password/reset", json={"token": raw_token, "password": "An0th3rP4ss!"})
     assert second.status_code == 400

@@ -2156,7 +2156,7 @@ class TestWorkspaceDynamicColumns:
         """_sync_one_card should look up board columns by name dynamically."""
         # Verify _ROW_STATUS_MAP doesn't hardcode column names that would conflict
         # with custom board column names
-        from app.core.dependencies import _ROW_STATUS_MAP
+        from app.core.services.board_sync_service import _ROW_STATUS_MAP
         # These are status value → label overrides, not column name constraints
         assert isinstance(_ROW_STATUS_MAP, dict)
         # Map should be empty or generic — no hardcoded column names like "To Do", "Done"

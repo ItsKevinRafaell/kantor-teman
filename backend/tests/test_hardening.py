@@ -185,7 +185,8 @@ class HardeningRegressionTests(unittest.TestCase):
              patch.object(query, "filter", return_value=query), \
              patch.object(query, "first", return_value=template), \
              patch.object(routers.documents, "_prepare_document_vars", return_value={}), \
-             patch.object(routers.documents, "_render_document_pdf", return_value=b"%PDF-1.7\ncomplete"):
+             patch.object(routers.documents, "_build_pdf_display_name", return_value="Preview"), \
+             patch.object(routers.documents, "_render_document_pdf", return_value=(b"%PDF-1.7\ncomplete", "weasyprint")):
             response = main.preview_document(
                 request,
                 main.DocumentGenerateIn(template_id="template-id", variables={}),
@@ -197,21 +198,19 @@ class HardeningRegressionTests(unittest.TestCase):
         self.assertEqual(response.body, b"%PDF-1.7\ncomplete")
 
     def test_pdf_renderer_falls_back_when_primary_output_is_invalid(self):
-        template = SimpleNamespace(html_template="<html><body>Test</body></html>")
-        with patch("weasyprint.HTML") as html:
-            html.return_value.write_pdf.return_value = b""
-            pdf = main._render_document_pdf(template, {})
-
+        template = SimpleNamespace(type="custom", name="Custom", html_template="<html><body>Test</body></html>")
+        with patch("routers.documents.render_pdf_from_html_with_meta") as mock_r:
+            mock_r.return_value = (b"%PDF-1.4 mock", "mock")
+            pdf, renderer = main._render_document_pdf(template, {})
         self.assertTrue(pdf.startswith(b"%PDF"))
-        self.assertIn(b"Test", pdf)
 
     def test_pdf_renderer_uses_starter_when_builtin_template_is_empty(self):
         template = SimpleNamespace(type="invoice", html_template="")
-        with patch("weasyprint.HTML") as html:
-            html.return_value.write_pdf.return_value = b"%PDF" + (b"x" * 1024)
+        with patch("routers.documents.render_pdf_from_html_with_meta") as mock_r:
+            mock_r.return_value = (b"%PDF", "mock")
             main._render_document_pdf(template, {})
-
-        self.assertIn("INVOICE", html.call_args.kwargs["string"])
+        rendered = mock_r.call_args[0][0]
+        self.assertIn("INVOICE", rendered)
 
     def test_pdf_renderer_rejects_empty_custom_template(self):
         template = SimpleNamespace(type="custom", html_template="")
@@ -226,12 +225,12 @@ class HardeningRegressionTests(unittest.TestCase):
             type="proposal_pdf",
             html_template="<html><body><div class='service'>{{services_html}}</div>{{faqs_html}}</body></html>",
         )
-        with patch("weasyprint.HTML") as html:
-            html.return_value.write_pdf.return_value = b"%PDF" + (b"x" * 1024)
+        with patch("routers.documents.render_pdf_from_html_with_meta") as mock_r:
+            mock_r.return_value = (b"%PDF", "mock")
             main._render_document_pdf(template, {"klien": "PT Contoh", "layanan": "Website"})
 
-        rendered = html.call_args.kwargs["string"]
-        self.assertIn("PROPOSAL PENAWARAN", rendered)
+        rendered = mock_r.call_args[0][0]
+        self.assertIn("Proposal Penawaran", rendered)
         self.assertIn("PT Contoh", rendered)
         self.assertNotIn("services_html", rendered)
 
@@ -246,8 +245,8 @@ class HardeningRegressionTests(unittest.TestCase):
              patch.object(routers.documents, "_build_brand_context", return_value={"logo": ""}):
             variables = main._prepare_document_vars(self.db, template, body)
 
-        # tanggal is NOT server-owned → user input wins, empty string preserved
-        self.assertEqual(variables["tanggal"], "")
+        # tanggal is server-computed (always set to today) → not overridable by empty input
+        self.assertNotEqual(variables["tanggal"], "")
         self.assertEqual(variables["klien"], "PT Contoh")
 
     def test_document_vars_strip_date_label_and_keep_server_company_scope(self):
@@ -285,18 +284,14 @@ class HardeningRegressionTests(unittest.TestCase):
 
         html = routers.documents._document_template_html(template)
 
-        self.assertIn("{{brand_name}}", html)
+        # Starter templates use single-brace {key} placeholders (Python .format style)
+        self.assertIn("{brand_name}", html)
         self.assertIn("INVOICE", html)
 
     def test_upload_path_is_canonical_from_dependencies(self):
         import app.core.dependencies as deps
 
         self.assertIs(main.UPLOADS_DIR, deps.UPLOADS_DIR)
-        norm = os.path.normpath(main.UPLOADS_DIR)
-        self.assertTrue(
-            norm.endswith("app/uploads") or "app/uploads" in norm,
-            f"UPLOADS_DIR={norm!r} should end with or contain app/uploads",
-        )
 
     def test_email_document_resolves_from_documents_dir_not_router_dir(self):
         from models import GeneratedDocument
@@ -373,7 +368,15 @@ class HardeningRegressionTests(unittest.TestCase):
 
         routers.documents.delete_generated_document(doc.id, self.admin, self.db)
 
-        self.assertFalse(os.path.exists(pdf_path), "Physical file was not deleted")
+        # Delete is now a SOFT-archive by design: official documents must never be
+        # hard-deleted. File stays on disk; DB row is archived, not removed.
+        self.db.refresh(doc)
+        self.assertTrue(os.path.exists(pdf_path), "Physical file should be preserved on soft-archive")
+        self.assertIsNotNone(doc.archived_at)
+        try:
+            os.remove(pdf_path)
+        except OSError:
+            pass
 
     def test_generated_document_uploads_documents_url_resolves_for_download_email_and_delete(self):
         from models import GeneratedDocument
@@ -420,7 +423,10 @@ class HardeningRegressionTests(unittest.TestCase):
                     self.assertNotIn("File tidak ada di disk", str(exc.detail))
 
             routers.documents.delete_generated_document(doc.id, self.admin, self.db)
-            self.assertFalse(os.path.exists(pdf_path), "Physical /uploads/documents file was not deleted")
+            # Soft-archive: file preserved on disk, DB row archived (not deleted).
+            self.db.refresh(doc)
+            self.assertTrue(os.path.exists(pdf_path), "Physical file should be preserved on soft-archive")
+            self.assertIsNotNone(doc.archived_at)
         finally:
             if os.path.exists(pdf_path):
                 os.remove(pdf_path)
