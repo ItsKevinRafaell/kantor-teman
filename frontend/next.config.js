@@ -70,6 +70,11 @@ const nextConfig = {
       // to /api/foo/ before rewrites run, so we register both forms.
       { source: "/api/:path*",  destination: `${BACKEND_URL}/api/:path*`  },
       { source: "/api/:path*/", destination: `${BACKEND_URL}/api/:path*` },
+      // Uploaded assets (brand-kit logos, doc images) live on backend disk and
+      // are referenced with relative /uploads/... URLs. Proxy them same-origin
+      // so the login page + dashboard can render admin-uploaded logos.
+      { source: "/uploads/:path*",  destination: `${BACKEND_URL}/uploads/:path*`  },
+      { source: "/uploads/:path*/", destination: `${BACKEND_URL}/uploads/:path*` },
     ];
   },
   async redirects() {
