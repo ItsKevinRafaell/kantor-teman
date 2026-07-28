@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Trash2, Archive, ArchiveRestore, User, CheckSquare, MessageSquare, History, Paperclip, Upload } from "lucide-react";
 import { Modal } from "./SharedModal";
 import { SearchableSelect } from "../ui/SearchableSelect";
@@ -46,6 +46,19 @@ export function CardModal({
     }));
   }
 
+  // Auto-grow the description textarea so long content is fully visible
+  // (no inner scrolling), capped so the modal stays usable.
+  const descRef = useRef<HTMLTextAreaElement | null>(null);
+  function autoSizeDesc() {
+    const el = descRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 480) + "px";
+  }
+  useEffect(() => {
+    autoSizeDesc();
+  }, [open, cardForm.description]);
+
   return (
     <Modal open={open} onClose={onClose} title={card ? "Ubah Card" : "Card Baru"} size="lg">
       <div className="space-y-4">
@@ -60,8 +73,9 @@ export function CardModal({
         </div>
         <div>
           <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Deskripsi</label>
-          <textarea value={cardForm.description} onChange={e => setCardForm((p: any) => ({ ...p, description: e.target.value }))}
-            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none resize-none" rows={3}
+          <textarea ref={descRef} value={cardForm.description}
+            onChange={e => { setCardForm((p: any) => ({ ...p, description: e.target.value })); autoSizeDesc(); }}
+            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-xl text-sm focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 outline-none resize-y overflow-hidden min-h-[72px] leading-relaxed"
             placeholder="Deskripsi..." />
         </div>
         <div className="grid grid-cols-2 gap-3">
