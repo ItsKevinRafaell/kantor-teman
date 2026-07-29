@@ -269,3 +269,67 @@ def test_comparison_group_explicit_label_wins_over_dates(db_session):
     # current_label falls back to default (no after dates, no explicit label)
     assert group["current_label"] == "Sekarang"
 
+
+def _seed_project_generic_sheet(db_session):
+    """Project whose workspace has ONLY a generic sheet (month_number=NULL),
+    like the real MLS/MHK boards. Reproduces the broken 'kerjaan -> laporan'
+    chain: report asks for month N but no month-numbered sheet exists."""
+    lead = Lead(business_name="Toko Generik", phone_number="0811", product_interest="SEO")
+    db_session.add(lead)
+    db_session.flush()
+    project = Project(
+        id="generic-project-1",
+        lead_id=lead.id,
+        name="SEO Toko Generik",
+        type="RETAINER",
+        status="ACTIVE",
+        nominal=0,
+        service_type="seo_gmaps",
+        contract_months=6,
+    )
+    db_session.add(project)
+    sheet = WorkspaceSheet(
+        id="generic-sheet-1",
+        project_id=project.id,
+        sheet_index=0,
+        sheet_label="Task Operasional",
+        service_type="seo_gmaps",
+        month_number=None,  # THE bug trigger: no month number
+    )
+    db_session.add(sheet)
+    task_col = WorkspaceColumn(id="g-col-task", sheet_id=sheet.id, column_key="task_name", column_label="Task", column_type="text", column_order=0)
+    done_col = WorkspaceColumn(id="g-col-done", sheet_id=sheet.id, column_key="done", column_label="Done", column_type="checkbox", column_order=1)
+    db_session.add_all([task_col, done_col])
+    row = WorkspaceRow(id="g-row-1", sheet_id=sheet.id, row_order=0, is_template=False)
+    db_session.add(row)
+    db_session.add_all([
+        WorkspaceCell(id="g-cell-task", row_id=row.id, column_id=task_col.id, value_text="Riset keyword"),
+        WorkspaceCell(id="g-cell-done", row_id=row.id, column_id=done_col.id, value_bool=True),
+    ])
+    db_session.commit()
+    return project
+
+
+def test_report_falls_back_to_generic_sheet_when_no_month_sheet(db_session):
+    """REGRESSION: workspace with only a generic (month_number=NULL) sheet must
+    still surface its tasks in a monthly report instead of returning 0.
+    This is the fix that reconnects 'kerjaan tercatat -> masuk laporan'."""
+    from app.services import client_report_service as svc
+
+    project = _seed_project_generic_sheet(db_session)
+    # Ask for month 1 even though the only sheet has month_number=NULL.
+    snap = svc._workspace_snapshot(db_session, project.id, month_number=1)
+    summary = snap["summary"]
+    assert summary["total_tasks"] == 1, "fallback should pull the generic sheet's task"
+    assert summary["completed_tasks"] == 1
+    assert snap["tasks"], "tasks list must not be empty"
+
+
+def test_report_no_month_still_counts_generic_sheet(db_session):
+    """When no month_number is requested, all sheets (incl. generic) are counted."""
+    from app.services import client_report_service as svc
+
+    project = _seed_project_generic_sheet(db_session)
+    snap = svc._workspace_snapshot(db_session, project.id, month_number=None)
+    assert snap["summary"]["total_tasks"] == 1
+

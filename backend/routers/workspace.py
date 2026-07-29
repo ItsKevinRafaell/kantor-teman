@@ -1382,6 +1382,20 @@ def get_workspace_report_data(project_id: str, month: int = 1, current_user: Use
 
     sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.project_id == project_id, WorkspaceSheet.month_number == month).first()
     if not sheet:
+        # FALLBACK: kalau sheet ber-nomor-bulan belum ada (workspace masih pakai
+        # sheet generik month_number=NULL), pakai sheet generik pertama supaya
+        # laporan tetap menarik task nyata alih-alih 404 / kosong.
+        sheet = (
+            db.query(WorkspaceSheet)
+            .filter(
+                WorkspaceSheet.project_id == project_id,
+                WorkspaceSheet.month_number.is_(None),
+                WorkspaceSheet.sheet_label != "Artikel Tracker",
+            )
+            .order_by(WorkspaceSheet.sheet_index)
+            .first()
+        )
+    if not sheet:
         raise HTTPException(status_code=404, detail=f"Sheet bulan {month} tidak ditemukan")
 
     rows = db.query(WorkspaceRow).filter(WorkspaceRow.sheet_id == sheet.id).order_by(WorkspaceRow.row_order).all()
@@ -1602,6 +1616,20 @@ def generate_monthly_report(
     lead = db.query(Lead).filter(Lead.id == project.lead_id).first() if project.lead_id else None
 
     sheet = db.query(WorkspaceSheet).filter(WorkspaceSheet.project_id == project_id, WorkspaceSheet.month_number == month).first()
+    if not sheet:
+        # FALLBACK: kalau sheet ber-nomor-bulan belum ada (workspace masih pakai
+        # sheet generik month_number=NULL), pakai sheet generik pertama supaya
+        # laporan tetap menarik task nyata alih-alih 404 / kosong.
+        sheet = (
+            db.query(WorkspaceSheet)
+            .filter(
+                WorkspaceSheet.project_id == project_id,
+                WorkspaceSheet.month_number.is_(None),
+                WorkspaceSheet.sheet_label != "Artikel Tracker",
+            )
+            .order_by(WorkspaceSheet.sheet_index)
+            .first()
+        )
     if not sheet:
         raise HTTPException(status_code=404, detail=f"Sheet bulan {month} tidak ditemukan")
 

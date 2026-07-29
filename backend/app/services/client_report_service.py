@@ -192,7 +192,18 @@ def _workspace_snapshot(db: Session, project_id: str, month_number: Optional[int
     query = db.query(WorkspaceSheet).filter(WorkspaceSheet.project_id == project_id)
     if month_number:
         month_sheet = query.filter(WorkspaceSheet.month_number == month_number).first()
-        sheets = [month_sheet] if month_sheet else []
+        if month_sheet:
+            sheets = [month_sheet]
+        else:
+            # FALLBACK: workspace belum pakai struktur sheet-bulanan (month_number NULL).
+            # Daripada laporan kosong (total_tasks=0), pakai sheet generik yang ada
+            # supaya kerjaan yang tercatat tetap masuk laporan. Ini menyambungkan
+            # rantai "kerjaan -> laporan" untuk project yang belum di-migrasi ke
+            # sheet per-bulan. Sheet Artikel Tracker dikecualikan (dihitung terpisah).
+            sheets = query.filter(
+                WorkspaceSheet.month_number.is_(None),
+                WorkspaceSheet.sheet_label != "Artikel Tracker",
+            ).order_by(WorkspaceSheet.sheet_index).all()
     else:
         sheets = query.order_by(WorkspaceSheet.sheet_index).all()
 
