@@ -31,6 +31,8 @@ interface ComparisonGroup {
   title?: string;
   reference_label?: string;
   current_label?: string;
+  before_period?: string;
+  after_period?: string;
   notes?: string;
   rows: { label?: string; current?: any; previous?: any; lower_is_better?: boolean; delta?: any }[];
 }
@@ -140,6 +142,8 @@ function ReportComparisonBlocks({ report }: { report: PublicReport }) {
 function ComparisonGroupTable({ group }: { group: ComparisonGroup }) {
   const ref = group.reference_label || "Pembanding";
   const cur = group.current_label || "Sekarang";
+  const refPeriod = group.before_period && group.before_period !== ref ? group.before_period : null;
+  const curPeriod = group.after_period && group.after_period !== cur ? group.after_period : null;
   return (
     <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
       <div className="border-b border-neutral-200 px-4 py-3">
@@ -150,8 +154,8 @@ function ComparisonGroupTable({ group }: { group: ComparisonGroup }) {
           <thead>
             <tr className="border-b border-neutral-200 text-left text-xs text-neutral-500">
               <th className="px-3 py-2">Metric</th>
-              <th className="px-3 py-2 capitalize">{ref}</th>
-              <th className="px-3 py-2">{cur}</th>
+              <th className="px-3 py-2 capitalize">{ref}{refPeriod && <span className="mt-0.5 block text-[10px] font-normal normal-case text-neutral-400">{refPeriod}</span>}</th>
+              <th className="px-3 py-2">{cur}{curPeriod && <span className="mt-0.5 block text-[10px] font-normal text-neutral-400">{curPeriod}</span>}</th>
               <th className="px-3 py-2">Perubahan</th>
             </tr>
           </thead>

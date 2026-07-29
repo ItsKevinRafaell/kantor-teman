@@ -29,7 +29,7 @@ ENDPOINTS = [
 
     # === auth.py ===
     ("POST", "/api/auth/login", False, 422),  # needs body
-    ("POST", "/api/auth/logout", False, 200),
+    ("POST", "/api/auth/logout", True, 401),  # requires valid token (increments token_version)
     ("GET", "/api/users", True, 401),
     ("GET", "/api/user/me", True, 401),
 

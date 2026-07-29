@@ -214,3 +214,58 @@ def test_public_report_tracks_open_duration_and_download(client, db_session, mon
     download_response = client.get(f"/api/reports/public/{snapshot.public_slug}/download")
     assert download_response.status_code == 200
     assert download_response.headers["content-type"].startswith("application/pdf")
+
+
+def test_comparison_group_period_dates_compose_labels_and_echo(db_session):
+    """Structured before/after date ranges auto-compose column labels and are
+    echoed back so the PDF/public renderer can display the period."""
+    from app.services import client_report_service as svc
+
+    groups = svc._derive_comparison_groups({
+        "comparison_groups": [
+            {
+                "title": "Trafik SEO",
+                "before_start": "2026-05-01",
+                "before_end": "2026-05-31",
+                "after_start": "2026-06-01",
+                "after_end": "2026-06-30",
+                "rows": [{"label": "Clicks", "previous": 80, "current": 120}],
+            }
+        ]
+    })
+
+    assert len(groups) == 1
+    group = groups[0]
+    # Labels auto-composed from the date ranges (no explicit label supplied)
+    assert group["reference_label"] == "2026-05-01 s/d 2026-05-31"
+    assert group["current_label"] == "2026-06-01 s/d 2026-06-30"
+    assert group["before_period"] == "2026-05-01 s/d 2026-05-31"
+    assert group["after_period"] == "2026-06-01 s/d 2026-06-30"
+    assert group["before_start"] == "2026-05-01"
+    assert group["after_end"] == "2026-06-30"
+    # Delta still computed correctly
+    assert group["rows"][0]["delta"]["delta"] == 40
+
+
+def test_comparison_group_explicit_label_wins_over_dates(db_session):
+    """An explicit label always overrides the auto-composed date range."""
+    from app.services import client_report_service as svc
+
+    groups = svc._derive_comparison_groups({
+        "comparison_groups": [
+            {
+                "reference_label": "Sebelum kontrak",
+                "before_start": "2026-05-01",
+                "before_end": "2026-05-31",
+                "rows": [{"label": "Followers", "previous": 100, "current": 250}],
+            }
+        ]
+    })
+
+    group = groups[0]
+    assert group["reference_label"] == "Sebelum kontrak"
+    # Period still echoed for reference even when label is explicit
+    assert group["before_period"] == "2026-05-01 s/d 2026-05-31"
+    # current_label falls back to default (no after dates, no explicit label)
+    assert group["current_label"] == "Sekarang"
+

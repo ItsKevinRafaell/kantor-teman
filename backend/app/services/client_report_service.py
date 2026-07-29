@@ -525,6 +525,24 @@ def _derive_next_month_targets(metrics: dict, service_type: str = "general", rep
     return {"metrics": target_rows, "notes": notes}
 
 
+def _date_str(value: Any) -> str:
+    """Normalize a date-ish value to a trimmed string, else ''."""
+    if value in (None, ""):
+        return ""
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    return str(value).strip()
+
+
+def _format_period_range(start: str, end: str) -> str:
+    """Compose a human range label from optional start/end dates."""
+    start = (start or "").strip()
+    end = (end or "").strip()
+    if start and end:
+        return f"{start} s/d {end}" if start != end else start
+    return start or end or ""
+
+
 def _derive_comparison_groups(manual_metrics: Optional[dict]) -> list:
     """Derive arbitrary user-supplied comparison groups.
 
@@ -540,6 +558,17 @@ def _derive_comparison_groups(manual_metrics: Optional[dict]) -> list:
     for group in groups_raw:
         if not isinstance(group, dict):
             continue
+
+        # Optional structured comparison periods. When a from/to date range is
+        # supplied it auto-composes the column label (unless an explicit label
+        # was given) and is echoed back so the renderer can show the range.
+        before_start = _date_str(group.get("before_start"))
+        before_end = _date_str(group.get("before_end"))
+        after_start = _date_str(group.get("after_start"))
+        after_end = _date_str(group.get("after_end"))
+        before_period = _format_period_range(before_start, before_end)
+        after_period = _format_period_range(after_start, after_end)
+
         rows_in = group.get("rows") or []
         rows_out = []
         for row in rows_in:
@@ -561,10 +590,24 @@ def _derive_comparison_groups(manual_metrics: Optional[dict]) -> list:
             })
         if not rows_out:
             continue
+        # Auto-compose labels from period ranges when the user left the label
+        # blank but supplied dates. Explicit labels always win.
+        ref_label = group.get("reference_label")
+        cur_label = group.get("current_label")
+        if not ref_label and before_period:
+            ref_label = before_period
+        if not cur_label and after_period:
+            cur_label = after_period
         result.append({
             "title": group.get("title") or "Komparasi",
-            "reference_label": group.get("reference_label") or "Pembanding",
-            "current_label": group.get("current_label") or "Sekarang",
+            "reference_label": ref_label or "Pembanding",
+            "current_label": cur_label or "Sekarang",
+            "before_period": before_period or None,
+            "after_period": after_period or None,
+            "before_start": before_start or None,
+            "before_end": before_end or None,
+            "after_start": after_start or None,
+            "after_end": after_end or None,
             "notes": group.get("notes"),
             "rows": rows_out,
         })
@@ -808,6 +851,18 @@ def _render_comparison_groups(payload: dict) -> str:
     for group in groups:
         ref = group.get("reference_label") or "Pembanding"
         cur = group.get("current_label") or "Sekarang"
+        before_period = group.get("before_period")
+        after_period = group.get("after_period")
+        # Show the structured period range under the column header when present
+        # and not already identical to the (possibly auto-composed) label.
+        ref_sub = (
+            f'<div class="muted" style="font-weight:400;font-size:11px">{_safe_text(before_period)}</div>'
+            if before_period and before_period != ref else ""
+        )
+        cur_sub = (
+            f'<div class="muted" style="font-weight:400;font-size:11px">{_safe_text(after_period)}</div>'
+            if after_period and after_period != cur else ""
+        )
         rows = "".join(
             f"<tr><th>{_safe_text(item.get('label'))}</th>"
             f"<td>{_format_number(item.get('previous'))}</td>"
@@ -821,7 +876,7 @@ def _render_comparison_groups(payload: dict) -> str:
         blocks.append(f"""
         <div class="section"><h2>{_safe_text(group.get('title') or 'Komparasi Performa')}</h2>
           <table>
-            <thead><tr><th>Metric</th><th>{_safe_text(ref)}</th><th>{_safe_text(cur)}</th><th>Perubahan</th></tr></thead>
+            <thead><tr><th>Metric</th><th>{_safe_text(ref)}{ref_sub}</th><th>{_safe_text(cur)}{cur_sub}</th><th>Perubahan</th></tr></thead>
             <tbody>{rows}{notes_html}</tbody>
           </table>
         </div>""")

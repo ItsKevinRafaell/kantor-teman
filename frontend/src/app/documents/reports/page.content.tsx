@@ -1,5 +1,6 @@
 "use client";
 import NativeSelect from "../../../components/ui/NativeSelect";
+import AutoGrowTextarea from "../../../components/ui/AutoGrowTextarea";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -211,7 +212,7 @@ export default function ReportsContent() {
   const [contactSearch, setContactSearch] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   // Comparison groups (arbitrary user-supplied tables)
-  const [comparisonGroups, setComparisonGroups] = useState<{ title: string; reference_label: string; current_label: string; notes: string; rows: { label: string; previous: string; current: string }[] }[]>([]);
+  const [comparisonGroups, setComparisonGroups] = useState<{ title: string; reference_label: string; current_label: string; before_start: string; before_end: string; after_start: string; after_end: string; notes: string; rows: { label: string; previous: string; current: string }[] }[]>([]);
   // Manual evidence (uploaded screenshots + URL links)
   const [uploadedEvidence, setUploadedEvidence] = useState<{ label: string; url: string; file_name: string; file_type: string }[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -316,19 +317,26 @@ export default function ReportsContent() {
     }
     const groupsPayload = comparisonGroups
       .filter(g => g.rows.some(r => r.label.trim() || r.previous.trim() || r.current.trim()))
-      .map(g => ({
-        title: g.title.trim() || "Komparasi",
-        reference_label: g.reference_label.trim() || "Pembanding",
-        current_label: g.current_label.trim() || "Sekarang",
-        notes: g.notes.trim() || undefined,
-        rows: g.rows
-          .filter(r => r.label.trim() || r.previous.trim() || r.current.trim())
-          .map(r => ({
-            label: r.label.trim(),
-            previous: toNumberIfPossible(r.previous),
-            current: toNumberIfPossible(r.current),
-          })),
-      }));
+      .map(g => {
+        const grp: any = {
+          title: g.title.trim() || "Komparasi",
+          notes: g.notes.trim() || undefined,
+          rows: g.rows
+            .filter(r => r.label.trim() || r.previous.trim() || r.current.trim())
+            .map(r => ({
+              label: r.label.trim(),
+              previous: toNumberIfPossible(r.previous),
+              current: toNumberIfPossible(r.current),
+            })),
+        };
+        if (g.reference_label.trim()) grp.reference_label = g.reference_label.trim();
+        if (g.current_label.trim()) grp.current_label = g.current_label.trim();
+        if (g.before_start.trim()) grp.before_start = g.before_start.trim();
+        if (g.before_end.trim()) grp.before_end = g.before_end.trim();
+        if (g.after_start.trim()) grp.after_start = g.after_start.trim();
+        if (g.after_end.trim()) grp.after_end = g.after_end.trim();
+        return grp;
+      });
     if (groupsPayload.length > 0) {
       parsedMetrics["comparison_groups"] = groupsPayload;
     }
@@ -399,9 +407,9 @@ export default function ReportsContent() {
 
   // Comparison group helpers
   function addComparisonGroup() {
-    setComparisonGroups(prev => [...prev, { title: "", reference_label: "Bulan lalu", current_label: "Bulan ini", notes: "", rows: [{ label: "", previous: "", current: "" }] }]);
+    setComparisonGroups(prev => [...prev, { title: "", reference_label: "", current_label: "", before_start: "", before_end: "", after_start: "", after_end: "", notes: "", rows: [{ label: "", previous: "", current: "" }] }]);
   }
-  function updateGroup(index: number, patch: Partial<{ title: string; reference_label: string; current_label: string; notes: string }>) {
+  function updateGroup(index: number, patch: Partial<{ title: string; reference_label: string; current_label: string; before_start: string; before_end: string; after_start: string; after_end: string; notes: string }>) {
     setComparisonGroups(prev => prev.map((g, i) => i === index ? { ...g, ...patch } : g));
   }
   function removeGroup(index: number) {
@@ -546,11 +554,10 @@ export default function ReportsContent() {
                 <label key={field.key} className={field.type === "textarea" ? "md:col-span-2" : undefined}>
                   <span className="mb-1 block text-xs font-semibold text-neutral-500">{field.label}</span>
                   {field.type === "textarea" ? (
-                    <textarea
+                    <AutoGrowTextarea
                       value={metrics[field.key] || ""}
                       onChange={e => updateMetric(field.key, e.target.value)}
                       placeholder={field.placeholder}
-                      rows={3}
                       className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
                     />
                   ) : (
@@ -578,11 +585,10 @@ export default function ReportsContent() {
                 <div className="space-y-2">
                   <label>
                     <span className="mb-1 block text-xs font-semibold text-amber-700 dark:text-amber-300">📌 Before (baseline retainer)</span>
-                    <textarea
+                    <AutoGrowTextarea
                       value={metrics["retainer_before"] || ""}
                       onChange={e => updateMetric("retainer_before", e.target.value)}
                       placeholder="Kondisi awal retainer: URL, metric baseline, masalah yang mau diselesaikan..."
-                      rows={3}
                       className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm dark:border-amber-800 dark:bg-neutral-900"
                     />
                   </label>
@@ -590,11 +596,10 @@ export default function ReportsContent() {
                 <div className="space-y-2">
                   <label>
                     <span className="mb-1 block text-xs font-semibold text-green-700 dark:text-green-300">✅ After (hasil periode ini)</span>
-                    <textarea
+                    <AutoGrowTextarea
                       value={metrics["retainer_after"] || ""}
                       onChange={e => updateMetric("retainer_after", e.target.value)}
                       placeholder="Hasil setelah periode retainer ini: apa yang berubah, improvement, dll..."
-                      rows={3}
                       className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm dark:border-green-800 dark:bg-neutral-900"
                     />
                   </label>
@@ -603,11 +608,10 @@ export default function ReportsContent() {
               <div className="mt-3">
                 <label>
                   <span className="mb-1 block text-xs font-semibold text-neutral-500">Catatan before/after retainer</span>
-                  <textarea
+                  <AutoGrowTextarea
                     value={metrics["retainer_notes"] || ""}
                     onChange={e => updateMetric("retainer_notes", e.target.value)}
                     placeholder="Analisis: apa yang berhasil, apa yang perlu diperbaiki, next step..."
-                    rows={2}
                     className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
                   />
                 </label>
@@ -634,6 +638,23 @@ export default function ReportsContent() {
                       <input value={group.title} onChange={e => updateGroup(gi, { title: e.target.value })} placeholder="Judul tabel" className="rounded-lg border border-neutral-200 px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800 md:col-span-2" />
                       <input value={group.reference_label} onChange={e => updateGroup(gi, { reference_label: e.target.value })} placeholder="Label pembanding (mis. Mei 2026)" className="rounded-lg border border-neutral-200 px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800" />
                       <input value={group.current_label} onChange={e => updateGroup(gi, { current_label: e.target.value })} placeholder="Label sekarang (mis. Juni 2026)" className="rounded-lg border border-neutral-200 px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800" />
+                    </div>
+                    {/* Periode pembanding (opsional) — kalau diisi, label kolom otomatis dari tanggal */}
+                    <div className="mt-2 grid gap-2 md:grid-cols-2">
+                      <div className="rounded-lg border border-dashed border-neutral-200 p-2 dark:border-neutral-700">
+                        <span className="mb-1 block text-[11px] font-semibold text-neutral-500">Periode Before (opsional)</span>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <input type="date" value={group.before_start} onChange={e => updateGroup(gi, { before_start: e.target.value })} className="rounded-lg border border-neutral-200 px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800" />
+                          <input type="date" value={group.before_end} onChange={e => updateGroup(gi, { before_end: e.target.value })} className="rounded-lg border border-neutral-200 px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800" />
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-dashed border-neutral-200 p-2 dark:border-neutral-700">
+                        <span className="mb-1 block text-[11px] font-semibold text-neutral-500">Periode After (opsional)</span>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <input type="date" value={group.after_start} onChange={e => updateGroup(gi, { after_start: e.target.value })} className="rounded-lg border border-neutral-200 px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800" />
+                          <input type="date" value={group.after_end} onChange={e => updateGroup(gi, { after_end: e.target.value })} className="rounded-lg border border-neutral-200 px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800" />
+                        </div>
+                      </div>
                     </div>
                     <div className="mt-2 space-y-2">
                       {group.rows.map((row, ri) => (
@@ -694,19 +715,19 @@ export default function ReportsContent() {
           <div className="grid gap-3 md:grid-cols-2">
             <label className="md:col-span-2">
               <span className="mb-1 block text-xs font-semibold text-neutral-500">Ringkasan eksekutif</span>
-              <textarea value={executiveSummary} onChange={e => setExecutiveSummary(e.target.value)} rows={3} placeholder="Kosongkan kalau mau sistem buat ringkasan dari progress workspace." className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800" />
+              <AutoGrowTextarea value={executiveSummary} onChange={e => setExecutiveSummary(e.target.value)} placeholder="Kosongkan kalau mau sistem buat ringkasan dari progress workspace." className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800" />
             </label>
             <label>
               <span className="mb-1 block text-xs font-semibold text-neutral-500">Highlight (1 baris per poin)</span>
-              <textarea value={highlights} onChange={e => setHighlights(e.target.value)} rows={4} className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800" />
+              <AutoGrowTextarea value={highlights} onChange={e => setHighlights(e.target.value)} className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800" />
             </label>
             <label>
               <span className="mb-1 block text-xs font-semibold text-neutral-500">Issue/catatan (1 baris per poin)</span>
-              <textarea value={issues} onChange={e => setIssues(e.target.value)} rows={4} className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800" />
+              <AutoGrowTextarea value={issues} onChange={e => setIssues(e.target.value)} className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800" />
             </label>
             <label className="md:col-span-2">
               <span className="mb-1 block text-xs font-semibold text-neutral-500">Rencana berikutnya (1 baris per poin)</span>
-              <textarea value={nextSteps} onChange={e => setNextSteps(e.target.value)} rows={3} className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800" />
+              <AutoGrowTextarea value={nextSteps} onChange={e => setNextSteps(e.target.value)} className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800" />
             </label>
           </div>
 
