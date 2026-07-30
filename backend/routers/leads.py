@@ -485,6 +485,35 @@ class WaSendIn(BaseModel):
 
 
 
+# ============================================================================
+# STATIC ROUTES — HARUS didaftar SEBELUM route dinamis /api/leads/{lead_id}.
+# FastAPI mencocokkan route berurutan; kalau route statis (mis. scoring-settings)
+# ada DI BAWAH /{lead_id}, path "scoring-settings" akan tertangkap sebagai
+# {lead_id} dan gagal parse int (bug 422). Jangan pindahkan blok ini ke bawah.
+# ============================================================================
+@router.get("/api/leads/batches")
+def get_batches(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    rows = db.execute(select(Lead.batch_name).where(Lead.batch_name.isnot(None)).distinct()).scalars().all()
+    return [r for r in rows if r]
+
+
+@router.post("/api/leads/recalculate-scores")
+def recalculate_all_scores(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return recalculate_all_lead_scores(db)
+
+
+@router.get("/api/leads/scoring-settings")
+def get_lead_scoring_settings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return {"settings": get_scoring_settings(db)}
+
+
+@router.put("/api/leads/scoring-settings")
+def update_lead_scoring_settings(body: ScoringSettingsUpdate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    settings = save_scoring_settings(db, body.settings, current_user.name)
+    result = recalculate_all_lead_scores(db)
+    return {"settings": settings, "recalculated": result}
+
+
 @router.put("/api/leads/{lead_id}", response_model=LeadOut)
 def update_lead(lead_id: int, body: LeadEdit, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
@@ -540,31 +569,6 @@ def delete_lead(lead_id: int, current_user: User = Depends(require_admin), db: S
     log_audit(db, current_user.name, "ARCHIVE", "leads", lead_id, {"business_name": lead.business_name})
     clear_cache_prefix("cache:/api/leads")
     return {"detail": "Lead berhasil diarsipkan"}
-
-
-
-@router.get("/api/leads/batches")
-def get_batches(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    rows = db.execute(select(Lead.batch_name).where(Lead.batch_name.isnot(None)).distinct()).scalars().all()
-    return [r for r in rows if r]
-
-
-
-@router.post("/api/leads/recalculate-scores")
-def recalculate_all_scores(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    return recalculate_all_lead_scores(db)
-
-
-@router.get("/api/leads/scoring-settings")
-def get_lead_scoring_settings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    return {"settings": get_scoring_settings(db)}
-
-
-@router.put("/api/leads/scoring-settings")
-def update_lead_scoring_settings(body: ScoringSettingsUpdate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    settings = save_scoring_settings(db, body.settings, current_user.name)
-    result = recalculate_all_lead_scores(db)
-    return {"settings": settings, "recalculated": result}
 
 
 
