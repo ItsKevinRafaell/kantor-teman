@@ -2177,7 +2177,7 @@ def update_archive_folder(
             raise HTTPException(status_code=400, detail="Folder tidak bisa jadi parent dirinya sendiri")
         if parent_id and not db.query(DocumentFolder).filter(DocumentFolder.id == parent_id).first():
             raise HTTPException(status_code=400, detail="Parent folder tidak ditemukan")
-        if parent_id and _archive_parent_creates_cycle(db, folder.id, parent_id):
+        if parent_id and _archive_parent_creates_cycle(folder.id, parent_id, db):
             raise HTTPException(status_code=400, detail="Parent folder akan membuat siklus")
         folder.parent_id = parent_id
     if "lead_id" in changes:
