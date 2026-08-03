@@ -140,6 +140,20 @@ def create_project(body: ProjectIn, current_user: User = Depends(require_admin),
 
     resolved_lead_id = _resolve_project_lead_id(db, body.lead_id, body.contact_id)
 
+    # Guard duplikat: cegah project dengan nama sama untuk klien yang sama (aktif/non-arsip)
+    _dup_name = (body.name or "").strip()
+    if _dup_name:
+        dup_q = db.query(Project).filter(
+            func.lower(Project.name) == _dup_name.lower(),
+            Project.is_archived == False,
+        )
+        if resolved_lead_id is None:
+            dup_q = dup_q.filter(Project.lead_id.is_(None))
+        else:
+            dup_q = dup_q.filter(Project.lead_id == resolved_lead_id)
+        if dup_q.first():
+            raise HTTPException(status_code=400, detail=f"Project '{_dup_name}' sudah ada untuk klien ini")
+
     # Auto-calculate contract_months and contract_days from dates
     months = body.contract_months
     contract_days = None
@@ -702,6 +716,12 @@ def create_board_column(board_id: str, body: BoardColumnIn, current_user: User =
     board = db.query(Board).filter(Board.id == board_id).first()
     if not board:
         raise HTTPException(status_code=404, detail="Board tidak ditemukan")
+    _col_name = (body.name or "").strip()
+    if _col_name and db.query(BoardColumn).filter(
+        BoardColumn.board_id == board_id,
+        func.lower(BoardColumn.name) == _col_name.lower(),
+    ).first():
+        raise HTTPException(status_code=400, detail=f"Kolom '{_col_name}' sudah ada di board ini")
     max_pos = db.query(BoardColumn).filter(BoardColumn.board_id == board_id).count()
     col = BoardColumn(id=str(uuid.uuid4()), board_id=board_id, name=body.name, position=body.position if body.position is not None else max_pos, color=body.color or "gray")
     db.add(col)
@@ -1092,6 +1112,11 @@ def add_workspace_sheet(project_id: str, body: dict, current_user: User = Depend
     label = (body.get("label") or "").strip()
     if not label:
         raise HTTPException(status_code=400, detail="Nama sheet wajib diisi")
+    if db.query(WorkspaceSheet).filter(
+        WorkspaceSheet.project_id == project_id,
+        func.lower(WorkspaceSheet.sheet_label) == label.lower(),
+    ).first():
+        raise HTTPException(status_code=400, detail=f"Sheet '{label}' sudah ada di workspace ini")
     max_idx = db.query(WorkspaceSheet).filter(WorkspaceSheet.project_id == project_id).count()
     svc = project.service_type or "general"
     now = datetime.now(timezone.utc).isoformat()

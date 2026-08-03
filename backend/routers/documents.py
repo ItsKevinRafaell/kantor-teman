@@ -150,6 +150,11 @@ def get_documents(
 
 @router.post("/api/documents", response_model=DocumentOut, status_code=201)
 def create_document(body: DocumentIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if db.query(ClientDocument).filter(
+        ClientDocument.lead_id == body.lead_id,
+        ClientDocument.cloud_url == body.cloud_url,
+    ).first():
+        raise HTTPException(status_code=400, detail="Dokumen dengan link ini sudah ada untuk klien tsb")
     doc = ClientDocument(
         id=str(uuid.uuid4()),
         lead_id=body.lead_id,
