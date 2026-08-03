@@ -2120,6 +2120,36 @@ def list_archive_folders(
 
 
 
+
+# ARCHIVE_LEAD_INHERIT_V1
+def _folder_inherited_lead(db, folder_id):
+    """Naik ke atas rantai parent, kembalikan lead_id pertama yg ketemu."""
+    seen = set()
+    cur = folder_id
+    while cur and cur not in seen:
+        seen.add(cur)
+        f = db.query(DocumentFolder).filter(DocumentFolder.id == cur).first()
+        if not f:
+            break
+        if getattr(f, "lead_id", None):
+            return f.lead_id
+        cur = f.parent_id
+    return None
+
+
+def _propagate_folder_lead(db, folder_id, lead_id):
+    """Set lead_id ke semua subfolder + dokumen di bawah folder_id yg BELUM punya lead."""
+    ids = _archive_folder_descendant_ids(db, folder_id)
+    child_ids = [i for i in ids if i != folder_id]
+    if child_ids:
+        for f in db.query(DocumentFolder).filter(DocumentFolder.id.in_(child_ids)).all():
+            if not getattr(f, "lead_id", None):
+                f.lead_id = lead_id
+    for d in db.query(Document).filter(Document.folder_id.in_(ids)).all():
+        if not getattr(d, "lead_id", None):
+            d.lead_id = lead_id
+
+
 @router.post("/api/archive/folders", status_code=201)
 def create_archive_folder(
     body: ArchiveFolderIn,
@@ -2130,13 +2160,16 @@ def create_archive_folder(
         raise HTTPException(status_code=400, detail="Parent folder tidak ditemukan")
     if body.lead_id is not None and not db.query(Lead).filter(Lead.id == body.lead_id).first():
         raise HTTPException(status_code=400, detail="Klien/lead tidak ditemukan")
+    _inherited_lead = body.lead_id
+    if _inherited_lead is None and body.parent_id:
+        _inherited_lead = _folder_inherited_lead(db, body.parent_id)
     folder = DocumentFolder(
         id=str(uuid.uuid4()),
         user_id=current_user.id,
         name=body.name.strip(),
         parent_id=body.parent_id or None,
         color=body.color or "#6B7280",
-        lead_id=body.lead_id,
+        lead_id=_inherited_lead,
         created_at=datetime.now(timezone.utc).isoformat(),
     )
     db.add(folder)
@@ -2184,6 +2217,8 @@ def update_archive_folder(
         if body.lead_id is not None and not db.query(Lead).filter(Lead.id == body.lead_id).first():
             raise HTTPException(status_code=400, detail="Klien/lead tidak ditemukan")
         folder.lead_id = body.lead_id
+        if body.lead_id is not None:
+            _propagate_folder_lead(db, folder.id, body.lead_id)
     try:
         db.commit()
     except Exception as exc:
@@ -2295,11 +2330,14 @@ def create_archive_doc(
         raise HTTPException(status_code=400, detail=f"Status harus salah satu: {', '.join(sorted(DOCUMENT_STATUSES))}")
     if body.lead_id is not None and not db.query(Lead).filter(Lead.id == body.lead_id).first():
         raise HTTPException(status_code=400, detail="Klien/lead tidak ditemukan")
+    _doc_lead = body.lead_id
+    if _doc_lead is None and body.folder_id:
+        _doc_lead = _folder_inherited_lead(db, body.folder_id)
     doc = Document(
         id=str(uuid.uuid4()),
         user_id=current_user.id,
         folder_id=body.folder_id or None,
-        lead_id=body.lead_id,
+        lead_id=_doc_lead,
         name=body.title.strip(),
         type="document" if body.body else ("link" if body.url else "document"),
         content=body.body or None,
