@@ -408,6 +408,12 @@ def get_credentials(
 
 @router.post("/api/credentials", response_model=CredentialOut, status_code=201)
 def create_credential(body: CredentialIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    if db.query(ClientCredential).filter(
+        ClientCredential.lead_id == body.lead_id,
+        ClientCredential.category == body.category,
+        ClientCredential.title == body.title,
+    ).first():
+        raise HTTPException(status_code=400, detail=f"Kredensial '{body.title}' ({body.category}) sudah ada untuk klien ini")
     stored_fields = []
     for f in body.fields:
         val = encrypt_password(f.value) if f.is_secret else f.value

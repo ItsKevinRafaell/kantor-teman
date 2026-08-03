@@ -9,12 +9,17 @@ const COLORS = {
   secondary: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700",
 };
 
+// Hanya tampilkan yang sudah jadi KLIEN (bukan prospek/scraped).
+const CLIENT_STATUSES = new Set(["Closed/Client", "Client", "closed/client", "client"]);
+
 function leadOptions(leads: any[]) {
-  return (leads || []).map((l: any) => ({
-    value: String(l.id),
-    label: l.business_name || `Lead #${l.id}`,
-    sub: [l.phone_number, l.status, l.product_interest].filter(Boolean).join(" · "),
-  }));
+  return (leads || [])
+    .filter((l: any) => CLIENT_STATUSES.has(String(l.status)))
+    .map((l: any) => ({
+      value: String(l.id),
+      label: l.business_name || `Lead #${l.id}`,
+      sub: [l.phone_number, l.status].filter(Boolean).join(" · "),
+    }));
 }
 
 interface ColumnModalProps {
@@ -61,7 +66,7 @@ interface ProjectModalProps {
 export function ProjectModal({ open, form, setForm, leads, saving, onCreate, onClose }: ProjectModalProps) {
   const options = useMemo(() => leadOptions(leads), [leads]);
   return (
-    <Modal open={open} onClose={onClose} title="Buat Proyek Baru">
+    <Modal open={open} onClose={onClose} title="Buat Proyek Baru" size="lg">
       <div className="space-y-4">
         <div>
           <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Nama Proyek</label>
@@ -79,8 +84,8 @@ export function ProjectModal({ open, form, setForm, leads, saving, onCreate, onC
             options={options}
             value={form.lead_id != null ? String(form.lead_id) : ""}
             onChange={(v) => setForm((p: any) => ({ ...p, lead_id: v ? Number(v) : null }))}
-            placeholder="Cari klien / prospek…"
-            searchPlaceholder="Ketik nama, telepon, status…"
+            placeholder="Cari klien…"
+            searchPlaceholder="Ketik nama, telepon…"
             maxDisplay={80}
           />
           <p className="mt-1 text-[11px] text-neutral-400">Ketik untuk filter — cocok kalau daftar panjang.</p>
@@ -107,7 +112,7 @@ interface EditProjectModalProps {
 export function EditProjectModal({ open, form, setForm, leads, saving, onSave, onClose }: EditProjectModalProps) {
   const options = useMemo(() => leadOptions(leads), [leads]);
   return (
-    <Modal open={open} onClose={onClose} title="Edit Proyek">
+    <Modal open={open} onClose={onClose} title="Edit Proyek" size="lg">
       <div className="space-y-4">
         <div>
           <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">Nama Proyek</label>
@@ -124,8 +129,8 @@ export function EditProjectModal({ open, form, setForm, leads, saving, onSave, o
             options={options}
             value={form.lead_id != null ? String(form.lead_id) : ""}
             onChange={(v) => setForm((p: any) => ({ ...p, lead_id: v ? Number(v) : null }))}
-            placeholder="Cari klien / prospek…"
-            searchPlaceholder="Ketik nama, telepon, status…"
+            placeholder="Cari klien…"
+            searchPlaceholder="Ketik nama, telepon…"
             maxDisplay={80}
           />
         </div>
