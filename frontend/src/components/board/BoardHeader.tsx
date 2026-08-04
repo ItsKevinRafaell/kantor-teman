@@ -52,7 +52,7 @@ export default function BoardHeader({
             </Link>
             <label className="flex items-center gap-2 px-3 py-2 text-sm rounded-xl cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
               <input type="checkbox" checked={showArchivedProjects} onChange={e => setShowArchivedProjects(e.target.checked)} className="accent-amber-500 w-4 h-4" />
-              Tampilkan arsip
+              Tampilkan selesai &amp; arsip
             </label>
           </>
         )}

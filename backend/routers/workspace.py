@@ -585,10 +585,17 @@ def card_to_out(card: BoardCard, workspace_linked_ids: set = None) -> BoardCardO
 @router.get("/api/boards/overview")
 def get_boards_overview(show_archived: bool = Query(False), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get overview of all boards across projects using batch queries."""
+    # Default view: sembunyikan project yang diarsip DAN yang sudah COMPLETED.
+    # Mode arsip (show_archived): tampilkan yang diarsip ATAU yang sudah selesai.
     if show_archived:
-        projects = db.query(Project).filter(Project.is_archived == True).all()
+        projects = db.query(Project).filter(
+            (Project.is_archived == True) | (Project.status == "COMPLETED")
+        ).all()
     else:
-        projects = db.query(Project).filter(Project.is_archived == False).all()
+        projects = db.query(Project).filter(
+            Project.is_archived == False,
+            Project.status != "COMPLETED",
+        ).all()
 
     if not projects:
         return []
