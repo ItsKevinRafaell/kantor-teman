@@ -1527,55 +1527,29 @@ def email_document(did: str, body: DocumentEmailIn, current_user: User = Depends
     if not fpath:
         raise HTTPException(status_code=404, detail="File tidak ada di disk")
 
-    smtp_host = _get_setting("smtp_host", "")
-    smtp_port = int(_get_setting("smtp_port", "587") or "587")
-    smtp_user = _get_setting("smtp_user", "")
-    smtp_pass = _get_setting("smtp_password", "")
-    smtp_from = _get_setting("smtp_from", smtp_user)
-
-    if not smtp_host or not smtp_user or not smtp_pass:
-        raise HTTPException(status_code=400, detail="SMTP belum dikonfigurasi di Settings")
-
-    import smtplib
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text import MIMEText
-    from email.mime.application import MIMEApplication
+    from app.services.email_service import send_pdf_email
 
     brand_ctx = _build_brand_context(db)
     brand_name = brand_ctx.get("brand_name") or "Kantor Teman"
     brand_email = (brand_ctx.get("email_perusahaan") or "").strip() or "temanumkm.kita@gmail.com"
 
-    msg = MIMEMultipart()
-    msg["From"] = smtp_from
-    msg["To"] = body.to_email
-    # Reply-To uses BrandKit email (never noreply) so clients reply to real inbox
-    msg["Reply-To"] = brand_email
-    msg["Subject"] = body.subject or f"{doc.template_name or 'Dokumen'} dari {brand_name}"
+    subject = body.subject or f"{doc.template_name or 'Dokumen'} dari {brand_name}"
     default_body = (
         f"Terlampir dokumen yang Anda minta.\n\n"
         f"Hubungi kami di {brand_email} jika ada pertanyaan.\n\n"
         f"— {brand_name}"
     )
-    msg.attach(MIMEText(body.body or default_body, "plain"))
 
-    with open(fpath, "rb") as f:
-        part = MIMEApplication(f.read(), _subtype="pdf")
-        part.add_header("Content-Disposition", f'attachment; filename="{doc.display_filename or doc.template_name or "document"}.pdf"')
-        msg.attach(part)
-
-    try:
-        if smtp_port == 465:
-            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30)
-        else:
-            server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
-            server.starttls()
-        server.login(smtp_user, smtp_pass)
-        server.send_message(msg)
-        server.quit()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"SMTP send gagal: {e}")
-
-    return {"success": True, "to": body.to_email}
+    return send_pdf_email(
+        db=db,
+        to_email=body.to_email,
+        pdf_path=fpath,
+        attachment_filename=(doc.display_filename or doc.template_name or "document"),
+        subject=subject,
+        body=body.body or default_body,
+        brand_name=brand_name,
+        reply_to=brand_email,
+    )
 
 
 # ---------------------------------------------------------------------------

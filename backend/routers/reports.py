@@ -22,6 +22,8 @@ from app.services.client_report_service import (
     snapshot_payload,
     track_public_duration,
 )
+from app.services.document_service import build_brand_context
+from app.services.email_service import send_pdf_email
 from models import GeneratedDocument, Project, ReportSnapshot, User, get_db
 
 router = APIRouter()
@@ -43,6 +45,13 @@ class ReportGenerateIn(BaseModel):
 
 class DurationIn(BaseModel):
     duration_seconds: int = Field(0, ge=0, le=86400)
+
+
+class ReportEmailIn(BaseModel):
+    to_email: str
+    cc: Optional[str] = None
+    subject: Optional[str] = None
+    body: Optional[str] = None
 
 
 def _with_absolute_public_url(item: dict, db: Session) -> dict:
@@ -227,3 +236,51 @@ def download_public_report(slug: str, db: Session = Depends(get_db)):
     if not os.path.exists(fpath):
         raise HTTPException(status_code=404, detail="File PDF tidak ada di disk")
     return FileResponse(fpath, media_type="application/pdf", filename=f"{doc.display_filename or snapshot.title}.pdf")
+
+
+@router.post("/api/reports/{report_id}/email")
+def email_report(
+    report_id: str,
+    body: ReportEmailIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Kirim PDF laporan sebagai lampiran email ke klien.
+
+    Guardrail: hanya dikirim saat dipanggil eksplisit (bukan auto). PDF diambil
+    dari GeneratedDocument milik snapshot. Reuse send_pdf_email + SMTP Settings.
+    """
+    snapshot = db.query(ReportSnapshot).filter(ReportSnapshot.id == report_id).first()
+    if not snapshot:
+        raise HTTPException(status_code=404, detail="Laporan tidak ditemukan")
+    if not snapshot.generated_document_id:
+        raise HTTPException(status_code=400, detail="Laporan belum punya PDF. Generate ulang dulu.")
+    doc = db.query(GeneratedDocument).filter(GeneratedDocument.id == snapshot.generated_document_id).first()
+    if not doc or not doc.file_url:
+        raise HTTPException(status_code=404, detail="PDF laporan tidak ditemukan")
+
+    filename = os.path.basename(doc.file_url)
+    fpath = os.path.join(DOCUMENTS_DIR, filename)
+
+    brand_ctx = build_brand_context(db) or {}
+    brand_name = brand_ctx.get("brand_name") or brand_ctx.get("nama_perusahaan") or "Kantor Teman"
+    brand_email = (brand_ctx.get("email_perusahaan") or "").strip() or "temanumkm.kita@gmail.com"
+
+    subject = body.subject or f"{snapshot.title or 'Laporan'} — {brand_name}"
+    default_body = (
+        f"Halo,\n\nTerlampir laporan Anda: {snapshot.title or 'Laporan'}.\n\n"
+        f"Hubungi kami di {brand_email} jika ada pertanyaan.\n\n"
+        f"— {brand_name}"
+    )
+
+    return send_pdf_email(
+        db=db,
+        to_email=body.to_email,
+        pdf_path=fpath,
+        attachment_filename=(doc.display_filename or snapshot.title or "laporan"),
+        subject=subject,
+        body=body.body or default_body,
+        brand_name=brand_name,
+        reply_to=brand_email,
+        cc=body.cc,
+    )
