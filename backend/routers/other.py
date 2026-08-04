@@ -330,6 +330,53 @@ async def upload_board_card_attachment(
     return attachment
 
 
+@router.delete("/api/board-cards/{card_id}/attachments/{attachment_id}", status_code=204)
+async def delete_board_card_attachment(
+    card_id: str,
+    attachment_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Hapus attachment dari card (row DB + file fisik). Untuk koreksi salah upload."""
+    attachment = (
+        db.query(BoardCardAttachment)
+        .filter(
+            BoardCardAttachment.id == attachment_id,
+            BoardCardAttachment.card_id == card_id,
+        )
+        .first()
+    )
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Attachment tidak ditemukan")
+
+    file_name = attachment.file_name
+    # Hapus file fisik (best-effort). file_path = "/uploads/board/<card>/<fname>"
+    rel = (attachment.file_path or "").lstrip("/")
+    if rel.startswith("uploads/"):
+        rel = rel[len("uploads/"):]
+    disk_path = os.path.join(UPLOADS_DIR, rel) if rel else None
+    if disk_path and os.path.isfile(disk_path):
+        try:
+            os.remove(disk_path)
+        except OSError:
+            pass
+
+    db.delete(attachment)
+    db.add(BoardCardActivity(
+        id=str(uuid.uuid4()),
+        card_id=card_id,
+        action="attachment",
+        description=f"File dihapus: {file_name}",
+        actor=current_user.name,
+    ))
+    card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
+    if card:
+        card.updated_at = datetime.now(timezone.utc).isoformat()
+    db.commit()
+    return None
+
+
+
 # ---------------------------------------------------------------------------
 # Client Notes
 # ---------------------------------------------------------------------------
