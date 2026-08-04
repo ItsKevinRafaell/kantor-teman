@@ -457,12 +457,27 @@ VALID_RIWAYAT_CATEGORIES = ("STATUS", "INVOICE", "NOTE", "FILE", "MILESTONE", "O
 
 
 def _serialize_riwayat(r: ProjectRiwayat) -> ProjectRiwayatOut:
-    out = ProjectRiwayatOut.model_validate(r)
+    # attachments disimpan sebagai string JSON di DB (mis. "[]"); parse SEBELUM validate
+    atts = []
     if r.attachments:
-        try:
-            out.attachments = json.loads(r.attachments)
-        except Exception:
-            out.attachments = []
+        if isinstance(r.attachments, str):
+            try:
+                atts = json.loads(r.attachments)
+            except Exception:
+                atts = []
+        elif isinstance(r.attachments, list):
+            atts = r.attachments
+    if not isinstance(atts, list):
+        atts = []
+    out = ProjectRiwayatOut(
+        id=r.id,
+        project_id=r.project_id,
+        timestamp=r.timestamp,
+        actor=r.actor,
+        category=r.category,
+        content=r.content,
+        attachments=atts,
+    )
     return out
 
 

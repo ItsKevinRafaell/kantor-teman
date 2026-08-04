@@ -36,15 +36,37 @@ def get_client_detail(client_id: int, current_user: User = Depends(get_current_u
         "service_type": p.service_type, "color": p.color,
     } for p in client_projects]
 
-    # LTV: For FIXED = nominal, For RETAINER = nominal × months elapsed since start
+    # LTV: For FIXED = nominal, For RETAINER = nominal × months elapsed (start -> akhir kontrak)
+    # RETAINER yang COMPLETED dihitung sampai end_date/completed_at (bukan sampai now),
+    # yang ACTIVE dihitung sampai bulan berjalan.
+    def _parse_dt(val):
+        if not val:
+            return None
+        s = str(val)[:10]
+        try:
+            return datetime.strptime(s, "%Y-%m-%d")
+        except Exception:
+            return None
+
     ltv = 0
     for p in client_projects:
         if p.status not in ("ACTIVE", "COMPLETED"):
             continue
         if p.type == "RETAINER" and p.start_date:
-            start = datetime.strptime(p.start_date, "%Y-%m-%d")
-            now = datetime.now()
-            months_elapsed = (now.year - start.year) * 12 + (now.month - start.month) + 1
+            start = _parse_dt(p.start_date)
+            if not start:
+                ltv += p.nominal
+                continue
+            # tentukan titik akhir
+            if p.status == "COMPLETED":
+                end = _parse_dt(p.end_date) or _parse_dt(getattr(p, "completed_at", None)) or datetime.now()
+            else:  # ACTIVE
+                end = datetime.now()
+            if end < start:
+                end = start
+            months_elapsed = (end.year - start.year) * 12 + (end.month - start.month) + 1
+            if months_elapsed < 1:
+                months_elapsed = 1
             ltv += p.nominal * months_elapsed
         else:
             ltv += p.nominal
