@@ -184,12 +184,22 @@ def invalidate_workspace_cache() -> None:
 
 
 def invalidate_transaction_cache(wallet_id: Optional[int] = None) -> None:
-    """Invalidate transaction cache. If wallet_id provided, invalidate that specific key."""
+    """Invalidate transaction cache after a transaction changes.
+
+    A transaction insert/update/delete affects THREE cached views, so all three
+    must be cleared or the dashboard shows stale numbers until TTL expires:
+      - /api/finance/transactions  (the list itself)
+      - /api/finance/reports       (income/expense/profit summary)
+      - /api/finance/wallets       (wallet balances)
+    """
     if wallet_id:
         # These will expire naturally with TTL, but we can force clear specific patterns
         delete_cache(f"cache:/api/finance/transactions?wallet_id={wallet_id}")
     # Always clear general transaction cache
     clear_cache_prefix("cache:/api/finance/transactions")
+    # Transactions change the financial summary and wallet balances too.
+    clear_cache_prefix("cache:/api/finance/reports")
+    clear_cache_prefix("cache:/api/finance/wallets")
 
 
 def invalidate_workspace_list_cache() -> None:

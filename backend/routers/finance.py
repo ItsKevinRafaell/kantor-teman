@@ -38,6 +38,7 @@ def create_wallet(body: WalletIn, current_user: User = Depends(require_admin), d
     db.commit()
     db.refresh(wallet)
     clear_cache_prefix("cache:/api/finance/wallets")
+    clear_cache_prefix("cache:/api/finance/reports")
     return wallet
 
 
@@ -54,6 +55,7 @@ def update_wallet(wallet_id: int, body: WalletIn, current_user: User = Depends(r
     db.commit()
     db.refresh(wallet)
     clear_cache_prefix("cache:/api/finance/wallets")
+    clear_cache_prefix("cache:/api/finance/reports")
     return wallet
 
 
@@ -116,6 +118,7 @@ def delete_wallet(
         db.commit()
         clear_cache_prefix("cache:/api/finance/wallets")
         clear_cache_prefix("cache:/api/finance/transactions")
+        clear_cache_prefix("cache:/api/finance/reports")
         return
 
     if txn_count or sub_count:
@@ -132,6 +135,7 @@ def delete_wallet(
     db.delete(wallet)
     db.commit()
     clear_cache_prefix("cache:/api/finance/wallets")
+    clear_cache_prefix("cache:/api/finance/reports")
 
 
 # ---------------------------------------------------------------------------
@@ -190,6 +194,7 @@ def update_transaction(txn_id: int, body: TransactionIn, current_user: User = De
         new_wallet.balance -= body.amount
     db.commit()
     db.refresh(txn)
+    invalidate_transaction_cache(txn.wallet_id)
     lead_name = None
     if txn.lead_id:
         lead = db.query(Lead).filter(Lead.id == txn.lead_id).first()
@@ -383,6 +388,9 @@ def _deduct_due_subscriptions(db: Session) -> list[dict]:
         sub.next_billing_date = next_date.strftime("%Y-%m-%d")
         deducted.append({"subscription": sub.name, "amount": sub.amount, "next_billing_date": sub.next_billing_date})
     db.commit()
+    if deducted:
+        # Auto-deduct created expense transactions + changed balances → refresh cached views.
+        invalidate_transaction_cache()
     return deducted
 
 
