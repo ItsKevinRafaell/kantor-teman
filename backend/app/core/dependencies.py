@@ -161,6 +161,7 @@ from schemas import *  # noqa: E402, F403
 from workspace_templates import (  # noqa: E402
     build_sheets_for_service, build_sheets_for_days,
     WORKSPACE_TEMPLATES, _BASE_COLS,
+    normalize_service_type,
 )
 
 # ─── Auth / user helpers ─────────────────────────────────────────────────────
@@ -246,26 +247,9 @@ def get_ai_config(db: Session, capability: str = "chat") -> dict:
 
 
 def build_analysis_prompt(lead, product_list: str) -> str:
-    return f"""Kamu adalah konsultan digital marketing untuk UMKM Indonesia. Analisa bisnis berikut dan berikan insight yang persuasif dan mudah dipahami pemilik usaha.
-
-DATA BISNIS:
-- Nama: {lead.business_name}
-- Alamat: {lead.address or 'Tidak diketahui'}
-- Rating Google: {lead.rating}/5
-- Kategori: {lead.product_interest or 'Umum'}
-
-PRODUK/LAYANAN YANG KAMI TAWARKAN:
-{product_list}
-
-INSTRUKSI:
-Berikan output dalam format JSON berikut (Bahasa Indonesia, gaya bicara santai tapi profesional):
-{{
-  "pain_points": ["masalah 1 yang spesifik dan relatable untuk pemilik usaha", "masalah 2", "masalah 3"],
-  "suggested_product": "nama produk kami yang paling cocok",
-  "approach_message": "satu paragraf pendek pesan WA yang bisa langsung dikirim ke pemilik bisnis ini, persuasif tapi tidak memaksa, sebutkan masalah mereka dan solusi kita"
-}}
-
-PENTING: Pain points harus spesifik ke bisnis ini, bukan generik. Pesan pendekatan harus terasa personal."""
+    # Single source of truth di ai_service (mitigasi AI halu / anti klaim-palsu).
+    from app.services.ai_service import build_analysis_prompt as _svc  # noqa: E402
+    return _svc(lead, product_list)
 
 
 def _call_ai_sync(prompt: str, config: dict, _httpx) -> str:

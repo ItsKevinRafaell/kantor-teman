@@ -481,27 +481,75 @@ async def call_ai_provider_async(prompt: str, config: dict) -> str:
 
 # ─── Prompt builders ─────────────────────────────────────────────────────────
 
-def build_analysis_prompt(lead, product_list: str) -> str:
-    return f"""Kamu adalah konsultan digital marketing untuk UMKM Indonesia. Analisa bisnis berikut dan berikan insight yang persuasif dan mudah dipahami pemilik usaha.
+def _lead_verified_facts(lead) -> str:
+    """Bangun daftar FAKTA terverifikasi dari data lead yang benar-benar ada.
 
-DATA BISNIS:
+    Mencegah AI mengarang klaim soal website/medsos: kalau field-nya terisi,
+    AI DILARANG bilang 'belum punya'. Kalau kosong, statusnya 'tidak diketahui'
+    (bukan otomatis 'tidak punya', karena data scraper bisa saja tidak lengkap).
+    """
+    def _has(attr):
+        return bool(getattr(lead, attr, None))
+
+    website = _has("website_url")
+    ig = _has("instagram_url")
+    fb = _has("facebook_url")
+    tt = _has("tiktok_url")
+    review_count = getattr(lead, "review_count", None)
+
+    lines = []
+    if website:
+        lines.append(f"- Website: SUDAH PUNYA ({getattr(lead, 'website_url', '')}). DILARANG bilang mereka belum punya website.")
+    else:
+        lines.append("- Website: TIDAK DIKETAHUI dari data (bisa jadi punya tapi belum ke-scrape). JANGAN klaim pasti 'belum punya website'; kalau mau menyinggung, pakai bentuk pertanyaan.")
+
+    social = []
+    if ig:
+        social.append("Instagram")
+    if fb:
+        social.append("Facebook")
+    if tt:
+        social.append("TikTok")
+    if social:
+        lines.append(f"- Media sosial: TERDETEKSI aktif di {', '.join(social)}. DILARANG bilang mereka 'belum punya medsos'. JANGAN menilai kualitas/konsistensi konten mereka karena kita belum lihat isinya.")
+    else:
+        lines.append("- Media sosial: TIDAK DIKETAHUI dari data. JANGAN klaim pasti 'belum punya medsos' atau 'postingnya jarang'; itu tidak bisa diverifikasi.")
+
+    if review_count is not None:
+        lines.append(f"- Jumlah review: {review_count}")
+
+    return "\n".join(lines)
+
+
+def build_analysis_prompt(lead, product_list: str) -> str:
+    verified = _lead_verified_facts(lead)
+    return f"""Kamu adalah konsultan digital marketing untuk UMKM Indonesia. Tugasmu membantu tim sales melakukan pendekatan yang JUJUR dan tidak mengada-ada.
+
+DATA BISNIS (satu-satunya fakta yang kamu tahu tentang bisnis ini):
 - Nama: {lead.business_name}
 - Alamat: {lead.address or 'Tidak diketahui'}
 - Rating Google: {lead.rating}/5
 - Kategori: {lead.product_interest or 'Umum'}
 
+STATUS DIGITAL TERVERIFIKASI (patuhi ini, jangan bertentangan):
+{verified}
+
 PRODUK/LAYANAN YANG KAMI TAWARKAN:
 {product_list}
 
-INSTRUKSI:
-Berikan output dalam format JSON berikut (Bahasa Indonesia, gaya bicara santai tapi profesional):
-{{
-  "pain_points": ["masalah 1 yang spesifik dan relatable untuk pemilik usaha", "masalah 2", "masalah 3"],
-  "suggested_product": "nama produk kami yang paling cocok",
-  "approach_message": "satu paragraf pendek pesan WA yang bisa langsung dikirim ke pemilik bisnis ini, persuasif tapi tidak memaksa, sebutkan masalah mereka dan solusi kita"
-}}
+ATURAN ANTI-KLAIM-PALSU (WAJIB dipatuhi, ini yang paling penting):
+1. Kamu HANYA punya 6 data di atas. Kamu BELUM pernah membuka website, medsos, Google Maps, atau melihat operasional mereka.
+2. DILARANG membuat klaim spesifik yang tidak bisa diverifikasi dari data di atas. Contoh yang DILARANG: "website Anda lambat", "medsos Anda jarang update", "banyak pelanggan kecewa", "kompetitor di sekitar Anda lebih banyak", "engagement Anda turun". Semua itu tebakan, bukan fakta.
+3. Pain points harus berupa ISU UMUM yang WAJAR dialami bisnis sejenis di industri ini — dan HARUS dibingkai sebagai kemungkinan/pertanyaan, BUKAN vonis. Gunakan frasa seperti: "Banyak {lead.product_interest or 'usaha sejenis'} biasanya menghadapi...", "Apakah usaha Anda sudah...?", "Kalau belum, ...".
+4. Jangan menyebut nama tempat/jalan/kompetitor spesifik seolah kamu tahu kondisinya. Rating {lead.rating}/5 boleh disebut karena itu fakta.
+5. Nada: membantu dan mengajak ngobrol, bukan menghakimi.
 
-PENTING: Pain points harus spesifik ke bisnis ini, bukan generik. Pesan pendekatan harus terasa personal."""
+Berikan output dalam format JSON berikut (Bahasa Indonesia, santai tapi profesional):
+{{
+  "pain_points": ["tantangan umum industri (dibingkai kemungkinan/pertanyaan)", "tantangan 2", "tantangan 3"],
+  "suggested_product": "nama produk kami yang paling cocok",
+  "approach_message": "satu paragraf pendek pesan WA yang jujur & tidak memaksa. Buka dengan menyebut fakta nyata (nama & rating), lalu tawarkan bantuan lewat pertanyaan, JANGAN menuduh mereka punya masalah tertentu."
+}}"""
 
 
 def parse_ai_response(text: str) -> dict:

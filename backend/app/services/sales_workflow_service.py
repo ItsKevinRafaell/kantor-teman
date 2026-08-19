@@ -27,6 +27,7 @@ from app.core.dependencies import (
     get_fonnte_token,
     sync_row_to_board,
     _detect_service_types,
+    normalize_service_type,
 )
 from app.services.proposal_service import (
     detect_contract_months,
@@ -331,7 +332,10 @@ def create_project_board_workspace(
                 updated_at=now_cards,
             ))
 
-    workspace_type = service_type if service_type in WORKSPACE_TEMPLATES else "general"
+    # Normalisasi service_type: bisa None (detect gagal) atau gabungan
+    # ("seo_gmaps,maintenance"). Pakai combined dulu supaya klien SEO tetap dapat
+    # template seo_gmaps, baru fallback ke single detect, terakhir "general".
+    workspace_type = normalize_service_type(service_type_combined or service_type)
     sheet_defs = build_sheets_for_service(workspace_type, months)
     now_ws = _now()
     for idx, sdef in enumerate(sheet_defs):

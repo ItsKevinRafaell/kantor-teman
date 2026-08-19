@@ -336,11 +336,110 @@ def _clone(value: Any) -> Any:
     return deepcopy(value)
 
 
+# ─── Service type normalization ──────────────────────────────────────────────
+#
+# service_type bisa datang dalam banyak bentuk:
+#   - kosong / None                     -> fallback "general"
+#   - key valid tunggal  "seo_gmaps"    -> dipakai langsung
+#   - gabungan           "seo_gmaps,maintenance", "SEO + Maintenance", "web/seo"
+#   - free text          "SEO & Google Maps", "Kelola Sosmed", dll
+#
+# Kalau gabungan, ambil yang PRIMARY berdasarkan prioritas di bawah. Ini bikin
+# klien SEO tetap dapat template seo_gmaps (9 sheet) dan bukan fallback general.
+
+# Urutan = prioritas (index kecil = lebih diprioritaskan saat gabungan).
+SERVICE_TYPE_PRIORITY: list[str] = [
+    "seo_gmaps",
+    "web_dev",
+    "web_dev_bulanan",
+    "sosmed",
+    "branding",
+    "maintenance",
+    "general",
+]
+
+# Substring/alias -> canonical key. Dicek pada tiap token hasil split.
+# Urutan penting: token dicek terhadap semua alias, hasil dikumpulkan lalu
+# dipilih yang prioritasnya tertinggi.
+_SERVICE_ALIASES: list[tuple[tuple[str, ...], str]] = [
+    (("seo", "gmaps", "google maps", "google business", "gbp", "maps", "lokal", "local"), "seo_gmaps"),
+    (("web_dev_bulanan", "web bulanan", "website bulanan"), "web_dev_bulanan"),
+    (("web_dev", "web", "website", "landing", "company profile", "dev", "frontend", "fullstack"), "web_dev"),
+    (("sosmed", "sosial media", "social media", "instagram", "tiktok", "facebook", "kelola"), "sosmed"),
+    (("branding", "logo", "desain", "identitas visual", "brand"), "branding"),
+    (("maintenance", "maintain", "pemeliharaan"), "maintenance"),
+]
+
+
+def normalize_service_type(raw: Any) -> str:
+    """
+    Ubah service_type mentah (bisa kosong / gabungan / free text) jadi SATU key
+    valid yang ada di WORKSPACE_TEMPLATES.
+
+    Contoh:
+        ""                      -> "general"
+        None                    -> "general"
+        "seo_gmaps"             -> "seo_gmaps"
+        "seo_gmaps,maintenance" -> "seo_gmaps"   (primary by priority)
+        "SEO + Maintenance"     -> "seo_gmaps"
+        "maintenance,web_dev"   -> "web_dev"
+        "sesuatu ga jelas"      -> "general"
+    """
+    if not raw:
+        return "general"
+
+    text = str(raw).strip().lower()
+    if not text:
+        return "general"
+
+    # 1) Exact match key valid (fast path, termasuk "general").
+    if text in WORKSPACE_TEMPLATES:
+        return text
+
+    # 2) Split gabungan pakai pemisah umum: koma, plus, ampersand, slash, "dan".
+    import re
+    tokens = [t.strip() for t in re.split(r"[,+&/|]|\bdan\b|\band\b", text) if t.strip()]
+    if not tokens:
+        tokens = [text]
+
+    matched: set[str] = set()
+    for tok in tokens:
+        # 2a) token itu sendiri key valid?
+        if tok in WORKSPACE_TEMPLATES:
+            matched.add(tok)
+            continue
+        # 2b) cocokkan via alias/substring.
+        for aliases, canonical in _SERVICE_ALIASES:
+            if any(alias in tok for alias in aliases):
+                matched.add(canonical)
+                break
+
+    # 3) Kalau ada full-string alias match yang kelewat (mis. spasi antar token
+    #    ilang), cek ulang di seluruh text sebagai jaring pengaman.
+    if not matched:
+        for aliases, canonical in _SERVICE_ALIASES:
+            if any(alias in text for alias in aliases):
+                matched.add(canonical)
+
+    if not matched:
+        return "general"
+
+    # 4) Pilih PRIMARY berdasarkan prioritas.
+    for key in SERVICE_TYPE_PRIORITY:
+        if key in matched:
+            return key
+    return "general"
+
+
 def build_sheets_for_service(service_type: str, contract_months: int) -> list[dict]:
     """
     Return sheet definitions: [{month, label, columns, default_rows}].
     Dynamic services can repeat a monthly template and SEO can append tracker sheets.
+
+    service_type dinormalisasi dulu supaya bentuk gabungan / kosong / free text
+    tetap resolve ke template yang benar (bukan raise / fallback general keliru).
     """
+    service_type = normalize_service_type(service_type)
     tmpl = WORKSPACE_TEMPLATES.get(service_type)
     if not tmpl:
         raise ValueError(f"Unknown service_type: {service_type}")
