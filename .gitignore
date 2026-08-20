@@ -31,3 +31,4 @@ hermes-gateway/test-vexo-brutal.py
 *.log
 *.pem
 hermes-gateway/test-vexo-brutal.py
+.fleet-lock

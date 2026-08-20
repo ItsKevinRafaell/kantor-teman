@@ -94,3 +94,34 @@ cd frontend && npx tsc --noEmit
 cd backend && uvicorn main:app --reload --port 8000 &
 cd frontend && npm run dev
 ```
+
+## Fleet Git Workflow (2026-08-20)
+
+Repo ini disentuh banyak agent dari sesi berbeda. Untuk cegah tabrakan git,
+ikuti konvensi ini **wajib**:
+
+- **`main` READ-ONLY.** Jangan pernah commit langsung ke `main`. Pre-commit hook
+  akan menolak commit di `main` kecuali owner set `FLEET_MAIN_OWNER=1`.
+- **Owner `main` = raka.** Hanya raka yang boleh merge branch feat ke `main`
+  (pakai `FLEET_MAIN_OWNER=1 git commit ...`).
+- **Branch per task:** `feat/<agent>-<slug>`, contoh `feat/nara-fix-login`.
+  ```bash
+  git checkout -b feat/nara-fix-login
+  ```
+- **WAJIB ambil lock sebelum edit repo:**
+  ```bash
+  /root/.hermes/shared/scripts/repo_lock.py acquire <slug>   # sebelum mulai
+  # ... kerja ...
+  /root/.hermes/shared/scripts/repo_lock.py release <slug>   # setelah selesai
+  /root/.hermes/shared/scripts/repo_lock.py status           # cek siapa megang
+  ```
+  Identitas agent dari env `HERMES_PROFILE` (atau `--agent NAMA`). Lock stale
+  (> 2 jam) otomatis bisa diambil alih. Lock file: `.fleet-lock` (git-ignored /
+  tidak di-commit).
+- **Re-install hook** kalau `.git/hooks/pre-commit` hilang:
+  ```bash
+  cp /root/.hermes/shared/scripts/git-hooks/pre-commit .git/hooks/pre-commit
+  chmod +x .git/hooks/pre-commit
+  ```
+- Branch protection di GitHub server BELUM diaktifkan (butuh Kevin). Konvensi ini
+  ditegakkan lokal via hook + lock, bukan di server.

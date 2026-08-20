@@ -1,0 +1,214 @@
+#!/bin/bash
+# Auto-deploy script for Kantorteman Backend — HARDENED VERSION (v2)
+# Usage: bash deploy.sh
+#
+# ⚠️ REVIEW REQUIRED — belum diaktifkan di prod. Lihat:
+#    /root/.hermes/shared/founder-intel/deploy-sh-review.md
+#
+# Perubahan vs versi lama:
+#   - flock: cegah 2 deploy paralel
+#   - mysqldump backup DB SEBELUM migrate (+ rotate simpan 7 terakhir)
+#   - python -> python3 (bug lama: migrate ke-skip)
+#   - health-check curl setelah restart; non-200 dalam 30s -> auto-rollback
+#     (git reset --hard HEAD@{1} + restore dump terakhir + restart lagi)
+#   - echo step yang jelas biar progress keliatan
+#
+# Kredensial DB TIDAK di-hardcode. Dibaca dari DATABASE_URL di file .env
+# yang sama dipakai app (ENV_FILE, default .env.production), format:
+#   mysql+pymysql://USER:PASS@HOST:PORT/DBNAME
+
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# 0) LOCK — cegah deploy paralel
+# ---------------------------------------------------------------------------
+LOCK_FILE="/tmp/kt-deploy.lock"
+exec 200>"$LOCK_FILE"
+if ! flock -n 200; then
+  echo "[LOCK] Deploy lain sedang berjalan (${LOCK_FILE}). Batal." >&2
+  exit 1
+fi
+echo "[LOCK] Lock diperoleh: ${LOCK_FILE}"
+
+# ---------------------------------------------------------------------------
+# Setup path & konfigurasi
+# ---------------------------------------------------------------------------
+cd "$(dirname "$0")"
+APP_DIR="$(pwd)"
+ENV_FILE="${ENV_FILE:-.env.production}"
+BACKUP_DIR="${APP_DIR}/backups"
+HEALTH_CMD_DEFAULT="ssh deploy-kantorteman health"   # SSH restricted verb -> {status:ok}
+HEALTH_TIMEOUT=30
+KEEP_BACKUPS=7
+
+mkdir -p "$BACKUP_DIR"
+
+echo "=== Kantorteman Deploy (hardened) ==="
+echo "[INFO] APP_DIR=${APP_DIR}"
+echo "[INFO] ENV_FILE=${ENV_FILE}"
+
+# ---------------------------------------------------------------------------
+# 1) Baca DATABASE_URL dari .env (JANGAN hardcode)
+# ---------------------------------------------------------------------------
+if [ ! -f "$ENV_FILE" ]; then
+  echo "[ERROR] File env '${ENV_FILE}' tidak ditemukan. Set ENV_FILE atau buat .env.production." >&2
+  exit 1
+fi
+
+# Ambil baris DATABASE_URL, buang quote & spasi
+DATABASE_URL="$(grep -E '^[[:space:]]*DATABASE_URL[[:space:]]*=' "$ENV_FILE" | tail -n1 | cut -d'=' -f2- | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")"
+
+if [ -z "${DATABASE_URL:-}" ]; then
+  echo "[ERROR] DATABASE_URL kosong/tidak ada di ${ENV_FILE}." >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# 2) BACKUP DB via mysqldump SEBELUM migrate (kalau MySQL)
+#    Parse mysql+pymysql://USER:PASS@HOST:PORT/DBNAME
+# ---------------------------------------------------------------------------
+DUMP_FILE=""
+if echo "$DATABASE_URL" | grep -qi 'mysql'; then
+  echo "[BACKUP] MySQL terdeteksi — parsing DATABASE_URL..."
+
+  # Buang skema apapun sebelum '://' (mysql://, mysql+pymysql://, dst)
+  _url_nos="${DATABASE_URL#*://}"
+
+  # _url_nos = USER[:PASS]@HOST[:PORT]/DBNAME[?params]
+  _userinfo="${_url_nos%@*}"
+  _hostpart="${_url_nos#*@}"
+
+  DB_USER="${_userinfo%%:*}"
+  DB_PASS="${_userinfo#*:}"
+  [ "$DB_PASS" = "$_userinfo" ] && DB_PASS=""   # tidak ada password
+
+  # hostpart = HOST[:PORT]/DBNAME[?params]
+  _hostport="${_hostpart%%/*}"
+  _dbpart="${_hostpart#*/}"
+  DB_NAME="${_dbpart%%\?*}"
+  DB_HOST="${_hostport%%:*}"
+  if echo "$_hostport" | grep -q ':'; then
+    DB_PORT="${_hostport##*:}"
+  else
+    DB_PORT="3306"
+  fi
+  [ -z "$DB_HOST" ] && DB_HOST="localhost"
+
+  # URL-decode password sederhana (%XX). Cukup untuk karakter umum.
+  DB_PASS="$(printf '%b' "${DB_PASS//%/\\x}")"
+
+  DUMP_FILE="${BACKUP_DIR}/db-$(date +%F-%H%M).sql.gz"
+  echo "[BACKUP] mysqldump ${DB_NAME}@${DB_HOST}:${DB_PORT} -> ${DUMP_FILE}"
+
+  # Pakai MYSQL_PWD supaya password tidak muncul di process list / argv
+  MYSQL_PWD="$DB_PASS" mysqldump \
+    --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" \
+    --single-transaction --quick --routines --triggers --events \
+    "$DB_NAME" | gzip -c > "$DUMP_FILE"
+
+  # Validasi dump tidak kosong
+  if [ ! -s "$DUMP_FILE" ]; then
+    echo "[ERROR] Dump kosong — mysqldump gagal. Batal deploy." >&2
+    rm -f "$DUMP_FILE"
+    exit 1
+  fi
+  echo "[BACKUP] OK ($(du -h "$DUMP_FILE" | cut -f1))"
+
+  # Rotate: simpan 7 terakhir
+  echo "[BACKUP] Rotate — simpan ${KEEP_BACKUPS} backup terakhir"
+  ls -1t "${BACKUP_DIR}"/db-*.sql.gz 2>/dev/null | tail -n +$((KEEP_BACKUPS + 1)) | while read -r old; do
+    echo "[BACKUP] hapus lama: $(basename "$old")"
+    rm -f "$old"
+  done
+else
+  echo "[BACKUP] DATABASE_URL bukan MySQL — skip mysqldump."
+fi
+
+# ---------------------------------------------------------------------------
+# 3) Pull code terbaru
+# ---------------------------------------------------------------------------
+echo "[GIT] Pulling latest code (origin main)..."
+git pull origin main
+
+# Protect critical files - never overwrite
+git checkout -- .env passenger_wsgi.py .env.production 2>/dev/null || true
+
+# ---------------------------------------------------------------------------
+# 4) Migrate (python3, bukan python)
+# ---------------------------------------------------------------------------
+echo "[MIGRATE] Running migrations (python3 migrate.py)..."
+python3 migrate.py
+
+# ---------------------------------------------------------------------------
+# 5) Restart app
+# ---------------------------------------------------------------------------
+echo "[RESTART] Restarting app..."
+touch tmp/restart.txt 2>/dev/null || touch passenger_wsgi.py
+
+# ---------------------------------------------------------------------------
+# 6) Health-check; non-200 dalam 30s -> auto-rollback
+# ---------------------------------------------------------------------------
+HEALTH_CMD="${HEALTH_CMD:-$HEALTH_CMD_DEFAULT}"
+echo "[HEALTH] Cek health (timeout ${HEALTH_TIMEOUT}s) via: ${HEALTH_CMD}"
+
+health_ok() {
+  # Support 2 mode:
+  #  - HEALTH_URL di-set  -> curl HTTP, sukses kalau 200
+  #  - default            -> jalankan HEALTH_CMD, sukses kalau output {status:ok}
+  local deadline=$(( $(date +%s) + HEALTH_TIMEOUT ))
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    if [ -n "${HEALTH_URL:-}" ]; then
+      code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$HEALTH_URL" || echo 000)"
+      echo "[HEALTH] HTTP ${code} <- ${HEALTH_URL}"
+      [ "$code" = "200" ] && return 0
+    else
+      out="$($HEALTH_CMD 2>/dev/null || true)"
+      echo "[HEALTH] resp: ${out}"
+      echo "$out" | grep -qE '"?status"?[[:space:]]*:[[:space:]]*"?ok"?' && return 0
+    fi
+    sleep 3
+  done
+  return 1
+}
+
+if health_ok; then
+  echo "[HEALTH] OK — deploy sukses."
+  echo "=== Done ==="
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# 7) AUTO-ROLLBACK
+# ---------------------------------------------------------------------------
+echo "[ROLLBACK] Health GAGAL dalam ${HEALTH_TIMEOUT}s — mulai auto-rollback!" >&2
+
+echo "[ROLLBACK] git reset --hard HEAD@{1} (kembali ke commit sebelum pull)"
+git reset --hard 'HEAD@{1}' || echo "[ROLLBACK][WARN] git reset gagal (reflog kosong?)"
+git checkout -- .env passenger_wsgi.py .env.production 2>/dev/null || true
+
+if [ -n "$DUMP_FILE" ] && [ -s "$DUMP_FILE" ]; then
+  LATEST_DUMP="$(ls -1t "${BACKUP_DIR}"/db-*.sql.gz 2>/dev/null | head -n1)"
+  echo "[ROLLBACK] restore dump terakhir: ${LATEST_DUMP}"
+  if [ -n "$LATEST_DUMP" ] && [ -s "$LATEST_DUMP" ]; then
+    MYSQL_PWD="$DB_PASS" bash -c "gunzip -c '$LATEST_DUMP' | mysql --host='$DB_HOST' --port='$DB_PORT' --user='$DB_USER' '$DB_NAME'" \
+      && echo "[ROLLBACK] DB restore OK" \
+      || echo "[ROLLBACK][ERROR] DB restore GAGAL — perlu intervensi manual!" >&2
+  else
+    echo "[ROLLBACK][WARN] Tidak ada dump valid untuk restore." >&2
+  fi
+else
+  echo "[ROLLBACK] Tidak ada dump (non-MySQL / dump tidak dibuat) — skip DB restore."
+fi
+
+echo "[ROLLBACK] Restart app lagi setelah rollback..."
+touch tmp/restart.txt 2>/dev/null || touch passenger_wsgi.py
+
+# Verifikasi ulang sekali
+if health_ok; then
+  echo "[ROLLBACK] Health OK setelah rollback. Sistem kembali ke versi sebelumnya."
+else
+  echo "[ROLLBACK][ERROR] Health MASIH gagal setelah rollback — BUTUH INTERVENSI MANUAL!" >&2
+fi
+
+echo "=== Deploy GAGAL, rollback dijalankan ==="
+exit 1
