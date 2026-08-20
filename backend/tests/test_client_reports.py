@@ -334,6 +334,55 @@ def test_report_no_month_still_counts_generic_sheet(db_session):
     assert snap["summary"]["total_tasks"] == 1
 
 
+def test_report_empty_month_sheet_falls_back_to_generic(db_session):
+    """FIX#3: month-sheet ADA tapi KOSONG (0 task rows) sementara kerjaan nyata
+    ada di sheet generik. Report harus fallback ke generik, BUKAN kasih 0 tugas.
+    Ini penyebab report MLS 'total_tasks=0' di prod (month-sheet auto-dibuat
+    tapi kosong, kerjaan tercatat di sheet generik)."""
+    from app.services import client_report_service as svc
+
+    project = _seed_project_generic_sheet(db_session)  # punya generic sheet + 1 task
+    # Tambah month-sheet KOSONG untuk bulan 1 (tanpa rows).
+    empty_month = WorkspaceSheet(
+        id="empty-month-1",
+        project_id=project.id,
+        sheet_index=1,
+        sheet_label="Bulan 1",
+        service_type="seo_gmaps",
+        month_number=1,
+    )
+    db_session.add(empty_month)
+    db_session.commit()
+
+    snap = svc._workspace_snapshot(db_session, project.id, month_number=1)
+    assert snap["summary"]["total_tasks"] == 1, "month-sheet kosong harus fallback ke generic sheet"
+    assert snap["tasks"], "tasks list tidak boleh kosong"
+
+
+def test_report_populated_month_sheet_uses_only_month(db_session):
+    """Kalau month-sheet ADA task-nya, pakai HANYA month-sheet itu (jangan
+    ikut gabung generic) supaya laporan bulanan tetap akurat per-bulan."""
+    from app.services import client_report_service as svc
+
+    project = _seed_project_workspace(db_session)  # sudah punya month-sheet=1 dgn 1 task
+    # Tambah generic sheet dgn 2 task; harusnya TIDAK ikut karena month-sheet ada isinya.
+    generic = WorkspaceSheet(id="extra-generic", project_id=project.id, sheet_index=5,
+                             sheet_label="Operasional", service_type="seo_gmaps", month_number=None)
+    db_session.add(generic)
+    gcol = WorkspaceColumn(id="eg-col", sheet_id=generic.id, column_key="task_name",
+                           column_label="Task", column_type="text", column_order=0)
+    db_session.add(gcol)
+    for i in range(2):
+        r = WorkspaceRow(id=f"eg-row-{i}", sheet_id=generic.id, row_order=i, is_template=False)
+        db_session.add(r)
+        db_session.add(WorkspaceCell(id=f"eg-cell-{i}", row_id=r.id, column_id=gcol.id, value_text=f"X{i}"))
+    db_session.commit()
+
+    snap = svc._workspace_snapshot(db_session, project.id, month_number=1)
+    assert snap["summary"]["total_tasks"] == 1, "month-sheet berisi -> hanya hitung month-sheet"
+
+
+
 def test_regenerate_same_period_updates_in_place_no_duplicate(db_session, monkeypatch):
     """DEDUP (prinsip Kevin): generate report untuk project+periode yang SAMA
     dua kali harus tetap 1 snapshot (ke-UPDATE in-place), BUKAN 2 row baru.

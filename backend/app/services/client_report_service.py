@@ -192,18 +192,34 @@ def _workspace_snapshot(db: Session, project_id: str, month_number: Optional[int
     query = db.query(WorkspaceSheet).filter(WorkspaceSheet.project_id == project_id)
     if month_number:
         month_sheet = query.filter(WorkspaceSheet.month_number == month_number).first()
+        # Sheet generik (month_number NULL) yang bisa dipakai sebagai fallback.
+        # Artikel Tracker dikecualikan (dihitung terpisah).
+        generic_sheets = query.filter(
+            WorkspaceSheet.month_number.is_(None),
+            WorkspaceSheet.sheet_label != "Artikel Tracker",
+        ).order_by(WorkspaceSheet.sheet_index).all()
+
         if month_sheet:
-            sheets = [month_sheet]
+            # Cek apakah sheet bulan ini punya task rows nyata. Kalau sheet
+            # bulanan ADA tapi KOSONG (belum diisi task), jangan bikin laporan
+            # 0 tugas — fallback ke sheet generik tempat kerjaan sebenarnya
+            # tercatat. Ini penyebab report "0 tugas" di prod: month-sheet
+            # dibuat otomatis tapi kosong, kerjaan nyata ada di sheet generik.
+            month_row_count = db.query(WorkspaceRow).filter(WorkspaceRow.sheet_id == month_sheet.id).count()
+            if month_row_count > 0:
+                sheets = [month_sheet]
+            else:
+                # Month-sheet kosong -> gabung generic sheets (kalau ada) supaya
+                # kerjaan tetap masuk. Kalau ga ada generic, tetap pakai month-sheet
+                # (biar struktur laporan tetap konsisten walau 0 task).
+                sheets = generic_sheets if generic_sheets else [month_sheet]
         else:
             # FALLBACK: workspace belum pakai struktur sheet-bulanan (month_number NULL).
             # Daripada laporan kosong (total_tasks=0), pakai sheet generik yang ada
             # supaya kerjaan yang tercatat tetap masuk laporan. Ini menyambungkan
             # rantai "kerjaan -> laporan" untuk project yang belum di-migrasi ke
-            # sheet per-bulan. Sheet Artikel Tracker dikecualikan (dihitung terpisah).
-            sheets = query.filter(
-                WorkspaceSheet.month_number.is_(None),
-                WorkspaceSheet.sheet_label != "Artikel Tracker",
-            ).order_by(WorkspaceSheet.sheet_index).all()
+            # sheet per-bulan.
+            sheets = generic_sheets
     else:
         sheets = query.order_by(WorkspaceSheet.sheet_index).all()
 
