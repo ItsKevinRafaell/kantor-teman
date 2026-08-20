@@ -140,12 +140,21 @@ class ReportSnapshot(Base):
     max_duration_seconds = Column(Integer, nullable=False, default=0)
     generated_document_id = Column(String(36), ForeignKey("generated_documents.id"), nullable=True)
     status = Column(String(50), nullable=False, default="Draft")
+    # ── Report-triggered invoice (plan report->invoice, prinsip Kevin) ──
+    # status "final" = report sudah di-APPROVE/finalkan → pemicu draft invoice.
+    # finalized_at/by: jejak audit siapa & kapan finalkan.
+    # generated_invoice_id: link eksplisit report -> invoice (GeneratedDocument)
+    # yang jadi turunan report ini. Fondasi anti-duplikat: 1 report final = 1 invoice.
+    finalized_at = Column(String(255), nullable=True)
+    finalized_by = Column(String(255), nullable=True)
+    generated_invoice_id = Column(String(36), ForeignKey("generated_documents.id"), nullable=True)
     generated_by = Column(String(255), nullable=True)
     created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
     updated_at = Column(String(255), nullable=True)
     project = relationship("Project", foreign_keys=[project_id])
     lead = relationship("Lead", foreign_keys=[lead_id])
     generated_document = relationship("GeneratedDocument", foreign_keys=[generated_document_id])
+    generated_invoice = relationship("GeneratedDocument", foreign_keys=[generated_invoice_id])
 
 
 class DocumentSequence(Base):
