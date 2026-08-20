@@ -1485,6 +1485,9 @@ def snapshot_payload(snapshot: ReportSnapshot) -> dict:
         "max_duration_seconds": snapshot.max_duration_seconds,
         "generated_document_id": snapshot.generated_document_id,
         "status": snapshot.status,
+        "finalized_at": snapshot.finalized_at,
+        "finalized_by": snapshot.finalized_by,
+        "generated_invoice_id": snapshot.generated_invoice_id,
         "generated_by": snapshot.generated_by,
         "created_at": snapshot.created_at,
         "updated_at": snapshot.updated_at,
@@ -1524,3 +1527,214 @@ def track_public_duration(db: Session, slug: str, duration_seconds: int) -> Repo
     db.commit()
     db.refresh(snapshot)
     return snapshot
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REPORT FINAL → DRAFT INVOICE (plan report->invoice, prinsip Kevin)
+#
+# Model bisnis: invoice keluar SETELAH laporan bulanan di-FINALKAN (approved),
+# BUKAN by tanggal (scheduler OFF). Prinsip mutlak Kevin:
+#   1. Invoice = turunan report yang sudah final, bukan bikin dari nol.
+#   2. ANTI-DUPLIKAT MUTLAK: 1 report/periode/klien = 1 invoice. Finalkan 2x →
+#      return invoice yang ada, JANGAN bikin baru.
+#   3. Draft invoice EDITABLE in-place (via endpoint /edit yang sudah ada),
+#      bukan hapus-lalu-buat-ulang.
+# Reuse pola generate invoice yang sudah ada di sales_workflow_service
+# (_generate_workflow_document) — JANGAN bikin mekanisme invoice baru.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Prefix penanda invoice-dari-report di template_name GeneratedDocument.
+# Dipakai sebagai kunci anti-duplikat per project+periode.
+INVOICE_FROM_REPORT_PREFIX = "Invoice Laporan"
+
+
+def _report_period_tag(snapshot: ReportSnapshot) -> str:
+    """Tag periode stabil untuk 1 report → 1 invoice per project+periode.
+
+    Prioritas: month_number (M01..) > period_start (YYYY-MM) > created_at (YYYY-MM).
+    Tag ini yang bikin dua report periode sama TIDAK menghasilkan dua invoice.
+    """
+    if snapshot.month_number:
+        return f"M{int(snapshot.month_number):02d}"
+    for candidate in (snapshot.period_start, snapshot.period_end, snapshot.created_at):
+        if candidate and len(str(candidate)) >= 7:
+            return str(candidate)[:7]  # YYYY-MM
+    return datetime.now(timezone.utc).strftime("%Y-%m")
+
+
+def _find_report_invoice(db: Session, project_id: str, period_tag: str) -> Optional[GeneratedDocument]:
+    """Cari invoice-dari-report yang sudah ada untuk project + periode ini.
+
+    Anti-duplikat mutlak: kunci = target project + template_name berpenanda
+    periode. Kalau ADA → itu yang dipakai (return existing), JANGAN bikin baru.
+    """
+    template_name = f"{INVOICE_FROM_REPORT_PREFIX} {period_tag}"
+    return db.query(GeneratedDocument).filter(
+        GeneratedDocument.target_type == "project",
+        GeneratedDocument.target_id == project_id,
+        GeneratedDocument.template_name == template_name,
+    ).order_by(GeneratedDocument.generated_at.asc()).first()
+
+
+def _invoice_payload(snapshot: ReportSnapshot) -> dict:
+    """Bangun payload ringkas invoice dari snapshot (untuk response endpoint)."""
+    if not snapshot.generated_invoice_id:
+        return {}
+    return {
+        "id": snapshot.generated_invoice_id,
+        "period_tag": _report_period_tag(snapshot),
+    }
+
+
+def finalize_report_and_generate_invoice(
+    db: Session,
+    report_id: str,
+    actor: str,
+) -> dict:
+    """Finalkan report → pemicu DRAFT invoice (idempotent, anti-duplikat mutlak).
+
+    Return dict: {snapshot, invoice_id, invoice_created(bool), reused(bool),
+                  already_final(bool)}.
+
+    Alur (urutan penting — cek dedup DULU sebelum bikin):
+      1. Ambil snapshot. Kalau sudah `final` → return existing (idempotent).
+      2. Report WAJIB terkait project (invoice butuh project). Kalau tidak →
+         error jelas (jangan bikin invoice ngambang).
+      3. Cek anti-duplikat DULU:
+         a. Kalau snapshot.generated_invoice_id sudah ada → pakai itu.
+         b. Kalau ada invoice-dari-report untuk project+periode ini (mis. dari
+            report lain periode sama) → link ke itu, JANGAN bikin baru.
+      4. Kalau BELUM ada → generate DRAFT invoice UNPAID (reuse pola
+         _generate_workflow_document), tag template_name dgn periode, link.
+      5. Set status=final + finalized_at/by. Commit sekali di akhir.
+    """
+    from app.services.sales_workflow_service import (
+        _generate_workflow_document,
+        _items_rows,
+    )
+    from app.services.notification_service import create_notification
+    from app.constants import DocumentStatus, PaymentStatus
+
+    snapshot = db.query(ReportSnapshot).filter(ReportSnapshot.id == report_id).first()
+    if not snapshot:
+        raise ValueError("Laporan tidak ditemukan")
+
+    now = _now()
+    period_tag = _report_period_tag(snapshot)
+
+    # ── (1) Idempotent: sudah final → return existing, JANGAN proses ulang ──
+    if (snapshot.status or "").lower() == "final":
+        return {
+            "snapshot": snapshot,
+            "invoice_id": snapshot.generated_invoice_id,
+            "invoice_created": False,
+            "reused": True,
+            "already_final": True,
+        }
+
+    # ── (2) Report harus terkait project (invoice butuh project + retainer) ──
+    project = None
+    if snapshot.project_id:
+        project = db.query(Project).filter(Project.id == snapshot.project_id).first()
+    if not project:
+        raise ValueError(
+            "Report ini tidak terkait project, tidak bisa dibuatkan invoice. "
+            "Finalkan hanya untuk laporan project (bulanan/selesai)."
+        )
+
+    lead = None
+    if project.lead_id:
+        lead = db.query(Lead).filter(Lead.id == project.lead_id).first()
+    client_name = (lead.business_name if lead else None) or project.name or "Klien"
+
+    # ── (3) ANTI-DUPLIKAT DULU (sebelum bikin apa pun) ──
+    # 3a. Report ini sudah punya link invoice? pakai itu.
+    invoice_doc = None
+    if snapshot.generated_invoice_id:
+        invoice_doc = db.query(GeneratedDocument).filter(
+            GeneratedDocument.id == snapshot.generated_invoice_id
+        ).first()
+    # 3b. Ada invoice-dari-report untuk project+periode ini (dari report lain
+    #     periode sama)? link ke itu — 1 project/periode = 1 invoice.
+    if not invoice_doc:
+        invoice_doc = _find_report_invoice(db, project.id, period_tag)
+
+    invoice_created = False
+    reused = invoice_doc is not None
+
+    # ── (4) Belum ada → generate DRAFT invoice (reuse pola yang sudah ada) ──
+    if not invoice_doc:
+        nominal = project.nominal or 0
+        service_label = project.name or client_name
+        invoice_doc, err = _generate_workflow_document(
+            db,
+            "invoice",
+            "project",
+            project.id,
+            {
+                "klien": client_name,
+                "nama": client_name,
+                "alamat": (lead.address if lead else "") or "",
+                "phone": (lead.phone_number if lead else "") or "",
+                "layanan": service_label,
+                "items_rows": _items_rows([
+                    {"name": f"Layanan {service_label} - periode {period_tag}", "price": nominal}
+                ]),
+                "catatan": (
+                    f"Invoice atas laporan '{snapshot.title}' yang telah difinalkan. "
+                    "Draft — admin perlu review/revisi sebelum dikirim ke klien."
+                ),
+                "terms": "Invoice dibuat sebagai DRAFT dari laporan final. Perlu persetujuan admin sebelum dikirim.",
+            },
+            actor,
+            DocumentStatus.DRAFT,
+            PaymentStatus.UNPAID,
+            f"{INVOICE_FROM_REPORT_PREFIX} {period_tag}",
+            client_name,
+            project.name,
+            "Invoice",
+        )
+        if not invoice_doc:
+            raise ValueError(f"Gagal membuat draft invoice dari laporan: {err}")
+        # Tandai template_name dgn periode (kunci anti-duplikat run berikutnya).
+        invoice_doc.template_name = f"{INVOICE_FROM_REPORT_PREFIX} {period_tag}"
+        invoice_doc.status = DocumentStatus.DRAFT
+        invoice_doc.payment_status = PaymentStatus.UNPAID
+        db.flush()
+        invoice_created = True
+
+    # ── (5) Link report ↔ invoice + set status final ──
+    snapshot.generated_invoice_id = invoice_doc.id
+    snapshot.status = "final"
+    snapshot.finalized_at = now
+    snapshot.finalized_by = actor
+    snapshot.updated_at = now
+    db.flush()
+
+    # Notif web "Draft invoice siap direview" (hanya saat baru dibuat).
+    if invoice_created:
+        try:
+            create_notification(
+                db,
+                title="Draft invoice siap direview",
+                message=(
+                    f"Laporan '{snapshot.title}' difinalkan. Draft invoice untuk "
+                    f"{client_name} (periode {period_tag}) sudah dibuat — review sebelum kirim."
+                ),
+                notif_type="invoice",
+                target_type="generated_document",
+                target_id=invoice_doc.id,
+                action_url="/documents",
+            )
+        except Exception as exc:
+            print(f"[REPORT_FINALIZE] notif skip: {exc}", flush=True)
+
+    db.commit()
+    db.refresh(snapshot)
+    return {
+        "snapshot": snapshot,
+        "invoice_id": invoice_doc.id,
+        "invoice_created": invoice_created,
+        "reused": reused,
+        "already_final": False,
+    }

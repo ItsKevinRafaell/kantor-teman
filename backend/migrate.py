@@ -129,6 +129,10 @@ if "mysql" in _db_url:
         ("generated_documents", "sent_at", "ALTER TABLE generated_documents ADD COLUMN sent_at VARCHAR(255) NULL"),
         ("generated_documents", "signed_at", "ALTER TABLE generated_documents ADD COLUMN signed_at VARCHAR(255) NULL"),
         ("generated_documents", "archived_at", "ALTER TABLE generated_documents ADD COLUMN archived_at VARCHAR(255) NULL"),
+        # report_snapshots — report-triggered invoice (plan report->invoice)
+        ("report_snapshots", "finalized_at", "ALTER TABLE report_snapshots ADD COLUMN finalized_at VARCHAR(255) NULL"),
+        ("report_snapshots", "finalized_by", "ALTER TABLE report_snapshots ADD COLUMN finalized_by VARCHAR(255) NULL"),
+        ("report_snapshots", "generated_invoice_id", "ALTER TABLE report_snapshots ADD COLUMN generated_invoice_id VARCHAR(36) NULL"),
     ]
 
     # Backfill contacts.lead_id by phone match
@@ -224,6 +228,9 @@ if "mysql" in _db_url:
                 max_duration_seconds INT NOT NULL DEFAULT 0,
                 generated_document_id VARCHAR(36) NULL,
                 status VARCHAR(50) NOT NULL DEFAULT 'Draft',
+                finalized_at VARCHAR(255) NULL,
+                finalized_by VARCHAR(255) NULL,
+                generated_invoice_id VARCHAR(36) NULL,
                 generated_by VARCHAR(255) NULL,
                 created_at VARCHAR(255) NOT NULL,
                 updated_at VARCHAR(255) NULL,
@@ -564,6 +571,9 @@ CREATE TABLE IF NOT EXISTS report_snapshots (
     max_duration_seconds INTEGER NOT NULL DEFAULT 0,
     generated_document_id TEXT,
     status TEXT NOT NULL DEFAULT 'Draft',
+    finalized_at TEXT,
+    finalized_by TEXT,
+    generated_invoice_id TEXT,
     generated_by TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT
@@ -572,6 +582,22 @@ CREATE TABLE IF NOT EXISTS report_snapshots (
 cur.execute("CREATE INDEX IF NOT EXISTS idx_report_snapshots_project_id ON report_snapshots(project_id)")
 cur.execute("CREATE INDEX IF NOT EXISTS idx_report_snapshots_lead_id ON report_snapshots(lead_id)")
 cur.execute("CREATE INDEX IF NOT EXISTS idx_report_snapshots_slug ON report_snapshots(public_slug)")
+# Idempotent ALTER untuk DB dev lama (CREATE TABLE IF NOT EXISTS di atas tak
+# menambah kolom baru ke tabel yang sudah ada). Report-triggered invoice +
+# fondasi status draft/final (FIX#4 status, plan report->invoice sisanya).
+cur.execute("PRAGMA table_info(report_snapshots)")
+_rs_cols = {row[1] for row in cur.fetchall()}
+for _col, _ddl in [
+    ("status", "ALTER TABLE report_snapshots ADD COLUMN status TEXT NOT NULL DEFAULT 'Draft'"),
+    ("finalized_at", "ALTER TABLE report_snapshots ADD COLUMN finalized_at TEXT"),
+    ("finalized_by", "ALTER TABLE report_snapshots ADD COLUMN finalized_by TEXT"),
+    ("generated_invoice_id", "ALTER TABLE report_snapshots ADD COLUMN generated_invoice_id TEXT"),
+]:
+    if _rs_cols and _col not in _rs_cols:
+        cur.execute(_ddl)
+        print(f"+ report_snapshots.{_col} ditambahkan")
+    elif _rs_cols:
+        print(f"= report_snapshots.{_col} sudah ada, skip")
 print("+ tabel report_snapshots ready")
 
 cur.execute("""
