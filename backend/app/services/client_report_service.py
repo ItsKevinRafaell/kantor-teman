@@ -21,7 +21,11 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import UPLOADS_DIR, FRONTEND_URL
 from app.services.document_service import _slugify_name, build_brand_context
-from app.services.pdf_renderer import render_pdf_from_html
+from app.services.pdf_renderer import (
+    render_pdf_from_html,
+    render_report_pdf_reportlab,
+    render_text_fallback_pdf,
+)
 from app.services.sales_workflow_service import archive_generated_document
 from models import (
     Board,
@@ -1394,7 +1398,16 @@ def create_report_snapshot(
     payload["snapshot"] = {"id": snapshot.id, "public_slug": snapshot.public_slug}
     brand = build_brand_context(db)
     rendered_html = render_report_html(payload, brand)
-    pdf_bytes = render_pdf_from_html(rendered_html, UPLOADS_DIR)
+    # Report PDF: pakai renderer reportlab KHUSUS report (KPI cards berwarna +
+    # tabel berborder, teks BENER di shared host). Weasyprint garbled & textfb
+    # polos, jadi reportlab-report duluan; kalau raise -> jaring pengaman ke
+    # textfb (teks selalu kebaca walau tanpa styling). JANGAN pakai
+    # render_pdf_from_html (itu untuk invoice/kontrak, emit placeholder buat report).
+    try:
+        pdf_bytes = render_report_pdf_reportlab(payload, brand)
+    except Exception as exc:
+        print(f"[REPORT_PDF] reportlab-report gagal, fallback textfb: {exc}", flush=True)
+        pdf_bytes = render_text_fallback_pdf(rendered_html)
 
     file_id = str(uuid.uuid4())
     pdf_filename = f"{file_id}.pdf"
