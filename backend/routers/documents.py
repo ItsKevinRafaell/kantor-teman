@@ -1151,6 +1151,84 @@ def _apply_final_document_number(db: Session, template_type: str, full_vars: dic
         full_vars["nomor"] = number
 
 
+_ALLOWED_IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+_ALLOWED_IMAGE_MIME = {"image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"}
+_DATA_IMAGE_RE = re.compile(r"^data:(image/(?:png|jpe?g|webp|gif));base64,([A-Za-z0-9+/=\s]+)$", re.IGNORECASE)
+
+
+def _sanitize_image_src(raw) -> str:
+    """Return a safe image src (http(s) URL or validated image data URI), else ""."""
+    if not isinstance(raw, str):
+        return ""
+    src = raw.strip()
+    if not src:
+        return ""
+    # data: URI — must be an allowed image mime + valid base64 payload
+    if src.lower().startswith("data:"):
+        m = _DATA_IMAGE_RE.match(src)
+        if not m:
+            return ""
+        mime = m.group(1).lower().replace("image/jpg", "image/jpeg")
+        if mime not in _ALLOWED_IMAGE_MIME:
+            return ""
+        payload = re.sub(r"\s+", "", m.group(2))
+        try:
+            base64.b64decode(payload, validate=True)
+        except Exception:
+            return ""
+        return f"data:{mime};base64,{payload}"
+    # http(s) URL — must have an image extension in the path
+    parsed = urlparse(src)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return ""
+    ext = os.path.splitext(parsed.path)[1].lower()
+    if ext not in _ALLOWED_IMAGE_EXT:
+        return ""
+    return src
+
+
+def _build_attached_images_html(value) -> str:
+    """Build a safe <img> gallery block from user-supplied attached_images.
+
+    Accepts a list (or comma/newline-separated string) of image URLs or
+    base64 data URIs. Each entry may also be a dict {url|src, caption|label}.
+    Invalid / non-image entries are silently dropped. Returns "" when nothing
+    valid is present so the section is omitted entirely.
+    """
+    if not value:
+        return ""
+    items = value
+    if isinstance(value, str):
+        items = [p.strip() for p in re.split(r"[\n,]", value) if p.strip()]
+    if not isinstance(items, (list, tuple)):
+        items = [items]
+    blocks = []
+    for item in items[:12]:  # hard cap to keep PDFs sane
+        caption = ""
+        raw_src = item
+        if isinstance(item, dict):
+            raw_src = item.get("url") or item.get("src") or item.get("file_url") or ""
+            caption = str(item.get("caption") or item.get("label") or "").strip()
+        src = _sanitize_image_src(raw_src)
+        if not src:
+            continue
+        cap_html = f'<div class="attached-image-caption">{html_mod.escape(caption)}</div>' if caption else ""
+        blocks.append(
+            '<div class="attached-image-item" style="margin:8px 0;text-align:center">'
+            f'<img src="{html_mod.escape(src, quote=True)}" alt="{html_mod.escape(caption) or "Lampiran"}" '
+            'style="max-width:100%;max-height:420px;border:1px solid #e5e7eb;border-radius:6px"/>'
+            f"{cap_html}</div>"
+        )
+    if not blocks:
+        return ""
+    return (
+        '<div class="attached-images-section" style="margin-top:18px">'
+        '<div class="attached-images-title" style="font-weight:600;margin-bottom:6px">Lampiran</div>'
+        + "".join(blocks)
+        + "</div>"
+    )
+
+
 def _prepare_document_vars(
     db: Session,
     template: DocumentTemplate,
@@ -1227,6 +1305,15 @@ def _prepare_document_vars(
 
     if "logo" not in body.variables or body.variables.get("logo", "").strip() == "":
         full_vars["logo"] = brand_ctx.get("logo", "")
+    # Custom image attachments (bukti transfer, stempel, foto pekerjaan). User may
+    # pass variables.attached_images as a list of URLs/base64, a delimited string,
+    # or list of {url, caption}. Rendered into a safe, sanitized <img> block that
+    # templates can place via {{attached_images}}. Non-image / unsafe entries are
+    # dropped; empty result yields "" so no blank block appears.
+    raw_attached = body.variables.get("attached_images")
+    attached_html = _build_attached_images_html(raw_attached)
+    full_vars["attached_images"] = attached_html
+    full_vars["attached_images_html"] = attached_html
     if reserve_number:
         _apply_final_document_number(db, template_type, full_vars)
     return full_vars
@@ -1346,6 +1433,17 @@ def _render_document_pdf(template: DocumentTemplate, full_vars: dict) -> tuple[b
             rendered_html = _render_document_html(starter["html_template"], full_vars)
     if not _visible_document_text(rendered_html):
         raise HTTPException(status_code=400, detail="Template PDF kosong. Isi HTML template terlebih dahulu.")
+
+    # Auto-append custom attached images when the template did not explicitly
+    # place {{attached_images}} — guarantees bukti transfer / stempel / foto
+    # pekerjaan show up even on legacy fixed templates. Skips silently when there
+    # are no valid images, so no empty block is ever added.
+    attached_html = full_vars.get("attached_images") or ""
+    if attached_html and "attached-images-section" not in rendered_html:
+        if "</body>" in rendered_html:
+            rendered_html = rendered_html.replace("</body>", attached_html + "</body>", 1)
+        else:
+            rendered_html = rendered_html + attached_html
 
     try:
         pdf, renderer = render_pdf_from_html_with_meta(rendered_html, UPLOADS_DIR, template_type=template_type)

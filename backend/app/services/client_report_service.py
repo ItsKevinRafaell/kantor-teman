@@ -949,15 +949,35 @@ def _list_items(items: Any) -> str:
 
 
 def _render_metric_cards(payload: dict) -> str:
-    summary = payload.get("workspace", {}).get("summary", {})
-    board = payload.get("metrics", {}).get("board", {})
-    pagespeed = payload.get("metrics", {}).get("pagespeed", {})
-    cards = [
-        ("Progress tugas", f"{summary.get('completion_pct', 0)}%"),
-        ("Tugas selesai", f"{summary.get('completed_tasks', 0)} / {summary.get('total_tasks', 0)}"),
-        ("Card aktif", _format_number(sum(col.get("count", 0) for col in board.get("columns", [])))),
-        ("PageSpeed mobile", _format_number(pagespeed.get("performance_score")) if pagespeed.get("status") == "ok" else "Belum tersedia"),
-    ]
+    """Render KPI cards, skipping any card whose data is empty/null/0/error.
+
+    Per Kevin: never force-render blank/"Belum tersedia" blocks to clients.
+    - Progress tugas & Tugas selesai: only when workspace has tasks (total_tasks > 0)
+    - Card aktif: only when there is at least one active card
+    - PageSpeed mobile: only when pagespeed.status == "ok" (drops HTTP 429/error)
+    If nothing qualifies, the whole KPI grid is omitted.
+    """
+    summary = payload.get("workspace", {}).get("summary", {}) or {}
+    board = payload.get("metrics", {}).get("board", {}) or {}
+    pagespeed = payload.get("metrics", {}).get("pagespeed", {}) or {}
+
+    cards: list[tuple[str, str]] = []
+
+    total_tasks = summary.get("total_tasks") or 0
+    if total_tasks:
+        cards.append(("Progress tugas", f"{summary.get('completion_pct', 0)}%"))
+        cards.append(("Tugas selesai", f"{summary.get('completed_tasks', 0)} / {total_tasks}"))
+
+    active_cards = sum(col.get("count", 0) for col in board.get("columns", []))
+    if active_cards:
+        cards.append(("Card aktif", _format_number(active_cards)))
+
+    ps_score = pagespeed.get("performance_score")
+    if pagespeed.get("status") == "ok" and ps_score not in (None, "", 0):
+        cards.append(("PageSpeed mobile", _format_number(ps_score)))
+
+    if not cards:
+        return ""
     return '<div class="kpi-grid">' + "".join(
         f'<div class="kpi"><div class="label">{_safe_text(label)}</div><div class="value">{_safe_text(value)}</div></div>'
         for label, value in cards
