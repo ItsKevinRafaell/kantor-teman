@@ -79,6 +79,7 @@ if "mysql" in _db_url:
         ("projects", "monthly_invoice_enabled", "ALTER TABLE projects ADD COLUMN monthly_invoice_enabled TINYINT(1) NOT NULL DEFAULT 0"),
         ("projects", "next_invoice_date", "ALTER TABLE projects ADD COLUMN next_invoice_date VARCHAR(255) NULL"),
         ("projects", "completed_at", "ALTER TABLE projects ADD COLUMN completed_at VARCHAR(255) NULL"),
+        ("projects", "proposal_id", "ALTER TABLE projects ADD COLUMN proposal_id VARCHAR(36) NULL"),
         ("boards", "color", "ALTER TABLE boards ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'gray'"),
         ("board_columns", "color", "ALTER TABLE board_columns ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'gray'"),
         ("board_cards", "color", "ALTER TABLE board_cards ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT 'gray'"),
@@ -893,6 +894,7 @@ for col, ddl in [
     ("monthly_invoice_enabled", "ALTER TABLE projects ADD COLUMN monthly_invoice_enabled INTEGER NOT NULL DEFAULT 0"),
     ("next_invoice_date", "ALTER TABLE projects ADD COLUMN next_invoice_date TEXT"),
     ("completed_at", "ALTER TABLE projects ADD COLUMN completed_at TEXT"),
+    ("proposal_id", "ALTER TABLE projects ADD COLUMN proposal_id TEXT"),
 ]:
     if col not in proj_cols_billing:
         cur.execute(ddl)
@@ -900,6 +902,19 @@ for col, ddl in [
     else:
         print(f"= projects.{col} sudah ada, skip")
 conn.commit()
+
+# P0-1: UNIQUE index proposal_id -> satu proposal maksimal satu project.
+# Partial index (WHERE proposal_id IS NOT NULL) supaya row lama (proposal_id NULL)
+# tidak bentrok.
+try:
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_projects_proposal_id "
+        "ON projects(proposal_id) WHERE proposal_id IS NOT NULL"
+    )
+    conn.commit()
+    print("+ unique index ux_projects_proposal_id dipastikan ada")
+except Exception as _e:
+    print(f"= skip unique index projects.proposal_id: {_e}")
 
 # ---------------------------------------------------------------------------
 # Migrasi board_columns: tambah kolom color

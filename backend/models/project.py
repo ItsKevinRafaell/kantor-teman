@@ -9,6 +9,9 @@ class Project(Base):
     __tablename__ = "projects"
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     lead_id = Column(Integer, ForeignKey("leads.id"), nullable=True)
+    # P0-1: satu proposal maksimal satu project. UNIQUE mencegah double-accept
+    # race membuat 2 project untuk proposal yang sama.
+    proposal_id = Column(String(36), ForeignKey("proposals.id"), nullable=True, unique=True, index=True)
     name = Column(String(255), nullable=False)
     type = Column(String(255), nullable=False)  # FIXED / RETAINER
     status = Column(String(255), default="ACTIVE", nullable=False)  # ACTIVE / COMPLETED / HOLD
