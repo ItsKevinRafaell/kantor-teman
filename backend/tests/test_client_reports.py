@@ -453,3 +453,180 @@ def test_different_period_creates_separate_snapshot(db_session, monkeypatch):
     assert db_session.query(ReportSnapshot).count() == 2, "periode beda = snapshot beda"
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# REPORT FINAL → DRAFT INVOICE (plan report->invoice)
+# Yang dites di sini = LOGIKA finalize (idempotent + anti-duplikat mutlak),
+# BUKAN render PDF invoice. `_generate_workflow_document` di-patch supaya
+# nge-insert GeneratedDocument dummy (tanpa template/PDF) — kita cuma peduli
+# apakah finalize bikin invoice ganda atau engga.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _patch_invoice_generator(monkeypatch, svc):
+    """Patch _generate_workflow_document -> insert GeneratedDocument dummy.
+
+    Balikin counter dict biar test bisa hitung berapa kali generator dipanggil
+    (= berapa invoice fisik yang BENAR-BENAR dibuat). Anti-duplikat sejati =
+    generator dipanggil TEPAT 1x walau finalize dipanggil berkali-kali.
+    """
+    from models import GeneratedDocument
+    import uuid as _uuid
+
+    calls = {"n": 0}
+
+    def _fake_gen(db, template_type, target_type, target_id, variables, actor,
+                  status, payment_status, archive_title, client_name,
+                  project_name, doc_type_label):
+        calls["n"] += 1
+        doc = GeneratedDocument(
+            id=str(_uuid.uuid4()),
+            template_id=None,
+            template_name=archive_title,
+            target_type=target_type,
+            target_id=target_id,
+            variables_used="{}",
+            file_url="/x/dummy-invoice.pdf",
+            display_filename="dummy-invoice.pdf",
+            status=status,
+            payment_status=payment_status,
+            generated_by=actor,
+        )
+        db.add(doc)
+        db.flush()
+        return doc, None
+
+    # Patch di modul asalnya (sales_workflow_service) karena finalize import lokal.
+    from app.services import sales_workflow_service as sws
+    monkeypatch.setattr(sws, "_generate_workflow_document", _fake_gen)
+    return calls
+
+
+def _make_final_report(db_session, svc, monkeypatch, month_number=1):
+    monkeypatch.setattr(svc, "_fetch_pagespeed", lambda url: {"status": "ok"})
+    project = _seed_project_workspace(db_session)
+    snap = svc.create_report_snapshot(
+        db_session, target_type="project", target_id=project.id,
+        report_type="monthly", month_number=month_number, period_start=None,
+        period_end=None, manual_metrics={}, evidence={}, narrative={},
+        run_pagespeed=False, public_enabled=True, actor="Admin",
+    )
+    return project, snap
+
+
+def test_finalize_report_creates_draft_invoice_once(db_session, monkeypatch):
+    """Skenario 1: finalize sekali → 1 draft invoice UNPAID kebikin,
+    report jadi status final + ke-link ke invoice."""
+    from app.services import client_report_service as svc
+    from app.constants import DocumentStatus, PaymentStatus
+
+    calls = _patch_invoice_generator(monkeypatch, svc)
+    project, snap = _make_final_report(db_session, svc, monkeypatch)
+
+    result = svc.finalize_report_and_generate_invoice(db_session, snap.id, "Admin")
+
+    assert result["invoice_created"] is True
+    assert result["invoice_id"], "harus ada invoice_id"
+    assert calls["n"] == 1, "generator invoice dipanggil tepat 1x"
+    db_session.refresh(snap)
+    assert (snap.status or "").lower() == "final"
+    assert snap.finalized_by == "Admin"
+    assert snap.generated_invoice_id == result["invoice_id"]
+    from models import GeneratedDocument
+    inv = db_session.query(GeneratedDocument).get(result["invoice_id"])
+    assert inv.status == DocumentStatus.DRAFT
+    assert inv.payment_status == PaymentStatus.UNPAID
+
+
+def test_finalize_twice_no_duplicate_invoice(db_session, monkeypatch):
+    """Skenario 2: finalize 2x report yang SAMA → invoice TIDAK ganda,
+    return existing (idempotent), generator TIDAK dipanggil lagi."""
+    from app.services import client_report_service as svc
+    from models import GeneratedDocument
+
+    calls = _patch_invoice_generator(monkeypatch, svc)
+    project, snap = _make_final_report(db_session, svc, monkeypatch)
+
+    r1 = svc.finalize_report_and_generate_invoice(db_session, snap.id, "Admin")
+    r2 = svc.finalize_report_and_generate_invoice(db_session, snap.id, "Admin")
+
+    assert r1["invoice_id"] == r2["invoice_id"], "invoice sama, bukan baru"
+    assert r2["already_final"] is True
+    assert r2["invoice_created"] is False
+    assert calls["n"] == 1, "generator TETAP 1x walau finalize 2x"
+    inv_count = db_session.query(GeneratedDocument).filter(
+        GeneratedDocument.template_name.like("Invoice Laporan%")
+    ).count()
+    assert inv_count == 1, "cuma 1 invoice fisik"
+
+
+def test_two_reports_same_period_share_one_invoice(db_session, monkeypatch):
+    """Skenario 3: 2 report periode SAMA untuk project sama → tidak 2 invoice.
+    Report kedua nge-link ke invoice yang sudah ada (anti-duplikat per periode).
+
+    Catatan: dedup snapshot (#4) bikin regenerate periode sama jadi 1 snapshot,
+    tapi test ini mempertahankan 2 snapshot manual (project + periode sama tapi
+    beda id paksa) untuk mengetes guard anti-duplikat DI FINALIZE, bukan cuma
+    di snapshot. Kita simulasikan dua report objek berbeda periode sama."""
+    from app.services import client_report_service as svc
+    from models import GeneratedDocument, ReportSnapshot
+
+    calls = _patch_invoice_generator(monkeypatch, svc)
+    monkeypatch.setattr(svc, "_fetch_pagespeed", lambda url: {"status": "ok"})
+    project = _seed_project_workspace(db_session)
+
+    # Report A periode M01
+    snapA = svc.create_report_snapshot(
+        db_session, target_type="project", target_id=project.id,
+        report_type="monthly", month_number=1, period_start=None, period_end=None,
+        manual_metrics={}, evidence={}, narrative={}, run_pagespeed=False,
+        public_enabled=True, actor="Admin",
+    )
+    rA = svc.finalize_report_and_generate_invoice(db_session, snapA.id, "Admin")
+
+    # Report B: paksa snapshot kedua periode sama (bypass dedup dgn insert manual)
+    import uuid as _uuid
+    snapB = ReportSnapshot(
+        id=str(_uuid.uuid4()), project_id=project.id, report_type="monthly",
+        month_number=1, title="Laporan Manual Kedua M01", status="Draft",
+        public_slug=str(_uuid.uuid4())[:8], metrics_json="{}",
+        created_at=snapA.created_at,
+    )
+    db_session.add(snapB)
+    db_session.flush()
+    rB = svc.finalize_report_and_generate_invoice(db_session, snapB.id, "Admin")
+
+    assert rA["invoice_id"] == rB["invoice_id"], "periode sama = invoice sama"
+    assert rB["reused_existing_invoice"] if "reused_existing_invoice" in rB else rB["reused"], "report B pakai invoice existing"
+    assert calls["n"] == 1, "cuma 1 invoice fisik untuk periode sama"
+    inv_count = db_session.query(GeneratedDocument).filter(
+        GeneratedDocument.template_name.like("Invoice Laporan%")
+    ).count()
+    assert inv_count == 1
+
+
+def test_generate_report_draft_does_not_trigger_invoice(db_session, monkeypatch):
+    """Skenario 4: generate report berkali-kali (draft) TIDAK bikin invoice.
+    Cuma finalize yang trigger. Draft = 0 invoice."""
+    from app.services import client_report_service as svc
+    from models import GeneratedDocument
+
+    calls = _patch_invoice_generator(monkeypatch, svc)
+    monkeypatch.setattr(svc, "_fetch_pagespeed", lambda url: {"status": "ok"})
+    project = _seed_project_workspace(db_session)
+
+    base = dict(
+        target_type="project", target_id=project.id, report_type="monthly",
+        month_number=1, period_start=None, period_end=None, manual_metrics={},
+        evidence={}, narrative={}, run_pagespeed=False, public_enabled=True, actor="Admin",
+    )
+    svc.create_report_snapshot(db_session, **base)
+    svc.create_report_snapshot(db_session, **base)  # regenerate draft
+    svc.create_report_snapshot(db_session, **base)  # sekali lagi
+
+    assert calls["n"] == 0, "generate draft TIDAK boleh trigger invoice"
+    # invoice generator patch hitung 0; ga ada GeneratedDocument invoice dari finalize
+    invoice_docs = db_session.query(GeneratedDocument).filter(
+        GeneratedDocument.template_name.like("Invoice Laporan%")
+    ).count()
+    assert invoice_docs == 0
+
+
