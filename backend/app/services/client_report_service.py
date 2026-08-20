@@ -192,18 +192,34 @@ def _workspace_snapshot(db: Session, project_id: str, month_number: Optional[int
     query = db.query(WorkspaceSheet).filter(WorkspaceSheet.project_id == project_id)
     if month_number:
         month_sheet = query.filter(WorkspaceSheet.month_number == month_number).first()
+        # Sheet generik (month_number NULL) yang bisa dipakai sebagai fallback.
+        # Artikel Tracker dikecualikan (dihitung terpisah).
+        generic_sheets = query.filter(
+            WorkspaceSheet.month_number.is_(None),
+            WorkspaceSheet.sheet_label != "Artikel Tracker",
+        ).order_by(WorkspaceSheet.sheet_index).all()
+
         if month_sheet:
-            sheets = [month_sheet]
+            # Cek apakah sheet bulan ini punya task rows nyata. Kalau sheet
+            # bulanan ADA tapi KOSONG (belum diisi task), jangan bikin laporan
+            # 0 tugas — fallback ke sheet generik tempat kerjaan sebenarnya
+            # tercatat. Ini penyebab report "0 tugas" di prod: month-sheet
+            # dibuat otomatis tapi kosong, kerjaan nyata ada di sheet generik.
+            month_row_count = db.query(WorkspaceRow).filter(WorkspaceRow.sheet_id == month_sheet.id).count()
+            if month_row_count > 0:
+                sheets = [month_sheet]
+            else:
+                # Month-sheet kosong -> gabung generic sheets (kalau ada) supaya
+                # kerjaan tetap masuk. Kalau ga ada generic, tetap pakai month-sheet
+                # (biar struktur laporan tetap konsisten walau 0 task).
+                sheets = generic_sheets if generic_sheets else [month_sheet]
         else:
             # FALLBACK: workspace belum pakai struktur sheet-bulanan (month_number NULL).
             # Daripada laporan kosong (total_tasks=0), pakai sheet generik yang ada
             # supaya kerjaan yang tercatat tetap masuk laporan. Ini menyambungkan
             # rantai "kerjaan -> laporan" untuk project yang belum di-migrasi ke
-            # sheet per-bulan. Sheet Artikel Tracker dikecualikan (dihitung terpisah).
-            sheets = query.filter(
-                WorkspaceSheet.month_number.is_(None),
-                WorkspaceSheet.sheet_label != "Artikel Tracker",
-            ).order_by(WorkspaceSheet.sheet_index).all()
+            # sheet per-bulan.
+            sheets = generic_sheets
     else:
         sheets = query.order_by(WorkspaceSheet.sheet_index).all()
 
@@ -1205,6 +1221,66 @@ img {{ max-width: 100%; height: auto; border-radius: 8px; display: block; margin
 </html>"""
 
 
+def _find_existing_snapshot(
+    db: Session,
+    *,
+    report_type: str,
+    project_id: Optional[str],
+    lead_id: Optional[int],
+    target_type: str,
+    target_id: Optional[str],
+    month_number: Optional[int],
+    period_start: Optional[str],
+    period_end: Optional[str],
+) -> Optional[ReportSnapshot]:
+    """Cari snapshot report yang sudah ada untuk kombinasi target + periode sama.
+
+    Dedup key (prinsip anti-duplikat Kevin):
+      - report_type harus sama
+      - target sama: project_id kalau ada, kalau tidak lead_id, kalau tidak
+        pakai target_type+target_id (untuk empty/internal report)
+      - periode sama: kalau month_number diisi -> match by month_number,
+        kalau tidak -> match by period_start + period_end.
+
+    Return snapshot terlama (created_at asc) supaya kalau sudah terlanjur ada
+    duplikat, kita konsolidasi ke satu yang paling awal. Kalau tidak ada
+    kriteria periode yang jelas (semua None), return None (jangan sok tebak).
+    """
+    query = db.query(ReportSnapshot).filter(ReportSnapshot.report_type == report_type)
+
+    if project_id:
+        query = query.filter(ReportSnapshot.project_id == project_id)
+    elif lead_id is not None:
+        query = query.filter(
+            ReportSnapshot.lead_id == lead_id,
+            ReportSnapshot.project_id.is_(None),
+        )
+    elif target_id:
+        query = query.filter(
+            ReportSnapshot.target_type == target_type,
+            ReportSnapshot.target_id == target_id,
+            ReportSnapshot.project_id.is_(None),
+            ReportSnapshot.lead_id.is_(None),
+        )
+    else:
+        # Tanpa target yang jelas (empty report tanpa target_id) -> tidak dedup.
+        return None
+
+    if month_number is not None:
+        query = query.filter(ReportSnapshot.month_number == month_number)
+    elif period_start or period_end:
+        query = query.filter(
+            ReportSnapshot.month_number.is_(None),
+            ReportSnapshot.period_start == period_start,
+            ReportSnapshot.period_end == period_end,
+        )
+    else:
+        # Tidak ada penanda periode -> tidak bisa dedup dengan aman.
+        return None
+
+    return query.order_by(ReportSnapshot.created_at.asc()).first()
+
+
 def create_report_snapshot(
     db: Session,
     *,
@@ -1242,30 +1318,78 @@ def create_report_snapshot(
         project = db.query(Project).filter(Project.id == project_id).first()
         lead_id = project.lead_id if project else None
 
-    snapshot = ReportSnapshot(
-        id=str(uuid.uuid4()),
+    # DEDUP (prinsip Kevin: REVISI yang ada, JANGAN create baru).
+    # Sebelum bikin snapshot baru, cek apakah sudah ada report untuk
+    # kombinasi target + report_type + periode yang sama. Kalau ADA →
+    # UPDATE in-place (regenerate isi + ganti PDF), JANGAN bikin row baru.
+    # Ini fondasi biar 1 report/periode = 1 invoice (plan report->invoice).
+    existing = _find_existing_snapshot(
+        db,
         report_type=report_type,
-        target_type=payload["target_type"],
-        target_id=target_id,
         project_id=project_id,
         lead_id=lead_id,
-        service_type=payload["service_type"],
-        title=payload["title"],
+        target_type=payload["target_type"],
+        target_id=target_id,
+        month_number=month_number,
         period_start=period_start,
         period_end=period_end,
-        month_number=month_number,
-        metrics_json=json.dumps(payload["metrics"], ensure_ascii=False),
-        evidence_json=json.dumps(payload["evidence"], ensure_ascii=False),
-        narrative_json=json.dumps(payload["narrative"], ensure_ascii=False),
-        public_slug=_make_public_slug(db, payload["title"]) if public_enabled else None,
-        public_enabled=public_enabled,
-        status="Draft",
-        generated_by=actor,
-        created_at=_now(),
-        updated_at=_now(),
     )
-    db.add(snapshot)
-    db.flush()
+
+    metrics_json = json.dumps(payload["metrics"], ensure_ascii=False)
+    evidence_json = json.dumps(payload["evidence"], ensure_ascii=False)
+    narrative_json = json.dumps(payload["narrative"], ensure_ascii=False)
+
+    if existing is not None:
+        # Regenerate in-place: pertahankan id, public_slug (link publik stabil),
+        # open_count/first_viewed_at (analytics). Timpa konten & PDF.
+        old_document_id = existing.generated_document_id
+        snapshot = existing
+        snapshot.report_type = report_type
+        snapshot.target_type = payload["target_type"]
+        snapshot.target_id = target_id
+        snapshot.project_id = project_id
+        snapshot.lead_id = lead_id
+        snapshot.service_type = payload["service_type"]
+        snapshot.title = payload["title"]
+        snapshot.period_start = period_start
+        snapshot.period_end = period_end
+        snapshot.month_number = month_number
+        snapshot.metrics_json = metrics_json
+        snapshot.evidence_json = evidence_json
+        snapshot.narrative_json = narrative_json
+        # Kalau publik diaktifkan tapi belum punya slug (dulu di-generate non-publik), buatkan.
+        if public_enabled and not snapshot.public_slug:
+            snapshot.public_slug = _make_public_slug(db, payload["title"])
+        snapshot.public_enabled = public_enabled
+        snapshot.generated_by = actor
+        snapshot.updated_at = _now()
+        db.flush()
+    else:
+        old_document_id = None
+        snapshot = ReportSnapshot(
+            id=str(uuid.uuid4()),
+            report_type=report_type,
+            target_type=payload["target_type"],
+            target_id=target_id,
+            project_id=project_id,
+            lead_id=lead_id,
+            service_type=payload["service_type"],
+            title=payload["title"],
+            period_start=period_start,
+            period_end=period_end,
+            month_number=month_number,
+            metrics_json=metrics_json,
+            evidence_json=evidence_json,
+            narrative_json=narrative_json,
+            public_slug=_make_public_slug(db, payload["title"]) if public_enabled else None,
+            public_enabled=public_enabled,
+            status="Draft",
+            generated_by=actor,
+            created_at=_now(),
+            updated_at=_now(),
+        )
+        db.add(snapshot)
+        db.flush()
 
     payload["snapshot"] = {"id": snapshot.id, "public_slug": snapshot.public_slug}
     brand = build_brand_context(db)
@@ -1299,6 +1423,25 @@ def create_report_snapshot(
     db.add(doc)
     db.flush()
     snapshot.generated_document_id = doc.id
+
+    # Kalau ini regenerate in-place, hapus GeneratedDocument + file PDF lama
+    # supaya arsip dokumen tidak menumpuk (anti-duplikat, prinsip Kevin).
+    if old_document_id and old_document_id != doc.id:
+        old_doc = db.query(GeneratedDocument).filter(GeneratedDocument.id == old_document_id).first()
+        if old_doc:
+            old_url = old_doc.file_url or ""
+            if old_url:
+                old_path = os.path.join(DOCUMENTS_DIR, os.path.basename(old_url))
+                try:
+                    if os.path.exists(old_path):
+                        os.remove(old_path)
+                except Exception as exc:
+                    print(f"[REPORT_DEDUP] gagal hapus PDF lama: {exc}", flush=True)
+            try:
+                db.delete(old_doc)
+                db.flush()
+            except Exception as exc:
+                print(f"[REPORT_DEDUP] gagal hapus dokumen lama: {exc}", flush=True)
 
     try:
         archive_generated_document(

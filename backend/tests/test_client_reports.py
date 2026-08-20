@@ -333,3 +333,123 @@ def test_report_no_month_still_counts_generic_sheet(db_session):
     snap = svc._workspace_snapshot(db_session, project.id, month_number=None)
     assert snap["summary"]["total_tasks"] == 1
 
+
+def test_report_empty_month_sheet_falls_back_to_generic(db_session):
+    """FIX#3: month-sheet ADA tapi KOSONG (0 task rows) sementara kerjaan nyata
+    ada di sheet generik. Report harus fallback ke generik, BUKAN kasih 0 tugas.
+    Ini penyebab report MLS 'total_tasks=0' di prod (month-sheet auto-dibuat
+    tapi kosong, kerjaan tercatat di sheet generik)."""
+    from app.services import client_report_service as svc
+
+    project = _seed_project_generic_sheet(db_session)  # punya generic sheet + 1 task
+    # Tambah month-sheet KOSONG untuk bulan 1 (tanpa rows).
+    empty_month = WorkspaceSheet(
+        id="empty-month-1",
+        project_id=project.id,
+        sheet_index=1,
+        sheet_label="Bulan 1",
+        service_type="seo_gmaps",
+        month_number=1,
+    )
+    db_session.add(empty_month)
+    db_session.commit()
+
+    snap = svc._workspace_snapshot(db_session, project.id, month_number=1)
+    assert snap["summary"]["total_tasks"] == 1, "month-sheet kosong harus fallback ke generic sheet"
+    assert snap["tasks"], "tasks list tidak boleh kosong"
+
+
+def test_report_populated_month_sheet_uses_only_month(db_session):
+    """Kalau month-sheet ADA task-nya, pakai HANYA month-sheet itu (jangan
+    ikut gabung generic) supaya laporan bulanan tetap akurat per-bulan."""
+    from app.services import client_report_service as svc
+
+    project = _seed_project_workspace(db_session)  # sudah punya month-sheet=1 dgn 1 task
+    # Tambah generic sheet dgn 2 task; harusnya TIDAK ikut karena month-sheet ada isinya.
+    generic = WorkspaceSheet(id="extra-generic", project_id=project.id, sheet_index=5,
+                             sheet_label="Operasional", service_type="seo_gmaps", month_number=None)
+    db_session.add(generic)
+    gcol = WorkspaceColumn(id="eg-col", sheet_id=generic.id, column_key="task_name",
+                           column_label="Task", column_type="text", column_order=0)
+    db_session.add(gcol)
+    for i in range(2):
+        r = WorkspaceRow(id=f"eg-row-{i}", sheet_id=generic.id, row_order=i, is_template=False)
+        db_session.add(r)
+        db_session.add(WorkspaceCell(id=f"eg-cell-{i}", row_id=r.id, column_id=gcol.id, value_text=f"X{i}"))
+    db_session.commit()
+
+    snap = svc._workspace_snapshot(db_session, project.id, month_number=1)
+    assert snap["summary"]["total_tasks"] == 1, "month-sheet berisi -> hanya hitung month-sheet"
+
+
+
+def test_regenerate_same_period_updates_in_place_no_duplicate(db_session, monkeypatch):
+    """DEDUP (prinsip Kevin): generate report untuk project+periode yang SAMA
+    dua kali harus tetap 1 snapshot (ke-UPDATE in-place), BUKAN 2 row baru.
+    Fondasi report->invoice: 1 report/periode = 1 invoice."""
+    from app.services import client_report_service as svc
+    from models import GeneratedDocument
+
+    project = _seed_project_workspace(db_session)
+    monkeypatch.setattr(svc, "_fetch_pagespeed", lambda url: {"status": "ok", "url": url, "performance_score": 88})
+
+    kwargs = dict(
+        target_type="project",
+        target_id=project.id,
+        report_type="monthly",
+        month_number=1,
+        period_start=None,
+        period_end=None,
+        evidence={},
+        narrative={},
+        run_pagespeed=False,
+        public_enabled=True,
+        actor="Admin",
+    )
+
+    snap1 = svc.create_report_snapshot(db_session, manual_metrics={"gsc_clicks": 100}, **kwargs)
+    first_id = snap1.id
+    first_slug = snap1.public_slug
+    first_doc_id = snap1.generated_document_id
+    first_pdf = os.path.join(svc.DOCUMENTS_DIR, os.path.basename(
+        db_session.query(GeneratedDocument).get(first_doc_id).file_url))
+
+    # Generate ULANG periode yang sama dengan angka berbeda.
+    snap2 = svc.create_report_snapshot(db_session, manual_metrics={"gsc_clicks": 250}, **kwargs)
+
+    # 1) Tetap 1 snapshot (di-update, bukan numpuk)
+    assert db_session.query(ReportSnapshot).count() == 1, "harus tetap 1 snapshot setelah regenerate"
+    # 2) Snapshot id sama (update in-place)
+    assert snap2.id == first_id
+    # 3) Public slug stabil (link publik ga berubah)
+    assert snap2.public_slug == first_slug
+    # 4) Konten ke-update (angka baru masuk metrics)
+    import json as _json
+    metrics = _json.loads(snap2.metrics_json)
+    assert metrics["manual"]["gsc_clicks"] == 250
+    # 5) Dokumen lama dibersihkan: hanya 1 GeneratedDocument tersisa
+    assert db_session.query(GeneratedDocument).count() == 1, "dokumen lama harus dihapus (anti-duplikat)"
+    # 6) PDF lama dihapus dari disk, PDF baru ada
+    assert not os.path.exists(first_pdf), "PDF lama harus dihapus dari disk"
+    new_doc = db_session.query(GeneratedDocument).get(snap2.generated_document_id)
+    assert os.path.exists(os.path.join(svc.DOCUMENTS_DIR, os.path.basename(new_doc.file_url)))
+
+
+def test_different_period_creates_separate_snapshot(db_session, monkeypatch):
+    """Periode BEDA (month 1 vs month 2) tetap bikin snapshot terpisah —
+    dedup hanya untuk periode yang sama, bukan menggabung semua."""
+    from app.services import client_report_service as svc
+
+    project = _seed_project_workspace(db_session)
+    monkeypatch.setattr(svc, "_fetch_pagespeed", lambda url: {"status": "ok"})
+
+    base = dict(
+        target_type="project", target_id=project.id, report_type="monthly",
+        period_start=None, period_end=None, manual_metrics={}, evidence={},
+        narrative={}, run_pagespeed=False, public_enabled=True, actor="Admin",
+    )
+    svc.create_report_snapshot(db_session, month_number=1, **base)
+    svc.create_report_snapshot(db_session, month_number=2, **base)
+    assert db_session.query(ReportSnapshot).count() == 2, "periode beda = snapshot beda"
+
+
