@@ -18,6 +18,7 @@ from models import (
     DocumentTemplate, GeneratedDocument, Lead, Project, Proposal, SystemSettings,
     WorkspaceCell, WorkspaceColumn, WorkspaceRow, WorkspaceSheet,
 )
+from models.base import log_audit
 from app.core.dependencies import (
     ADMIN_WA,
     WORKSPACE_TEMPLATES,
@@ -211,34 +212,53 @@ def _generate_workflow_document(
     client_name: str,
     project_name: str,
     doc_type_label: str,
-) -> Optional[GeneratedDocument]:
+) -> tuple[Optional[GeneratedDocument], Optional[str]]:
+    """Generate satu dokumen workflow secara terisolasi.
+
+    Return (doc, failure_reason):
+      - (doc, None)         -> sukses
+      - (None, "missing_template:<type>") -> template tidak ada
+      - (None, "<pesan error>")           -> generate gagal
+
+    PENTING (fix P0-2): tiap generate dibungkus SAVEPOINT (db.begin_nested()),
+    JANGAN db.rollback() global. Kalau 1 dokumen gagal, cuma savepoint dokumen
+    itu yang dibatalkan — dokumen lain + invoice DP + notif yang sudah dibuat di
+    sesi yang sama TETAP aman (tidak ikut lenyap diam-diam).
+    """
     template = _find_template(db, template_type)
     if not template:
-        return None
+        return None, f"missing_template:{template_type}"
     try:
-        result = generate_document_pdf(
-            db=db,
-            template_id=template.id,
-            target_type=target_type,
-            target_id=target_id,
-            variables=variables,
-            actor=actor,
-        )
+        with db.begin_nested():  # SAVEPOINT: isolasi kegagalan per-dokumen
+            result = generate_document_pdf(
+                db=db,
+                template_id=template.id,
+                target_type=target_type,
+                target_id=target_id,
+                variables=variables,
+                actor=actor,
+            )
+            doc = db.query(GeneratedDocument).filter(
+                GeneratedDocument.id == result["document_id"]
+            ).first()
+            if not doc:
+                # rollback savepoint via raise -> tidak ada residu
+                raise RuntimeError("generated document row tidak ditemukan setelah generate")
+            doc.status = status
+            doc.payment_status = payment_status
+            try:
+                archive_generated_document(
+                    db, doc, archive_title, client_name, project_name, doc_type_label
+                )
+            except Exception as e:
+                # Arsip gagal tidak boleh membatalkan dokumen inti — cukup catat.
+                print(f"[WORKFLOW_ARCHIVE] skip {doc.id}: {e}", flush=True)
+            db.flush()
     except Exception as e:
-        print(f"[WORKFLOW_DOCUMENT] skip {template_type}: {e}", flush=True)
-        db.rollback()
-        return None
-    doc = db.query(GeneratedDocument).filter(GeneratedDocument.id == result["document_id"]).first()
-    if not doc:
-        return None
-    doc.status = status
-    doc.payment_status = payment_status
-    try:
-        archive_generated_document(db, doc, archive_title, client_name, project_name, doc_type_label)
-    except Exception as e:
-        print(f"[WORKFLOW_ARCHIVE] skip {doc.id}: {e}", flush=True)
-    db.flush()
-    return doc
+        # Hanya savepoint yang di-rollback; sesi utama tetap utuh.
+        print(f"[WORKFLOW_DOCUMENT] gagal {template_type}: {e}", flush=True)
+        return None, str(e)
+    return doc, None
 
 
 def ensure_contact_for_lead(db: Session, lead: Lead, owner_name: Optional[str] = None, phone: Optional[str] = None) -> Contact:
@@ -280,6 +300,7 @@ def create_project_board_workspace(
     project = Project(
         id=str(uuid.uuid4()),
         lead_id=lead.id,
+        proposal_id=proposal.id,
         name=project_name,
         type=project_type,
         status="ACTIVE",
@@ -413,16 +434,23 @@ def generate_acceptance_documents(
         "items_rows": _items_rows(services),
     }
 
-    proposal_pdf = _generate_workflow_document(
-        db, "proposal_pdf", "project", project.id,
-        {**common, "catatan": "Proposal penawaran yang sudah diterima dan disimpan sebagai arsip."},
-        actor, DocumentStatus.SENT, None,
-        "Proposal Penawaran", client_name, project.name, "Proposal",
-    )
-    if proposal_pdf:
-        generated.append(proposal_pdf)
+    failed: list[dict] = []  # {doc: label, reason: str}
 
-    invoice = _generate_workflow_document(
+    def _record_failure(label: str, reason: str) -> None:
+        failed.append({"doc": label, "reason": reason})
+        try:
+            log_audit(
+                db, actor, "workflow_document_failed", "projects", project.id,
+                {"document": label, "reason": reason, "proposal_id": proposal.id},
+                commit=False,  # JANGAN commit di tengah flow accept (savepoint-safe)
+            )
+        except Exception as e:
+            print(f"[WORKFLOW_AUDIT] gagal catat {label}: {e}", flush=True)
+
+    # ── Invoice DP DULUAN & WAJIB ────────────────────────────────────────────
+    # Titik-uang paling penting. Kalau gagal -> seluruh accept dianggap gagal
+    # (raise), jangan lanjut seolah sukses (fix P0-2).
+    invoice, invoice_err = _generate_workflow_document(
         db, "invoice", "project", project.id,
         {
             **common,
@@ -435,8 +463,25 @@ def generate_acceptance_documents(
     )
     if invoice:
         generated.append(invoice)
+    else:
+        _record_failure("Invoice DP", invoice_err or "unknown")
+        raise ValueError(
+            f"Gagal membuat invoice DP (dokumen wajib): {invoice_err}. "
+            "Accept dibatalkan supaya tidak ada project tanpa invoice."
+        )
 
-    mou = _generate_workflow_document(
+    proposal_pdf, err = _generate_workflow_document(
+        db, "proposal_pdf", "project", project.id,
+        {**common, "catatan": "Proposal penawaran yang sudah diterima dan disimpan sebagai arsip."},
+        actor, DocumentStatus.SENT, None,
+        "Proposal Penawaran", client_name, project.name, "Proposal",
+    )
+    if proposal_pdf:
+        generated.append(proposal_pdf)
+    elif err:
+        _record_failure("Proposal Penawaran", err)
+
+    mou, err = _generate_workflow_document(
         db, "mou", "project", project.id,
         {**common, "tujuan": "Menetapkan dasar kerja sama awal setelah proposal disetujui."},
         actor, DocumentStatus.DRAFT, None,
@@ -444,6 +489,8 @@ def generate_acceptance_documents(
     )
     if mou:
         generated.append(mou)
+    elif err:
+        _record_failure("Draft MOU", err)
 
     # Pick service-specific contract template(s) based on project.service_type
     # service_type can be comma-separated (e.g. "maintenance,seo_gmaps")
@@ -524,7 +571,7 @@ def generate_acceptance_documents(
                 f"Pelunasan saat serah terima."
             )
 
-        kontrak = _generate_workflow_document(
+        kontrak, err = _generate_workflow_document(
             db, kontrak_type, "project", project.id,
             kontrak_vars,
             actor, DocumentStatus.DRAFT, None,
@@ -532,6 +579,25 @@ def generate_acceptance_documents(
         )
         if kontrak:
             generated.append(kontrak)
+        elif err:
+            _record_failure(kontrak_label, err)
+
+    # Kalau ada dokumen non-wajib yang gagal: JANGAN telan diam. Catat + notif
+    # supaya admin bisa RE-GENERATE (revisi yang ada, bukan biarin bolong).
+    if failed:
+        labels = ", ".join(f["doc"] for f in failed)
+        create_notification(
+            db,
+            title="Sebagian dokumen gagal dibuat",
+            message=(
+                f"Project {project.name}: {len(failed)} dokumen gagal digenerate "
+                f"({labels}). Invoice DP aman. Silakan re-generate dokumen yang gagal."
+            ),
+            notif_type="warning",
+            target_type="project",
+            target_id=project.id,
+            action_url=f"/workspace?project={project.id}",
+        )
 
     return generated
 
@@ -544,7 +610,7 @@ def archive_proposal_pdf_for_lead(
 ) -> Optional[GeneratedDocument]:
     services = json.loads(proposal.services_detail) if proposal.services_detail else []
     service_label = ", ".join(s.get("name", "") for s in services if s.get("name")) or lead.product_interest or "Layanan"
-    return _generate_workflow_document(
+    doc, _err = _generate_workflow_document(
         db,
         "proposal_pdf",
         "lead",
@@ -567,6 +633,7 @@ def archive_proposal_pdf_for_lead(
         "Pra-Deal",
         "Proposal",
     )
+    return doc
 
 
 def accept_proposal_workflow(
@@ -577,12 +644,45 @@ def accept_proposal_workflow(
     accept_notes: Optional[str],
 ) -> dict:
     import httpx as _httpx
+    from sqlalchemy.exc import IntegrityError
+
+    # ── P0-1: Anti double-accept (idempotent + row lock) ─────────────────────
+    # Re-baca proposal dengan ROW LOCK (SELECT ... FOR UPDATE). Di MySQL/InnoDB
+    # ini bikin request kedua NUNGGU request pertama commit, lalu baca status
+    # terbaru -> ketemu "accepted" -> balikin project yang SUDAH ada (bukan
+    # bikin baru). SQLite tak punya row lock, jadi pengaman utama lintas-DB =
+    # cek project existing by proposal_id + UNIQUE constraint di kolom itu.
+    locked = (
+        db.query(Proposal)
+        .filter(Proposal.id == proposal.id)
+        .with_for_update()
+        .first()
+    )
+    proposal = locked or proposal
+
+    def _existing_project():
+        return db.query(Project).filter(Project.proposal_id == proposal.id).first()
 
     if proposal.status == "accepted":
-        project = db.query(Project).filter(Project.lead_id == proposal.lead_id).order_by(Project.id.desc()).first()
+        project = _existing_project() or (
+            db.query(Project)
+            .filter(Project.lead_id == proposal.lead_id)
+            .order_by(Project.id.desc())
+            .first()
+        )
         return {"success": True, "project_id": project.id if project else None, "already_accepted": True}
     if proposal.status == "rejected":
         raise ValueError("Proposal sudah ditolak")
+
+    # Pengaman kedua: kalau (karena race) project untuk proposal ini SUDAH ada,
+    # jangan bikin baru — pakai yang itu (idempotent).
+    already = _existing_project()
+    if already:
+        if proposal.status != "accepted":
+            proposal.status = "accepted"
+            proposal.accepted_at = _now()
+            db.commit()
+        return {"success": True, "project_id": already.id, "already_accepted": True}
 
     lead = db.query(Lead).filter(Lead.id == proposal.lead_id).first()
     if not lead:
@@ -593,8 +693,17 @@ def accept_proposal_workflow(
     proposal.accepted_at = now
     lead.status = "Closed/Client"
     ensure_contact_for_lead(db, lead, owner_name=client_name, phone=client_phone or lead.phone_number)
-    project = create_project_board_workspace(db, proposal, lead, client_name)
-    db.commit()
+    try:
+        project = create_project_board_workspace(db, proposal, lead, client_name)
+        db.commit()
+    except IntegrityError:
+        # UNIQUE(proposal_id) menolak -> request lain sudah membuat project lebih
+        # dulu. Rollback lalu balikin project yang sudah ada (idempotent).
+        db.rollback()
+        existing = _existing_project()
+        if existing:
+            return {"success": True, "project_id": existing.id, "already_accepted": True}
+        raise
     generated_docs = generate_acceptance_documents(db, proposal, project, lead)
 
     create_notification(
@@ -671,7 +780,26 @@ def generate_due_monthly_invoices(db: Session, actor: str = "system") -> list[Ge
         lead = db.query(Lead).filter(Lead.id == project.lead_id).first() if project.lead_id else None
         if not lead:
             continue
-        doc = _generate_workflow_document(
+
+        # ── Guard idempotensi periode (fix P0-3) ─────────────────────────────
+        # Pertahanan utama: next_invoice_date maju +30 hari tiap dibuat, + cek
+        # due>today di atas -> run ganda back-to-back otomatis ke-skip.
+        # Pertahanan tambahan (defense-in-depth): kalau arsip invoice bulanan
+        # untuk periode (YYYY-MM) ini SUDAH ada, JANGAN bikin baru — cukup
+        # majukan tanggal. Lindungi dari retry/crash sebelum next_invoice_date
+        # sempat maju.
+        period_tag = due.strftime("%Y-%m")
+        existing = db.query(GeneratedDocument).filter(
+            GeneratedDocument.target_type == "project",
+            GeneratedDocument.target_id == project.id,
+            GeneratedDocument.template_name == f"Invoice Bulanan {period_tag}",
+        ).first()
+        if existing:
+            next_month = due + timedelta(days=30)
+            project.next_invoice_date = next_month.isoformat()
+            continue
+
+        doc, _err = _generate_workflow_document(
             db,
             "invoice",
             "project",
@@ -689,12 +817,16 @@ def generate_due_monthly_invoices(db: Session, actor: str = "system") -> list[Ge
             actor,
             DocumentStatus.DRAFT,
             PaymentStatus.UNPAID,
-            "Invoice Bulanan",
+            f"Invoice Bulanan {period_tag}",
             lead.business_name,
             project.name,
             "Invoice",
         )
         if doc:
+            # Tandai periode di template_name supaya guard idempotensi di run
+            # berikutnya bisa mendeteksi invoice periode ini.
+            doc.template_name = f"Invoice Bulanan {period_tag}"
+            db.flush()
             generated.append(doc)
             create_notification(
                 db,

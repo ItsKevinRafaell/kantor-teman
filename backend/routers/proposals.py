@@ -27,6 +27,7 @@ from app.services.report_tracking_service import (
     record_report_open,
 )
 from app.services.sales_workflow_service import accept_proposal_workflow, archive_proposal_pdf_for_lead
+from app.core.services.rate_limiter import check_simple_rate_limit
 from app.services.proposal_service import proposal_to_out as _proposal_to_out
 from search_volume_data import get_monthly_search_volume
 
@@ -353,7 +354,18 @@ def _detect_contract_months(proposal, services: list, project_start: Optional[st
 
 
 @router.post("/api/proposals/public/{slug}/accept")
-def accept_proposal(slug: str, body: ProposalAcceptIn, db: Session = Depends(get_db)):
+def accept_proposal(slug: str, body: ProposalAcceptIn, request: Request, db: Session = Depends(get_db)):
+    # Rate-limit endpoint publik (fix P0-3 hardening): endpoint ini tak butuh auth
+    # & memicu pembuatan project+invoice+dokumen. Batasi per IP+slug supaya spam/
+    # bot/double-click storm tidak menghajar workflow. Idempotensi sudah dijaga di
+    # accept_proposal_workflow, ini lapisan pertahanan tambahan (bukan pengganti).
+    client_ip = request.client.host if request.client else "unknown"
+    check_simple_rate_limit(
+        key=f"proposal_accept:{client_ip}:{slug}",
+        max_requests=5,
+        window_seconds=60,
+        db=db,
+    )
     proposal = db.query(Proposal).filter(Proposal.slug == slug).first()
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal tidak ditemukan")
