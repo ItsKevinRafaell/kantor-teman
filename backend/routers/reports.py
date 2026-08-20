@@ -11,13 +11,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import FRONTEND_URL, UPLOADS_DIR, _get_setting, get_current_user
+from app.core.dependencies import FRONTEND_URL, UPLOADS_DIR, _get_setting, get_current_user, require_admin
 from app.services.client_report_service import (
     DOCUMENTS_DIR,
     REPORT_SERVICE_LABELS,
     REPORT_TYPE_LABELS,
     build_report_payload,
     create_report_snapshot,
+    finalize_report_and_generate_invoice,
     public_snapshot_payload,
     snapshot_payload,
     track_public_duration,
@@ -164,6 +165,44 @@ def generate_report(body: ReportGenerateIn, current_user: User = Depends(get_cur
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Gagal membuat laporan: {exc}")
+
+
+@router.post("/api/reports/{report_id}/finalize")
+def finalize_report(
+    report_id: str,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Finalkan report → pemicu DRAFT invoice (admin only).
+
+    Idempotent + anti-duplikat mutlak (prinsip Kevin):
+      - Kalau report sudah final → return invoice yang ADA (tidak proses ulang).
+      - 1 report/periode/klien = 1 invoice. Finalkan 2x / report periode sama →
+        TIDAK bikin invoice ganda, link ke yang ada.
+    Draft invoice UNPAID yang dihasilkan editable in-place via
+    POST /api/documents/generated/{id}/edit (bukan hapus-buat-ulang).
+    """
+    try:
+        result = finalize_report_and_generate_invoice(db, report_id, current_user.name)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Gagal finalkan laporan: {exc}")
+
+    snapshot = result["snapshot"]
+    return {
+        "report": _with_absolute_public_url(snapshot_payload(snapshot), db),
+        "invoice_id": result["invoice_id"],
+        "invoice_created": result["invoice_created"],
+        "reused_existing_invoice": result["reused"],
+        "already_final": result["already_final"],
+        "invoice_edit_url": f"/api/documents/generated/{result['invoice_id']}/edit" if result["invoice_id"] else None,
+    }
 
 
 @router.get("/api/reports/public/{slug}")
