@@ -806,7 +806,15 @@ def generate_document_pdf(
         generated_by=actor,
     )
     db.add(doc)
-    db.commit()
+    # SAVEPOINT-SAFE (fix P0-2): kalau fungsi ini dipanggil di dalam SAVEPOINT
+    # (db.begin_nested(), mis. dari generate_acceptance_documents), JANGAN commit —
+    # commit di tengah savepoint menutup transaksi context manager & bikin error
+    # "Can't operate on closed transaction". Flush saja; caller yang commit di akhir.
+    # Pemanggil manual (tanpa savepoint) tetap commit seperti semula (backward compat).
+    if db.in_nested_transaction():
+        db.flush()
+    else:
+        db.commit()
 
     return {
         "document_id": doc.id,

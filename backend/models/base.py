@@ -44,7 +44,7 @@ def get_db():
         db.close()
 
 
-def log_audit(db: Session, actor: str, action: str, table_name: str, record_id, details=None):
+def log_audit(db: Session, actor: str, action: str, table_name: str, record_id, details=None, commit: bool = True):
     # Import here to avoid circular import at module load time
     from .lead import AuditLog
     entry = AuditLog(
@@ -56,4 +56,11 @@ def log_audit(db: Session, actor: str, action: str, table_name: str, record_id, 
         details=json.dumps(details) if details else None,
     )
     db.add(entry)
-    db.commit()
+    # commit=False dipakai saat log dipanggil di TENGAH transaksi lain (mis. flow
+    # accept proposal yang bungkus dokumen pakai SAVEPOINT/begin_nested). Commit di
+    # tengah bisa batalin semantik savepoint & bikin partial state ke-commit lebih
+    # awal. Caller yang set commit=False bertanggung jawab commit di akhir flow.
+    if commit:
+        db.commit()
+    else:
+        db.flush()
