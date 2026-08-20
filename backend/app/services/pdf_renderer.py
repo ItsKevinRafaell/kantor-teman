@@ -1319,6 +1319,390 @@ def render_pdf_with_weasyprint(rendered_html: str, uploads_dir: str | None = Non
     return pdf
 
 
+def render_report_pdf_reportlab(payload: dict, brand: dict | None = None) -> bytes:
+    """Render a client report PDF from the structured payload via ReportLab.
+
+    This is a REPORT-SPECIFIC renderer (separate from render_pdf_with_reportlab,
+    which is invoice/contract-shaped). It consumes the dict produced by
+    build_report_payload — NOT HTML — so the text is always correct (no garbled
+    CMap like WeasyPrint on this shared host) AND we get colored KPI cards +
+    bordered tables (unlike render_text_fallback_pdf which is plain text).
+
+    Empty sections are skipped. Raises on failure so the caller can fall back to
+    the plain-text renderer as a safety net.
+    """
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        HRFlowable,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    brand = brand or {}
+
+    # --- fonts (prefer embedded DejaVu, else built-in Helvetica) --------------
+    _BODY_FONT = "Helvetica"
+    _BOLD_FONT = "Helvetica-Bold"
+    for _ttf in (
+        "/home/qqwtlphb/backend/uploads/DejaVuSans.ttf",
+        _find_ttf_in_uploads(("DejaVuSans.ttf",)),
+    ):
+        if _ttf and os.path.exists(_ttf):
+            try:
+                if "DejaVu" not in pdfmetrics.getRegisteredFontNames():
+                    pdfmetrics.registerFont(TTFont("DejaVu", _ttf))
+                    bold = _find_ttf_in_uploads(("DejaVuSans-Bold.ttf",)) or _ttf
+                    pdfmetrics.registerFont(TTFont("DejaVu-Bold", bold))
+                    pdfmetrics.registerFontFamily(
+                        "DejaVu", normal="DejaVu", bold="DejaVu-Bold",
+                        italic="DejaVu", boldItalic="DejaVu-Bold",
+                    )
+                _BODY_FONT = "DejaVu"
+                _BOLD_FONT = "DejaVu-Bold"
+            except Exception:
+                pass
+            break
+
+    # --- brand colors ---------------------------------------------------------
+    ACCENT = colors.HexColor("#f5a700")       # brand yellow
+    ACCENT_SOFT = colors.HexColor("#fff7e0")  # light card fill
+    DARK = colors.HexColor("#242423")         # brand dark
+    BODY = colors.HexColor("#374151")
+    MUTED = colors.HexColor("#6b7280")
+    BORDER = colors.HexColor("#e5e7eb")
+    GOOD = colors.HexColor("#15803d")         # green (improving)
+    BAD = colors.HexColor("#b91c1c")          # red (declining)
+    HEADER_BG = DARK
+
+    styles = getSampleStyleSheet()
+    styles["Normal"].fontName = _BODY_FONT
+
+    def _pstyle(name, **kw):
+        kw.setdefault("parent", styles["Normal"])
+        kw.setdefault("fontName", _BODY_FONT)
+        return ParagraphStyle(name, **kw)
+
+    st_brand = _pstyle("RptBrand", fontName=_BOLD_FONT, fontSize=10, leading=13,
+                       textColor=ACCENT, alignment=TA_LEFT)
+    st_title = _pstyle("RptTitle", fontName=_BOLD_FONT, fontSize=19, leading=23,
+                       textColor=DARK)
+    st_meta = _pstyle("RptMeta", fontSize=9, leading=14, textColor=MUTED)
+    st_h2 = _pstyle("RptH2", fontName=_BOLD_FONT, fontSize=12.5, leading=16,
+                    textColor=DARK, spaceBefore=4, spaceAfter=6)
+    st_body = _pstyle("RptBody", fontSize=10, leading=15, textColor=BODY)
+    st_muted = _pstyle("RptMutedBody", fontSize=9.5, leading=14, textColor=MUTED)
+    st_kpi_label = _pstyle("RptKpiLabel", fontName=_BOLD_FONT, fontSize=7.5,
+                           leading=10, textColor=colors.HexColor("#92400e"))
+    st_kpi_value = _pstyle("RptKpiValue", fontName=_BOLD_FONT, fontSize=17,
+                           leading=20, textColor=DARK)
+    st_th = _pstyle("RptTh", fontName=_BOLD_FONT, fontSize=8.5, leading=11,
+                    textColor=colors.white)
+    st_th_r = _pstyle("RptThR", parent=st_th, alignment=TA_RIGHT)
+    st_td = _pstyle("RptTd", fontSize=9, leading=12, textColor=BODY)
+    st_td_r = _pstyle("RptTdR", parent=st_td, alignment=TA_RIGHT)
+    st_td_b = _pstyle("RptTdB", parent=st_td, fontName=_BOLD_FONT, textColor=DARK)
+
+    def _txt(value, default="-"):
+        if value in (None, ""):
+            return default
+        return html_mod.escape(str(value))
+
+    def _num(value):
+        """Indonesian thousands formatting (mirror client_report_service)."""
+        if value in (None, ""):
+            return "-"
+        try:
+            n = float(value)
+            if n.is_integer():
+                return f"{int(n):,}".replace(",", ".")
+            return f"{n:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        except Exception:
+            return html_mod.escape(str(value))
+
+    narrative = payload.get("narrative", {}) or {}
+    client = payload.get("client", {}) or {}
+    project = payload.get("project", {}) or {}
+    period = payload.get("period", {}) or {}
+    metrics = payload.get("metrics", {}) or {}
+    workspace = payload.get("workspace", {}) or {}
+    service_type = payload.get("service_type") or "general"
+    brand_name = brand.get("brand_name") or "Kantor Teman"
+    title = payload.get("title") or "Laporan Klien"
+
+    story: list = []
+    avail_w = A4[0] - 36 * mm  # matches 18mm side margins
+
+    # --- header ---------------------------------------------------------------
+    story.append(Paragraph(_txt(brand_name).upper(), st_brand))
+    story.append(Paragraph(_txt(title), st_title))
+    story.append(Spacer(1, 3))
+    meta_bits = []
+    if client.get("name"):
+        meta_bits.append(f"Klien: <b>{_txt(client.get('name'))}</b>")
+    if project.get("name"):
+        meta_bits.append(f"Proyek: {_txt(project.get('name'))}")
+    if period.get("label"):
+        meta_bits.append(f"Periode: {_txt(period.get('label'))}")
+    from datetime import datetime as _dt, timezone as _tz
+    meta_bits.append(f"Dibuat: {_dt.now(_tz.utc).strftime('%d/%m/%Y')}")
+    story.append(Paragraph("&nbsp;&nbsp;•&nbsp;&nbsp;".join(meta_bits), st_meta))
+    story.append(Spacer(1, 6))
+    story.append(HRFlowable(width="100%", thickness=2, color=ACCENT,
+                            spaceBefore=2, spaceAfter=12))
+
+    def _section_heading(text):
+        story.append(Paragraph(_txt(text), st_h2))
+
+    # --- executive summary ----------------------------------------------------
+    exec_sum = narrative.get("executive_summary")
+    if exec_sum:
+        _section_heading("Ringkasan Eksekutif")
+        story.append(Paragraph(_txt(exec_sum, ""), st_body))
+        story.append(Spacer(1, 10))
+
+    # --- KPI cards ------------------------------------------------------------
+    summary = workspace.get("summary", {}) or {}
+    board = metrics.get("board", {}) or {}
+    pagespeed = metrics.get("pagespeed", {}) or {}
+    kpi_cards: list[tuple[str, str]] = []
+    total_tasks = summary.get("total_tasks") or 0
+    if total_tasks:
+        kpi_cards.append(("PROGRESS TUGAS", f"{summary.get('completion_pct', 0)}%"))
+        kpi_cards.append(("TUGAS SELESAI", f"{summary.get('completed_tasks', 0)} / {total_tasks}"))
+    active_cards = sum(col.get("count", 0) for col in board.get("columns", []))
+    if active_cards:
+        kpi_cards.append(("CARD AKTIF", _num(active_cards)))
+    ps_score = pagespeed.get("performance_score")
+    if pagespeed.get("status") == "ok" and ps_score not in (None, "", 0):
+        kpi_cards.append(("PAGESPEED MOBILE", _num(ps_score)))
+
+    if kpi_cards:
+        card_cells = []
+        for label, value in kpi_cards:
+            inner = Table(
+                [[Paragraph(_txt(label), st_kpi_label)],
+                 [Paragraph(_txt(value), st_kpi_value)]],
+                colWidths=[None],
+            )
+            inner.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), ACCENT_SOFT),
+                ("BOX", (0, 0), (-1, -1), 1, ACCENT),
+                ("LEFTPADDING", (0, 0), (-1, -1), 9),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+                ("TOPPADDING", (0, 0), (0, 0), 9),
+                ("BOTTOMPADDING", (-1, -1), (-1, -1), 9),
+                ("TOPPADDING", (-1, -1), (-1, -1), 2),
+            ]))
+            card_cells.append(inner)
+        n = len(card_cells)
+        gap = 4 * mm
+        col_w = (avail_w - gap * (n - 1)) / n
+        # interleave spacer columns for the gap
+        row = []
+        widths = []
+        for i, c in enumerate(card_cells):
+            row.append(c)
+            widths.append(col_w)
+            if i < n - 1:
+                row.append("")
+                widths.append(gap)
+        grid = Table([row], colWidths=widths)
+        grid.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        story.append(grid)
+        story.append(Spacer(1, 14))
+
+    def _bordered_table(header_cells, body_rows, col_widths, right_cols=()):
+        """Build a bordered table with dark header + zebra body."""
+        header = [
+            Paragraph(_txt(h), st_th_r if i in right_cols else st_th)
+            for i, h in enumerate(header_cells)
+        ]
+        data = [header] + body_rows
+        tbl = Table(data, colWidths=col_widths, repeatRows=1)
+        style = [
+            ("BACKGROUND", (0, 0), (-1, 0), HEADER_BG),
+            ("GRID", (0, 0), (-1, -1), 0.6, BORDER),
+            ("BOX", (0, 0), (-1, -1), 1, DARK),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 7),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]
+        for r in range(1, len(data)):
+            if r % 2 == 0:
+                style.append(("BACKGROUND", (0, r), (-1, r), colors.HexColor("#fafafa")))
+        tbl.setStyle(TableStyle(style))
+        return tbl
+
+    # --- service performance section (SEO/Gmaps + others) ---------------------
+    service = metrics.get("service", {}) or {}
+    if service_type == "seo_gmaps":
+        gsc = service.get("gsc", {}) or {}
+        gbp = service.get("google_business", {}) or {}
+        rows = []
+        seo_pairs = [
+            ("GSC Clicks", _num(gsc.get("clicks"))),
+            ("GSC Impressions", _num(gsc.get("impressions"))),
+            ("CTR", _txt(gsc.get("ctr"))),
+            ("Average Position", _txt(gsc.get("average_position"))),
+        ]
+        if any(v not in ("-", None, "") for _, v in seo_pairs):
+            for label, val in seo_pairs:
+                rows.append([Paragraph(_txt(label), st_td_b),
+                             Paragraph(_txt(val), st_td_r)])
+        gbp_pairs = [
+            ("Google Business Views", _num(gbp.get("views"))),
+            ("Calls", _num(gbp.get("calls"))),
+            ("Directions", _num(gbp.get("directions"))),
+            ("Website Clicks", _num(gbp.get("website_clicks"))),
+        ]
+        for label, val in gbp_pairs:
+            if val not in ("-", None, ""):
+                rows.append([Paragraph(_txt(label), st_td_b),
+                             Paragraph(_txt(val), st_td_r)])
+        if rows:
+            _section_heading("Performa SEO & Google Maps")
+            story.append(_bordered_table(
+                ["Metrik", "Nilai"], rows,
+                [avail_w * 0.6, avail_w * 0.4], right_cols=(1,)))
+            story.append(Spacer(1, 14))
+
+    # --- comparison groups (bulan lalu vs sekarang + %) -----------------------
+    comparison_groups = metrics.get("comparison_groups") or []
+    for group in comparison_groups:
+        grows = []
+        for item in group.get("rows", []):
+            delta = item.get("delta") or {}
+            raw = delta.get("delta")
+            pct = delta.get("delta_pct")
+            lower_better = bool(item.get("lower_is_better"))
+            try:
+                good = float(raw or 0) < 0 if lower_better else float(raw or 0) > 0
+            except Exception:
+                good = None
+            pct_text = f"{pct:+.1f}%" if isinstance(pct, (int, float)) else "-"
+            color = GOOD if good else (BAD if good is False else MUTED)
+            change_style = _pstyle(f"chg{len(grows)}", parent=st_td_r,
+                                   fontName=_BOLD_FONT, textColor=color)
+            grows.append([
+                Paragraph(_txt(item.get("label")), st_td_b),
+                Paragraph(_num(delta.get("previous")), st_td_r),
+                Paragraph(_num(delta.get("current")), st_td_r),
+                Paragraph(_txt(pct_text), change_style),
+            ])
+        if not grows:
+            continue
+        _section_heading(group.get("title") or "Komparasi Performa")
+        ref = group.get("reference_label") or "Bulan Lalu"
+        cur = group.get("current_label") or "Sekarang"
+        story.append(_bordered_table(
+            ["Metrik", _txt(ref), _txt(cur), "Perubahan"], grows,
+            [avail_w * 0.34, avail_w * 0.22, avail_w * 0.22, avail_w * 0.22],
+            right_cols=(1, 2, 3)))
+        if group.get("notes"):
+            story.append(Spacer(1, 3))
+            story.append(Paragraph(f"Catatan: {_txt(group.get('notes'))}", st_muted))
+        story.append(Spacer(1, 14))
+
+    # --- fallback comparison section (metrics.comparisons) --------------------
+    comparisons = metrics.get("comparisons", {}) or {}
+    comp_metrics = comparisons.get("metrics", []) or []
+    if comp_metrics and not comparison_groups:
+        crows = []
+        for item in comp_metrics:
+            delta = item.get("delta") or {}
+            raw = delta.get("delta")
+            pct = delta.get("delta_pct")
+            lower_better = bool(item.get("lower_is_better"))
+            try:
+                good = float(raw or 0) < 0 if lower_better else float(raw or 0) > 0
+            except Exception:
+                good = None
+            pct_text = f"{pct:+.1f}%" if isinstance(pct, (int, float)) else "-"
+            color = GOOD if good else (BAD if good is False else MUTED)
+            change_style = _pstyle(f"cchg{len(crows)}", parent=st_td_r,
+                                   fontName=_BOLD_FONT, textColor=color)
+            crows.append([
+                Paragraph(_txt(item.get("label")), st_td_b),
+                Paragraph(_num(delta.get("previous")), st_td_r),
+                Paragraph(_num(delta.get("current")), st_td_r),
+                Paragraph(_txt(pct_text), change_style),
+            ])
+        if crows:
+            _section_heading("Komparasi Performa")
+            ref = comparisons.get("reference_label") or "Pembanding"
+            story.append(_bordered_table(
+                ["Metrik", _txt(ref), "Sekarang", "Perubahan"], crows,
+                [avail_w * 0.34, avail_w * 0.22, avail_w * 0.22, avail_w * 0.22],
+                right_cols=(1, 2, 3)))
+            story.append(Spacer(1, 14))
+
+    # --- narrative lists (highlights / issues / next steps) -------------------
+    def _list_block(heading, items):
+        if not items:
+            return
+        if isinstance(items, str):
+            items = [ln.strip() for ln in items.splitlines() if ln.strip()]
+        if not isinstance(items, list):
+            items = [str(items)]
+        items = [i for i in items if i][:12]
+        if not items:
+            return
+        _section_heading(heading)
+        for it in items:
+            story.append(Paragraph(f"•&nbsp;&nbsp;{_txt(it)}", st_body))
+        story.append(Spacer(1, 10))
+
+    _list_block("Highlight", narrative.get("highlights"))
+    _list_block("Issue dan Catatan", narrative.get("issues"))
+    _list_block("Rencana Berikutnya", narrative.get("next_steps"))
+
+    # --- footer ---------------------------------------------------------------
+    story.append(Spacer(1, 8))
+    story.append(HRFlowable(width="100%", thickness=0.6, color=BORDER,
+                            spaceBefore=2, spaceAfter=6))
+    story.append(Paragraph(
+        f"Laporan dibuat oleh {_txt(brand_name)}. Data eksternal manual/API "
+        f"ditampilkan sesuai input yang tersedia saat laporan dibuat.",
+        _pstyle("RptFooter", fontSize=7.5, leading=10, textColor=MUTED,
+                alignment=TA_CENTER)))
+
+    if not story:
+        raise RuntimeError("Report payload kosong, tidak ada yang bisa dirender")
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        rightMargin=18 * mm, leftMargin=18 * mm,
+        topMargin=16 * mm, bottomMargin=14 * mm,
+    )
+    doc.title = title
+    doc.author = brand_name
+    doc.creator = "Kantor Teman"
+    doc.subject = f"Laporan untuk {client.get('name') or 'Klien'}"
+    doc.build(story)
+    pdf = buffer.getvalue()
+    if not _is_valid_pdf(pdf):
+        raise RuntimeError("ReportLab menghasilkan PDF report invalid")
+    return pdf
+
+
 def _pdf_has_legible_text(pdf: bytes, min_chars: int = 50) -> bool:
     """Best-effort post-render sanity check.
 
