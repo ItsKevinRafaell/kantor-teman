@@ -11,8 +11,39 @@ from sqlalchemy.orm import Session
 
 from models import AIModel, SystemSettings, AIProxy, ContentProvider, ContentGeneration, ContentSession
 
-NINE_ROUTER_PUBLIC_BASE_URL = "https://9router.kantorteman.my.id/v1"
-NINE_ROUTER_DEFAULT_MODEL = "combo-genflow"
+# SaaRouters (LiteLLM proxy, OpenAI-compatible, backend Claude) is the current
+# default AI upstream. 9router adalah jalur lama (error 401) yang di-deprecate.
+# Base URL / API key / model TETAP dibaca dari env (AI_BASE_URL / AI_API_KEY /
+# AI_MODEL) — jangan hardcode api key di sini.
+SAAROUTERS_PUBLIC_BASE_URL = "https://saafragrance.xyz/v1"
+SAAROUTERS_DEFAULT_MODEL = "claude"
+
+# Kept for backward-compat with callers/tests that import these names.
+NINE_ROUTER_PUBLIC_BASE_URL = os.getenv("AI_BASE_URL", "").strip() or SAAROUTERS_PUBLIC_BASE_URL
+NINE_ROUTER_DEFAULT_MODEL = os.getenv("AI_MODEL", "").strip() or SAAROUTERS_DEFAULT_MODEL
+
+# Host allow-list untuk endpoint AI yang diperbolehkan. Longgar: menerima
+# 9router (legacy) DAN SaaRouters (saafragrance.xyz) DAN endpoint apapun yang
+# di-set eksplisit lewat env AI_BASE_URL / OPENAI_BASE_URL / NINE_ROUTER_URL.
+_ALLOWED_AI_HOST_TOKENS = (
+    "9router",
+    "127.0.0.1:20128",
+    "localhost:20128",
+    "saafragrance.xyz",
+)
+
+
+def _env_ai_base_urls() -> tuple[str, ...]:
+    """Base URL yang di-whitelist secara eksplisit lewat env (host apapun)."""
+    return tuple(
+        _ensure_v1_base_url(v).lower()
+        for v in (
+            os.getenv("NINE_ROUTER_URL"),
+            os.getenv("AI_BASE_URL"),
+            os.getenv("OPENAI_BASE_URL"),
+        )
+        if v and v.strip()
+    )
 AI_RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 AI_RETRY_DELAYS_SECONDS = (1, 3)
 AI_CHAT_TIMEOUT_SECONDS = int(os.getenv("AI_CHAT_TIMEOUT_SECONDS", "45"))
@@ -25,18 +56,29 @@ def _ensure_v1_base_url(value: Optional[str]) -> str:
     return base if base.endswith("/v1") else f"{base}/v1"
 
 
+def _is_allowed_ai_url(value: Optional[str]) -> bool:
+    """True kalau URL adalah endpoint AI yang diperbolehkan.
+
+    Menerima: 9router (legacy), SaaRouters (saafragrance.xyz), atau host apapun
+    yang di-set eksplisit lewat env AI_BASE_URL/OPENAI_BASE_URL/NINE_ROUTER_URL.
+    """
+    base = (value or "").strip().lower()
+    if not base:
+        return False
+    if any(token in base for token in _ALLOWED_AI_HOST_TOKENS):
+        return True
+    normalized = _ensure_v1_base_url(base).lower()
+    return normalized in _env_ai_base_urls()
+
+
+# Backward-compat alias: callers/tests may import _is_9router_url.
 def _is_9router_url(value: Optional[str]) -> bool:
-    base = (value or "").lower()
-    return (
-        "9router" in base
-        or "127.0.0.1:20128" in base
-        or "localhost:20128" in base
-    )
+    return _is_allowed_ai_url(value)
 
 
 def _router_base_url(candidate: Optional[str] = None) -> str:
     candidate_base = _ensure_v1_base_url(candidate)
-    if candidate_base and _is_9router_url(candidate_base):
+    if candidate_base and _is_allowed_ai_url(candidate_base):
         return candidate_base
     return _ensure_v1_base_url(
         next(
@@ -46,16 +88,16 @@ def _router_base_url(candidate: Optional[str] = None) -> str:
                     os.getenv("AI_BASE_URL"),
                     os.getenv("OPENAI_BASE_URL"),
                 ]
-                if _is_9router_url(value)
+                if value and value.strip()
             ),
-            NINE_ROUTER_PUBLIC_BASE_URL,
+            SAAROUTERS_PUBLIC_BASE_URL,
         )
     )
 
 
 def _router_base_was_repaired(candidate: Optional[str]) -> bool:
     value = _ensure_v1_base_url(candidate)
-    return bool(value and not _is_9router_url(value))
+    return bool(value and not _is_allowed_ai_url(value))
 
 
 def _router_model(candidate: Optional[str] = None) -> str:
@@ -63,7 +105,7 @@ def _router_model(candidate: Optional[str] = None) -> str:
         (candidate or "").strip()
         or os.getenv("NINE_ROUTER_MODEL", "").strip()
         or os.getenv("AI_MODEL", "").strip()
-        or NINE_ROUTER_DEFAULT_MODEL
+        or SAAROUTERS_DEFAULT_MODEL
     )
 
 
@@ -279,14 +321,14 @@ def list_ai_proxies(db: Session) -> list[AIProxy]:
 
 
 def create_ai_proxy(db: Session, name: str, base_url: str, api_key: str, model: str, feature: str) -> AIProxy:
-    if base_url and not _is_9router_url(base_url):
-        raise ValueError("Base URL harus endpoint 9router")
+    if base_url and not _is_allowed_ai_url(base_url):
+        raise ValueError("Base URL harus endpoint AI yang diperbolehkan (SaaRouters/9router atau env AI_BASE_URL)")
     proxy = AIProxy(
         name=name,
         base_url=_router_base_url(base_url),
         api_key=_router_api_key(api_key),
         model=_router_model(model),
-        provider="9router",
+        provider="saarouters",
         feature=feature,
     )
     db.add(proxy)
@@ -303,13 +345,13 @@ def update_ai_proxy(db: Session, proxy_id: str, updates: dict) -> AIProxy:
         if key in updates:
             val = updates[key]
             if key == "base_url" and val:
-                if not _is_9router_url(val):
-                    raise ValueError("Base URL harus endpoint 9router")
+                if not _is_allowed_ai_url(val):
+                    raise ValueError("Base URL harus endpoint AI yang diperbolehkan (SaaRouters/9router atau env AI_BASE_URL)")
                 val = _router_base_url(val)
             if key == "provider" and val:
-                if val not in {"9router", "custom"}:
-                    raise ValueError("Provider must be 9router")
-                val = "9router"
+                if val not in {"9router", "saarouters", "custom"}:
+                    raise ValueError("Provider tidak dikenal")
+                val = "saarouters" if val in {"saarouters", "custom"} else val
             if key == "model":
                 val = _router_model(val)
             if key == "api_key":
@@ -373,8 +415,12 @@ def get_proxy_for_feature(db: Session, feature: str) -> Optional[AIProxy]:
 
 
 def _canonical_provider(provider: Optional[str]) -> str:
-    """Runtime AI provider is always 9router."""
-    return "9router"
+    """Runtime AI provider is an OpenAI-compatible router (SaaRouters by default,
+    9router legacy). We don't branch on the label — the call path is the same."""
+    label = (provider or "").strip().lower()
+    if label in {"9router", "saarouters", "custom"}:
+        return label if label != "custom" else "saarouters"
+    return "saarouters"
 
 
 def get_ai_config(db: Session, capability: str = "chat") -> dict:
@@ -385,9 +431,10 @@ def get_ai_config(db: Session, capability: str = "chat") -> dict:
         repaired = _router_base_was_repaired(proxy.base_url)
         api_key = _router_api_key(proxy.api_key)
         model = _router_model(proxy.model)
+        provider = _canonical_provider(getattr(proxy, "provider", None))
         cfg = {
-            "provider": "9router",
-            "stored_provider": "9router",
+            "provider": provider,
+            "stored_provider": getattr(proxy, "provider", None) or provider,
             "base_url": base_url,
             "stored_base_url": proxy.base_url,
             "base_url_repaired": repaired,
@@ -401,9 +448,10 @@ def get_ai_config(db: Session, capability: str = "chat") -> dict:
         base_url = _router_base_url(stored_base_url)
         api_key = _router_api_key(_setting_value(db, "ai_api_key") or _setting_value(db, "openai_api_key"))
         model = _router_model(_setting_value(db, "ai_model"))
+        provider = _canonical_provider(_setting_value(db, "ai_provider"))
         cfg = {
-            "provider": "9router",
-            "stored_provider": "9router",
+            "provider": provider,
+            "stored_provider": _setting_value(db, "ai_provider") or provider,
             "base_url": base_url,
             "stored_base_url": stored_base_url,
             "base_url_repaired": _router_base_was_repaired(stored_base_url),

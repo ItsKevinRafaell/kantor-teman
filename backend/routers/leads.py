@@ -139,11 +139,16 @@ def _fallback_analysis_payload(lead: Lead, error: Exception | None = None) -> di
     }
     note = ""
     if error:
-        note = f"\n\nCatatan sistem: AI upstream sedang lambat/terputus, analisis ini dibuat dari fallback rule internal. Detail: {str(error)[:160]}"
+        # ANTI-LEAK: JANGAN masukkan error teknis mentah (401/502/traceback) ke
+        # field `text` yang client-facing. Pesan untuk klien harus netral;
+        # detail teknis cukup di log internal (lihat pemanggil: print [AI ANALYZE FALLBACK]).
+        note = "\n\nCatatan: analisa mendalam sedang disiapkan dan akan diperbarui otomatis."
     return {
         "text": json.dumps(analysis, ensure_ascii=False) + note,
         "parsed": analysis,
         "fallback": True,
+        # internal-only: detail error teknis untuk logging, TIDAK disimpan ke DB/klien.
+        "internal_error": (str(error)[:300] if error else ""),
     }
 
 
