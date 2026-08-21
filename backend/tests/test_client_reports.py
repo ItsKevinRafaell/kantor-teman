@@ -630,3 +630,265 @@ def test_generate_report_draft_does_not_trigger_invoice(db_session, monkeypatch)
     assert invoice_docs == 0
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# A1 — FIX MAPS: MLS (seo_gmaps) tanpa data GBP tidak boleh sebut Google Maps
+# ─────────────────────────────────────────────────────────────────────────────
+def test_a1_narrative_mls_without_gbp_does_not_mention_google_maps(db_session, monkeypatch):
+    from app.services import client_report_service as svc
+
+    project = _seed_project_workspace(db_session)  # service_type=seo_gmaps
+    monkeypatch.setattr(svc, "_fetch_pagespeed", lambda url: {"status": "skipped"})
+
+    payload = svc.build_report_payload(
+        db_session,
+        target_type="project",
+        target_id=project.id,
+        report_type="monthly",
+        month_number=1,
+        period_start=None,
+        period_end=None,
+        # HANYA GSC — TIDAK ADA data GBP/Maps
+        manual_metrics={"gsc_clicks": 120, "gsc_impressions": 4000},
+        evidence={},
+        narrative={},
+        run_pagespeed=False,
+    )
+    summary = payload["narrative"]["executive_summary"]
+    assert "Google Maps" not in summary, summary
+    assert "eksekusi SEO." in summary or "eksekusi SEO " in summary, summary
+
+
+def test_a1_narrative_mls_with_gbp_mentions_google_maps(db_session, monkeypatch):
+    from app.services import client_report_service as svc
+
+    project = _seed_project_workspace(db_session)
+    monkeypatch.setattr(svc, "_fetch_pagespeed", lambda url: {"status": "skipped"})
+
+    payload = svc.build_report_payload(
+        db_session,
+        target_type="project",
+        target_id=project.id,
+        report_type="monthly",
+        month_number=1,
+        period_start=None,
+        period_end=None,
+        # ADA data GBP -> narasi tetap sebut Google Maps
+        manual_metrics={"gsc_clicks": 120, "gbp_views": 500, "gbp_calls": 30},
+        evidence={},
+        narrative={},
+        run_pagespeed=False,
+    )
+    summary = payload["narrative"]["executive_summary"]
+    assert "SEO & Google Maps" in summary, summary
+
+
+def _pdf_text(pdf_bytes: bytes) -> str:
+    """Ekstrak teks dari PDF bytes (pdftotext kalau ada, else pypdf)."""
+    import subprocess, tempfile, shutil
+    if shutil.which("pdftotext"):
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+            f.write(pdf_bytes)
+            path = f.name
+        out = subprocess.run(["pdftotext", "-layout", path, "-"],
+                             capture_output=True, text=True)
+        return out.stdout
+    try:
+        import io
+        from pypdf import PdfReader
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        return "\n".join((p.extract_text() or "") for p in reader.pages)
+    except Exception:
+        return ""
+
+
+def test_a1_pdf_heading_seo_only_when_no_gbp(db_session):
+    """Renderer: heading 'Performa SEO' (BUKAN '& Google Maps') saat GBP kosong."""
+    from app.services.pdf_renderer import render_report_pdf_reportlab
+
+    payload = {
+        "title": "Laporan Bulanan SEO - MLS",
+        "report_type": "monthly",
+        "service_type": "seo_gmaps",
+        "client": {"name": "MLS"},
+        "project": {"name": "SEO MLS", "service_type": "seo_gmaps"},
+        "period": {"label": "Bulan ke-3"},
+        "metrics": {
+            "service": {
+                "gsc": {"clicks": 120, "impressions": 4000, "ctr": "3%", "average_position": "8.5"},
+                "google_business": {},  # KOSONG
+            },
+        },
+        "narrative": {},
+        "evidence": {},
+    }
+    pdf = render_report_pdf_reportlab(payload, {})
+    text = _pdf_text(pdf)
+    assert "Performa SEO" in text, text[:400]
+    assert "Google Maps" not in text, text[:400]
+
+
+def test_a1_pdf_heading_includes_maps_when_gbp_present(db_session):
+    from app.services.pdf_renderer import render_report_pdf_reportlab
+
+    payload = {
+        "title": "Laporan Bulanan SEO - Klien GBP",
+        "report_type": "monthly",
+        "service_type": "seo_gmaps",
+        "client": {"name": "Klien GBP"},
+        "project": {"name": "SEO GBP", "service_type": "seo_gmaps"},
+        "period": {"label": "Bulan ke-3"},
+        "metrics": {
+            "service": {
+                "gsc": {"clicks": 120, "impressions": 4000},
+                "google_business": {"views": 500, "calls": 30},  # ADA data
+            },
+        },
+        "narrative": {},
+        "evidence": {},
+    }
+    pdf = render_report_pdf_reportlab(payload, {})
+    text = _pdf_text(pdf)
+    assert "Performa SEO & Google Maps" in text, text[:400]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# A2 — REKOMENDASI NEXT MONTH (AI, editable, anti-halu, fallback aman)
+# ─────────────────────────────────────────────────────────────────────────────
+def test_a2_ai_fills_next_steps_when_empty(db_session, monkeypatch):
+    """next_steps KOSONG + generate_ai_recommendations -> AI isi (based-on-data)."""
+    from app.services import client_report_service as svc
+
+    project = _seed_project_workspace(db_session)
+    monkeypatch.setattr(svc, "_fetch_pagespeed", lambda url: {"status": "skipped"})
+
+    captured = {}
+
+    def _fake_ai(prompt, config, _httpx):
+        captured["prompt"] = prompt
+        return "- Tingkatkan clicks lewat optimasi judul\n- Publish 2 artikel layanan\n- Perbaiki internal link"
+
+    # patch di dependencies (dipanggil via import lokal di _generate_next_steps_ai)
+    import app.core.dependencies as deps
+    monkeypatch.setattr(deps, "_call_ai_sync", _fake_ai)
+
+    payload = svc.build_report_payload(
+        db_session,
+        target_type="project",
+        target_id=project.id,
+        report_type="monthly",
+        month_number=1,
+        period_start=None,
+        period_end=None,
+        manual_metrics={"gsc_clicks": 120, "gsc_clicks_previous": 80, "gsc_impressions": 4000},
+        evidence={},
+        narrative={},
+        run_pagespeed=False,
+        generate_ai_recommendations=True,
+    )
+    steps = payload["narrative"]["next_steps"]
+    assert len(steps) == 3, steps
+    assert "Publish 2 artikel layanan" in steps
+    # Anti-halu: prompt HARUS memuat data REAL (angka GSC + task board asli)
+    assert "120" in captured["prompt"]
+    assert "Publish artikel layanan" in captured["prompt"]  # task board real
+    assert "JANGAN mengarang" in captured["prompt"]
+
+
+def test_a2_manual_next_steps_not_overwritten_by_ai(db_session, monkeypatch):
+    """EDITABLE: next_steps diisi MANUAL -> AI JANGAN nimpa (dan JANGAN dipanggil)."""
+    from app.services import client_report_service as svc
+
+    project = _seed_project_workspace(db_session)
+    monkeypatch.setattr(svc, "_fetch_pagespeed", lambda url: {"status": "skipped"})
+
+    ai_called = {"n": 0}
+
+    def _fake_ai(prompt, config, _httpx):
+        ai_called["n"] += 1
+        return "- rekomendasi AI"
+
+    import app.core.dependencies as deps
+    monkeypatch.setattr(deps, "_call_ai_sync", _fake_ai)
+
+    payload = svc.build_report_payload(
+        db_session,
+        target_type="project",
+        target_id=project.id,
+        report_type="monthly",
+        month_number=1,
+        period_start=None,
+        period_end=None,
+        manual_metrics={"gsc_clicks": 120},
+        evidence={},
+        narrative={"next_steps": ["Rencana manual Kevin"]},
+        run_pagespeed=False,
+        generate_ai_recommendations=True,
+    )
+    assert payload["narrative"]["next_steps"] == ["Rencana manual Kevin"]
+    assert ai_called["n"] == 0, "AI TIDAK boleh dipanggil kalau next_steps manual"
+
+
+def test_a2_ai_failure_falls_back_gracefully(db_session, monkeypatch):
+    """JARING PENGAMAN: AI gagal/timeout -> next_steps kosong, report TETAP jadi."""
+    from app.services import client_report_service as svc
+
+    project = _seed_project_workspace(db_session)
+    monkeypatch.setattr(svc, "_fetch_pagespeed", lambda url: {"status": "skipped"})
+
+    def _boom(prompt, config, _httpx):
+        raise RuntimeError("AI timeout / provider down")
+
+    import app.core.dependencies as deps
+    monkeypatch.setattr(deps, "_call_ai_sync", _boom)
+
+    payload = svc.build_report_payload(
+        db_session,
+        target_type="project",
+        target_id=project.id,
+        report_type="monthly",
+        month_number=1,
+        period_start=None,
+        period_end=None,
+        manual_metrics={"gsc_clicks": 120},
+        evidence={},
+        narrative={},
+        run_pagespeed=False,
+        generate_ai_recommendations=True,
+    )
+    # Tidak error, next_steps kosong (fallback aman)
+    assert payload["narrative"]["next_steps"] == []
+
+
+def test_a2_draft_preview_does_not_call_ai(db_session, monkeypatch):
+    """Hemat: build_report_payload tanpa flag (preview draft) TIDAK panggil AI."""
+    from app.services import client_report_service as svc
+
+    project = _seed_project_workspace(db_session)
+    monkeypatch.setattr(svc, "_fetch_pagespeed", lambda url: {"status": "skipped"})
+
+    ai_called = {"n": 0}
+
+    def _fake_ai(prompt, config, _httpx):
+        ai_called["n"] += 1
+        return "- x"
+
+    import app.core.dependencies as deps
+    monkeypatch.setattr(deps, "_call_ai_sync", _fake_ai)
+
+    svc.build_report_payload(
+        db_session,
+        target_type="project",
+        target_id=project.id,
+        report_type="monthly",
+        month_number=1,
+        period_start=None,
+        period_end=None,
+        manual_metrics={"gsc_clicks": 120},
+        evidence={},
+        narrative={},
+        run_pagespeed=False,
+        # generate_ai_recommendations default False
+    )
+    assert ai_called["n"] == 0
+
+

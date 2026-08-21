@@ -715,6 +715,121 @@ def _period_label(report_type: str, month_number: Optional[int], period_start: O
     return "Periode berjalan"
 
 
+# ── A2: Rekomendasi bulan depan (AI, based-on-data, editable) ────────────────
+def _fmt_gsc_for_ai(service_metrics: dict, metrics: dict) -> str:
+    """Ringkas angka GSC + komparasi (REAL) buat konteks AI. Anti-halu."""
+    gsc = (service_metrics or {}).get("gsc", {}) or {}
+    lines: list[str] = []
+    label_map = {
+        "clicks": "Clicks", "impressions": "Impressions",
+        "ctr": "CTR", "average_position": "Average Position",
+    }
+    for key, label in label_map.items():
+        val = gsc.get(key)
+        if val not in (None, "", "-"):
+            lines.append(f"- {label}: {val}")
+    # komparasi bulan lalu vs sekarang (dari comparison_groups / comparisons)
+    groups = metrics.get("comparison_groups") or []
+    comp_rows = []
+    for g in groups:
+        comp_rows.extend(g.get("rows", []) or [])
+    if not comp_rows:
+        comp_rows = (metrics.get("comparisons", {}) or {}).get("metrics", []) or []
+    for item in comp_rows:
+        delta = item.get("delta") or {}
+        prev = delta.get("previous")
+        cur = delta.get("current")
+        pct = delta.get("delta_pct")
+        if prev in (None, "") and cur in (None, ""):
+            continue
+        pct_txt = f"{pct:+.1f}%" if isinstance(pct, (int, float)) else "-"
+        lines.append(
+            f"- {item.get('label')}: bulan lalu {prev}, sekarang {cur} (perubahan {pct_txt})"
+        )
+    return "\n".join(lines) if lines else "(belum ada data GSC)"
+
+
+def _fmt_board_for_ai(workspace: dict) -> str:
+    """Ringkas task board REAL (judul + status). Anti-halu: apa adanya."""
+    tasks = workspace.get("tasks") or []
+    summary = workspace.get("summary", {}) or {}
+    by_status = summary.get("by_status", {}) or {}
+    lines: list[str] = []
+    if by_status:
+        lines.append("Ringkasan status: " + ", ".join(
+            f"{k}: {v}" for k, v in by_status.items()))
+    shown = 0
+    for t in tasks:
+        name = _metric_value(t, "task_name", "judul", "title", "Task")
+        status = _metric_value(t, "status", "Status") or "Belum diisi"
+        if not name:
+            continue
+        lines.append(f"- {name} [{status}]")
+        shown += 1
+        if shown >= 25:
+            break
+    return "\n".join(lines) if lines else "(belum ada task tercatat)"
+
+
+def _parse_ai_recommendations(text: str) -> list[str]:
+    """Ekstrak list poin dari output AI. Toleran format (bullet/nomor/baris)."""
+    if not text:
+        return []
+    items: list[str] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        # buang penanda bullet/nomor di awal
+        line = re.sub(r"^\s*(?:[-*•]|\d+[\.\)])\s*", "", line).strip()
+        # skip heading/preamble yang bukan rekomendasi
+        if not line or line.endswith(":") and len(line) < 40:
+            continue
+        items.append(line)
+    return items[:5]
+
+
+def _generate_next_steps_ai(
+    db: Session,
+    service_type: str,
+    service_metrics: dict,
+    metrics: dict,
+    workspace: dict,
+) -> list[str]:
+    """Generate 3-5 rekomendasi bulan depan via AI (feature 'analysis', REUSE).
+
+    Jaring pengaman: apapun yang gagal/timeout -> return [] (report tetap jadi,
+    section 'Rencana Berikutnya' cuma kosong, JANGAN error/gantung).
+    """
+    try:
+        from app.core.dependencies import get_ai_config, _call_ai_sync
+        config = get_ai_config(db, "analysis")
+        if not config:
+            return []
+        service_label = REPORT_SERVICE_LABELS.get(service_type, service_type)
+        gsc_ctx = _fmt_gsc_for_ai(service_metrics, metrics)
+        board_ctx = _fmt_board_for_ai(workspace)
+        prompt = (
+            "Kamu konsultan digital agensi. Berdasarkan DATA REAL di bawah, "
+            f"susun 3-5 rekomendasi konkret untuk bulan depan pada layanan {service_label}.\n\n"
+            "=== DATA PERFORMA GSC ===\n"
+            f"{gsc_ctx}\n\n"
+            "=== TASK BOARD (aktivitas periode ini) ===\n"
+            f"{board_ctx}\n\n"
+            "ATURAN KETAT (WAJIB):\n"
+            "- JANGAN mengarang angka, klaim, atau aktivitas yang TIDAK ADA di data di atas.\n"
+            "- Kalau suatu data kosong, jangan berasumsi; fokus pada apa yang ADA.\n"
+            "- Setiap rekomendasi harus konkret & actionable (1 kalimat singkat).\n"
+            "- Output HANYA list poin (satu rekomendasi per baris, diawali '- '). "
+            "Tanpa pembuka, tanpa penutup, tanpa penjelasan tambahan."
+        )
+        raw = _call_ai_sync(prompt, config, httpx)
+        return _parse_ai_recommendations(raw)
+    except Exception as exc:  # noqa: BLE001 — jaring pengaman, JANGAN gantung report
+        print(f"[REPORT_AI] next_steps AI gagal (fallback kosong): {exc}", flush=True)
+        return []
+
+
 def _build_narrative(report_type: str, service_type: str, workspace: dict, manual: dict, narrative: dict, service_metrics: Optional[dict] = None) -> dict:
     narrative = _clean_dict(narrative)
     summary = workspace.get("summary", {})
@@ -756,6 +871,7 @@ def build_report_payload(
     evidence: Optional[dict],
     narrative: Optional[dict],
     run_pagespeed: bool = True,
+    generate_ai_recommendations: bool = False,
 ) -> dict:
     target = _resolve_target(db, target_type, target_id)
     project = target["project"]
@@ -793,6 +909,15 @@ def build_report_payload(
         "workspace_evidence": workspace.get("evidence", []),
     }
     narrative_payload = _build_narrative(report_type, service_type, workspace, manual_metrics, _clean_dict(narrative), service_metrics)
+
+    # A2: Rekomendasi bulan depan (AI, EDITABLE + anti-halu).
+    # AI cuma jalan kalau: (1) diminta (generate_ai_recommendations=True, yaitu
+    # saat generate snapshot — bukan preview draft biar hemat), DAN (2)
+    # next_steps masih KOSONG (manual menang atas AI). Jaring pengaman ada di
+    # dalam _generate_next_steps_ai: gagal/timeout -> [] (report tetap jadi).
+    if generate_ai_recommendations and not narrative_payload.get("next_steps"):
+        narrative_payload["next_steps"] = _generate_next_steps_ai(
+            db, service_type, service_metrics, metrics, workspace)
 
     period = _period_label(report_type, month_number, period_start, period_end)
     service_label = REPORT_SERVICE_LABELS.get(service_type, service_type)
@@ -1319,6 +1444,7 @@ def create_report_snapshot(
         evidence=evidence,
         narrative=narrative,
         run_pagespeed=run_pagespeed,
+        generate_ai_recommendations=True,
     )
     project_id = payload["project"]["id"]
     lead_id = None
