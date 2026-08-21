@@ -412,6 +412,53 @@ if "mysql" in _db_url:
         else:
             print("= MySQL: FK workspace_rows.board_card_id sudah ada, skip")
 
+    # -----------------------------------------------------------------------
+    # Opsi B (product-driven) Tahap 1 — schema only.
+    # 1) projects.product_id -> products.id (nullable, ON DELETE SET NULL)
+    # 2) tabel baru project_addons (add-on line items per project)
+    # Tidak menyentuh logika report/proposal/kontrak (tahap berikutnya).
+    # -----------------------------------------------------------------------
+    if _table_exists("projects") and not _col_exists("projects", "product_id"):
+        _cur.execute("ALTER TABLE projects ADD COLUMN product_id VARCHAR(36) NULL")
+        _cur.execute("CREATE INDEX idx_projects_product_id ON projects (product_id)")
+        if _table_exists("products"):
+            try:
+                _cur.execute("""
+                    ALTER TABLE projects ADD CONSTRAINT fk_projects_product
+                    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+                """)
+                print("+ MySQL: projects.product_id ditambahkan (+FK products ON DELETE SET NULL)")
+            except Exception as _e:
+                print(f"+ MySQL: projects.product_id ditambahkan (FK skip: {_e})")
+        else:
+            print("+ MySQL: projects.product_id ditambahkan (products belum ada, FK di-skip)")
+    elif _table_exists("projects"):
+        print("= MySQL: projects.product_id sudah ada, skip")
+
+    if not _table_exists("project_addons"):
+        _cur.execute("""
+            CREATE TABLE project_addons (
+                id VARCHAR(36) PRIMARY KEY,
+                project_id VARCHAR(36) NOT NULL,
+                product_id VARCHAR(36) NULL,
+                name VARCHAR(255) NOT NULL,
+                description TEXT NULL,
+                price FLOAT NOT NULL DEFAULT 0,
+                quantity INT NOT NULL DEFAULT 1,
+                is_recurring TINYINT(1) NOT NULL DEFAULT 0,
+                created_at VARCHAR(255) NOT NULL,
+                INDEX idx_project_addons_project_id (project_id),
+                INDEX idx_project_addons_product_id (product_id),
+                CONSTRAINT fk_project_addons_project
+                    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                CONSTRAINT fk_project_addons_product
+                    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+            )
+        """)
+        print("+ MySQL: tabel project_addons dibuat")
+    else:
+        print("= MySQL: tabel project_addons sudah ada, skip")
+
     _mc.commit()
     _mc.close()
     print("MySQL migration selesai.")
@@ -629,6 +676,37 @@ CREATE TABLE IF NOT EXISTS project_riwayat (
 cur.execute("CREATE INDEX IF NOT EXISTS idx_project_riwayat_project_id ON project_riwayat(project_id)")
 cur.execute("CREATE INDEX IF NOT EXISTS idx_project_riwayat_timestamp ON project_riwayat(timestamp)")
 print("+ tabel project_riwayat ready")
+
+# Opsi B (product-driven) Tahap 1 — schema only (dev SQLite).
+# 1) projects.product_id (nullable). SQLite tak enforce FK by default; definisi
+#    FK ada di model SQLAlchemy untuk DB fresh. ALTER hanya menambah kolom.
+# 2) tabel baru project_addons.
+cur.execute("PRAGMA table_info(projects)")
+_proj_cols = {row[1] for row in cur.fetchall()}
+if _proj_cols and "product_id" not in _proj_cols:
+    cur.execute("ALTER TABLE projects ADD COLUMN product_id TEXT")
+    print("+ projects.product_id ditambahkan")
+elif _proj_cols:
+    print("= projects.product_id sudah ada, skip")
+cur.execute("CREATE INDEX IF NOT EXISTS idx_projects_product_id ON projects(product_id)")
+
+# project_addons: add-on line items per project (Opsi B)
+cur.execute("""
+CREATE TABLE IF NOT EXISTS project_addons (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    product_id TEXT REFERENCES products(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    price REAL NOT NULL DEFAULT 0,
+    quantity INTEGER NOT NULL DEFAULT 1,
+    is_recurring INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+)
+""")
+cur.execute("CREATE INDEX IF NOT EXISTS idx_project_addons_project_id ON project_addons(project_id)")
+cur.execute("CREATE INDEX IF NOT EXISTS idx_project_addons_product_id ON project_addons(product_id)")
+print("+ tabel project_addons ready")
 
 # Add event column if missing
 cur.execute("PRAGMA table_info(proposal_analytics)")

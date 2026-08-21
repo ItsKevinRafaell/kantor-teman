@@ -27,6 +27,7 @@ from app.services.pdf_renderer import (
     render_text_fallback_pdf,
 )
 from app.services.sales_workflow_service import archive_generated_document
+from app.services.service_scope import project_has_maps
 from models import (
     Board,
     BoardCard,
@@ -715,10 +716,138 @@ def _period_label(report_type: str, month_number: Optional[int], period_start: O
     return "Periode berjalan"
 
 
-def _build_narrative(report_type: str, service_type: str, workspace: dict, manual: dict, narrative: dict) -> dict:
+# ── A2: Rekomendasi bulan depan (AI, based-on-data, editable) ────────────────
+def _fmt_gsc_for_ai(service_metrics: dict, metrics: dict) -> str:
+    """Ringkas angka GSC + komparasi (REAL) buat konteks AI. Anti-halu."""
+    gsc = (service_metrics or {}).get("gsc", {}) or {}
+    lines: list[str] = []
+    label_map = {
+        "clicks": "Clicks", "impressions": "Impressions",
+        "ctr": "CTR", "average_position": "Average Position",
+    }
+    for key, label in label_map.items():
+        val = gsc.get(key)
+        if val not in (None, "", "-"):
+            lines.append(f"- {label}: {val}")
+    # komparasi bulan lalu vs sekarang (dari comparison_groups / comparisons)
+    groups = metrics.get("comparison_groups") or []
+    comp_rows = []
+    for g in groups:
+        comp_rows.extend(g.get("rows", []) or [])
+    if not comp_rows:
+        comp_rows = (metrics.get("comparisons", {}) or {}).get("metrics", []) or []
+    for item in comp_rows:
+        delta = item.get("delta") or {}
+        prev = delta.get("previous")
+        cur = delta.get("current")
+        pct = delta.get("delta_pct")
+        if prev in (None, "") and cur in (None, ""):
+            continue
+        pct_txt = f"{pct:+.1f}%" if isinstance(pct, (int, float)) else "-"
+        lines.append(
+            f"- {item.get('label')}: bulan lalu {prev}, sekarang {cur} (perubahan {pct_txt})"
+        )
+    return "\n".join(lines) if lines else "(belum ada data GSC)"
+
+
+def _fmt_board_for_ai(workspace: dict) -> str:
+    """Ringkas task board REAL (judul + status). Anti-halu: apa adanya."""
+    tasks = workspace.get("tasks") or []
+    summary = workspace.get("summary", {}) or {}
+    by_status = summary.get("by_status", {}) or {}
+    lines: list[str] = []
+    if by_status:
+        lines.append("Ringkasan status: " + ", ".join(
+            f"{k}: {v}" for k, v in by_status.items()))
+    shown = 0
+    for t in tasks:
+        name = _metric_value(t, "task_name", "judul", "title", "Task")
+        status = _metric_value(t, "status", "Status") or "Belum diisi"
+        if not name:
+            continue
+        lines.append(f"- {name} [{status}]")
+        shown += 1
+        if shown >= 25:
+            break
+    return "\n".join(lines) if lines else "(belum ada task tercatat)"
+
+
+def _parse_ai_recommendations(text: str) -> list[str]:
+    """Ekstrak list poin dari output AI. Toleran format (bullet/nomor/baris)."""
+    if not text:
+        return []
+    items: list[str] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        # buang penanda bullet/nomor di awal
+        line = re.sub(r"^\s*(?:[-*•]|\d+[\.\)])\s*", "", line).strip()
+        # skip heading/preamble yang bukan rekomendasi
+        if not line or line.endswith(":") and len(line) < 40:
+            continue
+        items.append(line)
+    return items[:5]
+
+
+def _generate_next_steps_ai(
+    db: Session,
+    service_type: str,
+    service_metrics: dict,
+    metrics: dict,
+    workspace: dict,
+) -> list[str]:
+    """Generate 3-5 rekomendasi bulan depan via AI (feature 'analysis', REUSE).
+
+    Jaring pengaman: apapun yang gagal/timeout -> return [] (report tetap jadi,
+    section 'Rencana Berikutnya' cuma kosong, JANGAN error/gantung).
+    """
+    try:
+        from app.core.dependencies import get_ai_config, _call_ai_sync
+        config = get_ai_config(db, "analysis")
+        if not config:
+            return []
+        service_label = REPORT_SERVICE_LABELS.get(service_type, service_type)
+        gsc_ctx = _fmt_gsc_for_ai(service_metrics, metrics)
+        board_ctx = _fmt_board_for_ai(workspace)
+        prompt = (
+            "Kamu konsultan digital agensi. Berdasarkan DATA REAL di bawah, "
+            f"susun 3-5 rekomendasi konkret untuk bulan depan pada layanan {service_label}.\n\n"
+            "=== DATA PERFORMA GSC ===\n"
+            f"{gsc_ctx}\n\n"
+            "=== TASK BOARD (aktivitas periode ini) ===\n"
+            f"{board_ctx}\n\n"
+            "ATURAN KETAT (WAJIB):\n"
+            "- JANGAN mengarang angka, klaim, atau aktivitas yang TIDAK ADA di data di atas.\n"
+            "- Kalau suatu data kosong, jangan berasumsi; fokus pada apa yang ADA.\n"
+            "- Setiap rekomendasi harus konkret & actionable (1 kalimat singkat).\n"
+            "- Output HANYA list poin (satu rekomendasi per baris, diawali '- '). "
+            "Tanpa pembuka, tanpa penutup, tanpa penjelasan tambahan."
+        )
+        raw = _call_ai_sync(prompt, config, httpx)
+        return _parse_ai_recommendations(raw)
+    except Exception as exc:  # noqa: BLE001 — jaring pengaman, JANGAN gantung report
+        print(f"[REPORT_AI] next_steps AI gagal (fallback kosong): {exc}", flush=True)
+        return []
+
+
+def _build_narrative(report_type: str, service_type: str, workspace: dict, manual: dict, narrative: dict, service_metrics: Optional[dict] = None, has_maps: Optional[bool] = None) -> dict:
     narrative = _clean_dict(narrative)
     summary = workspace.get("summary", {})
     service_label = REPORT_SERVICE_LABELS.get(service_type, "layanan")
+    # Opsi B (product-driven): scope Maps ditentukan resolver (product+addons+data),
+    # BUKAN hardcode service_type == "seo_gmaps". Kalau kategori SEO tapi TANPA
+    # Maps in-scope (mis. paket "SEO Pro"), narasi cukup "SEO" — tidak menyebut
+    # Google Maps. has_maps sudah dihitung di build_report_payload (fallback ke
+    # data GBP aktual bila project lama belum punya product/addon).
+    st = (service_type or "").lower()
+    is_seo_category = st in ("seo", "seo_gmaps", "seo_pro", "seo_only") or ("seo" in st and "web" not in st)
+    if is_seo_category:
+        if has_maps is None:
+            # Fallback lama (kalau dipanggil tanpa flag): deteksi dari data GBP.
+            gbp = ((service_metrics or {}).get("google_business") or {})
+            has_maps = any(v not in (None, "", "-") for v in gbp.values())
+        service_label = "SEO & Google Maps" if has_maps else "SEO"
     default_summary = (
         f"Periode ini fokus pada eksekusi {service_label}. "
         f"{summary.get('completed_tasks', 0)} dari {summary.get('total_tasks', 0)} tugas tercatat selesai "
@@ -750,6 +879,7 @@ def build_report_payload(
     evidence: Optional[dict],
     narrative: Optional[dict],
     run_pagespeed: bool = True,
+    generate_ai_recommendations: bool = False,
 ) -> dict:
     target = _resolve_target(db, target_type, target_id)
     project = target["project"]
@@ -769,6 +899,11 @@ def build_report_payload(
     board = _board_snapshot(db, project.id) if project else {"columns": [], "total_cards": 0, "archived_cards": 0}
     manual_metrics = _clean_dict(manual_metrics)
     service_metrics = _manual_service_metrics(service_type, manual_metrics)
+    # Opsi B (product-driven) Tahap 3: apakah Maps/GBP in-scope untuk project ini?
+    # Dibaca dari product + project_addons (relasi Tahap 1), fallback ke data GBP
+    # aktual. Dipakai untuk gating semua section/narasi Maps — menggantikan
+    # asumsi hardcode service_type == "seo_gmaps" selalu punya Maps.
+    has_maps = project_has_maps(project, service_metrics)
     website_url = _resolve_website_url(target, manual_metrics)
     pagespeed = _fetch_pagespeed(website_url) if run_pagespeed else {"status": "skipped", "reason": "PageSpeed tidak dijalankan"}
     metrics = {
@@ -786,10 +921,25 @@ def build_report_payload(
         **_clean_dict(evidence),
         "workspace_evidence": workspace.get("evidence", []),
     }
-    narrative_payload = _build_narrative(report_type, service_type, workspace, manual_metrics, _clean_dict(narrative))
+    narrative_payload = _build_narrative(report_type, service_type, workspace, manual_metrics, _clean_dict(narrative), service_metrics, has_maps=has_maps)
+
+    # A2: Rekomendasi bulan depan (AI, EDITABLE + anti-halu).
+    # AI cuma jalan kalau: (1) diminta (generate_ai_recommendations=True, yaitu
+    # saat generate snapshot — bukan preview draft biar hemat), DAN (2)
+    # next_steps masih KOSONG (manual menang atas AI). Jaring pengaman ada di
+    # dalam _generate_next_steps_ai: gagal/timeout -> [] (report tetap jadi).
+    if generate_ai_recommendations and not narrative_payload.get("next_steps"):
+        narrative_payload["next_steps"] = _generate_next_steps_ai(
+            db, service_type, service_metrics, metrics, workspace)
 
     period = _period_label(report_type, month_number, period_start, period_end)
     service_label = REPORT_SERVICE_LABELS.get(service_type, service_type)
+    # Opsi B: judul report juga jujur soal Maps (SEO Pro -> "SEO", bukan
+    # "SEO & Google Maps").
+    _st = (service_type or "").lower()
+    _is_seo = _st in ("seo", "seo_gmaps", "seo_pro", "seo_only") or ("seo" in _st and "web" not in _st)
+    if _is_seo:
+        service_label = "SEO & Google Maps" if has_maps else "SEO"
     report_label = REPORT_TYPE_LABELS.get(report_type, "Laporan Klien")
     project_name = project.name if project else manual_metrics.get("project_name") or report_label
     client_name = target["client_name"]
@@ -825,6 +975,7 @@ def build_report_payload(
             "month_number": month_number,
         },
         "service_type": service_type,
+        "has_maps": has_maps,
         "metrics": metrics,
         "workspace": workspace,
         "evidence": evidence_payload,
@@ -1008,16 +1159,32 @@ def _render_service_section(payload: dict) -> str:
     service_type = payload.get("service_type") or "general"
     service = payload.get("metrics", {}).get("service", {})
     pagespeed = payload.get("metrics", {}).get("pagespeed", {})
+    # Opsi B: apakah Maps/GBP in-scope (dari product+addons, fallback data GBP).
+    has_maps = payload.get("has_maps")
 
-    if service_type == "seo_gmaps":
+    _st = (service_type or "").lower()
+    _is_seo = _st in ("seo", "seo_gmaps", "seo_pro", "seo_only") or ("seo" in _st and "web" not in _st)
+    if _is_seo:
         gsc = service.get("gsc", {})
         gbp = service.get("google_business", {})
+        if has_maps is None:
+            has_maps = any(v not in (None, "", "-") for v in (gbp or {}).values())
+        heading = "Performa SEO & Google Maps" if has_maps else "Performa SEO"
+        gbp_row = ""
+        if has_maps:
+            gbp_row = (
+                f"<tr><th>Google Business</th>"
+                f"<td>Views: {_format_number(gbp.get('views'))}</td>"
+                f"<td>Calls: {_format_number(gbp.get('calls'))}, "
+                f"Directions: {_format_number(gbp.get('directions'))}, "
+                f"Website clicks: {_format_number(gbp.get('website_clicks'))}</td></tr>"
+            )
         return f"""
-        <div class="section"><h2>Performa SEO & Google Maps</h2>
+        <div class="section"><h2>{heading}</h2>
           <table><tbody>
             <tr><th>GSC Clicks</th><td>{_format_number(gsc.get('clicks'))}</td><td>Impressions: {_format_number(gsc.get('impressions'))}</td></tr>
             <tr><th>CTR</th><td>{_safe_text(gsc.get('ctr'))}</td><td>Average position: {_safe_text(gsc.get('average_position'))}</td></tr>
-            <tr><th>Google Business</th><td>Views: {_format_number(gbp.get('views'))}</td><td>Calls: {_format_number(gbp.get('calls'))}, Directions: {_format_number(gbp.get('directions'))}, Website clicks: {_format_number(gbp.get('website_clicks'))}</td></tr>
+            {gbp_row}
           </tbody></table>
         </div>
         """
@@ -1313,6 +1480,7 @@ def create_report_snapshot(
         evidence=evidence,
         narrative=narrative,
         run_pagespeed=run_pagespeed,
+        generate_ai_recommendations=True,
     )
     project_id = payload["project"]["id"]
     lead_id = None

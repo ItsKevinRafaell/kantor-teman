@@ -1435,6 +1435,7 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None) -> byt
     metrics = payload.get("metrics", {}) or {}
     workspace = payload.get("workspace", {}) or {}
     service_type = payload.get("service_type") or "general"
+    _report_has_maps = payload.get("has_maps")
     brand_name = brand.get("brand_name") or "Kantor Teman"
     title = payload.get("title") or "Laporan Klien"
 
@@ -1552,7 +1553,9 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None) -> byt
 
     # --- service performance section (SEO/Gmaps + others) ---------------------
     service = metrics.get("service", {}) or {}
-    if service_type == "seo_gmaps":
+    _st = (service_type or "").lower()
+    _is_seo = _st in ("seo", "seo_gmaps", "seo_pro", "seo_only") or ("seo" in _st and "web" not in _st)
+    if _is_seo:
         gsc = service.get("gsc", {}) or {}
         gbp = service.get("google_business", {}) or {}
         rows = []
@@ -1566,18 +1569,26 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None) -> byt
             for label, val in seo_pairs:
                 rows.append([Paragraph(_txt(label), st_td_b),
                              Paragraph(_txt(val), st_td_r)])
+        # Opsi B (product-driven): baris GBP HANYA kalau Maps in-scope
+        # (product/addons). Kalau paket SEO-only (mis. SEO Pro), skip total.
         gbp_pairs = [
             ("Google Business Views", _num(gbp.get("views"))),
             ("Calls", _num(gbp.get("calls"))),
             ("Directions", _num(gbp.get("directions"))),
             ("Website Clicks", _num(gbp.get("website_clicks"))),
         ]
-        for label, val in gbp_pairs:
-            if val not in ("-", None, ""):
-                rows.append([Paragraph(_txt(label), st_td_b),
-                             Paragraph(_txt(val), st_td_r)])
+        has_gbp_data = any(v not in ("-", None, "") for _, v in gbp_pairs)
+        # Kalau payload eksplisit bilang has_maps, itu yang menang. Fallback
+        # (payload lama tanpa flag) = ikut ada/tidaknya data GBP.
+        show_gbp = _report_has_maps if _report_has_maps is not None else has_gbp_data
+        if show_gbp:
+            for label, val in gbp_pairs:
+                if val not in ("-", None, ""):
+                    rows.append([Paragraph(_txt(label), st_td_b),
+                                 Paragraph(_txt(val), st_td_r)])
         if rows:
-            _section_heading("Performa SEO & Google Maps")
+            _section_heading(
+                "Performa SEO & Google Maps" if show_gbp else "Performa SEO")
             story.append(_bordered_table(
                 ["Metrik", "Nilai"], rows,
                 [avail_w * 0.6, avail_w * 0.4], right_cols=(1,)))
