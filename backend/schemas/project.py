@@ -13,6 +13,7 @@ class ProjectIn(BaseModel):
     end_date: Optional[str] = Field(None, max_length=30)
     color: Optional[str] = Field("gray", max_length=30)
     service_type: Optional[str] = Field(None, max_length=50)
+    product_id: Optional[str] = Field(None, max_length=36)  # T4: link ke katalog products (SEO Pro dll)
     contract_months: Optional[int] = None
     dp_percent: Optional[float] = None
     monthly_invoice_enabled: Optional[bool] = None
@@ -32,6 +33,7 @@ class ProjectOut(BaseModel):
     color: Optional[str] = "gray"
     is_archived: bool = False
     service_type: Optional[str] = None
+    product_id: Optional[str] = None  # T4: expose link katalog products
     contract_months: Optional[int] = None
     dp_percent: Optional[float] = None
     monthly_invoice_enabled: bool = False
