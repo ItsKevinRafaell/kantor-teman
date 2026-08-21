@@ -27,6 +27,7 @@ interface ProjectForm {
   start_date: string;
   end_date: string;
   service_type: string;
+  product_id: string;
   contract_months: number;
 }
 
@@ -39,6 +40,7 @@ interface ProjectData {
   start_date: string | null;
   end_date: string | null;
   service_type?: string | null;
+  product_id?: string | null;
   contract_months?: number | null;
 }
 
@@ -99,6 +101,7 @@ export default function ProjectModal({
       status: "ACTIVE",
       nominal: p.base_price,
       service_type: svcType,
+      product_id: p.id,
       contract_months: months,
       start_date: startDate,
       end_date: endDate,
@@ -187,5 +190,6 @@ export const DEFAULT_PROJECT_FORM: ProjectForm = {
   start_date: "",
   end_date: "",
   service_type: "",
+  product_id: "",
   contract_months: 1,
 };
