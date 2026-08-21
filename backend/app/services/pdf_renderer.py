@@ -1572,12 +1572,15 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None) -> byt
             ("Directions", _num(gbp.get("directions"))),
             ("Website Clicks", _num(gbp.get("website_clicks"))),
         ]
+        has_gbp = False
         for label, val in gbp_pairs:
             if val not in ("-", None, ""):
+                has_gbp = True
                 rows.append([Paragraph(_txt(label), st_td_b),
                              Paragraph(_txt(val), st_td_r)])
         if rows:
-            _section_heading("Performa SEO & Google Maps")
+            _section_heading(
+                "Performa SEO & Google Maps" if has_gbp else "Performa SEO")
             story.append(_bordered_table(
                 ["Metrik", "Nilai"], rows,
                 [avail_w * 0.6, avail_w * 0.4], right_cols=(1,)))

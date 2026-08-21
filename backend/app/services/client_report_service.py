@@ -715,10 +715,16 @@ def _period_label(report_type: str, month_number: Optional[int], period_start: O
     return "Periode berjalan"
 
 
-def _build_narrative(report_type: str, service_type: str, workspace: dict, manual: dict, narrative: dict) -> dict:
+def _build_narrative(report_type: str, service_type: str, workspace: dict, manual: dict, narrative: dict, service_metrics: Optional[dict] = None) -> dict:
     narrative = _clean_dict(narrative)
     summary = workspace.get("summary", {})
     service_label = REPORT_SERVICE_LABELS.get(service_type, "layanan")
+    # A1: MLS (seo_gmaps) sering ga punya data Google Maps/GBP. Kalau data GBP
+    # kosong, jangan sebut "Google Maps" di narasi — cukup "SEO".
+    if service_type == "seo_gmaps":
+        gbp = ((service_metrics or {}).get("google_business") or {})
+        has_gbp = any(v not in (None, "", "-") for v in gbp.values())
+        service_label = "SEO & Google Maps" if has_gbp else "SEO"
     default_summary = (
         f"Periode ini fokus pada eksekusi {service_label}. "
         f"{summary.get('completed_tasks', 0)} dari {summary.get('total_tasks', 0)} tugas tercatat selesai "
@@ -786,7 +792,7 @@ def build_report_payload(
         **_clean_dict(evidence),
         "workspace_evidence": workspace.get("evidence", []),
     }
-    narrative_payload = _build_narrative(report_type, service_type, workspace, manual_metrics, _clean_dict(narrative))
+    narrative_payload = _build_narrative(report_type, service_type, workspace, manual_metrics, _clean_dict(narrative), service_metrics)
 
     period = _period_label(report_type, month_number, period_start, period_end)
     service_label = REPORT_SERVICE_LABELS.get(service_type, service_type)
