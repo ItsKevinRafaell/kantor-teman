@@ -34,6 +34,7 @@ class ProjectOut(BaseModel):
     is_archived: bool = False
     service_type: Optional[str] = None
     product_id: Optional[str] = None  # T4: expose link katalog products
+    product_name: Optional[str] = None  # T4: nama produk (dari relasi) buat UI/report
     contract_months: Optional[int] = None
     dp_percent: Optional[float] = None
     monthly_invoice_enabled: bool = False

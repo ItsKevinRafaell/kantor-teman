@@ -9,7 +9,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import get_db, log_audit, User, Lead, Contact, Project, Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, BoardCardAttachment, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, WorkspaceAttachment, DocumentTemplate, GeneratedDocument, Category, ProjectRiwayat
+from models import get_db, log_audit, User, Lead, Contact, Project, Board, BoardColumn, BoardCard, BoardCardComment, BoardCardChecklist, BoardCardActivity, BoardCardAttachment, WorkspaceSheet, WorkspaceColumn, WorkspaceRow, WorkspaceCell, WorkspaceAttachment, DocumentTemplate, GeneratedDocument, Category, Product, ProjectRiwayat
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, FRONTEND_URL, UPLOADS_DIR,
     _get_setting, get_fonnte_token, build_analysis_prompt,
@@ -120,10 +120,14 @@ def get_projects(
     # Pre-load lead names
     lead_ids = {p.lead_id for p in projects if p.lead_id}
     lead_names = {l.id: l.business_name for l in db.query(Lead).filter(Lead.id.in_(lead_ids)).all()} if lead_ids else {}
+    # Pre-load product names (T4: tampilkan nama paket, bukan UUID)
+    product_ids = {p.product_id for p in projects if getattr(p, "product_id", None)}
+    product_names = {pr.id: pr.name for pr in db.query(Product).filter(Product.id.in_(product_ids)).all()} if product_ids else {}
     result = []
     for p in projects:
         out = ProjectOut.model_validate(p)
         out.lead_name = lead_names.get(p.lead_id)
+        out.product_name = product_names.get(getattr(p, "product_id", None))
         result.append(out)
     return result
 
@@ -288,6 +292,9 @@ def get_project(project_id: str, current_user: User = Depends(get_current_user),
     if project.lead_id:
         lead = db.query(Lead).filter(Lead.id == project.lead_id).first()
         out.lead_name = lead.business_name if lead else None
+    if getattr(project, "product_id", None):
+        prod = db.query(Product).filter(Product.id == project.product_id).first()
+        out.product_name = prod.name if prod else None
     return out
 
 

@@ -32,6 +32,7 @@ interface ProjectData {
   start_date: string | null;
   end_date: string | null;
   service_type?: string | null;
+  product_id?: string | null;
   contract_months?: number | null;
 }
 
@@ -149,6 +150,7 @@ export default function ClientDetailPage() {
       start_date: p.start_date || "",
       end_date: p.end_date || "",
       service_type: p.service_type || "",
+      product_id: p.product_id || "",
       contract_months: p.contract_months || 1,
     });
     setProjectModal(true);
