@@ -532,6 +532,18 @@ def generate_acceptance_documents(
         kontrak_type = kontrak_type_map.get(stype, "kontrak")
         kontrak_label = kontrak_label_map.get(kontrak_type, "Draft Kontrak")
 
+        # Opsi B (product-driven) Tahap 3: label kontrak SEO harus jujur soal Maps.
+        # Kalau paket SEO-only (mis. "SEO Pro", tanpa add-on Maps/GBP di
+        # project_addons dan tanpa product yang menyebut Maps), pakai label "SEO"
+        # saja — JANGAN "SEO & Google Business". Dibaca dari product+addons via
+        # resolver, BUKAN dari asumsi service_type == "seo_gmaps".
+        if kontrak_type == "kontrak_seo":
+            from app.services.service_scope import project_has_maps
+            if project_has_maps(project):
+                kontrak_label = "Draft Kontrak — SEO &amp; Google Business"
+            else:
+                kontrak_label = "Draft Kontrak — SEO"
+
         # Get professional description for this service type
         svc_desc = get_service_description(stype)
 
