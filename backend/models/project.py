@@ -12,6 +12,16 @@ class Project(Base):
     # P0-1: satu proposal maksimal satu project. UNIQUE mencegah double-accept
     # race membuat 2 project untuk proposal yang sama.
     proposal_id = Column(String(36), ForeignKey("proposals.id"), nullable=True, unique=True, index=True)
+    # Opsi B (product-driven) Tahap 1: relasi project -> product katalog.
+    # Nullable + ON DELETE SET NULL supaya project lama (tanpa product) tetap valid
+    # dan hapus product tidak menghapus project. Logika report/proposal/kontrak
+    # yang memanfaatkan relasi ini menyusul di tahap berikutnya.
+    product_id = Column(
+        String(36),
+        ForeignKey("products.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     name = Column(String(255), nullable=False)
     type = Column(String(255), nullable=False)  # FIXED / RETAINER
     status = Column(String(255), default="ACTIVE", nullable=False)  # ACTIVE / COMPLETED / HOLD
@@ -27,6 +37,15 @@ class Project(Base):
     next_invoice_date = Column(String(255), nullable=True)
     completed_at = Column(String(255), nullable=True)
     lead = relationship("Lead", foreign_keys=[lead_id])
+    # Opsi B Tahap 1: akses katalog product dari project (read-only convenience).
+    product = relationship("Product", foreign_keys=[product_id])
+    # Add-on line items yang menempel pada project ini.
+    addons = relationship(
+        "ProjectAddon",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
 class ClientNote(Base):
@@ -74,3 +93,44 @@ class ProjectRiwayat(Base):
         "Project",
         backref=backref("riwayat", passive_deletes=True, cascade="all, delete-orphan"),
     )
+
+
+class ProjectAddon(Base):
+    """Opsi B (product-driven) Tahap 1 — add-on line item yang menempel pada project.
+
+    Tabel baru (normalisasi) menggantikan add-on yang sebelumnya cuma disimpan
+    sebagai JSON free-text di proposals.selected_addons. Menyimpan snapshot
+    name/price supaya add-on tetap konsisten meski product katalog diedit/dihapus.
+    Logika report/proposal/kontrak yang membaca tabel ini menyusul di tahap
+    berikutnya — Tahap 1 HANYA schema.
+    """
+
+    __tablename__ = "project_addons"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_id = Column(
+        String(36),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Opsional: add-on boleh berasal dari katalog product, boleh custom/manual.
+    # ON DELETE SET NULL supaya hapus product tidak menghapus baris add-on
+    # (snapshot name/price tetap dipertahankan).
+    product_id = Column(
+        String(36),
+        ForeignKey("products.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    name = Column(String(255), nullable=False)  # snapshot nama add-on
+    description = Column(Text, nullable=True)
+    price = Column(Float, nullable=False, default=0)  # snapshot harga satuan
+    quantity = Column(Integer, nullable=False, default=1)
+    is_recurring = Column(Boolean, default=False, nullable=False)  # retainer/bulanan vs one-off
+    created_at = Column(
+        String(255),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc).isoformat(),
+    )
+    project = relationship("Project", back_populates="addons")
+    product = relationship("Product", foreign_keys=[product_id])
