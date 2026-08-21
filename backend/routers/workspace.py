@@ -181,6 +181,7 @@ def create_project(body: ProjectIn, current_user: User = Depends(require_admin),
         end_date=body.end_date,
         color=body.color or "gray",
         service_type=body.service_type,
+        product_id=body.product_id,  # T4: link katalog products
         contract_months=months,
         dp_percent=body.dp_percent if body.dp_percent is not None else get_default_dp_percent(db),
         monthly_invoice_enabled=bool(body.monthly_invoice_enabled) if body.monthly_invoice_enabled is not None else body.type == "RETAINER",
@@ -310,6 +311,7 @@ def update_project(project_id: str, body: ProjectIn, current_user: User = Depend
     project.end_date = body.end_date
     project.color = body.color or "gray"
     project.service_type = body.service_type
+    project.product_id = body.product_id  # T4: link katalog products
     project.contract_months = body.contract_months
     project.dp_percent = body.dp_percent if body.dp_percent is not None else project.dp_percent
     project.monthly_invoice_enabled = bool(body.monthly_invoice_enabled) if body.monthly_invoice_enabled is not None else project.monthly_invoice_enabled
