@@ -280,6 +280,15 @@ def update_card_checklist(card_id: str, item_id: str, is_done: bool = Query(...)
         _raise_board_http_error(exc)
 
 
+@router.delete("/api/board-cards/{card_id}/checklist/{item_id}", status_code=204)
+def delete_card_checklist(card_id: str, item_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Hapus checklist item dari card."""
+    try:
+        board_service.delete_checklist_item(db, card_id, item_id, current_user.name)
+    except (ValueError, PermissionError) as exc:
+        _raise_board_http_error(exc)
+
+
 @router.post("/api/board-cards/{card_id}/attachments", response_model=BoardCardAttachmentOut, status_code=201)
 async def upload_board_card_attachment(
     card_id: str,

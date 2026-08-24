@@ -65,6 +65,7 @@ from app.services.board_service import (
     create_card_comment,
     create_card_checklist,
     toggle_checklist_item,
+    delete_checklist_item,
     card_to_out,
 )
 
