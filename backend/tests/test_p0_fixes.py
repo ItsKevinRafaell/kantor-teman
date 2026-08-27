@@ -322,7 +322,7 @@ class TestBoardCrudRuntime:
         assert comment["content"] == "Sudah dihubungi"
 
         item = other.create_card_checklist(card["id"], BoardCardChecklistIn(text="Kirim report"), user, db_session)
-        toggled = other.update_card_checklist(card["id"], item["id"], True, user, db_session)
+        toggled = other.update_card_checklist_legacy(card["id"], item["id"], True, user, db_session)
         assert toggled["is_done"] is True
 
         moved = other.move_board_card(card["id"], MoveCardRequest(column_id=progress.id), user, db_session)

@@ -33,7 +33,7 @@ from .workspace import (
 from .board import (
     LeadMin, BoardCardCommentOut, BoardCardChecklistOut, BoardCardActivityOut, BoardCardAttachmentOut,
     BoardCardOut, BoardColumnOut, BoardOut, BoardColumnIn, BoardCardIn,
-    BoardCardUpdate, MoveCardRequest, BoardCardCommentIn, BoardCardChecklistIn,
+    BoardCardUpdate, MoveCardRequest, BoardCardCommentIn, BoardCardChecklistIn, BoardCardChecklistUpdate,
 )
 from .project import ProjectIn, ProjectOut, ClientNoteIn, ClientNoteOut, ProjectRiwayatIn, ProjectRiwayatOut
 from .credential import (
@@ -96,7 +96,7 @@ __all__ = [
     # board
     "LeadMin", "BoardCardCommentOut", "BoardCardChecklistOut", "BoardCardActivityOut", "BoardCardAttachmentOut",
     "BoardCardOut", "BoardColumnOut", "BoardOut", "BoardColumnIn", "BoardCardIn",
-    "BoardCardUpdate", "MoveCardRequest", "BoardCardCommentIn", "BoardCardChecklistIn",
+    "BoardCardUpdate", "MoveCardRequest", "BoardCardCommentIn", "BoardCardChecklistIn", "BoardCardChecklistUpdate",
     # project
     "ProjectIn", "ProjectOut", "ClientNoteIn", "ClientNoteOut",
     "ProjectRiwayatIn", "ProjectRiwayatOut",
