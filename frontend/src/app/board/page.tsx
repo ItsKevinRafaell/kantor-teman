@@ -188,6 +188,30 @@ function BoardPageInner() {
     catch { setToast({ message: "Gagal update checklist", type: "error" }); }
   }
 
+  async function updateChecklistText(cardId: string, itemId: string, text: string) {
+    if (!text.trim()) return;
+    try {
+      const res = await apiFetch(`/api/board-cards/${cardId}/checklist/${itemId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+      if (res.ok) {
+        const item = await res.json();
+        setBoard(prev => prev ? { ...prev, columns: prev.columns.map(col => ({ ...col, cards: (col.cards || []).map(c => c.id === cardId ? { ...c, checklist: c.checklist.map((i: any) => i.id === itemId ? { ...i, text: item.text } : i) } : c) })) } : prev);
+        setCardModal(prev => prev.card?.id === cardId ? { ...prev, card: { ...prev.card!, checklist: prev.card!.checklist.map((i: any) => i.id === itemId ? { ...i, text: item.text } : i) } } : prev);
+        refreshCardActivity(cardId);
+      } else { setToast({ message: "Gagal update checklist", type: "error" }); }
+    } catch { setToast({ message: "Gagal update checklist", type: "error" }); }
+  }
+
+  async function deleteChecklistItem(cardId: string, itemId: string) {
+    try {
+      const res = await apiFetch(`/api/board-cards/${cardId}/checklist/${itemId}`, { method: "DELETE" });
+      if (res.ok) {
+        setBoard(prev => prev ? { ...prev, columns: prev.columns.map(col => ({ ...col, cards: (col.cards || []).map(c => c.id === cardId ? { ...c, checklist: (c.checklist || []).filter((i: any) => i.id !== itemId) } : c) })) } : prev);
+        setCardModal(prev => prev.card?.id === cardId ? { ...prev, card: { ...prev.card!, checklist: prev.card!.checklist.filter((i: any) => i.id !== itemId) } } : prev);
+        refreshCardActivity(cardId);
+      } else { setToast({ message: "Gagal hapus checklist", type: "error" }); }
+    } catch { setToast({ message: "Gagal hapus checklist", type: "error" }); }
+  }
+
   async function addComment(cardId: string, content: string) {
     if (!content.trim()) return;
     try { const res = await apiFetch(`/api/board-cards/${cardId}/comments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content }) }); if (res.ok) { const comment = await res.json(); setBoard(prev => prev ? { ...prev, columns: prev.columns.map(col => ({ ...col, cards: (col.cards || []).map(c => c.id === cardId ? { ...c, comments: [comment, ...(c.comments || [])] } : c) })) } : prev); setCardModal(prev => prev.card?.id === cardId ? { ...prev, card: { ...prev.card!, comments: [comment, ...(prev.card!.comments || [])] } } : prev); refreshCardActivity(cardId); } else { setToast({ message: "Gagal tambah komentar", type: "error" }); } }
@@ -416,6 +440,8 @@ function BoardPageInner() {
         onClose={() => setCardModal({ open: false, card: null, columnId: "" })}
         onAddChecklist={(text) => cardModal.card && addChecklistItem(cardModal.card.id, text)}
         onToggleChecklist={(itemId, isDone) => cardModal.card && toggleChecklist(cardModal.card.id, itemId, isDone)}
+        onUpdateChecklistText={(itemId, text) => cardModal.card && updateChecklistText(cardModal.card.id, itemId, text)}
+        onDeleteChecklistItem={(itemId) => cardModal.card && deleteChecklistItem(cardModal.card.id, itemId)}
         onAddComment={(content) => cardModal.card && addComment(cardModal.card.id, content)}
         onUploadAttachment={(file) => cardModal.card && uploadCardAttachment(cardModal.card.id, file)}
         formatDateTime={formatDateTime}

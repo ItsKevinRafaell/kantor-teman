@@ -130,3 +130,8 @@ class BoardCardCommentIn(BaseModel):
 
 class BoardCardChecklistIn(BaseModel):
     text: str
+
+
+class BoardCardChecklistUpdate(BaseModel):
+    text: str | None = None
+    is_done: bool | None = None

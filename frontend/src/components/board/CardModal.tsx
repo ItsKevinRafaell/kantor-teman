@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useMemo, useRef } from "react";
-import { Trash2, Archive, ArchiveRestore, User, CheckSquare, MessageSquare, History, Paperclip, Upload } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Trash2, Archive, ArchiveRestore, User, CheckSquare, MessageSquare, History, Paperclip, Upload, Pencil } from "lucide-react";
 import { Modal } from "./SharedModal";
 import { SearchableSelect } from "../ui/SearchableSelect";
 import { LABEL_COLORS } from "./types";
@@ -29,6 +29,8 @@ interface CardModalProps {
   onClose: () => void;
   onAddChecklist: (text: string) => void;
   onToggleChecklist: (itemId: string, isDone: boolean) => void;
+  onUpdateChecklistText: (itemId: string, text: string) => void;
+  onDeleteChecklistItem: (itemId: string) => void;
   onAddComment: (content: string) => void;
   onUploadAttachment: (file: File) => void;
   formatDateTime: (d: string) => string;
@@ -37,7 +39,7 @@ interface CardModalProps {
 export function CardModal({
   open, card, cardForm, setCardForm, saving, currentProject, currentProjectLead, leads, users,
   onCreateCard, onUpdateCard, onArchiveCard, onDeleteCard, onToggleLabel, onClose,
-  onAddChecklist, onToggleChecklist, onAddComment, onUploadAttachment, formatDateTime,
+  onAddChecklist, onToggleChecklist, onUpdateChecklistText, onDeleteChecklistItem, onAddComment, onUploadAttachment, formatDateTime,
 }: CardModalProps) {
   function toggleLabel(label: string) {
     setCardForm((prev: any) => ({
@@ -147,7 +149,7 @@ export function CardModal({
           <>
             <hr className="border-gray-200 dark:border-gray-700 my-2" />
             <AttachmentsSection card={card} onUpload={onUploadAttachment} formatDateTime={formatDateTime} />
-            <ChecklistSection card={card} onAdd={onAddChecklist} onToggle={onToggleChecklist} formatDateTime={formatDateTime} />
+            <ChecklistSection card={card} onAdd={onAddChecklist} onToggle={onToggleChecklist} onUpdateText={onUpdateChecklistText} onDelete={onDeleteChecklistItem} formatDateTime={formatDateTime} />
             <CommentsSection card={card} onAdd={onAddComment} formatDateTime={formatDateTime} />
             <ActivitySection card={card} formatDateTime={formatDateTime} />
           </>
@@ -197,7 +199,9 @@ function AttachmentsSection({ card, onUpload, formatDateTime }: { card: any; onU
   );
 }
 
-function ChecklistSection({ card, onAdd, onToggle, formatDateTime }: { card: any; onAdd: (text: string) => void; onToggle: (id: string, done: boolean) => void; formatDateTime: (d: string) => string }) {
+function ChecklistSection({ card, onAdd, onToggle, onUpdateText, onDelete, formatDateTime }: { card: any; onAdd: (text: string) => void; onToggle: (id: string, done: boolean) => void; onUpdateText: (id: string, text: string) => void; onDelete: (id: string) => void; formatDateTime: (d: string) => string }) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
   const checklist = [...(card.checklist || [])].sort((a: any, b: any) => (b.position ?? 0) - (a.position ?? 0));
   return (
     <div>
@@ -212,10 +216,48 @@ function ChecklistSection({ card, onAdd, onToggle, formatDateTime }: { card: any
       )}
       <div className="space-y-1.5 mb-2">
         {checklist.map((item: any) => (
-          <label key={item.id} className="flex items-center gap-2 text-sm cursor-pointer group">
-            <input type="checkbox" checked={item.is_done} onChange={e => onToggle(item.id, e.target.checked)} className="rounded accent-amber-500" />
-            <span className={`transition-all ${item.is_done ? "line-through text-neutral-400" : "text-neutral-700 dark:text-neutral-300"}`}>{item.text}</span>
-          </label>
+          <div key={item.id} className="flex items-center gap-2 text-sm group">
+            <input type="checkbox" checked={item.is_done} onChange={e => onToggle(item.id, e.target.checked)} className="rounded accent-amber-500 shrink-0" />
+            {editingId === item.id ? (
+              <input
+                type="text"
+                autoFocus
+                value={editText}
+                onChange={e => setEditText(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter") { onUpdateText(item.id, editText); setEditingId(null); }
+                  if (e.key === "Escape") { setEditingId(null); }
+                }}
+                onBlur={() => { if (editText.trim()) onUpdateText(item.id, editText); setEditingId(null); }}
+                className="flex-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 border border-amber-400 rounded-lg text-sm outline-none"
+              />
+            ) : (
+              <span
+                onDoubleClick={() => { setEditingId(item.id); setEditText(item.text); }}
+                className={`flex-1 cursor-text transition-all ${item.is_done ? "line-through text-neutral-400" : "text-neutral-700 dark:text-neutral-300"}`}
+              >
+                {item.text}
+              </span>
+            )}
+            {editingId !== item.id && (
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => { setEditingId(item.id); setEditText(item.text); }}
+                  className="p-1 text-neutral-400 hover:text-amber-500 transition-colors"
+                  title="Edit"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => onDelete(item.id)}
+                  className="p-1 text-neutral-400 hover:text-red-500 transition-colors"
+                  title="Hapus"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
         ))}
       </div>
       <input type="text" placeholder="+ Tambah item checklist, Enter untuk simpan"

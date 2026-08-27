@@ -513,6 +513,154 @@ def toggle_checklist_item(
         actor=actor,
     )
     db.add(activity)
+
+    # AUTO-DONE: kalau semua checklist item di card ini sudah selesai,
+    # pindahkan card ke kolom "Done". Hanya berlaku dari kolom
+    # To Do / In Progress / Review — SKIP kolom custom (Maintenance,
+    # Artikel/LP Bulanan, dll). Card yang di-untick TIDAK ditarik keluar
+    # dari Done (keputusan Kevin: card tetap di Done).
+    if is_done:
+        card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
+        if card:
+            items = db.query(BoardCardChecklist).filter(
+                BoardCardChecklist.card_id == card_id
+            ).all()
+            if items and all(i.is_done for i in items):
+                cur_col = db.query(BoardColumn).filter(
+                    BoardColumn.id == card.column_id
+                ).first()
+                cur_name = (cur_col.name or "").strip().lower() if cur_col else ""
+                _AUTO_DONE_SOURCE_COLS = {"to do", "todo", "in progress", "review"}
+                if cur_col and cur_name in _AUTO_DONE_SOURCE_COLS:
+                    cols = db.query(BoardColumn).filter(
+                        BoardColumn.board_id == cur_col.board_id,
+                    ).all()
+                    done_col = next(
+                        (c for c in cols if (c.name or "").strip().lower() == "done"),
+                        None,
+                    )
+                    if done_col and card.column_id != done_col.id:
+                        card.column_id = done_col.id
+                        max_pos = db.query(BoardCard).filter(
+                            BoardCard.column_id == done_col.id
+                        ).count()
+                        card.position = max(0, max_pos - 1)
+                        card.updated_at = datetime.now(timezone.utc).isoformat()
+                        db.add(BoardCardActivity(
+                            id=str(uuid.uuid4()),
+                            card_id=card_id,
+                            action="moved",
+                            description="Card otomatis dipindah ke Done (semua checklist selesai)",
+                            actor="system",
+                        ))
+
     db.commit()
     db.refresh(item)
     return _board_card_checklist_to_out(item)
+
+
+def update_checklist_item(
+    db: Session,
+    card_id: str,
+    item_id: str,
+    text: str | None = None,
+    is_done: bool | None = None,
+    actor: str = "system",
+) -> dict:
+    """Update checklist item text and/or is_done. At least one field must be provided."""
+    item = db.query(BoardCardChecklist).filter(
+        BoardCardChecklist.id == item_id,
+        BoardCardChecklist.card_id == card_id,
+    ).first()
+    if not item:
+        raise ValueError("Checklist item tidak ditemukan")
+
+    changed = []
+    if text is not None and text.strip():
+        item.text = text.strip()
+        changed.append("text")
+    if is_done is not None:
+        item.is_done = is_done
+        changed.append("is_done")
+
+    if not changed:
+        raise ValueError("Tidak ada field yang diupdate")
+
+    desc_parts = []
+    if "text" in changed:
+        desc_parts.append(f'text → "{item.text}"')
+    if "is_done" in changed:
+        desc_parts.append(f'{"selesai" if item.is_done else "belum selesai"}')
+    activity = BoardCardActivity(
+        id=str(uuid.uuid4()),
+        card_id=card_id,
+        action="checklist",
+        description=f'Checklist "{item.text}" diupdate: {", ".join(desc_parts)}',
+        actor=actor,
+    )
+    db.add(activity)
+
+    # AUTO-DONE logic (sama kayak toggle_checklist_item)
+    if is_done and is_done:
+        card = db.query(BoardCard).filter(BoardCard.id == card_id).first()
+        if card:
+            items = db.query(BoardCardChecklist).filter(
+                BoardCardChecklist.card_id == card_id
+            ).all()
+            if items and all(i.is_done for i in items):
+                cur_col = db.query(BoardColumn).filter(
+                    BoardColumn.id == card.column_id
+                ).first()
+                cur_name = (cur_col.name or "").strip().lower() if cur_col else ""
+                _AUTO_DONE_SOURCE_COLS = {"to do", "todo", "in progress", "review"}
+                if cur_col and cur_name in _AUTO_DONE_SOURCE_COLS:
+                    cols = db.query(BoardColumn).filter(
+                        BoardColumn.board_id == cur_col.board_id,
+                    ).all()
+                    done_col = next(
+                        (c for c in cols if (c.name or "").strip().lower() == "done"),
+                        None,
+                    )
+                    if done_col and card.column_id != done_col.id:
+                        card.column_id = done_col.id
+                        max_pos = db.query(BoardCard).filter(
+                            BoardCard.column_id == done_col.id
+                        ).count()
+                        card.position = max(0, max_pos - 1)
+                        card.updated_at = datetime.now(timezone.utc).isoformat()
+                        db.add(BoardCardActivity(
+                            id=str(uuid.uuid4()),
+                            card_id=card_id,
+                            action="moved",
+                            description="Card otomatis dipindah ke Done (semua checklist selesai)",
+                            actor="system",
+                        ))
+
+    db.commit()
+    db.refresh(item)
+    return _board_card_checklist_to_out(item)
+
+
+def delete_checklist_item(
+    db: Session,
+    card_id: str,
+    item_id: str,
+    actor: str,
+) -> None:
+    item = db.query(BoardCardChecklist).filter(
+        BoardCardChecklist.id == item_id,
+        BoardCardChecklist.card_id == card_id,
+    ).first()
+    if not item:
+        raise ValueError("Checklist item tidak ditemukan")
+    text = item.text
+    db.delete(item)
+    activity = BoardCardActivity(
+        id=str(uuid.uuid4()),
+        card_id=card_id,
+        action="checklist",
+        description=f'Checklist "{text}" dihapus',
+        actor=actor,
+    )
+    db.add(activity)
+    db.commit()
