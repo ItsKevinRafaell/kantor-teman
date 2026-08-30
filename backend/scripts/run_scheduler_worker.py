@@ -6,17 +6,25 @@ Kenapa terpisah:
   pada proses web supaya tiap LSAPI worker tidak menjalankan APScheduler.
   Scheduler hanya boleh hidup di process khusus ini.
 
+Kenapa --enable (process-local):
+  Snapshot prod 30 Agu: .env Passenger cuma master=false, sub-flag absen.
+  Kalau worker cuma baca .env itu, file worker yang di-deploy tetap no-op.
+  --enable Nyalain job HANYA di process ini (os.environ), TIDAK menulis .env.
+  Blast tetap ditolak tanpa --allow-blast.
+
 Default AMAN:
   - Semua flag OFF → worker exit 0, tidak start job.
   - Blast ditolak kecuali --allow-blast (Kevin harus eksplisit).
-  - --probe hanya cetak rencana (JSON) + exit. Tidak connect DB, tidak start job.
+  - --probe / --dry-run hanya cetak rencana (JSON) + exit. Tidak connect DB, tidak start job.
 
 Usage (lokal / process terpisah, BUKAN deploy otomatis):
   python3 scripts/run_scheduler_worker.py --probe
-  python3 scripts/run_scheduler_worker.py            # BlockingScheduler, sub-flag ON saja
+  python3 scripts/run_scheduler_worker.py --enable billing --dry-run
+  python3 scripts/run_scheduler_worker.py --enable billing
   python3 scripts/run_scheduler_worker.py --allow-blast   # HANYA kalau Kevin ACC blast
 
 DILARANG: jalankan ini di prod tanpa Kevin nulis "deploy" / "nyalain".
+DILARANG: edit .env Passenger / touch tmp/restart.txt dari script ini.
 """
 from __future__ import annotations
 
@@ -36,11 +44,44 @@ _env_file = os.environ.get("ENV_FILE", ".env")
 load_dotenv(_env_file)
 load_dotenv(BACKEND_DIR / ".env", override=False)
 
-from app.schedulers.flags import scheduler_plan  # noqa: E402
+from app.schedulers.flags import JOB_FLAGS, MASTER_FLAG, scheduler_plan  # noqa: E402
+
+ALLOWED_ENABLE = frozenset(JOB_FLAGS.keys())  # blast, followup, lifecycle, billing
 
 
 def _print_plan(plan: dict) -> None:
     print(json.dumps(plan, indent=2, sort_keys=True), flush=True)
+
+
+def apply_process_enables(jobs: list[str]) -> None:
+    """Nyalain master + sub-flag HANYA di process ini. Tidak tulis file .env.
+
+    Exclusive: job yang tidak disebut di --enable di-set false di process ini
+    supaya blast tidak bocor dari env kotor / tes sebelumnya.
+    """
+    if not jobs:
+        return
+    os.environ[MASTER_FLAG] = "true"
+    wanted = set(jobs)
+    for job, envname in JOB_FLAGS.items():
+        os.environ[envname] = "true" if job in wanted else "false"
+
+
+def parse_enable(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    jobs: list[str] = []
+    for part in raw.split(","):
+        name = part.strip().lower()
+        if not name:
+            continue
+        if name not in ALLOWED_ENABLE:
+            raise ValueError(
+                f"job tidak dikenal: {name!r}. boleh: {', '.join(sorted(ALLOWED_ENABLE))}"
+            )
+        if name not in jobs:
+            jobs.append(name)
+    return jobs
 
 
 def probe() -> int:
@@ -56,7 +97,7 @@ def probe() -> int:
     return 0
 
 
-def start_blocking(*, allow_blast: bool) -> int:
+def start_blocking(*, allow_blast: bool, dry_run: bool = False) -> int:
     plan = scheduler_plan()
     _print_plan(plan)
 
@@ -72,7 +113,14 @@ def start_blocking(*, allow_blast: bool) -> int:
         print("[SCHEDULER] tidak start (master OFF atau semua sub-flag OFF).", flush=True)
         return 0
 
-    # Import job runners hanya saat benar-benar start — probe tidak nyentuh DB.
+    if dry_run:
+        print(
+            f"[SCHEDULER] dry-run: would start jobs={','.join(plan['jobs'])} — tidak start BlockingScheduler.",
+            flush=True,
+        )
+        return 0
+
+    # Import job runners hanya saat benar-benar start — probe/dry-run tidak nyentuh DB.
     import main as kt_main  # noqa: WPS433
 
     from apscheduler.schedulers.blocking import BlockingScheduler
@@ -142,14 +190,33 @@ def main(argv: list[str] | None = None) -> int:
         help="Cetak rencana flag (JSON) lalu exit. Tidak start job, tidak sentuh DB.",
     )
     parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Sama seperti start tapi berhenti sebelum BlockingScheduler. Tidak sentuh DB.",
+    )
+    parser.add_argument(
+        "--enable",
+        metavar="JOBS",
+        help=(
+            "Nyalain job process-local (koma): billing,followup,lifecycle,blast. "
+            "Set env HANYA di process ini. Tidak tulis .env. Blast tetap butuh --allow-blast."
+        ),
+    )
+    parser.add_argument(
         "--allow-blast",
         action="store_true",
         help="Izinkan job blast. Default TOLAK meski env-nya true. Butuh ACC Kevin.",
     )
     args = parser.parse_args(argv)
+    try:
+        enables = parse_enable(args.enable)
+    except ValueError as exc:
+        print(f"[SCHEDULER] REFUSE: {exc}", flush=True)
+        return 2
+    apply_process_enables(enables)
     if args.probe:
         return probe()
-    return start_blocking(allow_blast=args.allow_blast)
+    return start_blocking(allow_blast=args.allow_blast, dry_run=args.dry_run)
 
 
 if __name__ == "__main__":
