@@ -19,8 +19,8 @@ Default AMAN:
 
 Usage (lokal / process terpisah, BUKAN deploy otomatis):
   python3 scripts/run_scheduler_worker.py --probe
-  python3 scripts/run_scheduler_worker.py --enable billing --dry-run
-  python3 scripts/run_scheduler_worker.py --enable billing
+  python3 scripts/run_scheduler_worker.py --enable followup --dry-run
+  python3 scripts/run_scheduler_worker.py --enable followup
   python3 scripts/run_scheduler_worker.py --allow-blast   # HANYA kalau Kevin ACC blast
 
 DILARANG: jalankan ini di prod tanpa Kevin nulis "deploy" / "nyalain".
@@ -44,7 +44,13 @@ _env_file = os.environ.get("ENV_FILE", ".env")
 load_dotenv(_env_file)
 load_dotenv(BACKEND_DIR / ".env", override=False)
 
-from app.schedulers.flags import JOB_FLAGS, JOB_SPECS, MASTER_FLAG, scheduler_plan  # noqa: E402
+from app.schedulers.flags import (  # noqa: E402
+    JOB_FLAGS,
+    JOB_SPECS,
+    MASTER_FLAG,
+    scheduler_plan,
+    trigger_kwargs,
+)
 
 ALLOWED_ENABLE = frozenset(JOB_FLAGS.keys())  # blast, followup, lifecycle, billing
 
@@ -129,59 +135,21 @@ def start_blocking(*, allow_blast: bool, dry_run: bool = False) -> int:
 
     sched = BlockingScheduler(timezone="Asia/Jakarta")
     enabled = plan["jobs"]
-    blast_id, = JOB_SPECS["blast"]
-    followup_id, = JOB_SPECS["followup"]
-    lifecycle_id, = JOB_SPECS["lifecycle"]
-    billing_sub_id, billing_inv_id = JOB_SPECS["billing"]
-
-    if "blast" in enabled:
-        sched.add_job(
-            kt_main._run_async_job,
-            "interval",
-            minutes=1,
-            args=[kt_main.process_pending_blasts],
-            id=blast_id,
-            max_instances=1,
-            coalesce=True,
-        )
-    if "followup" in enabled:
-        sched.add_job(
-            kt_main._run_async_job,
-            "interval",
-            hours=1,
-            args=[kt_main.scheduled_followup_processor],
-            id=followup_id,
-            max_instances=1,
-            coalesce=True,
-        )
-    if "lifecycle" in enabled:
-        sched.add_job(
-            kt_main._run_outreach_lifecycle,
-            "interval",
-            hours=1,
-            id=lifecycle_id,
-            max_instances=1,
-            coalesce=True,
-        )
-    if "billing" in enabled:
-        sched.add_job(
-            kt_main._run_subscription_deductions,
-            "cron",
-            hour=0,
-            minute=5,
-            id=billing_sub_id,
-            max_instances=1,
-            coalesce=True,
-        )
-        sched.add_job(
-            kt_main._run_project_billing_invoices,
-            "cron",
-            hour=0,
-            minute=15,
-            id=billing_inv_id,
-            max_instances=1,
-            coalesce=True,
-        )
+    runners = {
+        "pending-blasts": (kt_main._run_async_job, [kt_main.process_pending_blasts]),
+        "followups": (kt_main._run_async_job, [kt_main.scheduled_followup_processor]),
+        "outreach-lifecycle": (kt_main._run_outreach_lifecycle, None),
+        "subscription-deductions": (kt_main._run_subscription_deductions, None),
+        "project-billing-invoices": (kt_main._run_project_billing_invoices, None),
+    }
+    for job in enabled:
+        for jid in JOB_SPECS[job]:
+            trigger, trig = trigger_kwargs(jid)
+            fn, args = runners[jid]
+            kw = dict(id=jid, max_instances=1, coalesce=True, **trig)
+            if args is not None:
+                kw["args"] = args
+            sched.add_job(fn, trigger, **kw)
 
     print(
         f"[SCHEDULER] worker started, jobs aktif: {', '.join(enabled)} "

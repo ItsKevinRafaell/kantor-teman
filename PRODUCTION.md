@@ -44,8 +44,8 @@ Catatan:
 - Jangan mengganti `SECRET_ENCRYPTION_KEY` jika sudah ada data brankas terenkripsi.
 - Isi `FONNTE_WEBHOOK_SECRET` hanya jika provider webhook dapat mengirim header `x-fonnte-webhook-secret`. Jika diisi, callback tanpa header tersebut ditolak.
 - Di shared hosting Passenger/cPanel, biarkan `ENABLE_BACKGROUND_SCHEDULER="false"` supaya setiap worker web tidak menjalankan scheduler sendiri. Jalankan scheduler hanya dari worker/process terpisah.
-- `--probe` dulu (cetak rencana flag, tidak start job). Kalau `.env` web master=false (snapshot prod), `--probe` saja = no-op. Pakai `--enable billing` (process-local, **tidak tulis `.env`**) supaya worker terpisah bisa start tanpa nyalain master di Passenger. `--dry-run` berhenti sebelum BlockingScheduler. Blast ditolak kecuali `--allow-blast` (ACC Kevin).
-- Contoh (setelah Kevin nulis "deploy"): `python3 scripts/run_scheduler_worker.py --enable billing --dry-run` lalu tanpa `--dry-run`. Jangan `--enable blast` tanpa ACC.
+- `--probe` dulu (cetak rencana flag, tidak start job). Kalau `.env` web master=false (snapshot prod), `--probe` saja = no-op. Pakai `--enable followup` (process-local, **tidak tulis `.env`**) supaya worker terpisah bisa start tanpa nyalain master di Passenger. `--dry-run` berhenti sebelum BlockingScheduler. Blast ditolak kecuali `--allow-blast` (ACC Kevin). Billing by-tanggal **jangan** first-enable — invoice retainer = turunan report final (`SAFE_FIRST_ENABLE=followup`).
+- Contoh (setelah Kevin nulis "deploy"): `python3 scripts/run_scheduler_worker.py --enable followup --dry-run` lalu tanpa `--dry-run`. Jangan `--enable blast` tanpa ACC. Jangan `--enable billing` kecuali Kevin override PLAN-report-invoice.
 - Snapshot env prod 30 Agu 2026 (SSH read-only `qqwtlphb`): `.env` hanya `ENABLE_BACKGROUND_SCHEDULER=false`, sub-flag absen, `flags.py` + worker **belum** di server, `stderr.log` 0 APScheduler. Tes pengunci: `tests/test_scheduler_prod_snapshot.py` + `tests/test_scheduler_enable_cli.py`. Jangan nyalain master di `.env` Passenger.
 - API key provider dapat diatur dari menu admin setelah deploy.
 

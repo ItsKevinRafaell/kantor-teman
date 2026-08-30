@@ -179,7 +179,12 @@ def _run_project_billing_invoices():
         db.close()
 
 
-from app.schedulers.flags import flag_on as _flag_on, scheduler_plan  # noqa: E402
+from app.schedulers.flags import (  # noqa: E402
+    JOB_SPECS,
+    trigger_kwargs,
+    flag_on as _flag_on,
+    scheduler_plan,
+)
 
 
 def _start_background_scheduler():
@@ -204,22 +209,28 @@ def _start_background_scheduler():
     sched = BackgroundScheduler(timezone="Asia/Jakarta", daemon=True)
 
     enabled = plan["jobs"]
-
-    if "blast" in enabled:
-        sched.add_job(_run_async_job, "interval", minutes=1, args=[process_pending_blasts], id="pending-blasts", max_instances=1, coalesce=True)
-
-    if "followup" in enabled:
-        sched.add_job(_run_async_job, "interval", hours=1, args=[scheduled_followup_processor], id="followups", max_instances=1, coalesce=True)
-
-    if "lifecycle" in enabled:
-        sched.add_job(_run_outreach_lifecycle, "interval", hours=1, id="outreach-lifecycle", max_instances=1, coalesce=True)
-
-    if "billing" in enabled:
-        sched.add_job(_run_subscription_deductions, "cron", hour=0, minute=5, id="subscription-deductions", max_instances=1, coalesce=True)
-        sched.add_job(_run_project_billing_invoices, "cron", hour=0, minute=15, id="project-billing-invoices", max_instances=1, coalesce=True)
+    runners = {
+        "pending-blasts": (_run_async_job, [process_pending_blasts]),
+        "followups": (_run_async_job, [scheduled_followup_processor]),
+        "outreach-lifecycle": (_run_outreach_lifecycle, None),
+        "subscription-deductions": (_run_subscription_deductions, None),
+        "project-billing-invoices": (_run_project_billing_invoices, None),
+    }
+    for job in enabled:
+        for jid in JOB_SPECS[job]:
+            trigger, trig = trigger_kwargs(jid)
+            fn, args = runners[jid]
+            kw = dict(id=jid, max_instances=1, coalesce=True, **trig)
+            if args is not None:
+                kw["args"] = args
+            sched.add_job(fn, trigger, **kw)
 
     sched.start()
-    print(f"[SCHEDULER] started, jobs aktif: {', '.join(enabled)}", flush=True)
+    print(
+        f"[SCHEDULER] started, jobs aktif: {', '.join(enabled)} "
+        f"job_ids={','.join(plan['job_ids'])}",
+        flush=True,
+    )
     return sched
 
 

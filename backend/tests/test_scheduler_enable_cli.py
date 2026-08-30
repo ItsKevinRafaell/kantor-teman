@@ -86,6 +86,23 @@ def test_main_enable_billing_dry_run_exit_0(monkeypatch, capsys):
     assert "pending-blasts" not in out
 
 
+def test_main_enable_followup_is_safe_first(monkeypatch, capsys):
+    """First-enable setelah deploy = followup, bukan billing by-tanggal / blast."""
+    from app.schedulers.flags import SAFE_FIRST_ENABLE
+
+    assert SAFE_FIRST_ENABLE == "followup"
+    monkeypatch.setenv(MASTER_FLAG, "false")
+    rc = main(["--enable", SAFE_FIRST_ENABLE, "--dry-run"])
+    assert rc == 0
+    plan = scheduler_plan()
+    assert plan["jobs"] == ["followup"]
+    assert plan["job_ids"] == ["followups"]
+    out = capsys.readouterr().out
+    assert "followups" in out
+    assert "pending-blasts" not in out
+    assert "subscription-deductions" not in out
+
+
 def test_main_unknown_job_exit_2():
     rc = main(["--enable", "nuklir", "--dry-run"])
     assert rc == 2
