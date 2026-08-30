@@ -1,8 +1,9 @@
 """CLI --enable process-local: nyalain job TANPA tulis .env Passenger.
 
 Snapshot prod 30 Agu: master=false, sub-flag absen. Worker yang cuma baca
-.env itu = no-op. Tes ini mengunci: --enable billing --dry-run start di
-process, blast tetap ditolak, .env tidak disentuh.
+.env itu = no-op. Tes ini mengunci: --safe-first / --enable followup
+--dry-run start di process, blast+billing tidak ikut, .env tidak disentuh.
+--enable billing tetap ada untuk override Kevin, bukan first-enable.
 """
 import pytest
 
@@ -101,6 +102,27 @@ def test_main_enable_followup_is_safe_first(monkeypatch, capsys):
     assert "followups" in out
     assert "pending-blasts" not in out
     assert "subscription-deductions" not in out
+
+
+def test_main_safe_first_flag_equals_followup(monkeypatch, capsys):
+    """--safe-first = --enable followup. Billing/blast tidak ikut."""
+    from app.schedulers.flags import SAFE_FIRST_ENABLE
+
+    monkeypatch.setenv(MASTER_FLAG, "false")
+    rc = main(["--safe-first", "--dry-run"])
+    assert rc == 0
+    plan = scheduler_plan()
+    assert plan["jobs"] == [SAFE_FIRST_ENABLE]
+    assert plan["job_ids"] == ["followups"]
+    out = capsys.readouterr().out
+    assert "followups" in out
+    assert "subscription-deductions" not in out
+    assert "pending-blasts" not in out
+
+
+def test_main_safe_first_mixed_with_billing_refuses():
+    rc = main(["--safe-first", "--enable", "billing", "--dry-run"])
+    assert rc == 2
 
 
 def test_main_unknown_job_exit_2():

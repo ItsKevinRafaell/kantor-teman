@@ -19,8 +19,9 @@ Default AMAN:
 
 Usage (lokal / process terpisah, BUKAN deploy otomatis):
   python3 scripts/run_scheduler_worker.py --probe
-  python3 scripts/run_scheduler_worker.py --enable followup --dry-run
-  python3 scripts/run_scheduler_worker.py --enable followup
+  python3 scripts/run_scheduler_worker.py --safe-first --dry-run
+  python3 scripts/run_scheduler_worker.py --safe-first
+  python3 scripts/run_scheduler_worker.py --enable followup   # sama dengan --safe-first
   python3 scripts/run_scheduler_worker.py --allow-blast   # HANYA kalau Kevin ACC blast
 
 DILARANG: jalankan ini di prod tanpa Kevin nulis "deploy" / "nyalain".
@@ -48,6 +49,7 @@ from app.schedulers.flags import (  # noqa: E402
     JOB_FLAGS,
     JOB_SPECS,
     MASTER_FLAG,
+    SAFE_FIRST_ENABLE,
     scheduler_plan,
     trigger_kwargs,
 )
@@ -176,8 +178,17 @@ def main(argv: list[str] | None = None) -> int:
         "--enable",
         metavar="JOBS",
         help=(
-            "Nyalain job process-local (koma): billing,followup,lifecycle,blast. "
-            "Set env HANYA di process ini. Tidak tulis .env. Blast tetap butuh --allow-blast."
+            "Nyalain job process-local (koma): followup,lifecycle,billing,blast. "
+            "Set env HANYA di process ini. Tidak tulis .env. Blast tetap butuh --allow-blast. "
+            "First-enable AMAN = followup (lihat --safe-first), bukan billing."
+        ),
+    )
+    parser.add_argument(
+        "--safe-first",
+        action="store_true",
+        help=(
+            f"Alias first-enable AMAN: sama dengan --enable {SAFE_FIRST_ENABLE}. "
+            "Bukan blast, bukan billing by-tanggal. Tidak tulis .env."
         ),
     )
     parser.add_argument(
@@ -191,6 +202,15 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         print(f"[SCHEDULER] REFUSE: {exc}", flush=True)
         return 2
+    if args.safe_first:
+        if enables and enables != [SAFE_FIRST_ENABLE]:
+            print(
+                f"[SCHEDULER] REFUSE: --safe-first tidak boleh dicampur job lain "
+                f"(dapat {enables!r}). Pakai --enable {SAFE_FIRST_ENABLE} saja.",
+                flush=True,
+            )
+            return 2
+        enables = [SAFE_FIRST_ENABLE]
     apply_process_enables(enables)
     if args.probe:
         return probe()
