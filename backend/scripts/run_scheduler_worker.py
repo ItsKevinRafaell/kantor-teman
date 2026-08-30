@@ -44,7 +44,7 @@ _env_file = os.environ.get("ENV_FILE", ".env")
 load_dotenv(_env_file)
 load_dotenv(BACKEND_DIR / ".env", override=False)
 
-from app.schedulers.flags import JOB_FLAGS, MASTER_FLAG, scheduler_plan  # noqa: E402
+from app.schedulers.flags import JOB_FLAGS, JOB_SPECS, MASTER_FLAG, scheduler_plan  # noqa: E402
 
 ALLOWED_ENABLE = frozenset(JOB_FLAGS.keys())  # blast, followup, lifecycle, billing
 
@@ -114,8 +114,10 @@ def start_blocking(*, allow_blast: bool, dry_run: bool = False) -> int:
         return 0
 
     if dry_run:
+        ids = ",".join(plan["job_ids"])
         print(
-            f"[SCHEDULER] dry-run: would start jobs={','.join(plan['jobs'])} — tidak start BlockingScheduler.",
+            f"[SCHEDULER] dry-run: would start jobs={','.join(plan['jobs'])} "
+            f"job_ids={ids} — tidak start BlockingScheduler.",
             flush=True,
         )
         return 0
@@ -127,6 +129,10 @@ def start_blocking(*, allow_blast: bool, dry_run: bool = False) -> int:
 
     sched = BlockingScheduler(timezone="Asia/Jakarta")
     enabled = plan["jobs"]
+    blast_id, = JOB_SPECS["blast"]
+    followup_id, = JOB_SPECS["followup"]
+    lifecycle_id, = JOB_SPECS["lifecycle"]
+    billing_sub_id, billing_inv_id = JOB_SPECS["billing"]
 
     if "blast" in enabled:
         sched.add_job(
@@ -134,7 +140,7 @@ def start_blocking(*, allow_blast: bool, dry_run: bool = False) -> int:
             "interval",
             minutes=1,
             args=[kt_main.process_pending_blasts],
-            id="pending-blasts",
+            id=blast_id,
             max_instances=1,
             coalesce=True,
         )
@@ -144,7 +150,7 @@ def start_blocking(*, allow_blast: bool, dry_run: bool = False) -> int:
             "interval",
             hours=1,
             args=[kt_main.scheduled_followup_processor],
-            id="followups",
+            id=followup_id,
             max_instances=1,
             coalesce=True,
         )
@@ -153,7 +159,7 @@ def start_blocking(*, allow_blast: bool, dry_run: bool = False) -> int:
             kt_main._run_outreach_lifecycle,
             "interval",
             hours=1,
-            id="outreach-lifecycle",
+            id=lifecycle_id,
             max_instances=1,
             coalesce=True,
         )
@@ -163,7 +169,7 @@ def start_blocking(*, allow_blast: bool, dry_run: bool = False) -> int:
             "cron",
             hour=0,
             minute=5,
-            id="subscription-deductions",
+            id=billing_sub_id,
             max_instances=1,
             coalesce=True,
         )
@@ -172,12 +178,16 @@ def start_blocking(*, allow_blast: bool, dry_run: bool = False) -> int:
             "cron",
             hour=0,
             minute=15,
-            id="project-billing-invoices",
+            id=billing_inv_id,
             max_instances=1,
             coalesce=True,
         )
 
-    print(f"[SCHEDULER] worker started, jobs aktif: {', '.join(enabled)}", flush=True)
+    print(
+        f"[SCHEDULER] worker started, jobs aktif: {', '.join(enabled)} "
+        f"job_ids={','.join(plan['job_ids'])}",
+        flush=True,
+    )
     sched.start()
     return 0
 

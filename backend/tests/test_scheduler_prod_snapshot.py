@@ -30,6 +30,7 @@ def test_prod_env_as_of_20260830_does_not_start(monkeypatch):
     plan = scheduler_plan()
     assert plan["master"] is False
     assert plan["jobs"] == []
+    assert plan["job_ids"] == []
     assert plan["will_start"] is False
     assert probe() == 0
     assert start_blocking(allow_blast=False) == 0

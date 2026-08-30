@@ -55,6 +55,17 @@ def test_plan_billing_only_blast_stays_off(monkeypatch):
     assert plan["will_start"] is True
     assert "blast" not in plan["jobs"]
     assert plan["flags"]["ENABLE_BLAST_SCHEDULER"] is False
+    assert plan["job_ids"] == [
+        "subscription-deductions",
+        "project-billing-invoices",
+    ]
+
+
+def test_job_ids_for_unknown_flag_empty():
+    from app.schedulers.flags import job_ids_for
+
+    assert job_ids_for([]) == []
+    assert job_ids_for(["nuklir"]) == []
 
 
 def test_plan_followup_and_lifecycle(monkeypatch):

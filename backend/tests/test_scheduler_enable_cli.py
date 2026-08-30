@@ -50,6 +50,10 @@ def test_enable_billing_overrides_prod_snapshot(monkeypatch):
     plan = scheduler_plan()
     assert plan["master"] is True
     assert plan["jobs"] == ["billing"]
+    assert plan["job_ids"] == [
+        "subscription-deductions",
+        "project-billing-invoices",
+    ]
     assert plan["will_start"] is True
     assert "blast" not in plan["jobs"]
 
@@ -69,13 +73,17 @@ def test_enable_blast_without_allow_refuses(monkeypatch):
     assert rc == 3
 
 
-def test_main_enable_billing_dry_run_exit_0(monkeypatch):
+def test_main_enable_billing_dry_run_exit_0(monkeypatch, capsys):
     monkeypatch.setenv(MASTER_FLAG, "false")
     monkeypatch.delenv("ENABLE_BILLING_SCHEDULER", raising=False)
     rc = main(["--enable", "billing", "--dry-run"])
     assert rc == 0
     plan = scheduler_plan()
     assert plan["jobs"] == ["billing"]
+    out = capsys.readouterr().out
+    assert "subscription-deductions" in out
+    assert "project-billing-invoices" in out
+    assert "pending-blasts" not in out
 
 
 def test_main_unknown_job_exit_2():
