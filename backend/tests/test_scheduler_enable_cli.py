@@ -59,6 +59,67 @@ def test_enable_billing_overrides_prod_snapshot(monkeypatch):
     assert "blast" not in plan["jobs"]
 
 
+# ── --once: eksekusi sekali lalu exit (mode crontab shared hosting) ──────────
+
+
+def test_once_dry_run_prints_plan_without_db(capsys):
+    """--safe-first --once --dry-run: cetak rencana + exit 0, tanpa import main."""
+    code = main(["--safe-first", "--once", "--dry-run"])
+    assert code == 0
+    out = capsys.readouterr().out
+    assert '"master": true' in out
+    assert '"followups"' in out
+    assert "once dry-run" in out
+
+
+def test_once_refuses_blast_without_allow_blast(capsys):
+    """--once tetap menolak blast tanpa --allow-blast, exit 3."""
+    code = main(["--enable", "blast", "--once"])
+    assert code == 3
+    assert "REFUSE" in capsys.readouterr().out
+
+
+def test_once_without_enable_is_noop(monkeypatch, capsys):
+    """Master OFF + tanpa --enable: once no-op exit 0, main tidak pernah diimport."""
+    import sys
+
+    monkeypatch.setitem(sys.modules, "main", None)  # import main = ImportError kalau kepanggil
+    code = main(["--once"])
+    assert code == 0
+    assert "tidak ada job enable" in capsys.readouterr().out
+
+
+def test_once_runs_enabled_job_exactly_once(monkeypatch, capsys):
+    """--safe-first --once: runner followup dipanggil PERSIS 1x, tanpa APScheduler."""
+    import sys
+    import types
+
+    calls: list[str] = []
+    fake = types.SimpleNamespace()
+
+    def _run_async_job(coro):
+        calls.append(coro.__name__)
+
+    def process_pending_blasts():
+        raise AssertionError("blast tidak boleh jalan di --safe-first")
+
+    def scheduled_followup_processor():
+        return None
+
+    fake._run_async_job = _run_async_job
+    fake.process_pending_blasts = process_pending_blasts
+    fake.scheduled_followup_processor = scheduled_followup_processor
+    fake._run_outreach_lifecycle = lambda: None
+    fake._run_subscription_deductions = lambda: None
+    fake._run_project_billing_invoices = lambda: None
+    monkeypatch.setitem(sys.modules, "main", fake)
+
+    code = main(["--safe-first", "--once"])
+    assert code == 0
+    assert calls == ["scheduled_followup_processor"]
+    assert "once selesai" in capsys.readouterr().out
+
+
 def test_dry_run_enable_billing_does_not_start_scheduler(monkeypatch):
     monkeypatch.setenv(MASTER_FLAG, "false")
     monkeypatch.delenv("ENABLE_BILLING_SCHEDULER", raising=False)

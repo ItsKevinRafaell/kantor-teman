@@ -21,6 +21,7 @@ Usage (lokal / process terpisah, BUKAN deploy otomatis):
   python3 scripts/run_scheduler_worker.py --probe
   python3 scripts/run_scheduler_worker.py --safe-first --dry-run
   python3 scripts/run_scheduler_worker.py --safe-first
+  python3 scripts/run_scheduler_worker.py --safe-first --once   # run 1x lalu exit (buat crontab)
   python3 scripts/run_scheduler_worker.py --enable followup   # sama dengan --safe-first
   python3 scripts/run_scheduler_worker.py --allow-blast   # HANYA kalau Kevin ACC blast
 
@@ -50,6 +51,7 @@ from app.schedulers.flags import (  # noqa: E402
     JOB_SPECS,
     MASTER_FLAG,
     SAFE_FIRST_ENABLE,
+    SchedulerPlan,
     scheduler_plan,
     trigger_kwargs,
 )
@@ -57,7 +59,7 @@ from app.schedulers.flags import (  # noqa: E402
 ALLOWED_ENABLE = frozenset(JOB_FLAGS.keys())  # blast, followup, lifecycle, billing
 
 
-def _print_plan(plan: dict) -> None:
+def _print_plan(plan: "SchedulerPlan | dict") -> None:
     print(json.dumps(plan, indent=2, sort_keys=True), flush=True)
 
 
@@ -105,6 +107,73 @@ def probe() -> int:
     return 0
 
 
+def _job_runners(kt_main) -> dict:
+    """Map job_id -> (fn, args) — SATU sumber, dipakai start_blocking & run_once.
+
+    Semantik panggil = persis add_job(fn, trigger, args=[...]): fn(*args),
+    atau fn() kalau args None. Jangan duplikasi map ini di 2 tempat.
+    """
+    return {
+        "pending-blasts": (kt_main._run_async_job, [kt_main.process_pending_blasts]),
+        "followups": (kt_main._run_async_job, [kt_main.scheduled_followup_processor]),
+        "outreach-lifecycle": (kt_main._run_outreach_lifecycle, None),
+        "subscription-deductions": (kt_main._run_subscription_deductions, None),
+        "project-billing-invoices": (kt_main._run_project_billing_invoices, None),
+    }
+
+
+def run_once(*, allow_blast: bool, dry_run: bool = False) -> int:
+    """Jalanin job yang di-enable SEKALI lalu exit. Mode buat crontab shared hosting.
+
+    Kenapa ada: BlockingScheduler = process infinite, dan job interval APScheduler
+    fire pertama di now+interval — process yang dibunuh cron/timeout sebelum itu
+    fire 0x. --once memanggil runner langsung (tanpa APScheduler, tanpa daemon),
+    jadi crontab `flock -n ... --once` per interval aman & tidak overlap.
+    Blast tetap DITOLAK tanpa --allow-blast, sama seperti start_blocking.
+    """
+    plan = scheduler_plan()
+    _print_plan(plan)
+    if "blast" in plan["jobs"] and not allow_blast:
+        print(
+            "[SCHEDULER] REFUSE: ENABLE_BLAST_SCHEDULER=true tapi --allow-blast tidak ada. "
+            "Blast tetap OFF. Tidak jalan sekali pun.",
+            flush=True,
+        )
+        return 3
+    if not plan["will_start"]:
+        print(
+            "[SCHEDULER] once: tidak ada job enable (master OFF / semua sub-flag OFF).",
+            flush=True,
+        )
+        return 0
+    ids = ",".join(plan["job_ids"])
+    if dry_run:
+        print(
+            f"[SCHEDULER] once dry-run: would run jobs={','.join(plan['jobs'])} "
+            f"job_ids={ids} — tidak import main, tidak sentuh DB.",
+            flush=True,
+        )
+        return 0
+
+    # Import job runners hanya saat benar-benar jalan — dry-run tidak nyentuh DB.
+    import main as kt_main  # noqa: WPS433
+
+    runners = _job_runners(kt_main)
+    for job in plan["jobs"]:
+        for jid in JOB_SPECS[job]:
+            fn, args = runners[jid]
+            print(f"[SCHEDULER] once: run {jid} ...", flush=True)
+            if args is None:
+                fn()
+            else:
+                fn(*args)
+    print(
+        f"[SCHEDULER] once selesai: jobs={','.join(plan['jobs'])} job_ids={ids}",
+        flush=True,
+    )
+    return 0
+
+
 def start_blocking(*, allow_blast: bool, dry_run: bool = False) -> int:
     plan = scheduler_plan()
     _print_plan(plan)
@@ -137,13 +206,7 @@ def start_blocking(*, allow_blast: bool, dry_run: bool = False) -> int:
 
     sched = BlockingScheduler(timezone="Asia/Jakarta")
     enabled = plan["jobs"]
-    runners = {
-        "pending-blasts": (kt_main._run_async_job, [kt_main.process_pending_blasts]),
-        "followups": (kt_main._run_async_job, [kt_main.scheduled_followup_processor]),
-        "outreach-lifecycle": (kt_main._run_outreach_lifecycle, None),
-        "subscription-deductions": (kt_main._run_subscription_deductions, None),
-        "project-billing-invoices": (kt_main._run_project_billing_invoices, None),
-    }
+    runners = _job_runners(kt_main)
     for job in enabled:
         for jid in JOB_SPECS[job]:
             trigger, trig = trigger_kwargs(jid)
@@ -196,6 +259,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Izinkan job blast. Default TOLAK meski env-nya true. Butuh ACC Kevin.",
     )
+    parser.add_argument(
+        "--once",
+        action="store_true",
+        help=(
+            "Jalanin job yang di-enable SEKALI lalu exit (tanpa BlockingScheduler). "
+            "Buat crontab shared hosting: flock -n ... run_scheduler_worker.py "
+            "--safe-first --once >> scheduler.log 2>&1. --probe menang kalau digabung."
+        ),
+    )
     args = parser.parse_args(argv)
     try:
         enables = parse_enable(args.enable)
@@ -214,6 +286,8 @@ def main(argv: list[str] | None = None) -> int:
     apply_process_enables(enables)
     if args.probe:
         return probe()
+    if args.once:
+        return run_once(allow_blast=args.allow_blast, dry_run=args.dry_run)
     return start_blocking(allow_blast=args.allow_blast, dry_run=args.dry_run)
 
 
