@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse,
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import get_db, log_audit, AIModel, User, Lead, Product, Category, DynamicTemplate, MessageTemplate, BoardCardComment, BoardCardChecklist, BoardCardActivity, BoardCard, BoardColumn, Board, Project, ContentGeneration, ContentSession, ContentSchedule, Document, DocumentFolder, DocumentTemplate, GeneratedDocument, ReportSnapshot, BrandKit, ReengagementAlert, FollowUpSequence, ClientNote, ClientCredential, ClientDocument, LeadActivityLog, LeadAnalysis, Proposal, ProposalAnalytics, BlastMessage, BlastCampaign, AdsCampaign, ScrapeHistory, Contact, Subscription, Transaction, Wallet, ServiceItem, SystemSettings, AuditLog
+from models import get_db, log_audit, AIModel, User, Lead, Product, Category, DynamicTemplate, MessageTemplate, BoardCardComment, BoardCardChecklist, BoardCardActivity, BoardCard, BoardColumn, Board, Project, ContentGeneration, ContentSession, ContentSchedule, Document, DocumentFolder, DocumentTemplate, GeneratedDocument, ReportSnapshot, BrandKit, ReengagementAlert, FollowUpSequence, ClientNote, ClientCredential, ClientDocument, LeadActivityLog, LeadAnalysis, Proposal, ProposalAnalytics, BlastMessage, BlastCampaign, AdsCampaign, ScrapeHistory, Contact, Subscription, Transaction, Wallet, ServiceItem, SystemSettings, AuditLog, WhatsAppNumber
 from schemas import *
 from app.core.dependencies import (get_current_user, require_admin, verify_password,
     seed_data, get_fonnte_token, _send_fonnte_sync, _normalize_phone,
@@ -949,3 +949,103 @@ def delete_dynamic_template(tmpl_id: str, current_user: User = Depends(require_a
 # ---------------------------------------------------------------------------
 # Timeline Templates API
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# WhatsApp Numbers (Fonnte multi-device) API
+# 1 token Fonnte = 1 device = 1 nomor WA. Blast campaign bisa pilih nomor.
+# Tanpa pilihan -> fallback token legacy di SystemSettings (fonnte_token).
+# ---------------------------------------------------------------------------
+
+def _wa_token_preview(token: str) -> str:
+    t = (token or "").strip()
+    if not t:
+        return ""
+    if len(t) <= 8:
+        return t[:2] + "****"
+    return f"{t[:4]}****{t[-4:]}"
+
+
+def _wa_number_out(n: WhatsAppNumber) -> WhatsAppNumberOut:
+    return WhatsAppNumberOut(
+        id=n.id, label=n.label or "", phone_number=n.phone_number or "",
+        token_preview=_wa_token_preview(n.token), is_active=bool(n.is_active),
+        created_at=n.created_at,
+    )
+
+
+@router.get("/api/settings/wa-numbers", response_model=list[WhatsAppNumberOut])
+def list_wa_numbers(current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    rows = db.query(WhatsAppNumber).order_by(WhatsAppNumber.created_at.desc()).all()
+    return [_wa_number_out(n) for n in rows]
+
+
+@router.post("/api/settings/wa-numbers", response_model=WhatsAppNumberOut, status_code=201)
+def create_wa_number(body: WhatsAppNumberIn, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    token = (body.token or "").strip()
+    if not token:
+        raise HTTPException(status_code=422, detail="Token Fonnte wajib diisi (1 token = 1 device = 1 nomor).")
+    n = WhatsAppNumber(
+        id=str(uuid.uuid4()),
+        label=(body.label or "").strip() or (body.phone_number or "").strip() or "Nomor WA",
+        phone_number=(body.phone_number or "").strip(),
+        token=token,
+        is_active=True,
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    db.add(n)
+    db.commit()
+    db.refresh(n)
+    log_audit(db, current_user.name, "CREATE", "whatsapp_numbers", n.id, {"label": n.label, "phone_number": n.phone_number})
+    return _wa_number_out(n)
+
+
+@router.put("/api/settings/wa-numbers/{number_id}", response_model=WhatsAppNumberOut)
+def update_wa_number(number_id: str, body: WhatsAppNumberUpdate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    n = db.query(WhatsAppNumber).filter(WhatsAppNumber.id == number_id).first()
+    if not n:
+        raise HTTPException(status_code=404, detail="Nomor WA tidak ditemukan")
+    if body.label is not None:
+        n.label = body.label.strip()
+    if body.phone_number is not None:
+        n.phone_number = body.phone_number.strip()
+    if body.token is not None and body.token.strip() and not body.token.startswith("****"):
+        n.token = body.token.strip()
+    if body.is_active is not None:
+        n.is_active = bool(body.is_active)
+    db.commit()
+    db.refresh(n)
+    log_audit(db, current_user.name, "UPDATE", "whatsapp_numbers", n.id, {"label": n.label, "is_active": bool(n.is_active)})
+    return _wa_number_out(n)
+
+
+@router.delete("/api/settings/wa-numbers/{number_id}", status_code=204)
+def delete_wa_number(number_id: str, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    n = db.query(WhatsAppNumber).filter(WhatsAppNumber.id == number_id).first()
+    if not n:
+        raise HTTPException(status_code=404, detail="Nomor WA tidak ditemukan")
+    used = db.query(BlastCampaign).filter(BlastCampaign.whatsapp_number_id == number_id).count()
+    if used:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Nomor masih dipakai {used} campaign blast. Nonaktifkan saja (is_active=false), jangan dihapus.",
+        )
+    log_audit(db, current_user.name, "DELETE", "whatsapp_numbers", number_id, {"label": n.label})
+    db.delete(n)
+    db.commit()
+
+
+@router.post("/api/settings/wa-numbers/{number_id}/test-send")
+def test_wa_number(number_id: str, body: dict = Body(default=None), current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    n = db.query(WhatsAppNumber).filter(WhatsAppNumber.id == number_id).first()
+    if not n:
+        raise HTTPException(status_code=404, detail="Nomor WA tidak ditemukan")
+    if not n.is_active:
+        raise HTTPException(status_code=409, detail="Nomor sedang nonaktif")
+    import httpx as _httpx
+    target = (body or {}).get("target") or ADMIN_WA
+    message = (body or {}).get("message") or f"Tes kirim dari ERP Kantor Teman — nomor {n.phone_number or n.label}."
+    ok = _send_fonnte_sync(_normalize_phone(target), message, n.token, _httpx)
+    if not ok:
+        raise HTTPException(status_code=502, detail=f"Tes kirim gagal via nomor {n.phone_number or n.label}. Cek token/device di dashboard Fonnte.")
+    return {"ok": True, "target": target, "number_id": n.id}

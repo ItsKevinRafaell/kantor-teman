@@ -102,6 +102,7 @@ class BlastIn(BaseModel):
     min_rating: int = 0
     template_id: Optional[str] = None
     filter_criteria: Optional[dict] = None
+    whatsapp_number_id: Optional[str] = None
 
 
 class RatingUpdate(BaseModel):

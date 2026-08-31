@@ -27,6 +27,7 @@ class WhatsAppConfig:
     provider: str
     fonnte_token: str
     blast_delay_seconds: int
+    source: str = "system_settings"  # "whatsapp_numbers:<id>" | "system_settings"
 
 
 def _get_setting(db: Session, key: str, default: str = "") -> str:
@@ -42,7 +43,35 @@ def _safe_int(value: str, default: int, minimum: int = 0, maximum: int = 3600) -
     return max(minimum, min(maximum, parsed))
 
 
-def get_whatsapp_config(db: Session) -> WhatsAppConfig:
+def get_whatsapp_config(db: Session, number_id: str | None = None) -> WhatsAppConfig:
+    """Resolve token Fonnte buat kirim WA.
+
+    - number_id diisi -> pakai token dari tabel whatsapp_numbers (device terpilih).
+      Kalau nomor tidak ada / nonaktif -> raise ValueError (JANGAN fallback diam-diam
+      ke nomor utama, biar blast klien ga ngirim dari nomor yang salah).
+    - number_id None -> fallback token legacy SystemSettings 'fonnte_token'
+      (nomor utama Kevin) — backward compatible.
+    """
+    if number_id:
+        from models import WhatsAppNumber
+        row = db.query(WhatsAppNumber).filter(WhatsAppNumber.id == number_id).first()
+        if not row:
+            raise ValueError(f"Nomor WhatsApp (id={number_id}) tidak ditemukan")
+        if not row.is_active:
+            raise ValueError(f"Nomor WhatsApp '{row.label or row.phone_number}' sedang nonaktif")
+        if not row.token:
+            raise ValueError(f"Nomor WhatsApp '{row.label or row.phone_number}' belum punya token Fonnte")
+        return WhatsAppConfig(
+            provider=WHATSAPP_PROVIDER,
+            fonnte_token=row.token,
+            blast_delay_seconds=_safe_int(
+                _get_setting(db, "whatsapp_blast_delay_seconds", "5"),
+                default=5,
+                minimum=1,
+                maximum=300,
+            ),
+            source=f"whatsapp_numbers:{row.id}",
+        )
     return WhatsAppConfig(
         provider=WHATSAPP_PROVIDER,
         fonnte_token=_get_setting(db, "fonnte_token", ""),
@@ -82,13 +111,13 @@ async def _send_fonnte(config: WhatsAppConfig, phone: str, message: str) -> What
         return WhatsAppSendResult(False, "fonnte", error=str(exc))
 
 
-async def send_whatsapp_message(db: Session, phone: str, message: str, metadata: dict[str, Any] | None = None) -> WhatsAppSendResult:
-    config = get_whatsapp_config(db)
+async def send_whatsapp_message(db: Session, phone: str, message: str, metadata: dict[str, Any] | None = None, number_id: str | None = None) -> WhatsAppSendResult:
+    config = get_whatsapp_config(db, number_id)
     return await _send_fonnte(config, phone, message)
 
 
-def send_whatsapp_message_sync(db: Session, phone: str, message: str, httpx_module=httpx, metadata: dict[str, Any] | None = None) -> WhatsAppSendResult:
-    config = get_whatsapp_config(db)
+def send_whatsapp_message_sync(db: Session, phone: str, message: str, httpx_module=httpx, metadata: dict[str, Any] | None = None, number_id: str | None = None) -> WhatsAppSendResult:
+    config = get_whatsapp_config(db, number_id)
     if not config.fonnte_token:
         return WhatsAppSendResult(False, "fonnte", error="Token Fonnte belum diisi")
     try:

@@ -49,6 +49,7 @@ from .document import (
 from .campaign import (
     AdsCampaignIn, AdsCampaignUpdate, AdsCampaignOut,
     BlastCampaignIn, BlastCampaignOut, FonnteWebhookIn,
+    WhatsAppNumberIn, WhatsAppNumberUpdate, WhatsAppNumberOut,
 )
 from .content import (
     ContentScheduleIn, ContentScheduleUpdate, ContentScheduleOut,
@@ -111,6 +112,7 @@ __all__ = [
     # campaign
     "AdsCampaignIn", "AdsCampaignUpdate", "AdsCampaignOut",
     "BlastCampaignIn", "BlastCampaignOut", "FonnteWebhookIn",
+    "WhatsAppNumberIn", "WhatsAppNumberUpdate", "WhatsAppNumberOut",
     # content
     "ContentScheduleIn", "ContentScheduleUpdate", "ContentScheduleOut",
     "ContentProviderIn", "ContentProviderOut", "ContentSessionIn",

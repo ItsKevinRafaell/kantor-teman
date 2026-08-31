@@ -51,6 +51,7 @@ async def start_blast(
         filter_criteria=json.dumps(criteria),
         scheduled_for=datetime.now(timezone.utc).isoformat(),
         status="PENDING",
+        whatsapp_number_id=body.whatsapp_number_id,
         created_at=datetime.now(timezone.utc).isoformat(),
     )
     db.add(campaign)
@@ -495,6 +496,7 @@ class BlastCampaignIn(BaseModel):
     template_id: Optional[str] = None
     filter_criteria: dict
     scheduled_for: str
+    whatsapp_number_id: Optional[str] = None
 
 
 class BlastCampaignOut(BaseModel):
@@ -506,6 +508,7 @@ class BlastCampaignOut(BaseModel):
     status: str
     sent_count: int
     failed_count: int
+    whatsapp_number_id: Optional[str] = None
     created_at: str
     model_config = {"from_attributes": True}
 
@@ -521,6 +524,7 @@ def get_blast_campaigns(current_user: User = Depends(get_current_user), db: Sess
             filter_criteria=json.loads(c.filter_criteria) if c.filter_criteria else {},
             scheduled_for=c.scheduled_for, status=c.status,
             sent_count=c.sent_count or 0, failed_count=c.failed_count or 0,
+            whatsapp_number_id=c.whatsapp_number_id,
             created_at=c.created_at,
         ))
     return results
@@ -536,16 +540,18 @@ def create_blast_campaign(body: BlastCampaignIn, current_user: User = Depends(re
         filter_criteria=json.dumps(body.filter_criteria),
         scheduled_for=body.scheduled_for,
         status="PENDING",
+        whatsapp_number_id=body.whatsapp_number_id,
         created_at=datetime.now(timezone.utc).isoformat(),
     )
     db.add(campaign)
     db.commit()
     db.refresh(campaign)
-    log_audit(db, current_user.name, "CREATE", "blast_campaigns", campaign.id, {"name": body.name, "scheduled_for": body.scheduled_for})
+    log_audit(db, current_user.name, "CREATE", "blast_campaigns", campaign.id, {"name": body.name, "scheduled_for": body.scheduled_for, "whatsapp_number_id": body.whatsapp_number_id})
     return BlastCampaignOut(
         id=campaign.id, name=campaign.name, template_id=campaign.template_id,
         filter_criteria=body.filter_criteria, scheduled_for=campaign.scheduled_for,
-        status=campaign.status, sent_count=0, failed_count=0, created_at=campaign.created_at,
+        status=campaign.status, sent_count=0, failed_count=0,
+        whatsapp_number_id=campaign.whatsapp_number_id, created_at=campaign.created_at,
     )
 
 

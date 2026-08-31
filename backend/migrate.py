@@ -133,6 +133,9 @@ if "mysql" in _db_url:
         ("report_snapshots", "finalized_at", "ALTER TABLE report_snapshots ADD COLUMN finalized_at VARCHAR(255) NULL"),
         ("report_snapshots", "finalized_by", "ALTER TABLE report_snapshots ADD COLUMN finalized_by VARCHAR(255) NULL"),
         ("report_snapshots", "generated_invoice_id", "ALTER TABLE report_snapshots ADD COLUMN generated_invoice_id VARCHAR(36) NULL"),
+        # WhatsApp multi-number (Fonnte multi-device) — blast bisa pilih nomor
+        ("blast_campaigns", "whatsapp_number_id", "ALTER TABLE blast_campaigns ADD COLUMN whatsapp_number_id VARCHAR(36) NULL"),
+        ("blast_messages", "whatsapp_number_id", "ALTER TABLE blast_messages ADD COLUMN whatsapp_number_id VARCHAR(36) NULL"),
     ]
 
     # Backfill contacts.lead_id by phone match
@@ -296,6 +299,21 @@ if "mysql" in _db_url:
         print("+ MySQL: tabel project_riwayat dibuat")
     else:
         print("= MySQL: project_riwayat sudah ada, skip")
+
+    if not _table_exists("whatsapp_numbers"):
+        _cur.execute("""
+            CREATE TABLE whatsapp_numbers (
+                id VARCHAR(36) PRIMARY KEY,
+                label VARCHAR(255) NOT NULL DEFAULT '',
+                phone_number VARCHAR(50) NOT NULL DEFAULT '',
+                token TEXT NOT NULL,
+                is_active TINYINT(1) NOT NULL DEFAULT 1,
+                created_at VARCHAR(255) NOT NULL
+            )
+        """)
+        print("+ MySQL: tabel whatsapp_numbers dibuat")
+    else:
+        print("= MySQL: whatsapp_numbers sudah ada, skip")
 
     for table, col, sql in _migrations:
         if not _table_exists(table):
@@ -1996,6 +2014,34 @@ if not cur.fetchone():
     print("+ tabel document_versions dibuat")
 else:
     print("= document_versions sudah ada, skip")
+
+# --- WhatsApp multi-number (Fonnte multi-device) ---------------------------
+cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='whatsapp_numbers'")
+if not cur.fetchone():
+    cur.execute("""
+        CREATE TABLE whatsapp_numbers (
+            id VARCHAR(36) PRIMARY KEY,
+            label VARCHAR(255) NOT NULL DEFAULT '',
+            phone_number VARCHAR(50) NOT NULL DEFAULT '',
+            token TEXT NOT NULL,
+            is_active BOOLEAN NOT NULL DEFAULT 1,
+            created_at VARCHAR(255) NOT NULL
+        )
+    """)
+    print("+ tabel whatsapp_numbers dibuat")
+else:
+    print("= whatsapp_numbers sudah ada, skip")
+
+for _t in ("blast_campaigns", "blast_messages"):
+    cur.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{_t}'")
+    if cur.fetchone():
+        cur.execute(f"PRAGMA table_info({_t})")
+        _cols = {row[1] for row in cur.fetchall()}
+        if "whatsapp_number_id" not in _cols:
+            cur.execute(f"ALTER TABLE {_t} ADD COLUMN whatsapp_number_id VARCHAR(36)")
+            print(f"+ {_t}.whatsapp_number_id ditambahkan")
+        else:
+            print(f"= {_t}.whatsapp_number_id sudah ada, skip")
 
 conn.commit()
 
