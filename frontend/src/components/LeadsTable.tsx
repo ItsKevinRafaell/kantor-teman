@@ -1,9 +1,9 @@
 "use client";
 import NativeSelect from "./ui/NativeSelect";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLeadsTable } from "../hooks/useLeads";
-import { apiFetch } from "../lib/api";
+import { apiFetch, apiFetchJson } from "../lib/api";
 import { downloadBlob } from "../utils/download";
 import Toast from "./Toast";
 import Modal from "./Modal";
@@ -13,6 +13,13 @@ import LeadsTableBody from "./leads/LeadsTableBody";
 
 const DEFAULT_TEMPLATE =
   "Halo {{business_name}}, kami baru saja menyiapkan audit digital singkat untuk bisnis Anda. Ada beberapa peluang perbaikan yang mungkin relevan untuk membantu calon pelanggan lebih mudah menemukan dan menghubungi bisnis Anda.\n\nLaporan ringkasnya dapat dilihat di sini:\n{{proposal_link}}\n\nApakah saya boleh menjelaskan poin yang paling priority?";
+
+interface WaNumber {
+  id: string;
+  label: string;
+  phone_number: string;
+  is_active: boolean;
+}
 
 export default function LeadsTable({ initialBatch }: { initialBatch?: string }) {
   const {
@@ -71,7 +78,19 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
   const [blastTemplateId, setBlastTemplateId] = useState("");
   const [blastSendMode, setBlastSendMode] = useState<"instant" | "scheduled">("instant");
   const [blastScheduledFor, setBlastScheduledFor] = useState("");
+  const [blastNumberId, setBlastNumberId] = useState("");
   const [blasting, setBlasting] = useState(false);
+
+  // Daftar nomor WA (Fonnte) untuk pilihan pengirim blast.
+  // Gagal fetch (termasuk 403 non-admin) → biarkan kosong, tanpa toast berisik.
+  const [waNumbers, setWaNumbers] = useState<WaNumber[]>([]);
+  useEffect(() => {
+    let alive = true;
+    apiFetchJson<WaNumber[]>("/api/settings/wa-numbers")
+      .then(list => { if (alive) setWaNumbers(Array.isArray(list) ? list : []); })
+      .catch(() => { /* silent */ });
+    return () => { alive = false; };
+  }, []);
 
   // Toast
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
@@ -298,7 +317,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
     if (!blastBatch || !blastTemplateId) return;
     setBlasting(true);
     try {
-      await startBlast(blastBatch, blastCategoryId, blastMinRating, blastTemplateId, blastSendMode, blastScheduledFor);
+      await startBlast(blastBatch, blastCategoryId, blastMinRating, blastTemplateId, blastSendMode, blastScheduledFor, blastNumberId);
       setBlastOpen(false);
       showToast(blastSendMode === "scheduled" ? "Blast dijadwalkan." : "Campaign WA Blast berjalan di background!", "info");
     } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Gagal memulai blast.", "error"); }
@@ -467,6 +486,14 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Template</label>
                 <NativeSelect value={blastTemplateId} onChange={setBlastTemplateId} placeholder="Pilih template" searchPlaceholder="Cari template…" options={blastTemplates.filter((t: any) => !blastCategoryId || t.category_id === blastCategoryId).map((t: any) => ({ value: t.id, label: t.name }))} />
               </div>
+              <div className="col-span-2">
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Nomor Pengirim</label>
+                <NativeSelect value={blastNumberId} onChange={setBlastNumberId} clearable={false} searchPlaceholder="Cari nomor…"
+                  options={[
+                    { value: "", label: "Nomor utama (default)" },
+                    ...waNumbers.filter(n => n.is_active).map(n => ({ value: n.id, label: `${n.label}${n.phone_number ? " · " + n.phone_number : ""}` })),
+                  ]} />
+              </div>
             </div>
             {blastTemplates.length === 0 && (
               <p className="text-[11px] text-amber-500">Belum ada template WA Blast. <a href="/master/templates" className="underline">Buat di Master Data</a>.</p>
@@ -509,7 +536,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
         onStatusChange={setFilterStatus} onBatchChange={setFilterBatch}
         onScoreChange={setFilterScore} onRatingChange={setFilterRating}
         onAddLead={() => { setLeadForm({ ...emptyLeadForm }); setAddLeadModal(true); }}
-        onExportCSV={exportCSV} onOpenBlast={() => { setBlastBatch(filters.batch); setBlastOpen(true); }}
+        onExportCSV={exportCSV} onOpenBlast={() => { setBlastBatch(filters.batch); setBlastNumberId(""); setBlastOpen(true); }}
         onRecalculate={handleRecalculateAll} onRefresh={refresh}
         recalculating={recalculating} showArchived={showArchived}
         onShowArchivedChange={setShowArchived} onDeleteBatch={() => setDeleteBatchModal(true)}

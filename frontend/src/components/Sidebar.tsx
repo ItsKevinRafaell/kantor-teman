@@ -157,6 +157,12 @@ const NAV_GROUPS: NavGroup[] = [
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16v2H4z" /><path d="M4 10h10v2H4z" /><path d="M4 16h6v2H4z" /></svg>,
       },
       {
+        href: "/master/wa-numbers",
+        label: "Nomor WA",
+        adminOnly: true,
+        icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" /><line x1="12" y1="18" x2="12.01" y2="18" /></svg>,
+      },
+      {
         href: "/master/brand-kit",
         label: "Brand Kit",
         adminOnly: true,

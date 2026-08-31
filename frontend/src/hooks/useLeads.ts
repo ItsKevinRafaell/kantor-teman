@@ -48,7 +48,7 @@ interface UseLeadsTableReturn {
   updateStatus: (id: number, status: string) => Promise<void>;
   updateProduct: (id: number, product: string) => Promise<void>;
   deleteBatch: (batchName: string) => Promise<void>;
-  startBlast: (batch: string, categoryId: string, minRating: number, templateId: string, sendMode: string, scheduledFor: string) => Promise<void>;
+  startBlast: (batch: string, categoryId: string, minRating: number, templateId: string, sendMode: string, scheduledFor: string, numberId: string) => Promise<void>;
   saveSalesAction: (leadId: number, data: { sales_owner: string; next_action_at: string; loss_reason: string; do_not_contact: boolean }) => Promise<void>;
   convertLead: (id: number) => Promise<void>;
   createLead: (data: LeadFormData) => Promise<void>;
@@ -103,7 +103,7 @@ export function useLeadsTable(initialBatch?: string): UseLeadsTableReturn {
     refresh();
   }, [refresh]);
 
-  const startBlast = useCallback(async (batch: string, categoryId: string, minRating: number, templateId: string, sendMode: string, scheduledFor: string) => {
+  const startBlast = useCallback(async (batch: string, categoryId: string, minRating: number, templateId: string, sendMode: string, scheduledFor: string, numberId: string) => {
     const selectedCategory = categoriesData.find(c => String(c.id) === String(categoryId));
     const productCategory = selectedCategory?.name || "";
     const filterCriteria = {
@@ -119,6 +119,8 @@ export function useLeadsTable(initialBatch?: string): UseLeadsTableReturn {
       min_rating: minRating,
       filter_criteria: filterCriteria,
     };
+    // Nomor pengirim opsional: kosong/null → backend fallback ke token legacy (nomor utama).
+    if (numberId) payload.whatsapp_number_id = numberId;
     let res: Response;
     if (sendMode === "scheduled") {
       if (!scheduledFor) throw new Error("Waktu jadwal wajib diisi.");
