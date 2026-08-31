@@ -66,3 +66,32 @@ Jika aplikasi gagal start setelah deploy:
 3. restart Passenger
 
 Migrasi saat ini hanya menambahkan kolom lead sales dan opt-out. Tidak ada reset data.
+
+## Runbook Go-Live Scheduler Prod (butuh "deploy" dari Kevin — JANGAN jalan sendiri)
+
+Status terverifikasi 31 Agu 2026 22:2x WIB: API prod 200 (root-cause 500 = `schemas/board.py`
+stale tanpa `BoardCardChecklistUpdate`, hotfix masuk 22:11:50 + restart 22:12:56). Worker +
+flags.py BELUM di server. E2E lokal PASS: `backend/venv/bin/python scripts/e2e_lifecycle_local.py`
+(lead WA_Terkirim + proposal 72h → "Follow Up" + audit NO_CLICK_FOLLOWUP, sqlite throwaway).
+
+Langkah saat Kevin bilang "deploy" (SSH `deploy-kantorteman`, dir `~/backend`):
+
+1. Sinkron kode worker (checksum, jangan rsync --delete):
+   `rsync -rc --out-format='%n' backend/app/schedulers/flags.py backend/scripts/run_scheduler_worker.py deploy-kantorteman:backend/tmp-sync/` lalu pindah ke path final; atau `git -C ~/backend pull` jika branch sudah di-merge ke main.
+2. `.env` prod: TAMBAH `ENABLE_FOLLOWUP_SCHEDULER=true` + `ENABLE_LIFECYCLE_SCHEDULER=true`
+   (billing: `ENABLE_BILLING_SCHEDULER=true` hanya kalau Kevin mau; blast TETAP tidak diset).
+   `ENABLE_BACKGROUND_SCHEDULER` biarkan `false` — worker web Passenger tidak boleh jalankan scheduler.
+3. Backup dulu: `cp backend/.env backend/.env.bak-enable-scheduler-$(date +%Y%m%d-%H%M%S)`.
+4. Start worker terpisah:
+   `cd ~/backend && nohup /home/qqwtlphb/virtualenv/backend/3.13/bin/python scripts/run_scheduler_worker.py >> scheduler-worker.log 2>&1 &`
+   Blast-gate aktif: kalau `ENABLE_BLAST_SCHEDULER` true tanpa `--allow-blast`, worker REFUSE (exit 3).
+5. Verifikasi: `tail -5 scheduler-worker.log` harus ada `[SCHEDULER] worker started, jobs aktif: followup,lifecycle`
+   (atau + `billing`), dan `--probe` sebelum start mencetak rencana flag.
+6. E2E prod setelah jalan: lead uji baru masuk sequence → cek `leads.status` berubah + baris audit
+   rule NO_CLICK_FOLLOWUP → laporan/card terbentuk di board.
+7. Rollback: `kill` proses worker, restore `.env` dari backup, `touch tmp/restart.txt`.
+
+Lock repo lokal: `.fleet-lock` saat ini dipegang sesi mati `raka/wa-multi-number-deploy`
+(pid 682418 sudah tidak ada, lock < 2 jam — script menolak takeover otomatis). Kerja branch ini
+(`feat/raka-e2e-scheduler-enable`) tidak commit ke `main` sehingga aman; merge ke `main` oleh
+raka owner setelah ACC deploy.
