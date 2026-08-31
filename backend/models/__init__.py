@@ -16,7 +16,7 @@ from .board import (
     Board, BoardColumn, BoardCard, BoardCardComment,
     BoardCardChecklist, BoardCardActivity, BoardCardAttachment
 )
-from .campaign import AdsCampaign, BlastCampaign, BlastMessage
+from .campaign import AdsCampaign, BlastCampaign, BlastMessage, WhatsAppNumber
 from .workspace import (
     WorkspaceSheet, WorkspaceColumn, WorkspaceRow,
     WorkspaceCell, WorkspaceAttachment

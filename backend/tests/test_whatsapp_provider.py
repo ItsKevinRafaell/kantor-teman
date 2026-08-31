@@ -57,3 +57,52 @@ def test_send_whatsapp_message_uses_fonnte_payload(db_session, monkeypatch):
     assert captured["url"] == "https://api.fonnte.com/send"
     assert captured["headers"]["Authorization"] == "secret-token"
     assert captured["data"] == {"target": "081234567890", "message": "Halo", "delay": "7"}
+
+
+def _wa_number(db, **kwargs) -> "WhatsAppNumber":
+    from models import WhatsAppNumber
+    row = WhatsAppNumber(
+        id=kwargs.get("id", "num-1"),
+        label=kwargs.get("label", "Nomor Klien"),
+        phone_number=kwargs.get("phone_number", "6281234567890"),
+        token=kwargs.get("token", "device-token-1"),
+        is_active=kwargs.get("is_active", True),
+        created_at="2026-08-31T00:00:00+00:00",
+    )
+    db.add(row)
+    db.commit()
+    return row
+
+
+def test_get_whatsapp_config_uses_selected_number(db_session):
+    _setting(db_session, "fonnte_token", "legacy-token")
+    _wa_number(db_session, id="num-1", token="device-token-1")
+
+    config = get_whatsapp_config(db_session, "num-1")
+
+    assert config.fonnte_token == "device-token-1"
+    assert config.source == "whatsapp_numbers:num-1"
+
+
+def test_get_whatsapp_config_rejects_inactive_number(db_session):
+    _setting(db_session, "fonnte_token", "legacy-token")
+    _wa_number(db_session, id="num-2", token="device-token-2", is_active=False)
+
+    import pytest
+    with pytest.raises(ValueError, match="nonaktif"):
+        get_whatsapp_config(db_session, "num-2")
+
+
+def test_get_whatsapp_config_rejects_missing_number(db_session):
+    import pytest
+    with pytest.raises(ValueError, match="tidak ditemukan"):
+        get_whatsapp_config(db_session, "num-404")
+
+
+def test_get_whatsapp_config_without_number_falls_back_legacy(db_session):
+    _setting(db_session, "fonnte_token", "legacy-token")
+
+    config = get_whatsapp_config(db_session, None)
+
+    assert config.fonnte_token == "legacy-token"
+    assert config.source == "system_settings"

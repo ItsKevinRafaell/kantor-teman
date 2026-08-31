@@ -40,6 +40,7 @@ class BlastCampaignIn(BaseModel):
     template_id: Optional[str] = None
     filter_criteria: dict
     scheduled_for: str
+    whatsapp_number_id: Optional[str] = None
 
 
 class BlastCampaignOut(BaseModel):
@@ -51,6 +52,30 @@ class BlastCampaignOut(BaseModel):
     status: str
     sent_count: int
     failed_count: int
+    whatsapp_number_id: Optional[str] = None
+    created_at: str
+    model_config = {"from_attributes": True}
+
+
+class WhatsAppNumberIn(BaseModel):
+    label: str
+    phone_number: str = ""
+    token: str
+
+
+class WhatsAppNumberUpdate(BaseModel):
+    label: Optional[str] = None
+    phone_number: Optional[str] = None
+    token: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class WhatsAppNumberOut(BaseModel):
+    id: str
+    label: str
+    phone_number: str
+    token_preview: str = ""
+    is_active: bool
     created_at: str
     model_config = {"from_attributes": True}
 

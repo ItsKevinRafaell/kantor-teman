@@ -208,7 +208,17 @@ async def execute_blast_campaign(campaign: BlastCampaign, db: Session, SessionLo
         query = query.filter(Lead.rating >= int(criteria["min_rating"]))
     leads = query.all()
 
-    whatsapp_config = get_whatsapp_config(db)
+    try:
+        whatsapp_config = get_whatsapp_config(db, campaign.whatsapp_number_id or None)
+    except ValueError as exc:
+        # Nomor WA terpilih ga valid -> GAGALKAN campaign, JANGAN fallback
+        # kirim dari nomor utama diam-diam (bahaya kirim dari nomor salah).
+        campaign.sent_count = 0
+        campaign.failed_count = 0
+        campaign.status = "FAILED"
+        print(f"[BLAST] campaign={campaign.id} gagal resolve nomor WA: {exc}", flush=True)
+        db.commit()
+        return
     template = None
     if campaign.template_id:
         template = db.query(DynamicTemplate).filter(DynamicTemplate.id == campaign.template_id).first()
@@ -239,7 +249,7 @@ async def execute_blast_campaign(campaign: BlastCampaign, db: Session, SessionLo
             "template_id": template.id if template else None,
             "batch_name": criteria.get("batch_name"),
             "business_name": lead.business_name,
-        })
+        }, number_id=campaign.whatsapp_number_id or None)
         success = result.ok
         db.add(BlastMessage(
             id=str(uuid.uuid4()),
@@ -250,6 +260,7 @@ async def execute_blast_campaign(campaign: BlastCampaign, db: Session, SessionLo
             sent_at=datetime.now(timezone.utc).isoformat(),
             status="sent" if success else "failed",
             error_message=None if success else (result.error or f"{result.provider} send failed"),
+            whatsapp_number_id=campaign.whatsapp_number_id or None,
         ))
         if success:
             lead.status = LeadStatus.WA_SENT

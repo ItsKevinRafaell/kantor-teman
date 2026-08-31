@@ -17,6 +17,21 @@ class AdsCampaign(Base):
     created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
 
 
+class WhatsAppNumber(Base):
+    """Fonnte device/number. 1 token Fonnte = 1 device = 1 nomor WA.
+
+    Dipakai buat blast: campaign bisa milih kirim pake nomor mana.
+    Tanpa pilihan -> fallback ke token legacy di SystemSettings (fonnte_token).
+    """
+    __tablename__ = "whatsapp_numbers"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    label = Column(String(255), nullable=False, default="")
+    phone_number = Column(String(50), nullable=False, default="")
+    token = Column(Text, nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
+
+
 class BlastCampaign(Base):
     __tablename__ = "blast_campaigns"
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -29,6 +44,7 @@ class BlastCampaign(Base):
     failed_count = Column(Integer, default=0)
     total_operational_cost_idr = Column(Float, default=0)
     converted_clients_count = Column(Integer, default=0)
+    whatsapp_number_id = Column(String(36), nullable=True)
     created_at = Column(String(255), nullable=False, default=lambda: datetime.now(timezone.utc).isoformat())
 
 
@@ -45,3 +61,4 @@ class BlastMessage(Base):
     replied_at = Column(String(255), nullable=True)
     status = Column(String(50), nullable=False, default="sent")
     error_message = Column(Text, nullable=True)
+    whatsapp_number_id = Column(String(36), nullable=True)
