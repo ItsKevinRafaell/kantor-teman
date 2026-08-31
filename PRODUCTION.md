@@ -89,29 +89,39 @@ Migrasi saat ini hanya menambahkan kolom lead sales dan opt-out. Tidak ada reset
 
 ## Runbook Go-Live Scheduler Prod (butuh "deploy" dari Kevin — JANGAN jalan sendiri)
 
-Status terverifikasi 31 Agu 2026 22:2x WIB: API prod 200 (root-cause 500 = `schemas/board.py`
-stale tanpa `BoardCardChecklistUpdate`, hotfix masuk 22:11:50 + restart 22:12:56). Worker +
-flags.py BELUM di server. E2E lokal PASS: `backend/venv/bin/python scripts/e2e_lifecycle_local.py`
-(lead WA_Terkirim + proposal 72h → "Follow Up" + audit NO_CLICK_FOLLOWUP, sqlite throwaway).
+Status 31 Agu 2026 23:xx WIB (re-verified): API prod 200. Root-cause 500 sore itu =
+`schemas/board.py` stale tanpa `BoardCardChecklistUpdate` (hotfix 22:11:50 + restart 22:12:56).
+Worker + `flags.py` BELUM di server. E2E lokal PASS:
+`backend/venv/bin/python scripts/e2e_lifecycle_local.py` (lead WA_Terkirim + proposal 72h →
+"Follow Up" + audit NO_CLICK_FOLLOWUP, sqlite throwaway). Suite scheduler lokal 31 passed
+(`test_scheduler_flags` + `test_scheduler_enable_cli` + `test_scheduler_prod_snapshot` +
+`test_billing_invoice_idempotency`). Branch kanonis: `feat/raka-e2e-scheduler-enable`
+(merge `feat/raka-scheduler-job-specs-main` 31 Agu 23:xx, commit `8d99a09`).
+
+**Jalur kanonis = crontab `--once` + `--safe-first` (lihat section di atas).**
+`.env` Passenger TIDAK disentuh. Master `ENABLE_BACKGROUND_SCHEDULER` tetap `false`.
+
+**DITOLAK sebagai first-enable (bukti teknis, jangan nurut biar keliatan cepat):**
+- Flip master ON di `.env` web = tiap LSAPI worker spawn APScheduler sendiri (alasan dimatiin 12 Jun).
+- `nohup` BlockingScheduler di shared hosting: fire pertama APScheduler = now+interval; process
+  yang dibunuh timeout/cron sebelum itu fire 0x. `--once` + `flock -n` adalah jawaban.
+- Rsync HANYA `flags.py` + worker TANPA `main.py` baru: `main.py` repo import `app.schedulers.flags`
+  → ImportError → API DOWN. Deploy 3 file sekaligus (atau git pull setelah merge ke `main`).
+- `--all` deploy script TIDAK meng-upload `app/schedulers/` dan `scripts/`.
+- Nyalain billing/blast sekalian first-enable. Billing = mutasi uang. Blast = WA massal.
+  Masing-masing butuh ACC Kevin terpisah. Blast butuh `--allow-blast` (exit 3 tanpa itu).
 
 Langkah saat Kevin bilang "deploy" (SSH `deploy-kantorteman`, dir `~/backend`):
 
-1. Sinkron kode worker (checksum, jangan rsync --delete):
-   `rsync -rc --out-format='%n' backend/app/schedulers/flags.py backend/scripts/run_scheduler_worker.py deploy-kantorteman:backend/tmp-sync/` lalu pindah ke path final; atau `git -C ~/backend pull` jika branch sudah di-merge ke main.
-2. `.env` prod: TAMBAH `ENABLE_FOLLOWUP_SCHEDULER=true` + `ENABLE_LIFECYCLE_SCHEDULER=true`
-   (billing: `ENABLE_BILLING_SCHEDULER=true` hanya kalau Kevin mau; blast TETAP tidak diset).
-   `ENABLE_BACKGROUND_SCHEDULER` biarkan `false` — worker web Passenger tidak boleh jalankan scheduler.
-3. Backup dulu: `cp backend/.env backend/.env.bak-enable-scheduler-$(date +%Y%m%d-%H%M%S)`.
-4. Start worker terpisah:
-   `cd ~/backend && nohup /home/qqwtlphb/virtualenv/backend/3.13/bin/python scripts/run_scheduler_worker.py >> scheduler-worker.log 2>&1 &`
-   Blast-gate aktif: kalau `ENABLE_BLAST_SCHEDULER` true tanpa `--allow-blast`, worker REFUSE (exit 3).
-5. Verifikasi: `tail -5 scheduler-worker.log` harus ada `[SCHEDULER] worker started, jobs aktif: followup,lifecycle`
-   (atau + `billing`), dan `--probe` sebelum start mencetak rencana flag.
-6. E2E prod setelah jalan: lead uji baru masuk sequence → cek `leads.status` berubah + baris audit
-   rule NO_CLICK_FOLLOWUP → laporan/card terbentuk di board.
-7. Rollback: `kill` proses worker, restore `.env` dari backup, `touch tmp/restart.txt`.
+1. Merge `feat/raka-e2e-scheduler-enable` → `main` (owner raka, `FLEET_MAIN_OWNER=1`).
+2. Deploy `main.py` + `app/schedulers/flags.py` + `scripts/run_scheduler_worker.py` (+ `scripts/__init__.py`)
+   sekaligus. Jangan `--all` saja. Verify: `GET /api/health` 200 + `--probe` via SSH
+   cetak `master: false`, `will_start: false`, exit 0.
+3. Crontab first-enable AMAN (followup saja, process-local, tidak tulis `.env`):
+   `20 * * * * flock -n /tmp/kt-sched.lock /home/qqwtlphb/virtualenv/backend/3.13/bin/python /home/qqwtlphb/backend/scripts/run_scheduler_worker.py --safe-first --once >> /home/qqwtlphb/backend/scheduler-worker.log 2>&1`
+4. Bukti jalan: log `[SCHEDULER] once: run followups ...` + `once selesai`.
+5. E2E prod: 1 lead uji masuk sequence → status berubah + audit NO_CLICK_FOLLOWUP.
+   (145 lead "Scraped" TIDAK otomatis terselamatkan — 0 sequence aktif. Outreach = keputusan bisnis.)
+6. Rollback: hapus 1 baris crontab. `.env` web + Passenger tidak disentuh.
 
-Lock repo lokal: `.fleet-lock` saat ini dipegang sesi mati `raka/wa-multi-number-deploy`
-(pid 682418 sudah tidak ada, lock < 2 jam — script menolak takeover otomatis). Kerja branch ini
-(`feat/raka-e2e-scheduler-enable`) tidak commit ke `main` sehingga aman; merge ke `main` oleh
-raka owner setelah ACC deploy.
+Lifecycle (hourly) = ACC terpisah (`--enable followup,lifecycle`). Billing/blast = ACC terpisah lagi.
