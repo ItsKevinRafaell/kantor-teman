@@ -43,7 +43,8 @@ Catatan:
 
 - Jangan mengganti `SECRET_ENCRYPTION_KEY` jika sudah ada data brankas terenkripsi.
 - Isi `FONNTE_WEBHOOK_SECRET` hanya jika provider webhook dapat mengirim header `x-fonnte-webhook-secret`. Jika diisi, callback tanpa header tersebut ditolak.
-- Di shared hosting Passenger/cPanel, biarkan `ENABLE_BACKGROUND_SCHEDULER="false"` supaya setiap worker web tidak menjalankan scheduler sendiri. Jalankan scheduler hanya dari worker/process terpisah yang memang disiapkan untuk background job.
+- Di shared hosting Passenger/cPanel, biarkan `ENABLE_BACKGROUND_SCHEDULER="false"` supaya setiap worker web tidak menjalankan scheduler sendiri. Jalankan scheduler hanya dari worker/process terpisah: `python3 scripts/run_scheduler_worker.py --probe` dulu (cetak rencana flag, tidak start job). Start blocking: `python3 scripts/run_scheduler_worker.py` — sub-flag ON saja. Blast ditolak kecuali `--allow-blast` (ACC Kevin). Sub-flag: `ENABLE_BILLING_SCHEDULER`, `ENABLE_FOLLOWUP_SCHEDULER`, `ENABLE_LIFECYCLE_SCHEDULER`, `ENABLE_BLAST_SCHEDULER` (default semua false).
+- Snapshot env prod 30 Agu 2026 (SSH read-only `qqwtlphb`): `.env` hanya `ENABLE_BACKGROUND_SCHEDULER=false`, sub-flag absen, `flags.py` + worker **belum** di server, `stderr.log` 0 APScheduler. Tes pengunci: `tests/test_scheduler_prod_snapshot.py`. Jangan nyalain master di `.env` Passenger.
 - API key provider dapat diatur dari menu admin setelah deploy.
 
 ## Verifikasi Setelah Restart
