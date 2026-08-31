@@ -43,9 +43,29 @@ Catatan:
 
 - Jangan mengganti `SECRET_ENCRYPTION_KEY` jika sudah ada data brankas terenkripsi.
 - Isi `FONNTE_WEBHOOK_SECRET` hanya jika provider webhook dapat mengirim header `x-fonnte-webhook-secret`. Jika diisi, callback tanpa header tersebut ditolak.
-- Di shared hosting Passenger/cPanel, biarkan `ENABLE_BACKGROUND_SCHEDULER="false"` supaya setiap worker web tidak menjalankan scheduler sendiri. Jalankan scheduler hanya dari worker/process terpisah: `python3 scripts/run_scheduler_worker.py --probe` dulu (cetak rencana flag, tidak start job). Start blocking: `python3 scripts/run_scheduler_worker.py` — sub-flag ON saja. Blast ditolak kecuali `--allow-blast` (ACC Kevin). Sub-flag: `ENABLE_BILLING_SCHEDULER`, `ENABLE_FOLLOWUP_SCHEDULER`, `ENABLE_LIFECYCLE_SCHEDULER`, `ENABLE_BLAST_SCHEDULER` (default semua false).
-- Snapshot env prod 30 Agu 2026 (SSH read-only `qqwtlphb`): `.env` hanya `ENABLE_BACKGROUND_SCHEDULER=false`, sub-flag absen, `flags.py` + worker **belum** di server, `stderr.log` 0 APScheduler. Tes pengunci: `tests/test_scheduler_prod_snapshot.py`. Jangan nyalain master di `.env` Passenger.
+- Di shared hosting Passenger/cPanel, biarkan `ENABLE_BACKGROUND_SCHEDULER="false"` supaya setiap worker web tidak menjalankan scheduler sendiri. Jalankan scheduler hanya dari worker/process terpisah.
+- `--probe` dulu (cetak rencana flag, tidak start job). Kalau `.env` web master=false (snapshot prod), `--probe` saja = no-op. First-enable AMAN = `--safe-first` (alias `--enable followup`, process-local, **tidak tulis `.env`**) supaya worker terpisah bisa start tanpa nyalain master di Passenger. `--dry-run` berhenti sebelum BlockingScheduler. Blast ditolak kecuali `--allow-blast` (ACC Kevin). Billing by-tanggal **jangan** first-enable — invoice retainer = turunan report final (`SAFE_FIRST_ENABLE=followup`). `--safe-first --enable billing` di-REFUSE (exit 2).
+- Contoh (setelah Kevin nulis "deploy"): `python3 scripts/run_scheduler_worker.py --safe-first --dry-run` lalu tanpa `--dry-run`. Jangan `--enable blast` tanpa ACC. Jangan `--enable billing` kecuali Kevin override PLAN-report-invoice.
+- Snapshot env prod 30 Agu 2026 (SSH read-only `qqwtlphb`): `.env` hanya `ENABLE_BACKGROUND_SCHEDULER=false`, sub-flag absen, `flags.py` + worker **belum** di server, `stderr.log` 0 APScheduler. Tes pengunci: `tests/test_scheduler_prod_snapshot.py` + `tests/test_scheduler_enable_cli.py`. Jangan nyalain master di `.env` Passenger.
 - API key provider dapat diatur dari menu admin setelah deploy.
+
+### Runbook aktivasi worker scheduler (setelah Kevin tulis "deploy")
+
+Prasyarat: `feat/raka-scheduler-job-specs-main` di-merge ke `main` (owner raka, `FLEET_MAIN_OWNER=1`) lalu deploy standar via `deploy.sh` — bukan copy file serpihan. Worker `scripts/run_scheduler_worker.py` melakukan `import main`, dan `main.py` baru meng-import `app/schedulers/flags.py`, jadi server wajib menerima `main.py` + `app/schedulers/flags.py` + `scripts/run_scheduler_worker.py` + `scripts/__init__.py` sekaligus (deploy berbasis git menjamin itu).
+
+Urutan eksekusi di server (path: `/home/qqwtlphb/backend`):
+
+1. Verifikasi pasca-deploy, tanpa efek:
+   `python3 scripts/run_scheduler_worker.py --probe` → `master=false`, `will_start=false`, 0 job, exit 0 (`.env` web tak tersentuh).
+2. Rencana first-enable aman (followup saja):
+   `flock -n /tmp/kt-sched.lock python3 scripts/run_scheduler_worker.py --safe-first --dry-run` → `job_ids=followups`; dry-run tidak import `main`, tidak sentuh DB.
+3. Aktif via crontab mode `--once` (job jalan 1x lalu exit — tidak ada daemon yang bisa dibunuh cron/timeout sebelum fire pertama, karena APScheduler fire pertama = now+interval):
+   `20 * * * * flock -n /tmp/kt-sched.lock python3 /home/qqwtlphb/backend/scripts/run_scheduler_worker.py --safe-first --once >> /home/qqwtlphb/backend/scheduler-worker.log 2>&1`
+   → cadence hourly (JOB_TRIGGERS: `followups` interval 1 jam); offset menit bebas, `flock -n` mencegah overlap.
+4. Bukti jalan (SELESAI kalau semua ada): log `scheduler-worker.log` berisi `[SCHEDULER] once: run followups ...` + `once selesai`, dan e2e: 1 lead masuk sequence → followup terjadwal terproses.
+5. Level berikutnya (masing-masing butuh ACC eksplisit Kevin, jangan sekalian di-crontab): blast hanya via daemon `--allow-blast` (interval 1 menit), JANGAN lewat `--once`; billing crontab harian sesuai JOB_TRIGGERS (`subscription-deductions` 00:05, `project-billing-invoices` 00:15) hanya setelah Kevin override PLAN-report-invoice.
+
+Rollback scheduler = hapus 1 baris crontab; `.env` web dan Passenger tidak disentuh.
 
 ## Verifikasi Setelah Restart
 

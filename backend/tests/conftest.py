@@ -32,6 +32,26 @@ TEST_ENGINE = create_engine(
 def set_pragma(dbapi_conn, connection_record):
     dbapi_conn.execute("PRAGMA foreign_keys=ON")
 
+# ── Savepoint support untuk pysqlite (resep resmi SQLAlchemy) ──────────────────
+# Driver pysqlite secara default auto-BEGIN dan menelan SAVEPOINT, jadi kode
+# P0-2 (db.begin_nested() di _generate_workflow_document) gagal dengan
+# "no such savepoint" HANYA di test env. Prod MySQL tidak kena. Dengan
+# isolation_level=None + event "begin" manual, SAVEPOINT jalan benar dan kode
+# savepoint produksi bisa dites end-to-end (lihat test_billing_invoice_idempotency).
+@event.listens_for(TEST_ENGINE, "connect")
+def _sqlite_disable_autobegin(dbapi_conn, connection_record):
+    dbapi_conn.isolation_level = None  # pysqlite: jangan auto-BEGIN
+
+@event.listens_for(TEST_ENGINE, "begin")
+def _sqlite_manual_begin(conn):
+    # Guard: begin_nested() meng-emit SAVEPOINT lebih dulu (di SQLite itu
+    # otomatis membuka transaksi). Kalau BEGIN root dicoba lagi setelahnya,
+    # driver melempar "cannot start a transaction within a transaction".
+    # Cek in_transaction supaya BEGIN cuma dikirim kalau benar-benar belum ada.
+    dbapi_conn = conn.connection.dbapi_connection
+    if not dbapi_conn.in_transaction:
+        conn.exec_driver_sql("BEGIN")
+
 
 def new_test_session() -> Session:
     """Create a new session bound to the test engine."""

@@ -55,6 +55,37 @@ def test_plan_billing_only_blast_stays_off(monkeypatch):
     assert plan["will_start"] is True
     assert "blast" not in plan["jobs"]
     assert plan["flags"]["ENABLE_BLAST_SCHEDULER"] is False
+    assert plan["job_ids"] == [
+        "subscription-deductions",
+        "project-billing-invoices",
+    ]
+
+
+def test_job_ids_for_unknown_flag_empty():
+    from app.schedulers.flags import job_ids_for
+
+    assert job_ids_for([]) == []
+    assert job_ids_for(["nuklir"]) == []
+
+
+def test_every_job_spec_id_has_trigger():
+    from app.schedulers.flags import JOB_SPECS, JOB_TRIGGERS, trigger_kwargs
+
+    ids = [jid for specs in JOB_SPECS.values() for jid in specs]
+    assert set(ids) == set(JOB_TRIGGERS)
+    trigger, kw = trigger_kwargs("followups")
+    assert trigger == "interval"
+    assert kw == {"hours": 1}
+    trigger, kw = trigger_kwargs("subscription-deductions")
+    assert trigger == "cron"
+    assert kw == {"hour": 0, "minute": 5}
+
+
+def test_safe_first_enable_is_followup_not_blast_or_billing():
+    from app.schedulers.flags import SAFE_FIRST_ENABLE
+
+    assert SAFE_FIRST_ENABLE == "followup"
+    assert SAFE_FIRST_ENABLE not in ("blast", "billing")
 
 
 def test_plan_followup_and_lifecycle(monkeypatch):

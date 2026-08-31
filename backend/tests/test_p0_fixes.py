@@ -221,10 +221,20 @@ class TestWorkspaceBoardSync:
         from sqlalchemy import text
 
         row, progress, _, _ = self._make_workspace_row(db_session)
-        db_session.execute(text("PRAGMA foreign_keys=OFF"))
-        db_session.execute(text("UPDATE projects SET lead_id = 99999 WHERE id = 'project-1'"))
         db_session.commit()
-        db_session.execute(text("PRAGMA foreign_keys=ON"))
+        # Toggle FK HARUS di luar transaksi (SQLite: pragma di dalam transaksi
+        # = no-op). Session.connection() ikut membuka transaksi, jadi ambil
+        # koneksi driver mentah via engine.raw_connection() (StaticPool =
+        # koneksi yang sama) lalu set pragma dalam autocommit.
+        raw = db_session.get_bind().raw_connection()
+        try:
+            raw.execute("PRAGMA foreign_keys=OFF")
+            db_session.execute(text("UPDATE projects SET lead_id = 99999 WHERE id = 'project-1'"))
+            db_session.commit()
+        finally:
+            db_session.rollback()  # no-op kalau commit sukses; bersihkan tx kalau gagal
+            raw.execute("PRAGMA foreign_keys=ON")
+            raw.close()
         db_session.expire_all()
 
         sync_row_to_board(row.id, db_session)

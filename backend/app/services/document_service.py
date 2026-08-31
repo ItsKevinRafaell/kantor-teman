@@ -129,7 +129,7 @@ def build_brand_context(db: Session) -> dict:
     # `default_document_asset_id`; otherwise fall back through the
     # 6-slot schema (primary-yellow > primary-white > brandmark-yellow > ...)
     # and finally legacy aliases (logo_primary / brandmark).
-    api_base = _get_setting("app_base_url", "") or os.getenv("APP_BASE_URL", "https://api.kantorteman.my.id")
+    api_base = _get_setting("app_base_url", "", db=db) or os.getenv("APP_BASE_URL", "https://api.kantorteman.my.id")
     chosen_url = ""
     chosen_id = getattr(kit, "default_document_asset_id", None)
     if chosen_id:
@@ -576,7 +576,7 @@ def _build_default_vars(db: Session, template_type: str, target_type: Optional[s
         "email_perusahaan": ("email_perusahaan", "company_email"),
     }
     for var_key, (brand_key, setting_key) in company_map.items():
-        val = brand.get(brand_key) or _get_setting(setting_key, "")
+        val = brand.get(brand_key) or _get_setting(setting_key, "", db=db)
         if val:
             defaults[var_key] = val
 

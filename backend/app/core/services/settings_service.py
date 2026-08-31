@@ -1,6 +1,8 @@
 """
 Settings helpers — read/write system settings from DB.
 """
+from typing import Optional
+
 from sqlalchemy.orm import Session
 
 from models import SystemSettings
@@ -19,11 +21,18 @@ def _mask_secret(value: str) -> str:
     return "****" + value[-4:]
 
 
-def _get_setting(key: str, default: str = "") -> str:
-    from models import SessionLocal
-    db = SessionLocal()
-    try:
+def _get_setting(key: str, default: str = "", db: Optional[Session] = None) -> str:
+    # db opsional: kalau dipanggil dari dalam transaksi/savepoint (mis. pipeline
+    # generate dokumen), WAJIB pakai session pemanggil. SessionLocal() di tengah
+    # savepoint (test StaticPool) me-rollback koneksi bersama dan membunuh
+    # SAVEPOINT; di prod bikin read di luar transaksi saat ini.
+    if db is not None:
         row = db.query(SystemSettings).filter_by(key=key).first()
         return row.value if row and row.value else default
+    from models import SessionLocal
+    local_db = SessionLocal()
+    try:
+        row = local_db.query(SystemSettings).filter_by(key=key).first()
+        return row.value if row and row.value else default
     finally:
-        db.close()
+        local_db.close()
