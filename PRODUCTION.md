@@ -49,6 +49,24 @@ Catatan:
 - Snapshot env prod 30 Agu 2026 (SSH read-only `qqwtlphb`): `.env` hanya `ENABLE_BACKGROUND_SCHEDULER=false`, sub-flag absen, `flags.py` + worker **belum** di server, `stderr.log` 0 APScheduler. Tes pengunci: `tests/test_scheduler_prod_snapshot.py` + `tests/test_scheduler_enable_cli.py`. Jangan nyalain master di `.env` Passenger.
 - API key provider dapat diatur dari menu admin setelah deploy.
 
+### Runbook aktivasi worker scheduler (setelah Kevin tulis "deploy")
+
+Prasyarat: `feat/raka-scheduler-job-specs-main` di-merge ke `main` (owner raka, `FLEET_MAIN_OWNER=1`) lalu deploy standar via `deploy.sh` — bukan copy file serpihan. Worker `scripts/run_scheduler_worker.py` melakukan `import main`, dan `main.py` baru meng-import `app/schedulers/flags.py`, jadi server wajib menerima `main.py` + `app/schedulers/flags.py` + `scripts/run_scheduler_worker.py` + `scripts/__init__.py` sekaligus (deploy berbasis git menjamin itu).
+
+Urutan eksekusi di server (path: `/home/qqwtlphb/backend`):
+
+1. Verifikasi pasca-deploy, tanpa efek:
+   `python3 scripts/run_scheduler_worker.py --probe` → `master=false`, `will_start=false`, 0 job, exit 0 (`.env` web tak tersentuh).
+2. Rencana first-enable aman (followup saja):
+   `flock -n /tmp/kt-sched.lock python3 scripts/run_scheduler_worker.py --safe-first --dry-run` → `job_ids=followups`; dry-run tidak import `main`, tidak sentuh DB.
+3. Aktif via crontab mode `--once` (job jalan 1x lalu exit — tidak ada daemon yang bisa dibunuh cron/timeout sebelum fire pertama, karena APScheduler fire pertama = now+interval):
+   `20 * * * * flock -n /tmp/kt-sched.lock python3 /home/qqwtlphb/backend/scripts/run_scheduler_worker.py --safe-first --once >> /home/qqwtlphb/backend/scheduler-worker.log 2>&1`
+   → cadence hourly (JOB_TRIGGERS: `followups` interval 1 jam); offset menit bebas, `flock -n` mencegah overlap.
+4. Bukti jalan (SELESAI kalau semua ada): log `scheduler-worker.log` berisi `[SCHEDULER] once: run followups ...` + `once selesai`, dan e2e: 1 lead masuk sequence → followup terjadwal terproses.
+5. Level berikutnya (masing-masing butuh ACC eksplisit Kevin, jangan sekalian di-crontab): blast hanya via daemon `--allow-blast` (interval 1 menit), JANGAN lewat `--once`; billing crontab harian sesuai JOB_TRIGGERS (`subscription-deductions` 00:05, `project-billing-invoices` 00:15) hanya setelah Kevin override PLAN-report-invoice.
+
+Rollback scheduler = hapus 1 baris crontab; `.env` web dan Passenger tidak disentuh.
+
 ## Verifikasi Setelah Restart
 
 1. Login dengan akun admin yang sudah ada.
