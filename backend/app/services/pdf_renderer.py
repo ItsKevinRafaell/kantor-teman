@@ -44,6 +44,35 @@ _UPLOADS_CANDIDATE_DIRS = (
     "/home/qqwtlphb/backend/uploads",
 )
 
+
+def _resolve_uploads_path(uri: str, uploads_dir: str | None = None) -> str | None:
+    """Map '/uploads/<rel>' (atau URL eksternal berpath /uploads/) ke file lokal.
+
+    Return path file di disk kalau ketemu, selain itu None. Guard traversal:
+    hasil normpath harus tetap di dalam base dir (pola sama dengan
+    _rewrite_uploads_to_file_urls).
+    """
+    if not uri:
+        return None
+    parsed = urlparse(uri)
+    path = parsed.path if parsed.scheme else uri
+    marker = "/uploads/"
+    if marker not in path:
+        return None
+    rel = path.split(marker, 1)[1].split("?", 1)[0].split("#", 1)[0]
+    bases = ([uploads_dir] if uploads_dir else []) + list(_UPLOADS_CANDIDATE_DIRS)
+    for base in bases:
+        if not base:
+            continue
+        local = os.path.normpath(os.path.join(base, rel))
+        real_base = os.path.realpath(base)
+        real_local = os.path.realpath(local)
+        if not real_local.startswith(real_base + os.sep):
+            continue
+        if os.path.isfile(real_local):
+            return real_local
+    return None
+
 _SYSTEM_FALLBACK_TTFS = (
     "/usr/share/fonts/google-droid-sans-fonts/DroidSansFallbackFull.ttf",
 )
@@ -1319,7 +1348,7 @@ def render_pdf_with_weasyprint(rendered_html: str, uploads_dir: str | None = Non
     return pdf
 
 
-def render_report_pdf_reportlab(payload: dict, brand: dict | None = None) -> bytes:
+def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, uploads_dir: str | None = None) -> bytes:
     """Render a client report PDF from the structured payload via ReportLab.
 
     This is a REPORT-SPECIFIC renderer (separate from render_pdf_with_reportlab,
@@ -1338,6 +1367,7 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None) -> byt
     from reportlab.lib.units import mm
     from reportlab.platypus import (
         HRFlowable,
+        Image,
         Paragraph,
         SimpleDocTemplate,
         Spacer,
@@ -1433,7 +1463,6 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None) -> byt
     project = payload.get("project", {}) or {}
     period = payload.get("period", {}) or {}
     metrics = payload.get("metrics", {}) or {}
-    workspace = payload.get("workspace", {}) or {}
     service_type = payload.get("service_type") or "general"
     _report_has_maps = payload.get("has_maps")
     brand_name = brand.get("brand_name") or "Kantor Teman"
@@ -1471,17 +1500,13 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None) -> byt
         story.append(Spacer(1, 10))
 
     # --- KPI cards ------------------------------------------------------------
-    summary = workspace.get("summary", {}) or {}
-    board = metrics.get("board", {}) or {}
+    # Keputusan FINAL Kevin (1 Sep 2026, review draft MLS M08): KPI task
+    # internal (Progress tugas / Tugas selesai / Card aktif) DILARANG muncul
+    # di PDF klien-facing — bagian pekerjaan di laporan = output nyata doang
+    # (metrik GSC/GBP, chart, narrative output-based). Yang tampil: KPI
+    # eksternal saja (PageSpeed).
     pagespeed = metrics.get("pagespeed", {}) or {}
     kpi_cards: list[tuple[str, str]] = []
-    total_tasks = summary.get("total_tasks") or 0
-    if total_tasks:
-        kpi_cards.append(("PROGRESS TUGAS", f"{summary.get('completion_pct', 0)}%"))
-        kpi_cards.append(("TUGAS SELESAI", f"{summary.get('completed_tasks', 0)} / {total_tasks}"))
-    active_cards = sum(col.get("count", 0) for col in board.get("columns", []))
-    if active_cards:
-        kpi_cards.append(("CARD AKTIF", _num(active_cards)))
     ps_score = pagespeed.get("performance_score")
     if pagespeed.get("status") == "ok" and ps_score not in (None, "", 0):
         kpi_cards.append(("PAGESPEED MOBILE", _num(ps_score)))
@@ -1683,6 +1708,51 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None) -> byt
     _list_block("Highlight", narrative.get("highlights"))
     _list_block("Issue dan Catatan", narrative.get("issues"))
     _list_block("Rencana Berikutnya", narrative.get("next_steps"))
+
+    # --- evidence images (chart GSC, screenshot bukti output) -----------------
+    # Keputusan FINAL Kevin (1 Sep 2026): evidence bergambar (mis. chart GSC,
+    # source=gsc_chart) WAJIB ke-embed di PDF sebagai image — bukan cuma link.
+    # Sumber: payload.evidence.items (fallback workspace_evidence, sama dengan
+    # _render_evidence di HTML). File yang ga ada di disk di-skip, bukan bikin
+    # seluruh render gagal (fallback textfb = kehilangan styling juga).
+    evidence = payload.get("evidence", {}) or {}
+    ev_items = evidence.get("items") or evidence.get("workspace_evidence") or []
+    _img_count = 0
+    for item in ev_items:
+        if not isinstance(item, dict):
+            continue
+        url = item.get("url") or ""
+        ftype = (item.get("file_type") or "").lower()
+        ext = os.path.splitext(url)[1].lower()
+        if not (ftype.startswith("image/") or ext in (".png", ".jpg", ".jpeg", ".webp", ".gif")):
+            continue
+        local = _resolve_uploads_path(url, uploads_dir)
+        if not local:
+            continue
+        try:
+            from reportlab.lib.utils import ImageReader
+
+            ir = ImageReader(local)
+            iw, ih = ir.getSize()
+            if not iw or not ih:
+                continue
+            w = avail_w * 0.75
+            img = Image(local, width=w, height=ih * (w / iw), mask="auto")
+            img.hAlign = "CENTER"
+            if _img_count == 0:
+                _section_heading("Lampiran Grafik")
+            story.append(img)
+            label = item.get("label") or item.get("file_name")
+            if label:
+                story.append(Spacer(1, 2))
+                story.append(Paragraph(
+                    _txt(label),
+                    _pstyle(f"RptImgCap{_img_count}", fontSize=8.5, leading=11,
+                            textColor=MUTED, alignment=TA_CENTER)))
+            story.append(Spacer(1, 8))
+            _img_count += 1
+        except Exception:
+            continue
 
     # --- footer ---------------------------------------------------------------
     story.append(Spacer(1, 8))
