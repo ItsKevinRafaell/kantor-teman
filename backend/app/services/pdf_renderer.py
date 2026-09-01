@@ -1659,6 +1659,7 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
     # --- fallback comparison section (metrics.comparisons) --------------------
     comparisons = metrics.get("comparisons", {}) or {}
     comp_metrics = comparisons.get("metrics", []) or []
+    _comp_cur = comparisons.get("current_label") or "Sekarang"
     if comp_metrics and not comparison_groups:
         crows = []
         for item in comp_metrics:
@@ -1684,7 +1685,7 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
             _section_heading("Komparasi Performa")
             ref = comparisons.get("reference_label") or "Pembanding"
             story.append(_bordered_table(
-                ["Metrik", _txt(ref), "Sekarang", "Perubahan"], crows,
+                ["Metrik", _txt(ref), _txt(_comp_cur), "Perubahan"], crows,
                 [avail_w * 0.34, avail_w * 0.22, avail_w * 0.22, avail_w * 0.22],
                 right_cols=(1, 2, 3)))
             story.append(Spacer(1, 14))
@@ -1708,7 +1709,9 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
     # Laporan v3 (feedback Kevin 1 Sep 2026): pekerjaan REAL dari board ERP
     # (card Done bulan laporan, generator narrative.pekerjaan_bulan_ini).
     # Section sendiri + pembeda jelas, bukan statistik task internal.
-    _list_block("Yang Kami Kerjakan Bulan Ini", narrative.get("pekerjaan_bulan_ini"))
+    _list_block(
+        narrative.get("pekerjaan_bulan_ini_title") or "Yang Kami Kerjakan Bulan Ini",
+        narrative.get("pekerjaan_bulan_ini"))
     _list_block("Highlight", narrative.get("highlights"))
     _list_block("Issue dan Catatan", narrative.get("issues"))
     _list_block("Rencana Berikutnya", narrative.get("next_steps"))

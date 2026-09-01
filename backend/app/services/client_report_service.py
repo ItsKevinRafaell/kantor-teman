@@ -496,12 +496,15 @@ def _service_metric_defs(service_type: str) -> list[dict]:
 
 def _derive_comparisons(metrics: dict, service_type: str = "general", report_type: str = "monthly") -> dict:
     manual = metrics.get("manual", {})
+    # Label kolom dari generator (period_labels) — Kevin 1 Sep: nama bulan,
+    # bukan "bulan lalu"/"Sekarang".
+    labels = manual.get("period_labels") or {}
     if report_type == "completion":
         reference_suffix = "baseline"
         reference_label = "data awal proyek"
     elif report_type == "monthly":
         reference_suffix = "previous"
-        reference_label = "bulan lalu"
+        reference_label = labels.get("reference") or "bulan lalu"
     else:
         reference_suffix = "previous"
         reference_label = "periode pembanding"
@@ -530,6 +533,7 @@ def _derive_comparisons(metrics: dict, service_type: str = "general", report_typ
     )
     result = {
         "reference_label": reference_label,
+        "current_label": labels.get("current"),
         "notes": notes,
         "metrics": metric_rows,
     }
@@ -648,6 +652,7 @@ def _derive_comparison_groups(manual_metrics: Optional[dict]) -> list:
 
 def _derive_legacy_seo_comparisons(metrics: dict, report_type: str = "monthly") -> dict:
     gsc = metrics.get("service", {}).get("gsc", {})
+    labels = (metrics.get("manual") or {}).get("period_labels") or {}
     if report_type == "completion":
         clicks_reference = gsc.get("clicks_baseline")
         impressions_reference = gsc.get("impressions_baseline")
@@ -659,9 +664,10 @@ def _derive_legacy_seo_comparisons(metrics: dict, report_type: str = "monthly") 
         impressions_reference = gsc.get("impressions_previous")
         ctr_reference = gsc.get("ctr_previous")
         position_reference = gsc.get("average_position_previous")
-        reference_label = "bulan lalu"
+        reference_label = labels.get("reference") or "bulan lalu"
     return {
         "reference_label": reference_label,
+        "current_label": labels.get("current"),
         "notes": gsc.get("comparison_notes"),
         "gsc_clicks": _calculate_delta(gsc.get("clicks"), clicks_reference),
         "gsc_impressions": _calculate_delta(gsc.get("impressions"), impressions_reference),
@@ -758,8 +764,11 @@ def _fmt_gsc_for_ai(service_metrics: dict, metrics: dict) -> str:
         if prev in (None, "") and cur in (None, ""):
             continue
         pct_txt = f"{pct:+.1f}%" if isinstance(pct, (int, float)) else "-"
+        _plabels = (metrics.get("manual") or {}).get("period_labels") or {}
+        _ref_w = _plabels.get("reference_short") or "bulan lalu"
+        _cur_w = _plabels.get("current_short") or "sekarang"
         lines.append(
-            f"- {item.get('label')}: bulan lalu {prev}, sekarang {cur} (perubahan {pct_txt})"
+            f"- {item.get('label')}: {_ref_w} {prev}, {_cur_w} {cur} (perubahan {pct_txt})"
         )
     return "\n".join(lines) if lines else "(belum ada data GSC)"
 
