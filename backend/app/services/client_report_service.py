@@ -707,6 +707,20 @@ def _fetch_pagespeed(website_url: str) -> dict:
 
 
 def _period_label(report_type: str, month_number: Optional[int], period_start: Optional[str], period_end: Optional[str]) -> str:
+    # Bulan kalender (mis. "Agustus 2026") diprioritaskan — Kevin: sebut bulan,
+    # BUKAN "M08"/"Bulan ke-N".
+    if period_start:
+        try:
+            from datetime import date as _d
+            _ps = _d.fromisoformat(str(period_start)[:10])
+            _BULAN_ID = ["Januari", "Februari", "Maret", "April", "Mei", "Juni",
+                         "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+            _yr = _ps.year if not period_end else _d.fromisoformat(str(period_end)[:10]).year
+            if _yr != _ps.year:
+                return f"{_BULAN_ID[_ps.month - 1]} {_ps.year}"
+            return f"{_BULAN_ID[_ps.month - 1]} {_yr}"
+        except Exception:
+            pass
     if month_number:
         return f"Bulan ke-{month_number}"
     if period_start and period_end:
@@ -833,6 +847,10 @@ def _generate_next_steps_ai(
 
 def _build_narrative(report_type: str, service_type: str, workspace: dict, manual: dict, narrative: dict, service_metrics: Optional[dict] = None, has_maps: Optional[bool] = None) -> dict:
     narrative = _clean_dict(narrative)
+    # Preserve extra keys dari generator eksternal (maintenance, analysis, proof,
+    # next_month, dsb.) — hanya 5 keys standar yang dinormalisasi di bawah.
+    _extra = {k: v for k, v in narrative.items() if k not in {
+        "executive_summary", "highlights", "issues", "next_steps", "churn_risks"}}
     summary = workspace.get("summary", {})
     service_label = REPORT_SERVICE_LABELS.get(service_type, "layanan")
     # Opsi B (product-driven): scope Maps ditentukan resolver (product+addons+data),
@@ -858,13 +876,17 @@ def _build_narrative(report_type: str, service_type: str, workspace: dict, manua
             f"Proyek {service_label} sudah masuk tahap penutupan. Laporan ini merangkum pekerjaan, bukti, "
             "hasil utama, dan item yang perlu dipantau setelah handover."
         )
-    return {
+    out = {
         "executive_summary": narrative.get("executive_summary") or default_summary,
         "highlights": narrative.get("highlights") or manual.get("highlights") or [],
         "issues": narrative.get("issues") or manual.get("issues") or [],
         "next_steps": narrative.get("next_steps") or manual.get("next_steps") or [],
         "notes": narrative.get("notes") or "",
     }
+    # Extra keys generator (maintenance, analysis, proof, ...) ikut kebawa.
+    for _k, _v in _extra.items():
+        out.setdefault(_k, _v)
+    return out
 
 
 def build_report_payload(
@@ -944,7 +966,10 @@ def build_report_payload(
     project_name = project.name if project else manual_metrics.get("project_name") or report_label
     client_name = target["client_name"]
     title = f"{report_label} {service_label} - {client_name}"
-    if month_number:
+    # Sebut bulan kalender, BUKAN "M08" (Kevin 1 Sep 2026).
+    if period and period != "Periode berjalan" and not period.startswith("Bulan ke-"):
+        title = f"{title} - {period}"
+    elif month_number:
         title = f"{title} M{month_number:02d}"
 
     return {

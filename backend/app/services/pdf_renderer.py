@@ -1708,6 +1708,7 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
     _list_block("Highlight", narrative.get("highlights"))
     _list_block("Issue dan Catatan", narrative.get("issues"))
     _list_block("Rencana Berikutnya", narrative.get("next_steps"))
+    _list_block("Perawatan & Pemeliharaan", narrative.get("maintenance"))
 
     # --- evidence images (chart GSC, screenshot bukti output) -----------------
     # Keputusan FINAL Kevin (1 Sep 2026): evidence bergambar (mis. chart GSC,
