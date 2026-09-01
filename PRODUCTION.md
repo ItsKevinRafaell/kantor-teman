@@ -101,6 +101,13 @@ Worker + `flags.py` BELUM di server. E2E lokal PASS:
 **Jalur kanonis = crontab `--once` + `--safe-first` (lihat section di atas).**
 `.env` Passenger TIDAK disentuh. Master `ENABLE_BACKGROUND_SCHEDULER` tetap `false`.
 
+**Eksekutor one-shot (direkomendasikan saat Kevin menulis "deploy"):**
+`bash scripts/scheduler_golive.sh <status|check|deploy-code|activate|verify|rollback>`.
+Membungkus langkah 2-6 runbook persis (git-pull via `deploy.sh` → health → `--probe` →
+crontab `--once` idempotent → 1x run manual via flock → bukti log). Perintah yang
+mengubah state prod (`deploy-code`/`activate`/`rollback`) MENOLAK jalan (exit 3)
+tanpa env `KT_SCHED_GOLIVE_ACK=deploy`. `status`/`verify`/`check` read-only penuh.
+
 **DITOLAK sebagai first-enable (bukti teknis, jangan nurut biar keliatan cepat):**
 - Flip master ON di `.env` web = tiap LSAPI worker spawn APScheduler sendiri (alasan dimatiin 12 Jun).
 - `nohup` BlockingScheduler di shared hosting: fire pertama APScheduler = now+interval; process

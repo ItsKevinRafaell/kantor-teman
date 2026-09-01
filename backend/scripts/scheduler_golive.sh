@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+# scheduler_golive.sh — eksekutor one-shot runbook go-live scheduler prod Kantor Teman.
+#
+# Sumber kanonis urutan: PRODUCTION.md § "Runbook Go-Live Scheduler Prod"
+# dan § "Runbook aktivasi worker scheduler". Skrip ini HANYA membungkus urutan
+# itu persis — tidak menambah langkah, tidak mengubah urutan.
+#
+# GATE (anti-eksekusi-kecelakaan):
+#   Semua perintah yang MENGGANTI state prod (deploy-code, activate, rollback)
+#   MENOLAK jalan kecuali env  KT_SCHED_GOLIVE_ACK=deploy  — memaksa operator
+#   (Kevin / agent dengan ACC Kevin) menuliskan kata "deploy" secara eksplisit,
+#   sama seperti runbook. Cron/agent tanpa ACC = exit 3, zero mutasi.
+#
+# Perintah:
+#   status      read-only penuh (SSH cat/ls/crontab -l + health HTTPS)
+#   check       cocokkan konstanta crontab vs preflight_scheduler_deploy.py (lokal)
+#   deploy-code [GATE] git-pull kanonis di server (bash deploy.sh) + health + --probe
+#   activate    [GATE] pasang crontab kanonis --once (idempotent) + 1x run manual
+#               --once via flock → bukti log segera, tanpa nunggu menit :20
+#   verify      read-only: tail scheduler-worker.log + cek entry crontab
+#   rollback    [GATE] hapus entry crontab scheduler (1 baris). .env/Passenger tak disentuh.
+#
+# Pemakaian contoh (SAAT Kevin menulis "deploy"):
+#   KT_SCHED_GOLIVE_ACK=deploy bash scripts/scheduler_golive.sh deploy-code
+#   KT_SCHED_GOLIVE_ACK=deploy bash scripts/scheduler_golive.sh activate
+#   bash scripts/scheduler_golive.sh status
+#   bash scripts/scheduler_golive.sh verify
+set -euo pipefail
+
+SSH_HOST="deploy-kantorteman"
+SERVER_DIR="/home/qqwtlphb/backend"
+VENV_PY="/home/qqwtlphb/virtualenv/backend/3.13/bin/python"
+WORKER="${SERVER_DIR}/scripts/run_scheduler_worker.py"
+LOG="${SERVER_DIR}/scheduler-worker.log"
+CRON_MARKER="run_scheduler_worker.py --safe-first --once"
+# Mirror kanonik dari preflight_scheduler_deploy.py (CRONTAB_LINE). `check`
+# membandingkan otomatis — JANGAN ubah salah satu saja.
+CRONTAB_LINE="20 * * * * flock -n /tmp/kt-sched.lock ${VENV_PY} ${WORKER} --safe-first --once >> ${LOG} 2>&1"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+log()  { echo "[GOLIVE] $*"; }
+die()  { echo "[GOLIVE] ERROR: $*" >&2; exit 1; }
+
+sshq() {
+  ssh -o ConnectTimeout=15 -o BatchMode=yes "$SSH_HOST" "$@"
+}
+
+gate() {
+  if [[ "${KT_SCHED_GOLIVE_ACK:-}" != "deploy" ]]; then
+    echo "[GATE] DITOLAK (exit 3): '$1' mengubah state prod. Jalankan hanya dengan" >&2
+    echo "       KT_SCHED_GOLIVE_ACK=deploy — dan hanya SETELAH Kevin menulis \"deploy\"." >&2
+    exit 3
+  fi
+  log "ACK 'deploy' diterima — melanjutkan '$1'"
+}
+
+cmd_check() {
+  local py
+  py="$(command -v python3 || command -v python)"
+  local got
+  got="$("$py" - <<'PYEOF'
+import importlib.util, pathlib, sys
+pf = pathlib.Path("scripts/preflight_scheduler_deploy.py")
+if not pf.is_file():
+    pf = pathlib.Path("preflight_scheduler_deploy.py")
+spec = importlib.util.spec_from_file_location("pf_mod", str(pf.resolve()))
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+print(m.CRONTAB_LINE)
+PYEOF
+)" || die "gagal baca CRONTAB_LINE dari preflight_scheduler_deploy.py"
+  if [[ "$got" == "$CRONTAB_LINE" ]]; then
+    log "check: konstanta crontab SINKRON dengan preflight_scheduler_deploy.py"
+  else
+    echo "[GOLIVE] check: GAGAL — konstanta BEDA!" >&2
+    echo "  golive:    $CRONTAB_LINE" >&2
+    echo "  preflight: $got" >&2
+    exit 1
+  fi
+}
+
+cmd_status() {
+  log "status prod (read-only) — $(date '+%F %T %Z')"
+  sshq "grep -E 'ENABLE_BACKGROUND_SCHEDULER' ${SERVER_DIR}/.env 2>/dev/null || echo NO_ENV_LINE;
+        ls ${SERVER_DIR}/app/schedulers/flags.py ${SERVER_DIR}/scripts/run_scheduler_worker.py ${SERVER_DIR}/scripts/__init__.py 2>&1;
+        echo '--- crontab ---'; crontab -l 2>/dev/null | grep -F '${CRON_MARKER}' || echo 'CRON_BELUM_TERPASANG';
+        echo '--- log tail ---'; tail -n 5 ${LOG} 2>/dev/null || echo 'LOG_BELUM_ADA'"
+  curl -s -o /dev/null -w "[GOLIVE] health api.kantorteman.my.id: HTTP %{http_code}\n" \
+       --max-time 20 https://api.kantorteman.my.id/api/health
+}
+
+cmd_deploy_code() {
+  gate deploy-code
+  log "deploy kanonis: bash deploy.sh di server (git pull + protect .env + migrate + restart)"
+  sshq "cd ${SERVER_DIR} && bash deploy.sh"
+  log "tunggu health 200 (maks 60s)..."
+  local ok=0 i
+  for i in $(seq 1 12); do
+    if curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://api.kantorteman.my.id/api/health | grep -q 200; then
+      ok=1; break
+    fi
+    sleep 5
+  done
+  [[ "$ok" == "1" ]] || die "health TIDAK 200 dalam 60s — cek stderr.log di server, rollback = git reset --hard HEAD@{1} + restart"
+  log "health 200 OK. Probe worker (read-only, tidak start job):"
+  sshq "cd ${SERVER_DIR} && ${VENV_PY} ${WORKER} --probe"
+  log "deploy-code SELESAI. Lanjut 'activate' (crontab --once) bila probe exit 0."
+}
+
+cmd_activate() {
+  gate activate
+  log "pasang crontab kanonis (idempotent)..."
+  sshq "crontab -l 2>/dev/null | grep -Fq '${CRON_MARKER}' && echo CRONTAB_SUDAH_ADA || \
+        { { crontab -l 2>/dev/null; echo '${CRONTAB_LINE}'; } | crontab -; echo CRONTAB_TERPASANG; }"
+  log "run 1x manual --once via flock (bukti log segera, process-local, .env tak disentuh)..."
+  sshq "flock -n /tmp/kt-sched.lock ${VENV_PY} ${WORKER} --safe-first --once >> ${LOG} 2>&1; tail -n 10 ${LOG}"
+  log "activate SELESAI. Verifikasi: bash scripts/scheduler_golive.sh verify"
+}
+
+cmd_verify() {
+  log "verifikasi bukti jalan (read-only)"
+  sshq "echo '--- crontab ---'; crontab -l 2>/dev/null | grep -F '${CRON_MARKER}' || echo CRON_BELUM_TERPASANG;
+        echo '--- log ---'; grep -E 'SCHEDULER|once selesai' ${LOG} 2>/dev/null | tail -n 15 || echo LOG_BELUM_ADA"
+}
+
+cmd_rollback() {
+  gate rollback
+  log "rollback: hapus entry crontab scheduler (satu-satunya state yang diubah runbook ini)"
+  sshq "crontab -l 2>/dev/null | grep -Fv '${CRON_MARKER}' | crontab - && echo CRONTAB_SCHEDULER_DIHAPUS"
+}
+
+case "${1:-}" in
+  status)     cmd_status ;;
+  check)      cmd_check ;;
+  deploy-code) cmd_deploy_code ;;
+  activate)   cmd_activate ;;
+  verify)     cmd_verify ;;
+  rollback)   cmd_rollback ;;
+  ""|-h|--help)
+    grep '^#   ' "$0" | sed 's/^#   //'
+    ;;
+  *) die "perintah tidak dikenal: $1 (lihat: bash scripts/scheduler_golive.sh)" ;;
+esac
