@@ -67,8 +67,8 @@ REPORT_TYPE_LABELS = {
 
 SERVICE_COMPARISON_METRICS = {
     "seo_gmaps": [
-        {"key": "gsc_clicks", "label": "GSC Clicks"},
-        {"key": "gsc_impressions", "label": "GSC Impressions"},
+        {"key": "gsc_clicks", "label": "Klik dari Google"},
+        {"key": "gsc_impressions", "label": "Kali Muncul di Google"},
         {"key": "gsc_ctr", "label": "CTR"},
         {"key": "gsc_average_position", "label": "Average position", "lower_is_better": True},
     ],

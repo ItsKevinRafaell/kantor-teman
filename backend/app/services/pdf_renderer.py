@@ -1585,10 +1585,10 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
         gbp = service.get("google_business", {}) or {}
         rows = []
         seo_pairs = [
-            ("GSC Clicks", _num(gsc.get("clicks"))),
-            ("GSC Impressions", _num(gsc.get("impressions"))),
-            ("CTR", _txt(gsc.get("ctr"))),
-            ("Average Position", _txt(gsc.get("average_position"))),
+            ("Klik dari Google", _num(gsc.get("clicks"))),
+            ("Kali Muncul di Google", _num(gsc.get("impressions"))),
+            ("Rasio Klik (%)", _txt(gsc.get("ctr"))),
+            ("Posisi Rata-rata", _txt(gsc.get("average_position"))),
         ]
         if any(v not in ("-", None, "") for _, v in seo_pairs):
             for label, val in seo_pairs:
@@ -1709,6 +1709,9 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
     _list_block("Issue dan Catatan", narrative.get("issues"))
     _list_block("Rencana Berikutnya", narrative.get("next_steps"))
     _list_block("Perawatan & Pemeliharaan", narrative.get("maintenance"))
+    # Section layanan kontrak (Kevin 1 Sep: GBP harus punya section sendiri,
+    # bukan cuma disebut di highlight). Isi dari generator (narrative.gbp).
+    _list_block("Google Business Profile", narrative.get("gbp"))
 
     # --- evidence images (chart GSC, screenshot bukti output) -----------------
     # Keputusan FINAL Kevin (1 Sep 2026): evidence bergambar (mis. chart GSC,
