@@ -59,11 +59,11 @@ cmd_check() {
   local py
   py="$(command -v python3 || command -v python)"
   local got
-  got="$("$py" - <<'PYEOF'
-import importlib.util, pathlib, sys
-pf = pathlib.Path("scripts/preflight_scheduler_deploy.py")
+  got="$(GOLIVE_PF_DIR="$SCRIPT_DIR" "$py" - <<'PYEOF'
+import importlib.util, os, pathlib
+pf = pathlib.Path(os.environ["GOLIVE_PF_DIR"]) / "preflight_scheduler_deploy.py"
 if not pf.is_file():
-    pf = pathlib.Path("preflight_scheduler_deploy.py")
+    raise SystemExit(f"preflight tidak ditemukan: {pf}")
 spec = importlib.util.spec_from_file_location("pf_mod", str(pf.resolve()))
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
