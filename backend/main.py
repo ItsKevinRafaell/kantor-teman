@@ -179,12 +179,12 @@ def _run_project_billing_invoices():
         db.close()
 
 
-def _flag_on(name: str) -> bool:
-    """Env flag helper. Default OFF — tiap job baru NYALA hanya kalau di-set 'true'.
-
-    Jangan ubah default value di sini tanpa keputusan Kevin (blast wajib OFF).
-    """
-    return os.getenv(name, "false").strip().lower() == "true"
+from app.schedulers.flags import (  # noqa: E402
+    JOB_SPECS,
+    trigger_kwargs,
+    flag_on as _flag_on,
+    scheduler_plan,
+)
 
 
 def _start_background_scheduler():
@@ -192,49 +192,45 @@ def _start_background_scheduler():
 
     Dulu cuma 1 master switch ENABLE_BACKGROUND_SCHEDULER: sekali nyala SEMUA job
     ikut jalan (termasuk blast yang lagi ditahan Kevin). Sekarang tiap job punya
-    flag sendiri:
-      - ENABLE_BLAST_SCHEDULER      -> pending blasts (WAJIB default OFF)
-      - ENABLE_BILLING_SCHEDULER    -> subscription deduction + project invoice bulanan
-      - ENABLE_FOLLOWUP_SCHEDULER   -> scheduled followup processor
-      - ENABLE_LIFECYCLE_SCHEDULER  -> outreach lifecycle state machine
+    flag sendiri (lihat app.schedulers.flags).
 
-    Master switch ENABLE_BACKGROUND_SCHEDULER DIPERTAHANKAN sebagai gate global
-    (backward compat): kalau master OFF/tidak diset, TIDAK ADA job jalan — sama
-    persis dengan perilaku lama. Kalau master ON, tiap job masih dicek flag-nya
-    masing-masing. Semua flag default OFF, jadi upgrade tanpa ubah .env = tetap
-    tidak ada job yang jalan (aman). Kevin yang putuskan mana yang dinyalakan.
+    Master switch ENABLE_BACKGROUND_SCHEDULER DIPERTAHANKAN sebagai gate global.
+    Semua flag default OFF. Kevin yang putuskan mana yang dinyalakan.
+
+    Di shared hosting: biarkan master OFF di worker web; pakai
+    scripts/run_scheduler_worker.py di process terpisah (lihat PRODUCTION.md).
     """
-    if not _flag_on("ENABLE_BACKGROUND_SCHEDULER"):
+    plan = scheduler_plan()
+    if not plan["will_start"]:
+        if plan["master"]:
+            print("[SCHEDULER] master ON tapi semua sub-flag OFF, scheduler tidak distart", flush=True)
         return None
     from apscheduler.schedulers.background import BackgroundScheduler
     sched = BackgroundScheduler(timezone="Asia/Jakarta", daemon=True)
 
-    enabled: list[str] = []
-
-    if _flag_on("ENABLE_BLAST_SCHEDULER"):
-        sched.add_job(_run_async_job, "interval", minutes=1, args=[process_pending_blasts], id="pending-blasts", max_instances=1, coalesce=True)
-        enabled.append("blast")
-
-    if _flag_on("ENABLE_FOLLOWUP_SCHEDULER"):
-        sched.add_job(_run_async_job, "interval", hours=1, args=[scheduled_followup_processor], id="followups", max_instances=1, coalesce=True)
-        enabled.append("followup")
-
-    if _flag_on("ENABLE_LIFECYCLE_SCHEDULER"):
-        sched.add_job(_run_outreach_lifecycle, "interval", hours=1, id="outreach-lifecycle", max_instances=1, coalesce=True)
-        enabled.append("lifecycle")
-
-    if _flag_on("ENABLE_BILLING_SCHEDULER"):
-        sched.add_job(_run_subscription_deductions, "cron", hour=0, minute=5, id="subscription-deductions", max_instances=1, coalesce=True)
-        sched.add_job(_run_project_billing_invoices, "cron", hour=0, minute=15, id="project-billing-invoices", max_instances=1, coalesce=True)
-        enabled.append("billing")
-
-    if not enabled:
-        # Master ON tapi tidak ada sub-flag yang nyala -> tidak ada gunanya start.
-        print("[SCHEDULER] master ON tapi semua sub-flag OFF, scheduler tidak distart", flush=True)
-        return None
+    enabled = plan["jobs"]
+    runners = {
+        "pending-blasts": (_run_async_job, [process_pending_blasts]),
+        "followups": (_run_async_job, [scheduled_followup_processor]),
+        "outreach-lifecycle": (_run_outreach_lifecycle, None),
+        "subscription-deductions": (_run_subscription_deductions, None),
+        "project-billing-invoices": (_run_project_billing_invoices, None),
+    }
+    for job in enabled:
+        for jid in JOB_SPECS[job]:
+            trigger, trig = trigger_kwargs(jid)
+            fn, args = runners[jid]
+            kw = dict(id=jid, max_instances=1, coalesce=True, **trig)
+            if args is not None:
+                kw["args"] = args
+            sched.add_job(fn, trigger, **kw)
 
     sched.start()
-    print(f"[SCHEDULER] started, jobs aktif: {', '.join(enabled)}", flush=True)
+    print(
+        f"[SCHEDULER] started, jobs aktif: {', '.join(enabled)} "
+        f"job_ids={','.join(plan['job_ids'])}",
+        flush=True,
+    )
     return sched
 
 
