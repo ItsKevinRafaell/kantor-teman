@@ -1705,6 +1705,10 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
             story.append(Paragraph(f"•&nbsp;&nbsp;{_txt(it)}", st_body))
         story.append(Spacer(1, 10))
 
+    # Laporan v3 (feedback Kevin 1 Sep 2026): pekerjaan REAL dari board ERP
+    # (card Done bulan laporan, generator narrative.pekerjaan_bulan_ini).
+    # Section sendiri + pembeda jelas, bukan statistik task internal.
+    _list_block("Yang Kami Kerjakan Bulan Ini", narrative.get("pekerjaan_bulan_ini"))
     _list_block("Highlight", narrative.get("highlights"))
     _list_block("Issue dan Catatan", narrative.get("issues"))
     _list_block("Rencana Berikutnya", narrative.get("next_steps"))
