@@ -974,7 +974,10 @@ def build_report_payload(
     report_label = REPORT_TYPE_LABELS.get(report_type, "Laporan Klien")
     project_name = project.name if project else manual_metrics.get("project_name") or report_label
     client_name = target["client_name"]
-    title = f"{report_label} {service_label} - {client_name}"
+    # Review nara 2 Sep 2026: judul netral TANPA label layanan — isi laporan
+    # cover SEO + GBP + maintenance, bukan "SEO" doang.
+    # Format: "Laporan Bulanan - PT. Momen Harmoni Kreatif - Agustus 2026".
+    title = f"{report_label} - {client_name}"
     # Sebut bulan kalender, BUKAN "M08" (Kevin 1 Sep 2026).
     if period and period != "Periode berjalan" and not period.startswith("Bulan ke-"):
         title = f"{title} - {period}"
