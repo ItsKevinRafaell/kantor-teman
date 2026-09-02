@@ -1770,11 +1770,13 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
             story.append(Paragraph(f"•&nbsp;&nbsp;{_txt(it)}", st_body))
         story.append(Spacer(1, 10))
 
-    # Laporan v3 fase 3 (Kevin 2 Sep 2026): "Bukti Kerjaan" = rincian per
-    # pekerjaan dari board ERP (tanggal selesai, butir pekerjaan terpenuhi
-    # terformalkan via CHECKLIST_BAHASA, catatan progres & lampiran). Tabel
-    # top-5 halaman GSC itu HASIL performa — dipindah ke Performa SEO.
-    # Kalau bukti ada, list "Rincian Pekerjaan" satu-baris di-skip (duplikat).
+    # Laporan v3 fase 3-rev (Kevin 2 Sep 2026, revisi): section dulu bernama
+    # "Bukti Kerjaan" — Kevin: board TIDAK punya bukti/lampiran per checklist,
+    # jadi TANPA klaim bukti. Sekarang "Rincian Pekerjaan": log kerja dari
+    # board ERP (tanggal selesai + butir terformalkan via CHECKLIST_BAHASA),
+    # tanpa hitungan catatan progres/lampiran. Tabel top-5 halaman GSC itu
+    # HASIL performa — tetap di section Performa SEO.
+    # Kalau log ada, list "Rincian Pekerjaan Bulan Ini" satu-baris di-skip.
     _bukti = narrative.get("bukti_kerjaan") or []
     if not _bukti:
         _list_block(
@@ -1792,11 +1794,11 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
     # skip, jangan ngarang.
     _artikel = narrative.get("artikel_terbit") or []
     if _bukti or _artikel:
-        _section_heading("Bukti Kerjaan")
+        _section_heading("Rincian Pekerjaan")
         if _bukti:
             story.append(Paragraph(
-                "Setiap pekerjaan berikut telah diselesaikan dan terdokumentasi "
-                "pada papan kerja internal:", st_body))
+                "Pekerjaan berikut telah diselesaikan selama periode laporan:",
+                st_body))
             story.append(Spacer(1, 4))
             for _i, _b in enumerate(_bukti[:12], 1):
                 if not isinstance(_b, dict):
@@ -1809,11 +1811,6 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
                 _cd, _ct = _b.get("checklist_done") or 0, _b.get("checklist_total") or 0
                 if _ct:
                     _doc.append(f"{_cd} dari {_ct} butir pekerjaan terpenuhi")
-                _cm, _at = _b.get("comments") or 0, _b.get("attachments") or 0
-                if _cm:
-                    _doc.append(f"{_cm} catatan progres")
-                if _at:
-                    _doc.append(f"{_at} lampiran")
                 if _doc:
                     _judul += (f" <font color=\"#6b7280\">"
                                f"({html_mod.escape('; '.join(_doc))})</font>")
