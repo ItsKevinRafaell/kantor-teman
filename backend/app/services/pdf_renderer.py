@@ -1458,6 +1458,47 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
         except Exception:
             return html_mod.escape(str(value))
 
+    def _dec(value, nd=2):
+        """Desimal format Indonesia (koma). Fase 2 (Kevin 1 Sep): desimal
+        seragam koma di semua angka non-bulat (CTR, posisi, dsb.) — bukan
+        campuran "1.59%" (titik) vs "1,59" (koma)."""
+        if value in (None, ""):
+            return "-"
+        try:
+            n = float(str(value).replace(",", "."))
+            s = f"{n:,.{nd}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            if "," in s:
+                s = s.rstrip("0").rstrip(",") or "0"
+            return s
+        except Exception:
+            return html_mod.escape(str(value))
+
+    def _change_text(delta, lower_better):
+        """Teks kolom Perubahan. Fase 2 (Kevin 1 Sep): baris lower-is-better
+        (mis. Posisi Rata-rata) JANGAN ditampilkan kayak pencapaian persen —
+        tulis arah pergerakan angkanya: "turun 6,8 → 7,8" (merah) / "naik
+        12,3 → 11,4" (hijau). Metrik normal tetap persen, desimal koma.
+        Return (teks, good) — good: True/False/None (netral)."""
+        delta = delta or {}
+        prev_s = _dec(delta.get("previous"))
+        cur_s = _dec(delta.get("current"))
+        if lower_better:
+            try:
+                c = float(str(delta.get("current")).replace(",", "."))
+                p = float(str(delta.get("previous")).replace(",", "."))
+            except Exception:
+                return "-", None
+            if c > p:
+                return f"turun {prev_s} → {cur_s}", False
+            if c < p:
+                return f"naik {prev_s} → {cur_s}", True
+            return f"stabil {cur_s}", None
+        pct = delta.get("delta_pct")
+        if isinstance(pct, (int, float)):
+            good = True if pct > 0 else (False if pct < 0 else None)
+            return f"{pct:+.1f}%".replace(".", ","), good
+        return "-", None
+
     narrative = payload.get("narrative", {}) or {}
     client = payload.get("client", {}) or {}
     project = payload.get("project", {}) or {}
@@ -1587,8 +1628,8 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
         seo_pairs = [
             ("Klik dari Google", _num(gsc.get("clicks"))),
             ("Kali Muncul di Google", _num(gsc.get("impressions"))),
-            ("Rasio Klik (%)", _txt(gsc.get("ctr"))),
-            ("Posisi Rata-rata", _txt(gsc.get("average_position"))),
+            ("Rasio Klik (%)", _dec(gsc.get("ctr"))),
+            ("Posisi Rata-rata", _dec(gsc.get("average_position"))),
         ]
         if any(v not in ("-", None, "") for _, v in seo_pairs):
             for label, val in seo_pairs:
@@ -1625,21 +1666,16 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
         grows = []
         for item in group.get("rows", []):
             delta = item.get("delta") or {}
-            raw = delta.get("delta")
-            pct = delta.get("delta_pct")
             lower_better = bool(item.get("lower_is_better"))
-            try:
-                good = float(raw or 0) < 0 if lower_better else float(raw or 0) > 0
-            except Exception:
-                good = None
-            pct_text = f"{pct:+.1f}%" if isinstance(pct, (int, float)) else "-"
+            # Fase 2: desimal koma + baris lower-is-better tulis arah.
+            pct_text, good = _change_text(delta, lower_better)
             color = GOOD if good else (BAD if good is False else MUTED)
             change_style = _pstyle(f"chg{len(grows)}", parent=st_td_r,
                                    fontName=_BOLD_FONT, textColor=color)
             grows.append([
                 Paragraph(_txt(item.get("label")), st_td_b),
-                Paragraph(_num(delta.get("previous")), st_td_r),
-                Paragraph(_num(delta.get("current")), st_td_r),
+                Paragraph(_dec(delta.get("previous")), st_td_r),
+                Paragraph(_dec(delta.get("current")), st_td_r),
                 Paragraph(_txt(pct_text), change_style),
             ])
         if not grows:
@@ -1664,21 +1700,16 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
         crows = []
         for item in comp_metrics:
             delta = item.get("delta") or {}
-            raw = delta.get("delta")
-            pct = delta.get("delta_pct")
             lower_better = bool(item.get("lower_is_better"))
-            try:
-                good = float(raw or 0) < 0 if lower_better else float(raw or 0) > 0
-            except Exception:
-                good = None
-            pct_text = f"{pct:+.1f}%" if isinstance(pct, (int, float)) else "-"
+            # Fase 2: desimal koma + baris lower-is-better tulis arah.
+            pct_text, good = _change_text(delta, lower_better)
             color = GOOD if good else (BAD if good is False else MUTED)
             change_style = _pstyle(f"cchg{len(crows)}", parent=st_td_r,
                                    fontName=_BOLD_FONT, textColor=color)
             crows.append([
                 Paragraph(_txt(item.get("label")), st_td_b),
-                Paragraph(_num(delta.get("previous")), st_td_r),
-                Paragraph(_num(delta.get("current")), st_td_r),
+                Paragraph(_dec(delta.get("previous")), st_td_r),
+                Paragraph(_dec(delta.get("current")), st_td_r),
                 Paragraph(_txt(pct_text), change_style),
             ])
         if crows:
@@ -1719,6 +1750,46 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
     # Section layanan kontrak (Kevin 1 Sep: GBP harus punya section sendiri,
     # bukan cuma disebut di highlight). Isi dari generator (narrative.gbp).
     _list_block("Google Business Profile", narrative.get("gbp"))
+
+    # Laporan v3 fase 2 (Kevin 1 Sep): section "Bukti Kerjaan" — daftar artikel
+    # terbit + link live + 5 besar halaman dari Google. Sumber = payload
+    # generator (WP live + GSC live); kosong = section skip, jangan ngarang.
+    _proof = narrative.get("proof") or {}
+    _artikel = narrative.get("artikel_terbit") or []
+    if _artikel or _proof.get("top_pages"):
+        _section_heading("Bukti Kerjaan")
+        if _artikel:
+            story.append(Paragraph("Artikel yang terbit dan live di situs:", st_body))
+            story.append(Spacer(1, 2))
+            for a in _artikel[:12]:
+                _t = a.get("title") if isinstance(a, dict) else None
+                _l = a.get("link") if isinstance(a, dict) else None
+                if _l:
+                    story.append(Paragraph(
+                        f'•&nbsp;&nbsp;{_txt(_t)} — <link '
+                        f'href="{html_mod.escape(_l, quote=True)}" color="#1d4ed8">'
+                        f'{html_mod.escape(_l)}</link>', st_body))
+                else:
+                    story.append(Paragraph(f"•&nbsp;&nbsp;{_txt(_t)}", st_body))
+            story.append(Spacer(1, 8))
+        _tp = _proof.get("top_pages") or []
+        if _tp:
+            story.append(Paragraph(
+                "5 besar halaman paling banyak diklik dari Google:", st_body))
+            story.append(Spacer(1, 2))
+            _tp_rows = []
+            for p in _tp[:5]:
+                _tp_rows.append([
+                    Paragraph(_txt(p.get("page")), st_td),
+                    Paragraph(_num(p.get("clicks")), st_td_r),
+                    Paragraph(_num(p.get("impressions")), st_td_r),
+                    Paragraph(_dec(p.get("position")), st_td_r),
+                ])
+            story.append(_bordered_table(
+                ["Halaman", "Klik", "Tayangan", "Posisi"], _tp_rows,
+                [avail_w * 0.46, avail_w * 0.18, avail_w * 0.18, avail_w * 0.18],
+                right_cols=(1, 2, 3)))
+        story.append(Spacer(1, 14))
 
     # --- evidence images (chart GSC, screenshot bukti output) -----------------
     # Keputusan FINAL Kevin (1 Sep 2026): evidence bergambar (mis. chart GSC,
