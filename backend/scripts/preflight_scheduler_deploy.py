@@ -33,6 +33,7 @@ REPO = Path(__file__).resolve().parents[2]  # .../kantorteman
 BACKEND = REPO / "backend"
 CANON_BRANCH = "feat/raka-e2e-scheduler-enable"
 SSH_HOST = "deploy-kantorteman"
+SERVER_DIR = "/home/qqwtlphb/backend"
 VENV_PY = "/home/qqwtlphb/virtualenv/backend/3.13/bin/python"
 HEALTH_URL = "https://api.kantorteman.my.id/api/health"
 CRONTAB_LINE = (
@@ -173,6 +174,76 @@ def check_remote() -> None:
         rec("FAIL", "GET /api/health", repr(e))
 
 
+def check_remote_layout() -> None:
+    """Layout-trap checks (temuan malam 1 Sep 2026, semuanya read-only SSH).
+
+    Fakta server: git toplevel = /home/qqwtlphb/backend (live root), TAPI tracked
+    tree ber-prefix `backend/` → `git pull` hanya update ~/backend/backend/*
+    (folder nested), BUKAN file live (live main.py bahkan untracked). deploy.sh
+    live masih panggil `python migrate.py` — python TIDAK ada di jailshell →
+    set -e mati sebelum restart. Konsekuensi: deploy-code (git-pull) = no-op
+    untuk file live; first-enable kanonis = jalur upload (PRODUCTION.md).
+    """
+    ssh = ["ssh", "-o", "ConnectTimeout=15", "-o", "BatchMode=yes", SSH_HOST]
+    rc, out = run(
+        ssh + [
+            "cd ~/backend && "
+            "echo T=$(git rev-parse --show-toplevel 2>/dev/null); "
+            "echo P=$(git ls-tree HEAD --name-only 2>/dev/null | head -n1); "
+            "grep -q 'python migrate.py' deploy.sh 2>/dev/null && echo BARE_PY=1 || echo BARE_PY=0; "
+            "md5sum main.py 2>/dev/null | cut -d\" \" -f1; "
+            "grep -cE '_run_async_job|scheduled_followup_processor' main.py 2>/dev/null || echo 0",
+        ],
+        timeout=45,
+    )
+    out = "\n".join(l for l in out.splitlines() if not l.lstrip().startswith("[HERMES-SAFETY]"))
+    if rc != 0 and "T=" not in out:
+        rec("FAIL", "SSH layout read-only", out[:300])
+        return
+    toplevel = next((l[2:].strip() for l in out.splitlines() if l.startswith("T=")), "")
+    prefix = next((l[2:].strip() for l in out.splitlines() if l.startswith("P=")), "")
+    if toplevel and prefix:
+        if toplevel.rstrip("/") == str(SERVER_DIR).rstrip("/") and prefix.startswith("backend"):
+            rec("WARN", "layout git server (nested)",
+                "toplevel=live root tapi tree prefix 'backend/' → git pull hanya update "
+                "~/backend/backend/* — live root TIDAK ter-update. deploy-code no-op; "
+                "first-enable = jalur upload (PRODUCTION.md).")
+        else:
+            rec("PASS", "layout git server", f"toplevel={toplevel}, prefix='{prefix}'")
+    else:
+        rec("WARN", "layout git server", "tidak terdeteksi (toplevel/prefix kosong)")
+
+    if "BARE_PY=1" in out:
+        rec("WARN", "deploy.sh live", "pakai `python migrate.py` — python absen di jailshell → "
+            "migrate ke-skip & set -e mati sebelum restart. Fix kandidat: deploy.sh.NEW v2 "
+            "(flock+mysqldump+python3+health-rollback) — pending Kevin review+test.")
+    else:
+        rec("PASS", "deploy.sh live", "tidak ada panggilan `python migrate.py` bare")
+
+    # main.py live vs repo + kompatibilitas runner --once
+    live_md5 = next((l.strip() for l in out.splitlines()
+                     if len(l.strip()) == 32 and all(c in "0123456789abcdef" for c in l.strip())), "")
+    repo_main = BACKEND / "main.py"
+    repo_md5 = ""
+    if repo_main.is_file():
+        import hashlib
+        repo_md5 = hashlib.md5(repo_main.read_bytes()).hexdigest()
+    if live_md5 and repo_md5:
+        if live_md5 == repo_md5:
+            rec("PASS", "main.py live == repo", live_md5[:12])
+        else:
+            rec("INFO", "main.py live ≠ repo (expected)",
+                f"live={live_md5[:12]} repo={repo_md5[:12]} — live untracked; jangan deploy "
+                "main.py repo untuk first-enable (tak diperlukan).")
+    runner_cnt = next((l.strip() for l in out.splitlines() if l.strip().isdigit()), "0")
+    if runner_cnt.isdigit() and int(runner_cnt) >= 2:
+        rec("PASS", "runner --once kompatibel dgn main.py live",
+            f"{runner_cnt} baris match (_run_async_job / scheduled_followup_processor)")
+    else:
+        rec("FAIL", "runner --once kompatibel dgn main.py live",
+            f"match={runner_cnt} — --once akan gagal; deploy main.py + flags + worker sekaligus ATAU sinkronkan main")
+
+
 def check_tests() -> None:
     venv = BACKEND / "venv" / "bin" / "python"
     py = str(venv) if venv.exists() else sys.executable
@@ -198,6 +269,7 @@ def main() -> int:
     check_local()
     if args.remote:
         check_remote()
+        check_remote_layout()
     if args.tests:
         check_tests()
 

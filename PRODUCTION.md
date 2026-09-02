@@ -113,22 +113,61 @@ tanpa env `KT_SCHED_GOLIVE_ACK=deploy`. `status`/`verify`/`check` read-only penu
 - `nohup` BlockingScheduler di shared hosting: fire pertama APScheduler = now+interval; process
   yang dibunuh timeout/cron sebelum itu fire 0x. `--once` + `flock -n` adalah jawaban.
 - Rsync HANYA `flags.py` + worker TANPA `main.py` baru: `main.py` repo import `app.schedulers.flags`
-  → ImportError → API DOWN. Deploy 3 file sekaligus (atau git pull setelah merge ke `main`).
+  → ImportError → API DOWN. Untuk first-enable TIDAK PERLU sentuh `main.py` sama sekali —
+  lihat § Jalur Upload First-Enable di bawah (worker `--once` import `main` LIVE, bukan repo).
+- ~~git pull setelah merge ke `main`~~ **DITOLAK (bukti layout 1 Sep 2026 malam):** git toplevel
+  di server = `/home/qqwtlphb/backend` (live root) TAPI tracked tree ber-prefix `backend/` →
+  `git pull` hanya update `~/backend/backend/*` (folder nested), file live TIDAK ter-update
+  (live `main.py` bahkan untracked, md5 `a392e43…`, Aug 20). `deploy.sh` live juga masih
+  panggil `python migrate.py` — `python` TIDAK ada di jailshell → `set -e` mati sebelum
+  restart. `scheduler_golive.sh deploy-code` sekarang MENOLAK otomatis saat layout nested
+  terdeteksi (exit 1); override `KT_SCHED_GOLIVE_FORCE_DEPLOY_CODE=1` hanya setelah
+  `deploy.sh.NEW` v2 (flock+mysqldump+python3+health-rollback, draft nara 20 Agu) di-review
+  Kevin + dites + sync live root.
 - `--all` deploy script TIDAK meng-upload `app/schedulers/` dan `scripts/`.
 - Nyalain billing/blast sekalian first-enable. Billing = mutasi uang. Blast = WA massal.
   Masing-masing butuh ACC Kevin terpisah. Blast butuh `--allow-blast` (exit 3 tanpa itu).
 
+### Jalur Upload First-Enable (kanonis — TANPA restart Passenger)
+
+File yang perlu masuk server (base64 via `deploy_kantorteman.sh --file`, verifikasi tiap file
+dengan `grep -c` marker di server — "Deploy complete" TIDAK membuktikan apa-apa, lihat pitfall 0):
+
+1. `backend/app/schedulers/flags.py` → `~/backend/app/schedulers/flags.py`
+2. `backend/scripts/run_scheduler_worker.py` → `~/backend/scripts/run_scheduler_worker.py`
+3. `backend/scripts/__init__.py` → `~/backend/scripts/__init__.py`
+
+Kenapa TANPA `main.py` dan TANPA restart:
+- `main.py` LIVE tidak import `app.schedulers.flags` (hanya `outreach_machine` + apscheduler
+  lama) → upload flags.py/worker TIDAK mengubah proses web sama sekali.
+- Worker `--once` import `main` LIVE (bukan repo). Live `main.py` SUDAH punya semua runner
+  yang dipanggil `_job_runners` (`_run_async_job`, `scheduled_followup_processor`,
+  `_run_outreach_lifecycle`, `_run_subscription_deductions`, `_run_project_billing_invoices`)
+  — diverifikasi grep di server 1 Sep 23:1x WIB. Preflight cek ini otomatis
+  (`runner --once kompatibel dgn main.py live`).
+- Web app tidak berubah → tidak perlu `tmp/restart.txt` → risiko API = nol.
+
+Setelah 3 file masuk: `bash scripts/scheduler_golive.sh status` (flags.py/worker harus ADA,
+master tetap `false`, health 200) → `activate` (crontab `--once` + 1x run manual via flock)
+→ `verify` (log `once selesai`).
+
 Langkah saat Kevin bilang "deploy" (SSH `deploy-kantorteman`, dir `~/backend`):
 
-1. Merge `feat/raka-e2e-scheduler-enable` → `main` (owner raka, `FLEET_MAIN_OWNER=1`).
-2. Deploy `main.py` + `app/schedulers/flags.py` + `scripts/run_scheduler_worker.py` (+ `scripts/__init__.py`)
-   sekaligus. Jangan `--all` saja. Verify: `GET /api/health` 200 + `--probe` via SSH
-   cetak `master: false`, `will_start: false`, exit 0.
-3. Crontab first-enable AMAN (followup saja, process-local, tidak tulis `.env`):
+1. Preflight penuh harus READY dulu: `backend/venv/bin/python scripts/preflight_scheduler_deploy.py --remote --tests` (exit 0, 0 FAIL).
+2. Upload 3 file jalur upload (§ Jalur Upload First-Enable di atas): `app/schedulers/flags.py`,
+   `scripts/run_scheduler_worker.py`, `scripts/__init__.py` — TANPA `main.py` (live main.py
+   beda dari repo & TIDAK perlu diubah; worker `--once` kompatibel dgn main live, preflight
+   yang cek). Verify tiap file: `grep -c` marker di server.
+3. `bash scripts/scheduler_golive.sh status` → flags.py/worker ADA, master tetap `false`,
+   health 200. `--probe` via SSH: `master: false`, `will_start: false`, exit 0.
+4. `KT_SCHED_GOLIVE_ACK=deploy bash scripts/scheduler_golive.sh activate` → pasang crontab
+   `--once` (idempotent) + 1x run manual via flock. Crontab kanonis (followup saja, process-local,
+   tidak tulis `.env`):
    `20 * * * * flock -n /tmp/kt-sched.lock /home/qqwtlphb/virtualenv/backend/3.13/bin/python /home/qqwtlphb/backend/scripts/run_scheduler_worker.py --safe-first --once >> /home/qqwtlphb/backend/scheduler-worker.log 2>&1`
-4. Bukti jalan: log `[SCHEDULER] once: run followups ...` + `once selesai`.
-5. E2E prod: 1 lead uji masuk sequence → status berubah + audit NO_CLICK_FOLLOWUP.
+5. Bukti jalan: log `[SCHEDULER] once: run followups ...` + `once selesai` (`verify`).
+6. E2E prod: 1 lead uji masuk sequence → status berubah + audit NO_CLICK_FOLLOWUP.
    (145 lead "Scraped" TIDAK otomatis terselamatkan — 0 sequence aktif. Outreach = keputusan bisnis.)
-6. Rollback: hapus 1 baris crontab. `.env` web + Passenger tidak disentuh.
+7. Rollback: `KT_SCHED_GOLIVE_ACK=deploy bash scripts/scheduler_golive.sh rollback` (hapus 1
+   baris crontab). `.env` web + Passenger tidak disentuh — proses web tidak pernah direstart.
 
 Lifecycle (hourly) = ACC terpisah (`--enable followup,lifecycle`). Billing/blast = ACC terpisah lagi.

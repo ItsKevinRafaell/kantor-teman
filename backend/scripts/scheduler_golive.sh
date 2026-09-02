@@ -92,6 +92,22 @@ cmd_status() {
 
 cmd_deploy_code() {
   gate deploy-code
+  # Layout-trap guard (bukti read-only 1 Sep 2026 ~23:1x WIB): git toplevel di
+  # server = /home/qqwtlphb/backend (live root), TAPI tracked tree ber-prefix
+  # `backend/` → `git pull` hanya update ~/backend/backend/* (folder nested),
+  # BUKAN file live di ~/backend/* (live main.py bahkan untracked). deploy.sh
+  # live juga masih panggil `python migrate.py` — python TIDAK ada di jailshell
+  # → set -e mati sebelum restart. deploy-code di layout ini = no-op untuk file
+  # live → DITOLAK. First-enable kanonis = jalur upload (PRODUCTION.md).
+  local toplevel="" prefix=""
+  toplevel="$(sshq "cd ${SERVER_DIR} && git rev-parse --show-toplevel 2>/dev/null" || true)"
+  prefix="$(sshq "cd ${SERVER_DIR} && git ls-tree HEAD --name-only 2>/dev/null | head -n1" || true)"
+  if [[ "$toplevel" == "$SERVER_DIR" && "$prefix" == backend* \
+        && "${KT_SCHED_GOLIVE_FORCE_DEPLOY_CODE:-}" != "1" ]]; then
+    die "layout server NESTED (toplevel=${toplevel}, tree prefix='${prefix}'): git pull hanya update ${SERVER_DIR}/backend/* — file live TIDAK ter-update, deploy-code = no-op. First-enable = jalur upload 3 file (PRODUCTION.md § Jalur Upload First-Enable). deploy.sh live juga masih pakai 'python' (absen di jailshell). Kalau deploy.sh sudah diperbaiki (venv python + sync live root) DAN dites, jalankan ulang dengan KT_SCHED_GOLIVE_FORCE_DEPLOY_CODE=1."
+  fi
+  [[ "${KT_SCHED_GOLIVE_FORCE_DEPLOY_CODE:-}" == "1" ]] && \
+    log "PERINGATAN: layout nested terdeteksi, lanjut karena KT_SCHED_GOLIVE_FORCE_DEPLOY_CODE=1"
   log "deploy kanonis: bash deploy.sh di server (git pull + protect .env + migrate + restart)"
   sshq "cd ${SERVER_DIR} && bash deploy.sh"
   log "tunggu health 200 (maks 60s)..."
