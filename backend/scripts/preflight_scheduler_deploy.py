@@ -189,9 +189,9 @@ def check_remote_layout() -> None:
         ssh + [
             "cd ~/backend && "
             "echo T=$(git rev-parse --show-toplevel 2>/dev/null); "
-            "echo P=$(git ls-tree HEAD --name-only 2>/dev/null | head -n1); "
+            "echo N=$(git ls-tree -d --name-only HEAD 2>/dev/null | grep -qx '^backend$' && echo YES || echo NO); "
             "grep -q 'python migrate.py' deploy.sh 2>/dev/null && echo BARE_PY=1 || echo BARE_PY=0; "
-            "md5sum main.py 2>/dev/null | cut -d\" \" -f1; "
+            'md5sum main.py 2>/dev/null | cut -d" " -f1; '
             "grep -cE '_run_async_job|scheduled_followup_processor' main.py 2>/dev/null || echo 0",
         ],
         timeout=45,
@@ -201,17 +201,17 @@ def check_remote_layout() -> None:
         rec("FAIL", "SSH layout read-only", out[:300])
         return
     toplevel = next((l[2:].strip() for l in out.splitlines() if l.startswith("T=")), "")
-    prefix = next((l[2:].strip() for l in out.splitlines() if l.startswith("P=")), "")
-    if toplevel and prefix:
-        if toplevel.rstrip("/") == str(SERVER_DIR).rstrip("/") and prefix.startswith("backend"):
+    nested = next((l[2:].strip() for l in out.splitlines() if l.startswith("N=")), "")
+    if toplevel:
+        if toplevel.rstrip("/") == str(SERVER_DIR).rstrip("/") and nested == "YES":
             rec("WARN", "layout git server (nested)",
-                "toplevel=live root tapi tree prefix 'backend/' → git pull hanya update "
-                "~/backend/backend/* — live root TIDAK ter-update. deploy-code no-op; "
+                "toplevel=live root tapi tracked tree punya folder 'backend/' sendiri → git pull "
+                "hanya update ~/backend/backend/* — live root TIDAK ter-update. deploy-code no-op; "
                 "first-enable = jalur upload (PRODUCTION.md).")
         else:
-            rec("PASS", "layout git server", f"toplevel={toplevel}, prefix='{prefix}'")
+            rec("PASS", "layout git server", f"toplevel={toplevel}, nested='{nested}'")
     else:
-        rec("WARN", "layout git server", "tidak terdeteksi (toplevel/prefix kosong)")
+        rec("WARN", "layout git server", "tidak terdeteksi (toplevel kosong)")
 
     if "BARE_PY=1" in out:
         rec("WARN", "deploy.sh live", "pakai `python migrate.py` — python absen di jailshell → "

@@ -85,7 +85,10 @@ cmd_status() {
   sshq "grep -E 'ENABLE_BACKGROUND_SCHEDULER' ${SERVER_DIR}/.env 2>/dev/null || echo NO_ENV_LINE;
         ls ${SERVER_DIR}/app/schedulers/flags.py ${SERVER_DIR}/scripts/run_scheduler_worker.py ${SERVER_DIR}/scripts/__init__.py 2>&1;
         echo '--- crontab ---'; crontab -l 2>/dev/null | grep -F '${CRON_MARKER}' || echo 'CRON_BELUM_TERPASANG';
-        echo '--- log tail ---'; tail -n 5 ${LOG} 2>/dev/null || echo 'LOG_BELUM_ADA'"
+        echo '--- log tail ---'; tail -n 5 ${LOG} 2>/dev/null || echo 'LOG_BELUM_ADA';
+        echo '--- layout ---';
+        echo T=\$(git -C ${SERVER_DIR} rev-parse --show-toplevel 2>/dev/null);
+        echo N=\$(git -C ${SERVER_DIR} ls-tree -d --name-only HEAD 2>/dev/null | grep -qx '^backend$' && echo YES || echo NO)"
   curl -s -o /dev/null -w "[GOLIVE] health api.kantorteman.my.id: HTTP %{http_code}\n" \
        --max-time 20 https://api.kantorteman.my.id/api/health
 }
@@ -99,12 +102,14 @@ cmd_deploy_code() {
   # live juga masih panggil `python migrate.py` — python TIDAK ada di jailshell
   # → set -e mati sebelum restart. deploy-code di layout ini = no-op untuk file
   # live → DITOLAK. First-enable kanonis = jalur upload (PRODUCTION.md).
-  local toplevel="" prefix=""
-  toplevel="$(sshq "cd ${SERVER_DIR} && git rev-parse --show-toplevel 2>/dev/null" || true)"
-  prefix="$(sshq "cd ${SERVER_DIR} && git ls-tree HEAD --name-only 2>/dev/null | head -n1" || true)"
-  if [[ "$toplevel" == "$SERVER_DIR" && "$prefix" == backend* \
+  local toplevel="" nested=""
+  toplevel="$(sshq "cd ${SERVER_DIR} && git rev-parse --show-toplevel 2>/dev/null" | grep -v '^\[HERMES-SAFETY\]' | tail -n1 || true)"
+  # Deteksi nested layout: cek apakah tracked tree punya folder `backend/` SENDIRI
+  # (grep -qx, BUKAN head -n1 — ls-tree diurut alfabetis, entry pertama bisa .claude).
+  nested="$(sshq "cd ${SERVER_DIR} && git ls-tree -d --name-only HEAD 2>/dev/null | grep -qx '^backend$' && echo YES || echo NO" | grep -v '^\[HERMES-SAFETY\]' | tail -n1 || true)"
+  if [[ "$toplevel" == "$SERVER_DIR" && "$nested" == "YES" \
         && "${KT_SCHED_GOLIVE_FORCE_DEPLOY_CODE:-}" != "1" ]]; then
-    die "layout server NESTED (toplevel=${toplevel}, tree prefix='${prefix}'): git pull hanya update ${SERVER_DIR}/backend/* — file live TIDAK ter-update, deploy-code = no-op. First-enable = jalur upload 3 file (PRODUCTION.md § Jalur Upload First-Enable). deploy.sh live juga masih pakai 'python' (absen di jailshell). Kalau deploy.sh sudah diperbaiki (venv python + sync live root) DAN dites, jalankan ulang dengan KT_SCHED_GOLIVE_FORCE_DEPLOY_CODE=1."
+    die "layout server NESTED (toplevel=${toplevel}, tracked tree punya folder 'backend/'): git pull hanya update ${SERVER_DIR}/backend/* — file live TIDAK ter-update, deploy-code = no-op. First-enable = jalur upload 3 file (PRODUCTION.md § Jalur Upload First-Enable). deploy.sh live juga masih pakai 'python' (absen di jailshell). Kalau deploy.sh sudah diperbaiki (venv python + sync live root) DAN dites, jalankan ulang dengan KT_SCHED_GOLIVE_FORCE_DEPLOY_CODE=1."
   fi
   [[ "${KT_SCHED_GOLIVE_FORCE_DEPLOY_CODE:-}" == "1" ]] && \
     log "PERINGATAN: layout nested terdeteksi, lanjut karena KT_SCHED_GOLIVE_FORCE_DEPLOY_CODE=1"
