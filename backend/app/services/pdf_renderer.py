@@ -1499,6 +1499,19 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
             return f"{pct:+.1f}%".replace(".", ","), good
         return "-", None
 
+    # Label metrik komparasi ke bahasa Indonesia (Kevin 2 Sep 2026: "Average
+    # position", "CTR" dll. jangan tampil bahasa Inggris mentah di laporan klien).
+    _LABEL_ID = {
+        "Average position": "Posisi Rata-rata",
+        "CTR": "Rasio Klik (%)",
+        "Clicks": "Klik dari Google",
+        "Impressions": "Tayangan",
+    }
+
+    def _label_id(label):
+        s = str(label or "").strip()
+        return _LABEL_ID.get(s) or s
+
     narrative = payload.get("narrative", {}) or {}
     client = payload.get("client", {}) or {}
     project = payload.get("project", {}) or {}
@@ -1659,6 +1672,26 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
                 ["Metrik", "Nilai"], rows,
                 [avail_w * 0.6, avail_w * 0.4], right_cols=(1,)))
             story.append(Spacer(1, 14))
+        # Fase 3 (Kevin 2 Sep 2026): tabel halaman teratas GSC = HASIL
+        # performa, ditaruh di section Performa SEO — BUKAN di Bukti Kerjaan.
+        _tp = (narrative.get("proof") or {}).get("top_pages") or []
+        if _tp:
+            story.append(Paragraph(
+                "Lima halaman dengan jumlah klik terbanyak dari Google:", st_body))
+            story.append(Spacer(1, 2))
+            _tp_rows = []
+            for p in _tp[:5]:
+                _tp_rows.append([
+                    Paragraph(_txt(p.get("page")), st_td),
+                    Paragraph(_num(p.get("clicks")), st_td_r),
+                    Paragraph(_num(p.get("impressions")), st_td_r),
+                    Paragraph(_dec(p.get("position")), st_td_r),
+                ])
+            story.append(_bordered_table(
+                ["Halaman", "Klik", "Tayangan", "Posisi"], _tp_rows,
+                [avail_w * 0.46, avail_w * 0.18, avail_w * 0.18, avail_w * 0.18],
+                right_cols=(1, 2, 3)))
+            story.append(Spacer(1, 14))
 
     # --- comparison groups (bulan lalu vs sekarang + %) -----------------------
     comparison_groups = metrics.get("comparison_groups") or []
@@ -1673,14 +1706,14 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
             change_style = _pstyle(f"chg{len(grows)}", parent=st_td_r,
                                    fontName=_BOLD_FONT, textColor=color)
             grows.append([
-                Paragraph(_txt(item.get("label")), st_td_b),
+                Paragraph(_txt(_label_id(item.get("label"))), st_td_b),
                 Paragraph(_dec(delta.get("previous")), st_td_r),
                 Paragraph(_dec(delta.get("current")), st_td_r),
                 Paragraph(_txt(pct_text), change_style),
             ])
         if not grows:
             continue
-        _section_heading(group.get("title") or "Komparasi Performa")
+        _section_heading(group.get("title") or "Perbandingan Performa")
         ref = group.get("reference_label") or "Bulan Lalu"
         cur = group.get("current_label") or "Sekarang"
         story.append(_bordered_table(
@@ -1707,13 +1740,13 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
             change_style = _pstyle(f"cchg{len(crows)}", parent=st_td_r,
                                    fontName=_BOLD_FONT, textColor=color)
             crows.append([
-                Paragraph(_txt(item.get("label")), st_td_b),
+                Paragraph(_txt(_label_id(item.get("label"))), st_td_b),
                 Paragraph(_dec(delta.get("previous")), st_td_r),
                 Paragraph(_dec(delta.get("current")), st_td_r),
                 Paragraph(_txt(pct_text), change_style),
             ])
         if crows:
-            _section_heading("Komparasi Performa")
+            _section_heading("Perbandingan Performa")
             ref = comparisons.get("reference_label") or "Pembanding"
             story.append(_bordered_table(
                 ["Metrik", _txt(ref), _txt(_comp_cur), "Perubahan"], crows,
@@ -1737,13 +1770,17 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
             story.append(Paragraph(f"•&nbsp;&nbsp;{_txt(it)}", st_body))
         story.append(Spacer(1, 10))
 
-    # Laporan v3 (feedback Kevin 1 Sep 2026): pekerjaan REAL dari board ERP
-    # (card Done bulan laporan, generator narrative.pekerjaan_bulan_ini).
-    # Section sendiri + pembeda jelas, bukan statistik task internal.
-    _list_block(
-        narrative.get("pekerjaan_bulan_ini_title") or "Yang Kami Kerjakan Bulan Ini",
-        narrative.get("pekerjaan_bulan_ini"))
-    _list_block("Highlight", narrative.get("highlights"))
+    # Laporan v3 fase 3 (Kevin 2 Sep 2026): "Bukti Kerjaan" = rincian per
+    # pekerjaan dari board ERP (tanggal selesai, butir pekerjaan terpenuhi
+    # terformalkan via CHECKLIST_BAHASA, catatan progres & lampiran). Tabel
+    # top-5 halaman GSC itu HASIL performa — dipindah ke Performa SEO.
+    # Kalau bukti ada, list "Rincian Pekerjaan" satu-baris di-skip (duplikat).
+    _bukti = narrative.get("bukti_kerjaan") or []
+    if not _bukti:
+        _list_block(
+            narrative.get("pekerjaan_bulan_ini_title") or "Rincian Pekerjaan Bulan Ini",
+            narrative.get("pekerjaan_bulan_ini"))
+    _list_block("Sorotan", narrative.get("highlights"))
     _list_block("Issue dan Catatan", narrative.get("issues"))
     _list_block("Rencana Berikutnya", narrative.get("next_steps"))
     _list_block("Perawatan & Pemeliharaan", narrative.get("maintenance"))
@@ -1751,13 +1788,42 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
     # bukan cuma disebut di highlight). Isi dari generator (narrative.gbp).
     _list_block("Google Business Profile", narrative.get("gbp"))
 
-    # Laporan v3 fase 2 (Kevin 1 Sep): section "Bukti Kerjaan" — daftar artikel
-    # terbit + link live + 5 besar halaman dari Google. Sumber = payload
-    # generator (WP live + GSC live); kosong = section skip, jangan ngarang.
-    _proof = narrative.get("proof") or {}
+    # Sumber = payload generator (board ERP live + WP live); kosong = section
+    # skip, jangan ngarang.
     _artikel = narrative.get("artikel_terbit") or []
-    if _artikel or _proof.get("top_pages"):
+    if _bukti or _artikel:
         _section_heading("Bukti Kerjaan")
+        if _bukti:
+            story.append(Paragraph(
+                "Setiap pekerjaan berikut telah diselesaikan dan terdokumentasi "
+                "pada papan kerja internal:", st_body))
+            story.append(Spacer(1, 4))
+            for _i, _b in enumerate(_bukti[:12], 1):
+                if not isinstance(_b, dict):
+                    continue
+                _judul = f"{_i}.&nbsp;&nbsp;<b>{_txt(_b.get('title'))}</b>"
+                _tg = str(_b.get("tanggal") or "").strip()
+                if _tg:
+                    _judul += f" — diselesaikan {_txt(_tg)}"
+                _doc = []
+                _cd, _ct = _b.get("checklist_done") or 0, _b.get("checklist_total") or 0
+                if _ct:
+                    _doc.append(f"{_cd} dari {_ct} butir pekerjaan terpenuhi")
+                _cm, _at = _b.get("comments") or 0, _b.get("attachments") or 0
+                if _cm:
+                    _doc.append(f"{_cm} catatan progres")
+                if _at:
+                    _doc.append(f"{_at} lampiran")
+                if _doc:
+                    _judul += (f" <font color=\"#6b7280\">"
+                               f"({html_mod.escape('; '.join(_doc))})</font>")
+                story.append(Paragraph(_judul, st_body))
+                for _it in (_b.get("items") or [])[:6]:
+                    story.append(Paragraph(
+                        f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;–&nbsp;&nbsp;{_txt(_it)}",
+                        st_body))
+                story.append(Spacer(1, 5))
+            story.append(Spacer(1, 4))
         if _artikel:
             story.append(Paragraph("Artikel yang terbit dan live di situs:", st_body))
             story.append(Spacer(1, 2))
@@ -1772,23 +1838,6 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
                 else:
                     story.append(Paragraph(f"•&nbsp;&nbsp;{_txt(_t)}", st_body))
             story.append(Spacer(1, 8))
-        _tp = _proof.get("top_pages") or []
-        if _tp:
-            story.append(Paragraph(
-                "5 besar halaman paling banyak diklik dari Google:", st_body))
-            story.append(Spacer(1, 2))
-            _tp_rows = []
-            for p in _tp[:5]:
-                _tp_rows.append([
-                    Paragraph(_txt(p.get("page")), st_td),
-                    Paragraph(_num(p.get("clicks")), st_td_r),
-                    Paragraph(_num(p.get("impressions")), st_td_r),
-                    Paragraph(_dec(p.get("position")), st_td_r),
-                ])
-            story.append(_bordered_table(
-                ["Halaman", "Klik", "Tayangan", "Posisi"], _tp_rows,
-                [avail_w * 0.46, avail_w * 0.18, avail_w * 0.18, avail_w * 0.18],
-                right_cols=(1, 2, 3)))
         story.append(Spacer(1, 14))
 
     # --- evidence images (chart GSC, screenshot bukti output) -----------------
@@ -1841,8 +1890,8 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
     story.append(HRFlowable(width="100%", thickness=0.6, color=BORDER,
                             spaceBefore=2, spaceAfter=6))
     story.append(Paragraph(
-        f"Laporan dibuat oleh {_txt(brand_name)}. Data eksternal manual/API "
-        f"ditampilkan sesuai input yang tersedia saat laporan dibuat.",
+        f"Laporan dibuat oleh {_txt(brand_name)}. Data eksternal (manual/API) "
+        f"ditampilkan sesuai ketersediaan input pada saat laporan dibuat.",
         _pstyle("RptFooter", fontSize=7.5, leading=10, textColor=MUTED,
                 alignment=TA_CENTER)))
 
