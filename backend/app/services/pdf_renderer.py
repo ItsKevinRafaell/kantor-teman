@@ -1475,9 +1475,10 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
 
     def _change_text(delta, lower_better):
         """Teks kolom Perubahan. Fase 2 (Kevin 1 Sep): baris lower-is-better
-        (mis. Posisi Rata-rata) JANGAN ditampilkan kayak pencapaian persen —
-        tulis arah pergerakan angkanya: "turun 6,8 → 7,8" (merah) / "naik
-        12,3 → 11,4" (hijau). Metrik normal tetap persen, desimal koma.
+        (mis. Posisi Rata-rata) JANGAN ditampilkan kayak pencapaian persen.
+        Review sena 2 Sep: pakai "membaik 12,3 → 11,4" (hijau) / "memburuk
+        6,8 → 7,8" (merah) — BUKAN "naik/turun" (kedengeran kayak pencapaian).
+        Metrik normal tetap persen, desimal koma.
         Return (teks, good) — good: True/False/None (netral)."""
         delta = delta or {}
         prev_s = _dec(delta.get("previous"))
@@ -1488,10 +1489,12 @@ def render_report_pdf_reportlab(payload: dict, brand: dict | None = None, upload
                 p = float(str(delta.get("previous")).replace(",", "."))
             except Exception:
                 return "-", None
+            # Review sena 2 Sep: posisi lower-is-better — JANGAN "naik" (kedengeran
+            # kayak pencapaian). Pakai "membaik/memburuk".
             if c > p:
-                return f"turun {prev_s} → {cur_s}", False
+                return f"memburuk {prev_s} → {cur_s}", False
             if c < p:
-                return f"naik {prev_s} → {cur_s}", True
+                return f"membaik {prev_s} → {cur_s}", True
             return f"stabil {cur_s}", None
         pct = delta.get("delta_pct")
         if isinstance(pct, (int, float)):
