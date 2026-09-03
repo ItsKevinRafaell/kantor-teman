@@ -150,6 +150,18 @@ tidak ada fallback deploy. Jalur kanonis per file:
 `--no-restart` WAJIB di jalur ini — tanpa itu script men-touch `tmp/restart.txt`
 (Passenger reload) padahal web app tidak berubah (pitfall lama, runbook ini TANPA restart).
 
+Hardening jalur upload (3 Sep 2026, tick E2E raka — DRY-RUN + sandbox test, 0 SSH ke prod):
+- `--file` kini DIVALIDASI: path relatif di-resolve absolut, file di luar
+  `backend/` repo DITOLAK (exit 2). Tanpa ini, `--file backend/scripts/x.py`
+  lolos `-f` check lalu terpetakan ke `~/backend/backend/*` (folder nested yang
+  ADA di server) → upload "sukses" tapi live root tidak berubah (nested-trap).
+- `deploy_file()` kini `mkdir -p` dir remote dulu + verifikasi ukuran byte
+  remote == lokal (output `OK (NB)` / `FAIL [...]`) — bukti file utuh di server,
+  bukan cuma "base64 -d sukses".
+- DRY-RUN kini menampilkan mapping `Lokal:` → `Remote:` → jalur upload 3 file
+  bisa diverifikasi 100% sebelum ACK. Bukti test matrix: `outputs/rpm-raka-e2e-latest.md`
+  tick 3 Sep ~16:1x WIB (T1–T8 PASS, termasuk size-tamper FAIL).
+
 Kenapa TANPA `main.py` dan TANPA restart:
 - `main.py` LIVE tidak import `app.schedulers.flags` (hanya `outreach_machine` + apscheduler
   lama) → upload flags.py/worker TIDAK mengubah proses web sama sekali.
