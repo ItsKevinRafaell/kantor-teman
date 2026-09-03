@@ -59,11 +59,13 @@ Urutan eksekusi di server (path: `/home/qqwtlphb/backend`):
    `python3 scripts/run_scheduler_worker.py --probe` → `master=false`, `will_start=false`, 0 job, exit 0 (`.env` web tak tersentuh).
 2. Rencana first-enable aman (followup saja):
    `flock -n /tmp/kt-sched.lock python3 scripts/run_scheduler_worker.py --safe-first --dry-run` → `job_ids=followups`; dry-run tidak import `main`, tidak sentuh DB.
-3. Aktif via crontab mode `--once` (job jalan 1x lalu exit — tidak ada daemon yang bisa dibunuh cron/timeout sebelum fire pertama, karena APScheduler fire pertama = now+interval):
+3. REHEARSAL LOKAL (bukti 3 Sep 2026, main `f97cd47`): dry-run → plan JSON benar (master ON, `job_ids=followups`, blast/billing/lifecycle OFF, 0 sentuh DB); `--once` ke salinan SQLite → `[SCHEDULER] once: run followups ...` + `once selesai`, exit 0; gerbang blast: env `ENABLE_BLAST_SCHEDULER=true` tanpa `--allow-blast` → `REFUSE` exit 3 (dan `--safe-first` menetralkan env kotor: blast di-set false in-process).
+   PITFALL lokal: `.env` dev berisi `SECRET_ENCRYPTION_KEY` placeholder → `import main` gagal (`Fernet key must be 32 url-safe base64...`). Rehearsal `--once`/`--safe-first` (yang import `main`) butuh key Fernet valid via env (`SECRET_ENCRYPTION_KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")`). PROD tidak terpengaruh (key prod valid, API hidup).
+4. Aktif via crontab mode `--once` (job jalan 1x lalu exit — tidak ada daemon yang bisa dibunuh cron/timeout sebelum fire pertama, karena APScheduler fire pertama = now+interval):
    `20 * * * * flock -n /tmp/kt-sched.lock python3 /home/qqwtlphb/backend/scripts/run_scheduler_worker.py --safe-first --once >> /home/qqwtlphb/backend/scheduler-worker.log 2>&1`
    → cadence hourly (JOB_TRIGGERS: `followups` interval 1 jam); offset menit bebas, `flock -n` mencegah overlap.
-4. Bukti jalan (SELESAI kalau semua ada): log `scheduler-worker.log` berisi `[SCHEDULER] once: run followups ...` + `once selesai`, dan e2e: 1 lead masuk sequence → followup terjadwal terproses.
-5. Level berikutnya (masing-masing butuh ACC eksplisit Kevin, jangan sekalian di-crontab): blast hanya via daemon `--allow-blast` (interval 1 menit), JANGAN lewat `--once`; billing crontab harian sesuai JOB_TRIGGERS (`subscription-deductions` 00:05, `project-billing-invoices` 00:15) hanya setelah Kevin override PLAN-report-invoice.
+5. Bukti jalan (SELESAI kalau semua ada): log `scheduler-worker.log` berisi `[SCHEDULER] once: run followups ...` + `once selesai`, dan e2e: 1 lead masuk sequence → followup terjadwal terproses.
+6. Level berikutnya (masing-masing butuh ACC eksplisit Kevin, jangan sekalian di-crontab): blast hanya via daemon `--allow-blast` (interval 1 menit), JANGAN lewat `--once`; billing crontab harian sesuai JOB_TRIGGERS (`subscription-deductions` 00:05, `project-billing-invoices` 00:15) hanya setelah Kevin override PLAN-report-invoice.
 
 Rollback scheduler = hapus 1 baris crontab; `.env` web dan Passenger tidak disentuh.
 
