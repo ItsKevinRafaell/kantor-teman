@@ -12,9 +12,13 @@
 #   sama seperti runbook. Cron/agent tanpa ACC = exit 3, zero mutasi.
 #
 # Perintah:
-#   status      read-only penuh (SSH cat/ls/crontab -l + health HTTPS)
-#   check       cocokkan konstanta crontab vs preflight_scheduler_deploy.py (lokal)
-#   deploy-code [GATE] git-pull kanonis di server (bash deploy.sh) + health + --probe
+ #   status      read-only penuh (SSH cat/ls/crontab -l + health HTTPS)
+ #   check       cocokkan konstanta crontab vs preflight_scheduler_deploy.py (lokal)
+#   upload      [GATE] jalur upload first-enable (PRODUCTION.md § Jalur Upload
+#               First-Enable): 3 file kanonis via deploy_kantorteman.sh
+#               --file <abs> --no-restart (berhenti di kegagalan pertama),
+#               lalu verifikasi ukuran remote == lokal per file.
+ #   deploy-code [GATE] git-pull kanonis di server (bash deploy.sh) + health + --probe
 #   activate    [GATE] pasang crontab kanonis --once (idempotent) + 1x run manual
 #               --once via flock → bukti log segera, tanpa nunggu menit :20
 #   verify      read-only: tail scheduler-worker.log + cek entry crontab
@@ -36,14 +40,24 @@ CRON_MARKER="run_scheduler_worker.py --safe-first --once"
 # Mirror kanonik dari preflight_scheduler_deploy.py (CRONTAB_LINE). `check`
 # membandingkan otomatis — JANGAN ubah salah satu saja.
 CRONTAB_LINE="20 * * * * flock -n /tmp/kt-sched.lock ${VENV_PY} ${WORKER} --safe-first --once >> ${LOG} 2>&1"
+#
+# Jalur upload first-enable: 3 file kanonis (urutan & mapping persis runbook).
+# Deps: deploy_kantorteman.sh (ACK-gate + anti nested-trap + size-verify).
+UPLOAD_FILES=(
+  "app/schedulers/flags.py"
+  "scripts/run_scheduler_worker.py"
+  "scripts/__init__.py"
+)
+DEPLOY_SCRIPT="${GOLIVE_DEPLOY_SCRIPT:-/root/.hermes/shared/scripts/deploy_kantorteman.sh}"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 log()  { echo "[GOLIVE] $*"; }
 die()  { echo "[GOLIVE] ERROR: $*" >&2; exit 1; }
 
 sshq() {
-  ssh -o ConnectTimeout=15 -o BatchMode=yes "$SSH_HOST" "$@"
+  # GOLIVE_SSH_CMD: seam test lokal SAJA (default 'ssh'). Prod tak pernah diset.
+  "${GOLIVE_SSH_CMD:-ssh}" -o ConnectTimeout=15 -o BatchMode=yes "$SSH_HOST" "$@"
 }
 
 gate() {
@@ -129,6 +143,39 @@ cmd_deploy_code() {
   log "deploy-code SELESAI. Lanjut 'activate' (crontab --once) bila probe exit 0."
 }
 
+cmd_upload() {
+  gate upload
+  [[ -f "$DEPLOY_SCRIPT" ]] || die "deploy_kantorteman.sh tidak ditemukan: $DEPLOY_SCRIPT (set GOLIVE_DEPLOY_SCRIPT atau sinkronkan shared/scripts)"
+  local repo_backend
+  repo_backend="$(cd "${SCRIPT_DIR}/.." && pwd)"
+  local f abs
+  for f in "${UPLOAD_FILES[@]}"; do
+    abs="${repo_backend}/${f}"
+    [[ -f "$abs" ]] || die "file repo tidak ada: $abs (jalankan dari clone kanonis)"
+    log "upload kanonis (TANPA restart Passenger): $f"
+    KT_DEPLOY_ACK=deploy bash "$DEPLOY_SCRIPT" --file "$abs" --no-restart \
+      || die "upload GAGAL pada '$f' — BERHENTI di sini (urutan runbook). Perbaiki dulu, JANGAN lanjut file berikutnya."
+  done
+  log "verifikasi remote per file (ukuran byte remote == lokal, bukti file utuh):"
+  local lsize rsize ok_all=1
+  for f in "${UPLOAD_FILES[@]}"; do
+    abs="${repo_backend}/${f}"
+    lsize="$(wc -c < "$abs")"
+    rsize="$(sshq "stat -c%s '${SERVER_DIR}/${f}' 2>/dev/null || echo MISSING" | grep -v '^\[HERMES-SAFETY\]' | tail -n1)"
+    if [[ -z "$rsize" || "$rsize" == "MISSING" ]]; then
+      echo "[GOLIVE] verify: FAIL — $f TIDAK ADA di server" >&2
+      ok_all=0
+    elif [[ "$rsize" != "$lsize" ]]; then
+      echo "[GOLIVE] verify: FAIL — $f ukuran remote (${rsize}B) != lokal (${lsize}B)" >&2
+      ok_all=0
+    else
+      log "verify OK: $f (${rsize}B remote == lokal)"
+    fi
+  done
+  [[ "$ok_all" == "1" ]] || die "verifikasi remote GAGAL — jangan lanjut activate. Cek output di atas."
+  log "upload SELESAI (3/3 terverifikasi). Lanjut: status → activate (ACK) → verify."
+}
+
 cmd_activate() {
   gate activate
   log "pasang crontab kanonis (idempotent)..."
@@ -154,6 +201,7 @@ cmd_rollback() {
 case "${1:-}" in
   status)     cmd_status ;;
   check)      cmd_check ;;
+  upload)     cmd_upload ;;
   deploy-code) cmd_deploy_code ;;
   activate)   cmd_activate ;;
   verify)     cmd_verify ;;
