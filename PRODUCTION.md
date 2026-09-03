@@ -130,12 +130,23 @@ tanpa env `KT_SCHED_GOLIVE_ACK=deploy`. `status`/`verify`/`check` read-only penu
 
 ### Jalur Upload First-Enable (kanonis — TANPA restart Passenger)
 
-File yang perlu masuk server (base64 via `deploy_kantorteman.sh --file`, verifikasi tiap file
-dengan `grep -c` marker di server — "Deploy complete" TIDAK membuktikan apa-apa, lihat pitfall 0):
+File yang perlu masuk server (base64 via `deploy_kantorteman.sh --file ... --no-restart`,
+verifikasi tiap file dengan `grep -c` marker di server — "Deploy complete" TIDAK membuktikan
+apa-apa, lihat pitfall 0):
 
 1. `backend/app/schedulers/flags.py` → `~/backend/app/schedulers/flags.py`
 2. `backend/scripts/run_scheduler_worker.py` → `~/backend/scripts/run_scheduler_worker.py`
 3. `backend/scripts/__init__.py` → `~/backend/scripts/__init__.py`
+
+PERHATIAN ACK (3 Sep 2026): `deploy_kantorteman.sh` sekarang ber-ACK-gate — tanpa
+`KT_DEPLOY_ACK=deploy` script hanya DRY-RUN (0 SSH). Argumen tak dikenal DITOLAK (exit 2),
+tidak ada fallback deploy. Jalur kanonis per file:
+
+    KT_DEPLOY_ACK=deploy bash /root/.hermes/shared/scripts/deploy_kantorteman.sh \
+        --file <path-file-repo> --no-restart
+
+`--no-restart` WAJIB di jalur ini — tanpa itu script men-touch `tmp/restart.txt`
+(Passenger reload) padahal web app tidak berubah (pitfall lama, runbook ini TANPA restart).
 
 Kenapa TANPA `main.py` dan TANPA restart:
 - `main.py` LIVE tidak import `app.schedulers.flags` (hanya `outreach_machine` + apscheduler
