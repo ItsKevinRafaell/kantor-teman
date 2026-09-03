@@ -149,6 +149,10 @@ tidak ada fallback deploy. Jalur kanonis per file:
 
 `--no-restart` WAJIB di jalur ini — tanpa itu script men-touch `tmp/restart.txt`
 (Passenger reload) padahal web app tidak berubah (pitfall lama, runbook ini TANPA restart).
+Ketiga upload ini bisa dibungkus satu perintah ACK-gated:
+`KT_SCHED_GOLIVE_ACK=deploy bash scripts/scheduler_golive.sh upload`
+(3 file kanonis berurutan, BERHENTI di kegagalan pertama, lalu verifikasi ukuran byte
+remote == lokal per file — jangan lanjut `activate` bila verify gagal).
 
 Hardening jalur upload (3 Sep 2026, tick E2E raka — DRY-RUN + sandbox test, 0 SSH ke prod):
 - `--file` kini DIVALIDASI: path relatif di-resolve absolut, file di luar
@@ -183,6 +187,9 @@ Langkah saat Kevin bilang "deploy" (SSH `deploy-kantorteman`, dir `~/backend`):
    `scripts/run_scheduler_worker.py`, `scripts/__init__.py` — TANPA `main.py` (live main.py
    beda dari repo & TIDAK perlu diubah; worker `--once` kompatibel dgn main live, preflight
    yang cek). Verify tiap file: `grep -c` marker di server.
+   Bungkus 1 perintah ACK-gated (urutan, stop-on-first-fail & verifikasi ukuran
+   remote==lokal sama persis, test 16/16 lokal 0-SSH, main=f42651f):
+   `KT_SCHED_GOLIVE_ACK=deploy bash scripts/scheduler_golive.sh upload`
 3. `bash scripts/scheduler_golive.sh status` → flags.py/worker ADA, master tetap `false`,
    health 200. `--probe` via SSH: `master: false`, `will_start: false`, exit 0.
 4. `KT_SCHED_GOLIVE_ACK=deploy bash scripts/scheduler_golive.sh activate` → pasang crontab
