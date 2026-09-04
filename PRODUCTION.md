@@ -165,6 +165,13 @@ Hardening jalur upload (3 Sep 2026, tick E2E raka — DRY-RUN + sandbox test, 0 
 - DRY-RUN kini menampilkan mapping `Lokal:` → `Remote:` → jalur upload 3 file
   bisa diverifikasi 100% sebelum ACK. Bukti test matrix: `outputs/rpm-raka-e2e-latest.md`
   tick 3 Sep ~16:1x WIB (T1–T8 PASS, termasuk size-tamper FAIL).
+- Harness 0-SSH khusus `scheduler_golive.sh`: `backend/scripts/test_scheduler_golive_sh.sh`
+  (12/12 PASS, stabil multi-run; mock GOLIVE_SSH_CMD/curl/PATH — zero SSH & jaringan).
+  Cakupan: gate ACK default-deny (tanpa `KT_SCHED_GOLIVE_ACK=deploy` → exit 3, 0 panggilan
+  ssh), status/verify read-only, nested-layout guard, activate baris crontab kanonis
+  (--once + flock, verifikasi panjang string), rollback hanya hapus crontab, upload
+  3 file kanonis stop-on-first-fail + verify ukuran. Main `3b08937` (4 Sep 2026,
+  branch `feat/raka-golive-gate-test` dd9c16e).
 
 Kenapa TANPA `main.py` dan TANPA restart:
 - `main.py` LIVE tidak import `app.schedulers.flags` (hanya `outreach_machine` + apscheduler
