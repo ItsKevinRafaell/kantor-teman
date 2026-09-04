@@ -106,8 +106,9 @@ if echo "$DATABASE_URL" | grep -qi 'mysql'; then
     --single-transaction --quick --routines --triggers --events \
     "$DB_NAME" | gzip -c > "$DUMP_FILE"
 
-  # Validasi dump tidak kosong
-  if [ ! -s "$DUMP_FILE" ]; then
+  # Validasi dump tidak kosong. Cek isi ter-uncompress, bukan cuma -s:
+  # gzip selalu menulis header walau input kosong, jadi file header-only lolos -s.
+  if [ ! -s "$DUMP_FILE" ] || [ "$(gunzip -c "$DUMP_FILE" 2>/dev/null | wc -c)" -lt 100 ]; then
     echo "[ERROR] Dump kosong — mysqldump gagal. Batal deploy." >&2
     rm -f "$DUMP_FILE"
     exit 1
