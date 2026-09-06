@@ -116,6 +116,30 @@ class TestGenerateAndView:
         # Tidak ada sisa path relatif template
         assert "klinik-assets/" not in html
 
+    def test_render_neutralizes_fictive_claims(self, client, db):
+        """Klaim fiktif template bank (nama orang, garansi spesifik, angka
+        personel, berita palsu) TIDAK boleh lolos ke render per-lead.
+        ACC Kevin 6 Sep 2026: 'eksekusi aja semuanya'."""
+        from app.services.web_preview_service import _render
+        lead = Lead(business_name="Kontraktor Uji Klasen", phone_number="081299997777")
+        # Kontraktor: nama fiktif + garansi 5 tahun + 42 personel + berita palsu
+        html = _render("kontraktor", lead)
+        for token in ("Ibu Ratna", "PT Bina Logistik Kaltim", "Hartono Wijaya",
+                      "Garansi 5 Tahun", "garansi struktur 5 tahun",
+                      "42 personel", "<b>42</b>", "Ruko Damai Bahagia",
+                      "November 2026", "proyek Sepinggan", "Rekor 0 kecelakaan"):
+            assert token not in html, f"klaim fiktif lolos: {token!r}"
+        # Bengkel: garansi 7 hari
+        html_b = _render("bengkel", lead)
+        for token in ("Garansi 7 hari", "garansi 7 hari", "7 hari</b>",
+                      "dalam 7 hari", "sejak 2019"):
+            assert token not in html_b, f"klaim fiktif lolos: {token!r}"
+        # Klinik: nama dokter fiktif
+        html_k = _render("klinik", lead)
+        for token in ("Aulia Rahman", "Farhan Yusuf", "Sinta Maharani",
+                      "Maya Putri", "Rizky Ananda"):
+            assert token not in html_k, f"klaim fiktif lolos: {token!r}"
+
 
 # ── Integrasi blast ──────────────────────────────────────────────────────────
 def _setup_blast(monkeypatch, db, lead, status_text):
