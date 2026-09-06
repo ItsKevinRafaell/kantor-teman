@@ -108,6 +108,8 @@ def get_leads_with_ghost_viewer_flag(
             score_adjustment=lead.score_adjustment or 0,
             score_adjustment_reason=lead.score_adjustment_reason,
             score_updated_at=lead.score_updated_at,
+            page_speed_score=lead.page_speed_score,
+            last_speed_check=lead.last_speed_check,
         ))
     return results
 
