@@ -39,6 +39,15 @@ REGISTRY: dict = {
         "brand_anchor": "Klinik Pratama Harapan",
         "phone_display_anchor": "0812-555-1234",
         "wa_anchor": "628125551234",
+        "sanitize": [
+            (" — Balikpapan</title>", "</title>"),
+            ("<small>Balikpapan</small>", "<small>{area_text}</small>"),
+            ("Klinik pratama · Gunung Samarinda", "Klinik pratama"),
+            ("Yang biasa dicari pasien di Balikpapan.", "Yang biasa dicari pasien."),
+            ("Peta area Gunung Samarinda, Balikpapan", "Peta area layanan {brand}"),
+            ("Jl. Soekarno-Hatta, Gunung Samarinda", "{address_line}"),
+            ("Dekat simpang Soekarno-Hatta, Balikpapan Utara. Parkir motor &amp; mobil di halaman.", "{address_line}"),
+        ],
     },
     "bengkel": {
         "title": "Landing bengkel/otomotif",
@@ -46,6 +55,18 @@ REGISTRY: dict = {
         "brand_anchor": "Garasi 88",
         "phone_display_anchor": "0812-5478-0088",
         "wa_anchor": "6281254780088",
+        "sanitize": [
+            ("Sejak 2011 di Soekarno Hatta KM 5", "Melayani {area_text}"),
+            ("Sejak 2011<br><small>Balikpapan</small>", "Sejak 2011"),
+            ("Bengkel motor jujur di Balikpapan sejak 2011.", "Bengkel motor jujur."),
+            ("Bengkel motor jujur di Balikpapan. Harga di papan, garansi 7 hari, estimasi gratis.", "Bengkel motor jujur. Estimasi dulu, setuju baru kerja."),
+            ("Bengkel motor Balikpapan yang nulis estimasi dulu.", "Bengkel motor yang nulis estimasi dulu."),
+            ("Cari papan hijau G88 sebelah SPBU KM 5. Parkir luas.", "Chat WhatsApp kami buat arah lokasi & jadwal."),
+            ("Soekarno Hatta KM 5", "{address_line}"),
+            ("halo@garasi88.id", "{contact_text}"),
+            (">G88<", ">{brand_short}<"),
+            ("Balikpapan</span>", "</span>"),
+        ],
     },
     "kontraktor": {
         "title": "Landing kontraktor/konstruksi (default)",
@@ -53,6 +74,25 @@ REGISTRY: dict = {
         "brand_anchor": "CV Cipta Griya Kontraktor",
         "phone_display_anchor": "",  # template ini tidak menampilkan nomor teks
         "wa_anchor": "6281256789012",
+        "sanitize": [
+            (" — Balikpapan</title>", "</title>"),
+            ("di Balikpapan & Samarinda sejak 2010. 128 proyek selesai, garansi struktur 5 tahun.", "di kota Anda."),
+            ("CV Cipta Griya berdiri di Balikpapan sejak 2010, bergerak", "{brand} bergerak"),
+            ("di Kalimantan Timur sejak 2010. Pekerjaan tim internal, angka terbuka, garansi tertulis.", "di kota Anda. Angka terbuka, pengerjaan transparan."),
+            ("KONTRAKTOR · BALIKPAPAN", "KONTRAKTOR"),
+            ("Punya rencana bangun di Balikpapan atau Samarinda?", "Punya rencana bangun?"),
+            ("128 proyek selesai sejak 2010 — rumah, ruko, gudang, sampai renovasi kantor.", "Rumah, ruko, gudang, sampai renovasi kantor."),
+            ("Arsip 128 proyek →", "Arsip proyek →"),
+            ("Area layanan: Balikpapan · Samarinda · Penajam Paser Utara", "Area layanan: {area_text}"),
+            ("tel:+625****5188", "{tel_href}"),
+            ("tel:&#43;625427655188", "{tel_href}"),
+            ("(0542) 765-5188", "{contact_text}"),
+            ("mailto:halo@ciptagriya.co.id", "{wa_href}"),
+            ("halo@ciptagriya.co.id", "{contact_text}"),
+            (">CG<", ">{brand_short}<"),
+            ("Cipta Griya", "{brand}"),
+            ("Jl. MT Haryono No. 88, Damai Bahagia,<br>Balikpapan 76114, Kalimantan Timur", "{address_line}"),
+        ],
     },
 }
 
@@ -87,6 +127,14 @@ def format_phone_display(phone: str) -> str:
 
 
 # ── Pilih template ───────────────────────────────────────────────────────────
+def _brand_short(name: str) -> str:
+    """Inisial brand untuk logo/monogram template (mis. 'G88'/'CG' → inisial lead).
+    Bukan data baru — turunan langsung dari business_name."""
+    words = [w.strip(".,") for w in (name or "").split()]
+    letters = [w[0].upper() for w in words if w and w[0].isalpha() and w.upper() not in ("PT", "CV", "UD")]
+    return "".join(letters[:4]) or (name or "")[:4].upper()
+
+
 def select_template_key(lead: Lead, explicit_key: Optional[str] = None) -> str:
     if explicit_key and explicit_key in REGISTRY:
         return explicit_key
@@ -127,9 +175,9 @@ def _render(template_key: str, lead: Lead) -> str:
         html = f.read()
 
     # 1) Nama bisnis — hanya anchor persis (anti-halusinasi)
-    brand = meta["brand_anchor"]
-    if brand and brand in html:
-        html = html.replace(brand, lead.business_name)
+    brand = lead.business_name or meta["brand_anchor"]
+    if meta["brand_anchor"] and meta["brand_anchor"] in html:
+        html = html.replace(meta["brand_anchor"], brand)
 
     # 2) Nomor WA link + nomor tampilan
     wa = normalize_wa(lead.phone_number)
@@ -138,6 +186,27 @@ def _render(template_key: str, lead: Lead) -> str:
     disp = format_phone_display(lead.phone_number)
     if disp and meta.get("phone_display_anchor") and meta["phone_display_anchor"] in html:
         html = html.replace(meta["phone_display_anchor"], disp)
+
+    # 2b) Sanitasi slot FAKTUAL yang masih bawa data sample template (email/tel/
+    #     alamat/kota/kode brand) — find = string PERSIS dari file template
+    #     (anti-halusinasi), nilai = data lead asli, fallback netral.
+    #     CATATAN: klaim marketing sample (harga, "sejak 20xx", jumlah proyek,
+    #     nama portfolio/testimoni) sengaja TIDAK diubah di sini — butuh keputusan
+    #     konten, bukan swap mekanis (lihat laporan ke Kevin 6 Sep 2026).
+    tokens = {
+        "brand": brand,
+        "brand_short": _brand_short(brand),
+        "wa": wa,
+        "disp": disp,
+        "tel_href": f"tel:+{wa}" if wa else "#",
+        "wa_href": f"https://wa.me/{wa}" if wa else "#",
+        "contact_text": f"WA {disp}" if disp else brand,
+        "address_line": (lead.address or "").strip() or "Lokasi lengkap via WhatsApp",
+        "area_text": (lead.address or "").strip() or "kota Anda & sekitarnya",
+    }
+    for find, repl in meta.get("sanitize", []):
+        if find in html:
+            html = html.replace(find, repl.format(**tokens))
 
     # 3) Asset path → /uploads/web_preview_assets/{key}/
     html = _ASSET_TAG_RE.sub(lambda m: _rewrite_asset(m, template_key), html)

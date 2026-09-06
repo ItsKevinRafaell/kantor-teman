@@ -7,6 +7,7 @@ import uuid
 
 from app.core.dependencies import create_token, hash_password
 from app.constants import LeadStatus
+from app.services.web_preview_service import normalize_wa
 from models import User, Lead, BlastCampaign, DynamicTemplate, WebPreview
 
 
@@ -32,7 +33,8 @@ def _unique_phone():
 
 def _hot_lead(db, **kw):
     lead = Lead(business_name=kw.get("business_name", "CV Uji Coba"), phone_number=_unique_phone(),
-                status=LeadStatus.HOT_PROSPECT, is_archived=False, do_not_contact=False)
+                status=LeadStatus.HOT_PROSPECT, is_archived=False, do_not_contact=False,
+                address=kw.get("address"))
     db.add(lead)
     db.commit()
     db.refresh(lead)
@@ -206,3 +208,55 @@ class TestBlastIntegration:
         assert captured["message"].startswith("Halo CV Uji Coba")
         assert "{{web_preview_link}}" not in captured["message"]
         assert "/wp/" not in captured["message"]
+
+
+# ── Sanitasi data sample template (6 Sep 2026) ──────────────────────────────
+class TestSampleDataSanitized:
+    """Slot FAKTUAL (kontak, alamat, brand, kota di slot info) tidak boleh masih
+    bawa data sample template. Klaim marketing sample (harga, tahun, jumlah
+    proyek, portfolio, testimoni) = isu konten terpisah, dilaporkan ke Kevin."""
+
+    def _view(self, client, db, lead):
+        headers, _ = _admin_headers(client, db)
+        r = client.post(f"/api/web-preview/generate/{lead.id}", headers=headers, json={})
+        assert r.status_code == 200, r.text
+        slug = r.json()["slug"]
+        return client.get(f"/wp/{slug}").text
+
+    def test_kontraktor_no_sample_brand_or_contacts(self, client, db):
+        lead = _hot_lead(db, business_name="PT Mitra Uji Sarana",
+                         address="Jl. Melati No. 9, Bandung, Jawa Barat")
+        html = self._view(client, db, lead)
+        for dummy in ["Cipta Griya", "ciptagriya", "765-5188", ">CG<", "MT Haryono No. 88",
+                      "KONTRAKTOR · BALIKPAPAN", "Area layanan: Balikpapan",
+                      "Punya rencana bangun di Balikpapan", "sejak 2010"]:
+            assert dummy not in html, f"dummy '{dummy}' bocor"
+        assert "PT Mitra Uji Sarana" in html
+        wa = normalize_wa(lead.phone_number)
+        assert f"wa.me/{wa}" in html
+        assert f"tel:+{wa}" in html
+        assert "Jl. Melati No. 9" in html
+
+    def test_no_address_falls_back_to_neutral_area(self, client, db):
+        lead = _hot_lead(db)  # tanpa address
+        html = self._view(client, db, lead)
+        assert "kota Anda &amp; sekitarnya" in html or "kota Anda & sekitarnya" in html
+        assert "MT Haryono No. 88" not in html
+
+    def test_bengkel_no_sample_brand_or_email(self, client, db):
+        lead = _hot_lead(db, business_name="Bengkel Jaya Motor")
+        html = self._view(client, db, lead)
+        for dummy in ["garasi88", "Soekarno Hatta", ">G88<", "SPBU KM 5",
+                      "Balikpapan</span>", "Bengkel motor jujur di Balikpapan"]:
+            assert dummy not in html, f"dummy '{dummy}' bocor"
+        assert "BJM" in html          # inisial brand lead
+        assert "Bengkel Jaya Motor" in html
+
+    def test_klinik_no_sample_address(self, client, db):
+        lead = _hot_lead(db, business_name="Klinik Uji Bersih",
+                         address="Jl. Anggrek 12, Surabaya")
+        html = self._view(client, db, lead)
+        for dummy in ["Jl. Soekarno-Hatta", "Gunung Samarinda", "Balikpapan"]:
+            assert dummy not in html, f"dummy '{dummy}' bocor"
+        assert "Jl. Anggrek 12" in html
+        assert "Klinik Uji Bersih" in html
