@@ -238,3 +238,37 @@ Langkah deploy (setelah GO Kevin):
 Catatan: template bank v1 = 3 industri (klinik/bengkel/kontraktor; kontraktor default). Template lain
 (tokobangunan, EO, dll) tinggal tambah file + entry REGISTRY + aset. Gagal generate preview TIDAK
 memblokir blast (try/except, log [WEB_PREVIEW]).
+
+
+## PageSpeed Scoring Lead (kolom + auto-check + endpoint + cron) — feat/raka-pagespeed-leads
+
+Fitur: setiap lead dengan `website_url` dapat skor PageSpeed Insights (mobile, 0-100) + timestamp
+`last_speed_check`. Sinyal web pain buat prioritas WA. Skor NULL = belum pernah dicek.
+
+File:
+- models/lead.py: +kolom `page_speed_score` INT NULL, `last_speed_check` VARCHAR (pola last_followup_at)
+- migrate.py: 2 tuple di `_migrations` (MySQL) + 2 block SQLite — idempotent, `python migrate.py` di server
+- app/services/pagespeed_service.py BARU: PSI v5 call (env `PAGESPEED_API_KEY` dulu, fallback
+  `google_api_key` dari settings DB), `is_gating_web()` (IG/Linktree/wa.me/shortlink), fail-open total
+- routers/leads.py: auto-check background saat scrape (`/api/search`) dan manual create; endpoint
+  `POST /api/leads/{id}/speed-check` (sync, admin); `GET /api/leads?hot_list=true[&hot_max_score=60]`
+  (no web / skor rendah / web gating); LeadOut +2 field
+- scripts/run_pagespeed_recheck.py BARU: re-check mingguan lead aktif (status bukan closed/deal/klien),
+  web belum dicek atau stale >7 hari; `--dry-run`, `--limit`, sleep 1.5s antar call, fail-open
+
+Cron mingguan (crontab hosting, BUKAN APScheduler web) — Senin 09:07 WIB:
+  `7 9 * * 1` + `flock -n /tmp/kt-pagespeed.lock` + cd /home/qqwtlphb/backend +
+  `~/virtualenv/backend/3.13/bin/python scripts/run_pagespeed_recheck.py`
+  append ke logs/pagespeed_recheck.log
+
+Langkah deploy:
+1. Upload: models/lead.py, migrate.py, app/services/pagespeed_service.py, routers/leads.py,
+   app/services/lead_service.py, schemas/lead.py, scripts/run_pagespeed_recheck.py
+2. Import test `python -c 'import main'` di server → migrate.py → restart Passenger → cek openapi.
+3. Backfill skor pertama: `python scripts/run_pagespeed_recheck.py --dry-run` lalu eksekusi.
+
+KETERGANTUNGAN (6 Sep 2026): PageSpeed Insights API belum ENABLE di project Google yang memegang
+key prod (Places) → call PSI = HTTP 403. Tanpa key = 429 quota per-IP. Fix: enable "PageSpeed
+Insights API" di Google Cloud Console (gratis) — setelah itu fitur langsung hidup (key fallback
+dari settings DB, tanpa env baru). Sebelum enable: semua call fail-open, skor tetap NULL, tidak
+mengganggu scrape/blast/cron.
