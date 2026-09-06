@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Klinik Pratama Harapan — Balikpapan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,650;1,6..72,500&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --teal:#0e7c7b; --teal-d:#0a5f5e; --navy:#16324a;
+  --paper:#f4f1ea; --white:#fff; --ink:#1c2428;
+  --muted:#5c676c; --line:#d8ddd8;
+  --ok:#0e7c7b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Source Sans 3',system-ui,sans-serif;color:var(--ink);background:var(--white);line-height:1.55;-webkit-font-smoothing:antialiased}
+img{display:block;width:100%;height:100%;object-fit:cover}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1120px;margin:0 auto;padding:0 28px}
+h1,h2,h3{font-family:'Newsreader',Georgia,serif;font-weight:650;letter-spacing:-.02em;line-height:1.08}
+.kicker{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--teal-d)}
+
+/* topbar utility */
+.topbar{background:var(--navy);color:#e8eee9;font-size:13px;font-weight:500}
+.topbar .wrap{display:flex;justify-content:space-between;gap:16px;padding:8px 28px;flex-wrap:wrap}
+.topbar b{color:#fff;font-weight:700}
+
+nav{position:sticky;top:0;z-index:40;background:rgba(255,255,255,.94);border-bottom:1px solid var(--line);backdrop-filter:blur(10px)}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:68px;gap:12px;position:relative}
+.burger{display:none;background:transparent;border:0;color:var(--navy);font:inherit;font-weight:700;font-size:13px;cursor:pointer;padding:8px 0}
+#nav-toggle{position:absolute;opacity:0;pointer-events:none}
+.brand{display:flex;align-items:center;gap:12px}
+.mark{width:38px;height:38px;background:var(--teal);color:#fff;display:grid;place-items:center;font-family:'Newsreader';font-weight:650;font-size:18px}
+.brand strong{display:block;font-size:15px;letter-spacing:-.01em}
+.brand small{display:block;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.menu{display:flex;gap:26px}
+.menu a{font-size:14.5px;font-weight:600;color:var(--muted)}
+.menu a:hover{color:var(--teal-d)}
+.nav-cta{background:var(--teal);color:#fff;font-weight:700;font-size:14px;padding:10px 18px}
+.nav-cta:hover{background:var(--teal-d)}
+a,.btn,.nav-cta{transition:color .15s ease,background .15s ease,opacity .15s ease}
+.hero-copy,.poli,.harga,.fas,.faq,.lok,.cta,.bpjs{animation:fade .18s ease-out}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+/* HERO: split, terang, foto tidak ditenggelam overlay */
+.hero{background:var(--paper);padding:48px 0 56px;border-bottom:1px solid var(--line)}
+.hero-grid{display:grid;grid-template-columns:1fr 1.05fr;gap:48px;align-items:center}
+.hero h1{font-size:clamp(2.2rem,4.4vw,3.55rem);color:var(--navy);margin:14px 0 16px}
+.hero h1 em{font-style:italic;font-weight:500;color:var(--teal-d)}
+.lead{font-size:1.12rem;color:var(--muted);max-width:440px;margin-bottom:22px}
+.cta-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:28px}
+.btn{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:14.5px;padding:12px 20px;border:0;cursor:pointer;font-family:inherit}
+.btn-teal{background:var(--teal);color:#fff}
+.btn-teal:hover{background:var(--teal-d)}
+.btn-line{background:transparent;color:var(--navy);border:1.5px solid var(--navy)}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid var(--line);padding-top:18px;max-width:460px}
+.facts b{display:block;font-family:'Newsreader';font-size:1.35rem;color:var(--navy)}
+.facts span{font-size:12.5px;color:var(--muted)}
+.hero-visual{position:relative}
+.hero-photo{aspect-ratio:4/3;overflow:hidden;outline:1px solid var(--line)}
+.hero-photo::after{content:"";position:absolute;inset:auto 0 0 0;height:28%;background:linear-gradient(transparent,rgba(22,50,74,.35))}
+.shift{position:absolute;left:-18px;bottom:-18px;background:#fff;border:1px solid var(--line);padding:14px 16px;width:210px}
+.shift .lab{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--teal-d)}
+.shift .big{font-family:'Newsreader';font-size:1.35rem;margin:4px 0 2px}
+.shift .sub{font-size:12.5px;color:var(--muted)}
+
+/* marquee trust */
+.rail{overflow:hidden;border-bottom:1px solid var(--line);background:#fff;padding:12px 0}
+.rail-track{display:flex;gap:42px;width:max-content;animation:marq 28s linear infinite}
+.rail-track span{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--navy);white-space:nowrap}
+.rail-track span::before{content:"";display:inline-block;width:7px;height:7px;background:var(--teal);margin-right:12px;vertical-align:middle}
+@keyframes marq{to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.rail-track{animation:none}}
+
+/* POLI: list + foto, bukan 3 card */
+.poli{padding:72px 0}
+.poli-head{display:flex;justify-content:space-between;align-items:end;gap:24px;margin-bottom:36px}
+.poli-head h2{font-size:clamp(1.8rem,3vw,2.5rem);color:var(--navy);max-width:420px}
+.poli-head p{color:var(--muted);max-width:340px}
+.poli-row{display:grid;grid-template-columns:38% 1fr;gap:0;border:1px solid var(--line);margin-bottom:18px;background:#fff}
+.poli-row:nth-child(even){grid-template-columns:1fr 38%}
+.poli-row:nth-child(even) .poli-pic{order:2}
+.poli-pic{min-height:220px;max-height:280px;overflow:hidden}
+.poli-copy{padding:28px 32px;display:flex;flex-direction:column;justify-content:center}
+.poli-copy .num{font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--teal-d);margin-bottom:8px}
+.poli-copy h3{font-size:1.55rem;margin-bottom:8px}
+.poli-copy p{color:var(--muted);margin-bottom:14px}
+.meta{display:flex;gap:18px;font-size:13.5px;font-weight:600;color:var(--navy);border-top:1px solid var(--line);padding-top:12px}
+
+/* JADWAL table */
+.jadwal{padding:0 0 72px}
+.board{border:1px solid var(--line)}
+.board-h{background:var(--navy);color:#fff;padding:16px 22px;display:flex;justify-content:space-between;align-items:center}
+.board-h h2{font-size:1.4rem;color:#fff;font-weight:650}
+.board-h span{font-size:13px;opacity:.8}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th{text-align:left;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:12px 22px;border-bottom:1px solid var(--line);font-weight:700}
+td{padding:14px 22px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.name{font-weight:700;color:var(--navy)}
+.tag{display:inline-block;font-size:12px;font-weight:700;color:var(--teal-d);background:#e6f3f2;padding:3px 8px}
+
+/* HARGA & PAKET */
+.harga{padding:72px 0;border-top:1px solid var(--line)}
+.harga-grid{display:grid;grid-template-columns:.9fr 1.5fr;gap:40px;align-items:start}
+.harga-note{font-size:14px;color:var(--muted);margin-top:14px;max-width:320px}
+.tbl{border:1px solid var(--line);background:#fff;margin-bottom:20px}
+.tbl-h{padding:12px 18px;border-bottom:1px solid var(--line);font-weight:700;color:var(--navy);font-size:15px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.tbl-h small{font-weight:600;font-size:12px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;text-align:right}
+.tbl table{font-size:14.5px}
+.tbl th{padding:10px 18px}
+.tbl td{padding:11px 18px}
+td.prc{font-weight:700;color:var(--teal-d);text-align:right;white-space:nowrap}
+td.inc{color:var(--muted);font-size:13px}
+
+/* BPJS & PEMBAYARAN */
+.bpjs{padding:64px 0;border-top:1px solid var(--line);background:var(--paper)}
+.bpjs-grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);background:#fff}
+.bpjs-col{padding:28px 32px}
+.bpjs-col+.bpjs-col{border-left:1px solid var(--line)}
+.bpjs-col h3{font-size:1.3rem;color:var(--navy);margin-bottom:14px}
+.bpjs-col li{list-style:none;font-size:14.5px;color:var(--muted);padding:10px 0;border-bottom:1px dashed var(--line);display:flex;gap:10px}
+.bpjs-col li:last-child{border-bottom:0}
+.bpjs-col li svg{width:16px;height:16px;stroke:var(--teal-d);fill:none;stroke-width:2;flex:none;margin-top:3px}
+
+/* FASILITAS */
+.fas{padding:64px 0}
+.fas-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 48px}
+.fas-item{display:grid;grid-template-columns:40px 1fr;gap:14px;padding:16px 0;border-bottom:1px solid var(--line);align-items:start}
+.fas-item svg{width:22px;height:22px;stroke:var(--teal-d);fill:none;stroke-width:1.8}
+.fas-item b{font-size:15px;color:var(--navy);display:block}
+.fas-item span{font-size:13.5px;color:var(--muted)}
+
+/* FAQ */
+.faq{padding:64px 0;border-top:1px solid var(--line)}
+.faq-cols{display:grid;grid-template-columns:.8fr 1.6fr;gap:40px;align-items:start}
+details{border-bottom:1px solid var(--line)}
+summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:16px;align-items:center;padding:16px 4px;font-weight:700;font-size:15.5px;color:var(--navy)}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";font-family:'Newsreader',serif;font-size:1.5rem;color:var(--teal-d);line-height:1}
+details[open] summary::after{content:"−"}
+details p{padding:0 4px 18px;color:var(--muted);font-size:14.5px;max-width:62ch}
+
+/* cara */
+.cara{background:var(--paper);padding:64px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:0;counter-reset:st}
+.step{padding:8px 28px 8px 0;border-right:1px solid var(--line)}
+.step:last-child{border-right:0;padding-right:0}
+.step::before{counter-increment:st;content:counter(st, decimal-leading-zero);font-family:'Newsreader';font-size:1.6rem;color:var(--teal);display:block;margin-bottom:8px}
+.step h3{font-size:1.15rem;margin-bottom:6px}
+.step p{font-size:14px;color:var(--muted)}
+
+/* map */
+.lok{padding:72px 0}
+.lok-grid{display:grid;grid-template-columns:1.35fr .9fr;gap:28px}
+.lok-map{position:relative;min-height:340px;border:1px solid var(--line);overflow:hidden}
+.lok-map img{min-height:340px}
+.pin{position:absolute;top:48%;left:52%;width:18px;height:18px;background:var(--teal);border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 8px rgba(14,124,123,.25);transform:translate(-50%,-50%)}
+.lok-info{border:1px solid var(--line);padding:28px;display:flex;flex-direction:column;gap:18px;background:#fff}
+.lok-item{display:grid;grid-template-columns:36px 1fr;gap:12px;align-items:start}
+.lok-item svg{width:22px;height:22px;stroke:var(--teal-d);fill:none;stroke-width:1.8}
+.lok-item b{display:block;font-size:14px}
+.lok-item span{font-size:14px;color:var(--muted)}
+
+.cta{background:var(--navy);color:#fff;padding:48px 0}
+.cta .wrap{display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap}
+.cta h2{font-size:clamp(1.6rem,3vw,2.2rem);color:#fff}
+.cta p{opacity:.8;max-width:420px;margin-top:8px}
+.btn-w{background:#fff;color:var(--navy)}
+
+footer{background:#0f1c28;color:#9aa7ad;padding:36px 0 28px;font-size:13.5px}
+.foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+footer strong{color:#fff}
+
+.wa{position:fixed;right:18px;bottom:18px;width:52px;height:52px;background:#25d366;color:#fff;display:grid;place-items:center;z-index:50;box-shadow:0 8px 20px rgba(0,0,0,.18)}
+.wa svg{width:26px;height:26px;fill:#fff}
+
+@media(max-width:900px){
+  .hero-grid,.poli-row,.poli-row:nth-child(even),.lok-grid,.steps{grid-template-columns:1fr}
+  .poli-row:nth-child(even) .poli-pic{order:0}
+  .burger{display:block}
+  .menu{display:none;position:absolute;top:68px;left:0;right:0;background:#fff;flex-direction:column;padding:12px 20px 16px;gap:12px;z-index:41;border-bottom:1px solid var(--line)}
+  #nav-toggle:checked ~ .menu{display:flex}
+  .shift{position:static;width:auto;margin-top:12px}
+  .step{border-right:0;border-bottom:1px solid var(--line);padding:16px 0}
+  .harga-grid,.faq-cols,.bpjs-grid,.fas-grid{grid-template-columns:1fr}
+  .bpjs-col+.bpjs-col{border-left:0;border-top:1px solid var(--line)}
+}
+</style>
+<style>
+/* mobile fix qa 3 Sep: papan jadwal dokter overflow di mobile - scroll di dalam kartu */
+@media (max-width:720px){
+  .board{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .board table{min-width:560px}
+  .board-h span{white-space:nowrap}
+}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="wrap">
+  <span>Senin–Jumat 08.00–20.00 · Sabtu 08.00–14.00 · Minggu tutup</span>
+  <span>BPJS Kesehatan · MCU karyawan · Laboratorium</span>
+</div></div>
+<nav><div class="wrap nav-in">
+  <a class="brand" href="#">
+    <span class="mark">H</span>
+    <span><strong>Klinik Pratama Harapan</strong><small>Balikpapan</small></span>
+  </a>
+  <input id="nav-toggle" type="checkbox">
+  <label class="burger" for="nav-toggle">Menu</label>
+  <div class="menu">
+    <a href="#poli">Poli</a>
+    <a href="#harga">Harga</a>
+    <a href="#jadwal">Jadwal dokter</a>
+    <a href="#faq">FAQ</a>
+    <a href="#lokasi">Lokasi</a>
+  </div>
+  <a class="nav-cta" href="https://wa.me/628125551234">Daftar via WA</a>
+</div></nav>
+
+<section class="hero"><div class="wrap hero-grid">
+  <div>
+    <p class="kicker">Klinik pratama · Gunung Samarinda</p>
+    <h1>Periksa hari ini.<br><em>Tanpa antri berjam-jam.</em></h1>
+    <p class="lead">Poli umum, gigi, KIA, dan laboratorium di satu atap. Ambil nomor lewat WhatsApp sebelum datang.</p>
+    <div class="cta-row">
+      <a class="btn btn-teal" href="https://wa.me/628125551234">Ambil nomor antrian</a>
+      <a class="btn btn-line" href="#jadwal">Lihat jadwal dokter</a>
+    </div>
+    <div class="facts">
+      <div><b>08–20</b><span>Praktik weekday</span></div>
+      <div><b>BPJS</b><span>Faskes tingkat 1</span></div>
+      <div><b>MCU</b><span>Paket karyawan</span></div>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <div class="hero-photo"><img src="klinik-assets/01.jpg" alt="Ruang tunggu Klinik Pratama Harapan"></div>
+    <div class="shift">
+      <div class="lab">Shift hari ini</div>
+      <div class="big">dr. Aulia Rahman</div>
+      <div class="sub">Poli umum · sampai 16.00</div>
+    </div>
+  </div>
+</div></section>
+
+<div class="rail" aria-hidden="true"><div class="rail-track">
+  <span>BPJS Kesehatan</span><span>Poli umum</span><span>Poli gigi</span><span>KIA / Imunisasi</span><span>Laboratorium</span><span>MCU karyawan</span>
+  <span>BPJS Kesehatan</span><span>Poli umum</span><span>Poli gigi</span><span>KIA / Imunisasi</span><span>Laboratorium</span><span>MCU karyawan</span>
+</div></div>
+
+<section class="poli" id="poli"><div class="wrap">
+  <div class="poli-head">
+    <h2>Yang biasa dicari pasien di Balikpapan.</h2>
+    <p>Bukan spa. Bukan rumah sakit besar. Klinik tingkat pertama yang urus yang sering: batuk, tensi, gigi, ibu-anak, surat sehat.</p>
+  </div>
+
+  <article class="poli-row">
+    <div class="poli-pic"><img src="klinik-assets/02.jpg" alt="Konsultasi poli umum"></div>
+    <div class="poli-copy">
+      <div class="num">01 — Poli umum</div>
+      <h3>Demam, tensi, surat sehat.</h3>
+      <p>Pemeriksaan dokter umum, resep, rujukan BPJS kalau perlu. Cocok buat keluarga dan karyawan yang butuh surat keterangan cepat.</p>
+      <div class="meta"><span>Senin–Sabtu</span><span>BPJS &amp; umum</span><span>Konsultasi Rp 40rb</span></div>
+    </div>
+  </article>
+  <article class="poli-row">
+    <div class="poli-pic"><img src="klinik-assets/03.jpg" alt="Pemeriksaan tekanan darah"></div>
+    <div class="poli-copy">
+      <div class="num">02 — Skrining &amp; lab</div>
+      <h3>Gula, kolesterol, darah lengkap.</h3>
+      <p>Ambil sampel pagi, hasil sore atau keesokan hari. Paket MCU karyawan bisa dijadwalkan rombongan.</p>
+      <div class="meta"><span>Hasil lab tertulis</span><span>Puasa 8–10 jam untuk gula</span><span>Cepat darah Rp 35rb</span></div>
+    </div>
+  </article>
+  <article class="poli-row">
+    <div class="poli-pic"><img src="klinik-assets/06.jpg" alt="Pemeriksaan MCU"></div>
+    <div class="poli-copy">
+      <div class="num">03 — MCU &amp; apotek</div>
+      <h3>Medical check-up + obat di tempat.</h3>
+      <p>Paket masuk kerja / tahunan. Resep ditebus di apotek klinik — tidak perlu muter ke luar.</p>
+      <div class="meta"><span>Apotek buka mengikuti klinik</span><span>Rujuk RS kalau perlu</span><span>Paket dari Rp 250rb</span></div>
+    </div>
+  </article>
+</div></section>
+
+<section class="harga" id="harga"><div class="wrap">
+  <div class="harga-grid">
+    <div>
+      <p class="kicker">Harga &amp; paket</p>
+      <h2 style="font-size:clamp(1.8rem,3vw,2.4rem);color:var(--navy);margin:10px 0 0">Jelas sebelum datang.</h2>
+      <p class="harga-note">Angka di bawah contoh preview — harga final dikunci bareng pemilik klinik saat deploy. Pasien tetap ditanya persetujuan sebelum tindakan tambahan.</p>
+      <div class="lok-item" style="margin-top:20px">
+        <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+        <div><b>Pembayaran</b><span>Tunai · QRIS · transfer. Perusahaan: invoice + kontrak MCU bulanan.</span></div>
+      </div>
+      <div class="lok-item">
+        <svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 20l1-4.9A8.5 8.5 0 1 1 21 11.5z"/></svg>
+        <div><b>Harga belum cocok?</b><span>Kirim daftar yang mau diperiksa via WA — admin balas estimasi biaya sebelum jadwal disepakati.</span></div>
+      </div>
+    </div>
+    <div>
+      <div class="tbl">
+        <div class="tbl-h">Paket medical check-up <small>per orang</small></div>
+        <table>
+          <thead><tr><th>Paket</th><th>Isi pemeriksaan</th><th style="text-align:right">Harga</th></tr></thead>
+          <tbody>
+            <tr><td class="name">MCU Dasar</td><td class="inc">Fisik &amp; tensi, cepat darah, urinalisis</td><td class="prc">Rp 250rb</td></tr>
+            <tr><td class="name">MCU Standar</td><td class="inc">Dasar + gula darah, kolesterol, fungsi hati</td><td class="prc">Rp 450rb</td></tr>
+            <tr><td class="name">MCU Lengkap</td><td class="inc">Standar + EKG, asam urat, rontgen thorax (mitra)</td><td class="prc">Rp 750rb</td></tr>
+            <tr><td><span class="tag">Rombongan</span></td><td class="inc">5+ karyawan satu pagi, hasil rekap satu laporan</td><td class="prc">Negosiasi</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="tbl">
+        <div class="tbl-h">Layanan harian <small>pasien umum</small></div>
+        <table>
+          <thead><tr><th>Layanan</th><th style="text-align:right">Harga</th></tr></thead>
+          <tbody>
+            <tr><td>Konsultasi dokter umum</td><td class="prc">Rp 40rb</td></tr>
+            <tr><td>Poli gigi — tindakan ringan</td><td class="prc">Rp 60rb+</td></tr>
+            <tr><td>Surat keterangan sehat</td><td class="prc">Rp 25rb</td></tr>
+            <tr><td>Cepat darah lengkap</td><td class="prc">Rp 35rb</td></tr>
+            <tr><td>Gula darah / kolesterol / asam urat</td><td class="prc">Rp 30rb</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<section class="bpjs"><div class="wrap">
+  <p class="kicker" style="margin-bottom:24px">BPJS &amp; pembayaran</p>
+  <div class="bpjs-grid">
+    <div class="bpjs-col">
+      <h3>Pasien BPJS Kesehatan</h3>
+      <ul>
+        <li><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span>Klinik ini faskes tingkat 1 — pastikan sudah terdaftar sebagai faskes pilihan di aplikasi Mobile JKN atau kantor cabang BPJS.</span></li>
+        <li><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span>Bawa kartu BPJS + KTP asli tiap kunjungan. Anak cukup buku KIA.</span></li>
+        <li><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span>Layanan BPJS poli umum &amp; KIA sampai jam 18.00, hari kerja.</span></li>
+        <li><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span>Belum terdaftar di sini? Tetap dilayani sebagai pasien umum — pindah faskes diurus setelahnya.</span></li>
+      </ul>
+    </div>
+    <div class="bpjs-col">
+      <h3>Pasien umum &amp; perusahaan</h3>
+      <ul>
+        <li><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span>Non-BPJS langsung daftar via WhatsApp, tanpa surat rujukan.</span></li>
+        <li><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span>QRIS di loket; transfer untuk pembayaran lab &amp; MCU.</span></li>
+        <li><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span>Perusahaan: jadwal MCU bulanan, hasil dikirim satu rekap laporan ke HRD.</span></li>
+        <li><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span>Tindakan di luar klinik pratama → surat rujukan ke RS mitra.</span></li>
+      </ul>
+    </div>
+  </div>
+</div></section>
+
+<section class="jadwal" id="jadwal"><div class="wrap">
+  <div class="board">
+    <div class="board-h">
+      <h2>Papan jadwal dokter</h2>
+      <span>Update tiap Senin pagi · dummy preview</span>
+    </div>
+    <table>
+      <thead><tr><th>Dokter</th><th>Poli</th><th>Hari</th><th>Jam</th></tr></thead>
+      <tbody>
+        <tr><td class="name">dr. Aulia Rahman</td><td><span class="tag">Umum</span></td><td>Senin–Jumat</td><td>08.00–16.00</td></tr>
+        <tr><td class="name">dr. Farhan Yusuf</td><td><span class="tag">Umum</span></td><td>Senin–Sabtu</td><td>16.00–20.00</td></tr>
+        <tr><td class="name">drg. Sinta Maharani</td><td><span class="tag">Gigi</span></td><td>Selasa, Kamis, Sabtu</td><td>09.00–14.00</td></tr>
+        <tr><td class="name">dr. Maya Putri, Sp.A</td><td><span class="tag">Anak / KIA</span></td><td>Rabu &amp; Jumat</td><td>09.00–13.00</td></tr>
+        <tr><td class="name">Bidan Nuraini</td><td><span class="tag">KIA / Imunisasi</span></td><td>Senin–Sabtu</td><td>08.00–14.00</td></tr>
+        <tr><td class="name">drg. Rizky Ananda</td><td><span class="tag">Gigi</span></td><td>Rabu &amp; Jumat</td><td>15.00–19.00</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div></section>
+
+<section class="cara"><div class="wrap">
+  <p class="kicker" style="margin-bottom:28px">Cara berobat</p>
+  <div class="steps">
+    <div class="step"><h3>Chat WA</h3><p>Kasih nama, keluhan, BPJS atau umum.</p></div>
+    <div class="step"><h3>Nomor antrian</h3><p>Kami kirim jam perkiraan. Datang 10 menit sebelumnya.</p></div>
+    <div class="step"><h3>Periksa</h3><p>Poli sesuai keluhan. Lab kalau dokter minta.</p></div>
+    <div class="step"><h3>Obat / rujuk</h3><p>Tebus di apotek klinik atau rujuk faskes lanjutan.</p></div>
+  </div>
+</div></section>
+
+<section class="fas"><div class="wrap">
+  <div class="poli-head">
+    <h2>Fasilitas di tempat.</h2>
+    <p>Enam hal yang bikin pasien nggak perlu pindah gedung buat urusan kecil.</p>
+  </div>
+  <div class="fas-grid">
+    <div class="fas-item"><svg viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v4M8 22h8"/></svg><div><b>Laboratorium dasar</b><span>Cepat darah, gula, kolesterol, urinalisis — hasil tertulis.</span></div></div>
+    <div class="fas-item"><svg viewBox="0 0 24 24"><path d="M4 8h16v12H4zM4 8V4h16v4M8 4v4M16 4v4M12 12v4M10 14h4"/></svg><div><b>Apotek klinik</b><span>Resep ditebus langsung; stok obat rutin &amp; vitamin.</span></div></div>
+    <div class="fas-item"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg><div><b>Ruang tindakan minor</b><span>Jahit luka, kuret, infus — ruang terpisah dari poli.</span></div></div>
+    <div class="fas-item"><svg viewBox="0 0 24 24"><path d="M3 20h18M5 20V8l7-5 7 5v12M9 12h6M9 16h6"/></svg><div><b>Ruang observasi</b><span>4 bed buat pasien yang perlu dipantau sebelum pulang.</span></div></div>
+    <div class="fas-item"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/></svg><div><b>Parkir halaman</b><span>Motor &amp; mobil masuk langsung, tanpa parkir jalan.</span></div></div>
+    <div class="fas-item"><svg viewBox="0 0 24 24"><path d="M5 9a7 7 0 0 1 14 0M2 13h20M4 17h16"/></svg><div><b>Akses kursi roda</b><span>Ramp masuk, ruang tunggu datar, toilet akses.</span></div></div>
+  </div>
+</div></section>
+
+<section class="faq" id="faq"><div class="wrap faq-cols">
+  <div>
+    <p class="kicker">Sering ditanya</p>
+    <h2 style="font-size:clamp(1.8rem,3vw,2.3rem);color:var(--navy);margin:10px 0 0">Sebelum datang.</h2>
+    <p class="harga-note">Yang paling sering masuk WA admin. Jawaban pendek, tanpa plesetan.</p>
+  </div>
+  <div>
+    <details><summary>Harus booking dulu, atau bisa langsung datang?</summary><p>Dua-duanya bisa. Langsung datang tetap dilayani — chat WA dulu cuma buat ambil nomor antrian biar nggak nunggu lama.</p></details>
+    <details><summary>Pasien baru bawa apa?</summary><p>KTP, atau kartu BPJS + KTP. Anak: buku KIA. Kalau punya hasil lab atau resep lama, bawa — dokter nggak mulai dari nol.</p></details>
+    <details><summary>Cara pakai BPJS-nya gimana?</summary><p>Pastikan faskes tingkat 1 di data BPJS kamu adalah klinik ini, bawa kartu fisik. Belum terdaftar? Tetap bisa berobat sebagai pasien umum, pindahan diurus belakangan.</p></details>
+    <details><summary>Hasil lab keluar kapan?</summary><p>Cepat darah &amp; urinalisis: hari yang sama, sore. Panel kolesterol / fungsi hati: keesokan hari. Hasil ditulis — bisa diambil langsung atau difoto ke WA.</p></details>
+    <details><summary>MCU karyawan bisa rombongan?</summary><p>Bisa. Minimal 5 orang dijadwalkan satu pagi, sampel diambil serentak, hasil rekap dikirim satu laporan ke HRD.</p></details>
+    <details><summary>Kalau darurat jam klinik tutup?</summary><p>Klinik pratama tidak menangani gawat darurat. Chat WA tetap dibalas dengan arahan IGD atau ambulans terdekat — jangan nunggu sampai pagi.</p></details>
+  </div>
+</div></section>
+
+<section class="lok" id="lokasi"><div class="wrap">
+  <div class="lok-grid">
+    <div class="lok-map">
+      <img src="klinik-assets/map.jpg" alt="Peta area Gunung Samarinda, Balikpapan">
+      <span class="pin" title="Klinik"></span>
+    </div>
+    <div class="lok-info">
+      <p class="kicker">Datang ke klinik</p>
+      <h2 style="font-size:1.7rem;color:var(--navy)">Jl. Soekarno-Hatta, Gunung Samarinda</h2>
+      <div class="lok-item">
+        <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        <div><b>Alamat</b><span>Dekat simpang Soekarno-Hatta, Balikpapan Utara. Parkir motor &amp; mobil di halaman.</span></div>
+      </div>
+      <div class="lok-item">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <div><b>Jam buka</b><span>Senin–Jumat 08.00–20.00. Sabtu 08.00–14.00. Minggu tutup.</span></div>
+      </div>
+      <div class="lok-item">
+        <svg viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8.1 9.6a16 16 0 0 0 6 6l1.2-1.1a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/></svg>
+        <div><b>WhatsApp pendaftaran</b><span>0812-555-1234 (preview)</span></div>
+      </div>
+      <a class="btn btn-teal" href="https://wa.me/628125551234">Tanya slot hari ini</a>
+    </div>
+  </div>
+</div></section>
+
+<section class="cta"><div class="wrap">
+  <div>
+    <h2>Anak demam malam ini?</h2>
+    <p>Chat dulu. Kalau shift masih buka, kami kasih nomor. Kalau tutup, kami arahkan IGD terdekat — jangan nebak sendiri.</p>
+  </div>
+  <a class="btn btn-w" href="https://wa.me/628125551234">Chat WhatsApp</a>
+</div></section>
+
+<footer><div class="wrap foot">
+  <div><strong>Klinik Pratama Harapan</strong><br>Preview template · dummy nama &amp; jadwal</div>
+  <div>Faskes tingkat 1 · BPJS · MCU</div>
+</div></footer>
+
+<a class="wa" href="https://wa.me/628125551234" aria-label="WhatsApp">
+  <svg viewBox="0 0 24 24"><path d="M20 11.5A8.5 8.5 0 0 1 7.2 19.4L3.5 20.5l1.2-3.6A8.5 8.5 0 1 1 20 11.5zM8.2 7.8c.2-.5.3-.5.6-.5h.5c.2 0 .4.1.5.4l.7 1.7c.1.2 0 .4-.1.6l-.4.5c-.1.1-.1.3 0 .4.3.5.8 1.1 1.4 1.6.5.5 1.1.9 1.7 1.1.2.1.3 0 .4-.1l.5-.5c.2-.2.4-.2.6-.1l1.6.7c.3.1.4.3.4.5v.5c0 .2 0 .4-.5.6a4.7 4.7 0 0 1-2.1.4c-1.2 0-3.3-.5-5.4-2.5-2-2-2.6-4.1-2.6-5.3 0-.7.1-1.4.4-2z"/></svg>
+</a>
+<script>
+(function(){
+  const t=document.querySelector('.rail-track');
+  if(!t) return;
+  let x=0, down=false, start=0, orig=0;
+  t.style.cursor='grab';
+  t.addEventListener('pointerdown',e=>{down=true;start=e.clientX;orig=x;t.style.animationPlayState='paused';t.setPointerCapture(e.pointerId)});
+  t.addEventListener('pointermove',e=>{if(!down)return; x=orig+(e.clientX-start); t.style.transform='translateX('+x+'px)'});
+  t.addEventListener('pointerup',()=>{down=false; t.style.animationPlayState='running'});
+})();
+</script>
+</body>
+</html>

@@ -22,6 +22,7 @@ from app.core.dependencies import (
     _acquire_scheduler_lock, _run_async_job,
 )
 from app.core.whatsapp_provider import get_whatsapp_config, get_whatsapp_cost_provider_id, send_whatsapp_message
+from app.services.web_preview_service import generate_preview_for_lead, preview_public_url
 from app.constants import CLIENT_STATUS_VALUES
 from app.constants import LeadStatus
 
@@ -237,11 +238,32 @@ async def execute_blast_campaign(campaign: BlastCampaign, db: Session, SessionLo
         product_name = criteria_product or lead.product_interest or "layanan kami"
         report_slug = generate_report_for_lead(lead, db, product_category=product_name)
         report_link = f"{FRONTEND_URL}/r/{report_slug}"
+
+        # ── Web preview: lead "Prospek Panas" dapat simulasi web per-industri ──
+        # Default ON untuk lead panas; kegagalan generate TIDAK memblokir blast.
+        web_preview_url = None
+        if criteria.get("web_preview", True) and lead.status == LeadStatus.HOT_PROSPECT:
+            try:
+                _pv = generate_preview_for_lead(lead, db, campaign_id=campaign.id)
+                web_preview_url = preview_public_url(db, _pv["slug"])
+            except Exception as exc:
+                web_preview_url = None
+                print(f"[WEB_PREVIEW] lead={lead.id} gagal generate: {exc}", flush=True)
+
         if template:
             message = template.content.replace("{{client_name}}", lead.business_name).replace("{{business_name}}", lead.business_name).replace("{{product_name}}", product_name)
         else:
             message = f"Halo {lead.business_name}, kami menyiapkan audit digital singkat untuk bisnis Anda. Apakah kami boleh menjelaskan poin yang paling prioritas?\n\nLaporan ringkas: {report_link}"
         message = message.replace("{{proposal_link}}", f"\n{report_link}\n")
+
+        # Sisipkan link web preview (placeholder eksplisit, atau ditambahkan di akhir)
+        if "{{web_preview_link}}" in message:
+            message = message.replace("{{web_preview_link}}", web_preview_url or "")
+        elif web_preview_url:
+            message += (
+                f"\n\nKami juga sudah menyiapkan simulasi tampilan web untuk "
+                f"{lead.business_name}: {web_preview_url}"
+            )
 
         result = await send_whatsapp_message(db, lead.phone_number, message, {
             "lead_id": lead.id,
