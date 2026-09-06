@@ -65,6 +65,8 @@ if "mysql" in _db_url:
         ("leads", "score_adjustment", "ALTER TABLE leads ADD COLUMN score_adjustment INT NOT NULL DEFAULT 0"),
         ("leads", "score_adjustment_reason", "ALTER TABLE leads ADD COLUMN score_adjustment_reason VARCHAR(500) NULL"),
         ("leads", "score_updated_at", "ALTER TABLE leads ADD COLUMN score_updated_at VARCHAR(255) NULL"),
+        ("leads", "page_speed_score", "ALTER TABLE leads ADD COLUMN page_speed_score INT NULL"),
+        ("leads", "last_speed_check", "ALTER TABLE leads ADD COLUMN last_speed_check VARCHAR(255) NULL"),
         # proposals/report tracking
         ("proposals", "report_open_count", "ALTER TABLE proposals ADD COLUMN report_open_count INT NOT NULL DEFAULT 0"),
         ("proposals", "last_report_viewed_at", "ALTER TABLE proposals ADD COLUMN last_report_viewed_at VARCHAR(255) NULL"),
@@ -970,6 +972,18 @@ if "last_followup_at" not in lead_cols_2:
     print("+ kolom last_followup_at ditambahkan ke leads")
 else:
     print("= leads.last_followup_at sudah ada, skip")
+
+if "page_speed_score" not in lead_cols_2:
+    cur.execute("ALTER TABLE leads ADD COLUMN page_speed_score INTEGER")
+    print("+ kolom page_speed_score ditambahkan ke leads")
+else:
+    print("= leads.page_speed_score sudah ada, skip")
+
+if "last_speed_check" not in lead_cols_2:
+    cur.execute("ALTER TABLE leads ADD COLUMN last_speed_check VARCHAR(255)")
+    print("+ kolom last_speed_check ditambahkan ke leads")
+else:
+    print("= leads.last_speed_check sudah ada, skip")
 
 # Backfill last_followup_at dari riwayat blast sukses (sama seperti jalur MySQL;
 # hanya mengisi baris NULL — idempotent).

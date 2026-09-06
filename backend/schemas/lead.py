@@ -41,6 +41,8 @@ class LeadOut(BaseModel):
     score_adjustment: int = 0
     score_adjustment_reason: Optional[str] = None
     score_updated_at: Optional[str] = None
+    page_speed_score: Optional[int] = None
+    last_speed_check: Optional[str] = None
     model_config = {"from_attributes": True}
 
 

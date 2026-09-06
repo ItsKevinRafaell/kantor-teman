@@ -36,6 +36,9 @@ class Lead(Base):
     score_adjustment = Column(Integer, default=0, nullable=False)
     score_adjustment_reason = Column(String(500), nullable=True)
     score_updated_at = Column(String(255), nullable=True)
+    # PageSpeed Insights (mobile) 0-100; NULL = belum pernah dicek.
+    page_speed_score = Column(Integer, nullable=True)
+    last_speed_check = Column(String(255), nullable=True)  # WIB string, pola last_followup_at
 
     @property
     def status_label(self) -> str:
