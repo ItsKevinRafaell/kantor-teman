@@ -84,7 +84,7 @@ REGISTRY: dict = {
             ("128 proyek selesai sejak 2010 — rumah, ruko, gudang, sampai renovasi kantor.", "Rumah, ruko, gudang, sampai renovasi kantor."),
             ("Arsip 128 proyek →", "Arsip proyek →"),
             ("Area layanan: Balikpapan · Samarinda · Penajam Paser Utara", "Area layanan: {area_text}"),
-            ("tel:+625****5188", "{tel_href}"),
+            ("tel:+625427655188", "{tel_href}"),
             ("tel:&#43;625427655188", "{tel_href}"),
             ("(0542) 765-5188", "{contact_text}"),
             ("mailto:halo@ciptagriya.co.id", "{wa_href}"),

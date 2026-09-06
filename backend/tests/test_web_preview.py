@@ -229,7 +229,8 @@ class TestSampleDataSanitized:
         html = self._view(client, db, lead)
         for dummy in ["Cipta Griya", "ciptagriya", "765-5188", ">CG<", "MT Haryono No. 88",
                       "KONTRAKTOR · BALIKPAPAN", "Area layanan: Balikpapan",
-                      "Punya rencana bangun di Balikpapan", "sejak 2010"]:
+                      "Punya rencana bangun di Balikpapan", "sejak 2010",
+                      "tel:+625427655188", "625427655188"]:
             assert dummy not in html, f"dummy '{dummy}' bocor"
         assert "PT Mitra Uji Sarana" in html
         wa = normalize_wa(lead.phone_number)
