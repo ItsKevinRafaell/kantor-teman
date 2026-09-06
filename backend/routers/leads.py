@@ -36,6 +36,14 @@ from app.services.scoring_service import (
     recalculate_lead_score_with_context,
 )
 from app.services.notification_service import create_notification
+from app.services.pagespeed_service import (
+    HOT_LIST_SCORE_MAX,
+    is_gating_web,
+    normalize_website_url,
+    resolve_api_key,
+    run_speed_check,
+    run_speed_check_bg,
+)
 from app.constants import CLIENT_STATUS_VALUES
 from app.core.cache import cached, clear_cache_prefix
 try:
@@ -280,6 +288,7 @@ def create_external_lead(request: Request, body: ExternalLeadIn, background_task
 
 @router.get("/api/search", response_model=list[Business])
 async def search_businesses(
+    background_tasks: BackgroundTasks,
     q: str = Query(...),
     max_results: int = Query(20, ge=1, le=60),
     product_interest: Optional[str] = Query(None),
@@ -292,6 +301,7 @@ async def search_businesses(
         api_key = _get_setting("google_api_key", GOOGLE_API_KEY or "")
         if not api_key:
             raise HTTPException(status_code=500, detail="GOOGLE_API_KEY not configured")
+        psi_api_key = resolve_api_key(api_key)
 
         batch = generate_batch_name(category or "", location or "")
         results: list[Business] = []
@@ -343,6 +353,11 @@ async def search_businesses(
                         db.flush()
                         new_lead.lead_score, _ = calculate_lead_score(new_lead)
                         db.commit()
+                        # Auto PageSpeed check untuk lead baru yang punya web (fail-open, background).
+                        if normalize_website_url(website):
+                            background_tasks.add_task(
+                                run_speed_check_bg, DATABASE_URL, new_lead.id, psi_api_key,
+                            )
                     results.append(Business(name=name, address=address, phone=raw_phone, whatsapp_url=wa_url,
                                             google_rating=google_rating, review_count=user_ratings_total, website_url=website))
 
@@ -442,6 +457,8 @@ def list_leads(
     archived_only: bool = Query(False),
     limit: int = Query(500, ge=1, le=5000, description="Max leads to return (default 500)"),
     offset: int = Query(0, ge=0, description="Skip first N leads"),
+    hot_list: bool = Query(False, description="Filter web pain: no web / PageSpeed rendah / web cuma IG-Linktree"),
+    hot_max_score: int = Query(HOT_LIST_SCORE_MAX, ge=0, le=100, description="Ambang skor rendah untuk hot_list"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -449,13 +466,22 @@ def list_leads(
         db, status=status, batch_name=batch_name,
         include_archived=include_archived, archived_only=archived_only,
     )
+    if hot_list:
+        leads = [
+            l for l in leads
+            if not normalize_website_url(l.website_url)
+            or is_gating_web(l.website_url)
+            # belum dicek (skor None) = tetap kandidat prioritas; dicek & rendah = hot
+            or l.page_speed_score is None
+            or l.page_speed_score < hot_max_score
+        ]
     # Server-side pagination to avoid returning thousands of records at once
     return leads[offset:offset + limit]
 
 
 
 @router.post("/api/leads", response_model=LeadOut, status_code=201)
-def create_lead_manual(body: LeadCreate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+def create_lead_manual(body: LeadCreate, background_tasks: BackgroundTasks, current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     existing = db.query(Lead).filter(Lead.phone_number == body.phone_number).first()
     if existing:
         raise HTTPException(status_code=400, detail=f"Nomor {body.phone_number} sudah ada di database ({existing.business_name}).")
@@ -479,6 +505,12 @@ def create_lead_manual(body: LeadCreate, current_user: User = Depends(require_ad
     db.add(lead)
     db.commit()
     db.refresh(lead)
+    # Auto PageSpeed check kalau lead manual punya website (fail-open, background).
+    if normalize_website_url(lead.website_url):
+        background_tasks.add_task(
+            run_speed_check_bg, DATABASE_URL, lead.id,
+            resolve_api_key(_get_setting("google_api_key", GOOGLE_API_KEY or "")),
+        )
     log_audit(db, current_user.name, "CREATE", "leads", lead.id, {"source": "manual"})
     clear_cache_prefix("cache:/api/leads")
     return lead
@@ -575,6 +607,23 @@ def delete_lead(lead_id: int, current_user: User = Depends(require_admin), db: S
     clear_cache_prefix("cache:/api/leads")
     return {"detail": "Lead berhasil diarsipkan"}
 
+
+
+@router.post("/api/leads/{lead_id}/speed-check")
+def trigger_speed_check(lead_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Trigger manual PageSpeed check untuk 1 lead (sync, fail-open).
+
+    Return 200 + field `error` kalau PSI gagal (skor lama tetap); 404 kalau lead
+    ga ada; 400 kalau lead tanpa website_url valid.
+    """
+    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    if not lead or lead.deleted_at:
+        raise HTTPException(status_code=404, detail="Lead tidak ditemukan")
+    if not normalize_website_url(lead.website_url):
+        raise HTTPException(status_code=400, detail="Lead tidak punya website_url valid")
+    result = run_speed_check(lead, db, api_key=resolve_api_key(_get_setting("google_api_key", GOOGLE_API_KEY or "")))
+    clear_cache_prefix("cache:/api/leads")
+    return result
 
 
 @router.post("/api/leads/{lead_id}/recalculate")
