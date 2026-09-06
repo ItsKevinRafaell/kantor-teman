@@ -210,3 +210,31 @@ Langkah saat Kevin bilang "deploy" (SSH `deploy-kantorteman`, dir `~/backend`):
    baris crontab). `.env` web + Passenger tidak disentuh — proses web tidak pernah direstart.
 
 Lifecycle (hourly) = ACC terpisah (`--enable followup,lifecycle`). Billing/blast = ACC terpisah lagi.
+
+
+## Web Preview per-Lead (blast WA → simulasi web hot prospect) — feat/raka-blast-web-preview
+
+Fitur: saat blast, lead status "Prospek Panas" otomatis dapat landing simulasi web per-industri
+(swap nama bisnis/nomor WA ke data lead). Link `{frontend}/wp/{slug}` disisipkan di pesan WA
+(placeholder `{{web_preview_link}}` atau ditambah otomatis di akhir). Pembukaan link ditrack
+(web_previews.opened_count + LeadActivityLog WEB_PREVIEW_OPENED).
+
+File baru:
+- backend/models/web_preview.py (tabel web_previews — migrate.py sudah ditambah, jalankan `python migrate.py`)
+- backend/app/services/web_preview_service.py (registry template + swap engine)
+- backend/routers/web_preview.py (POST /api/web-preview/generate/{lead_id} admin,
+  GET /api/web-preview/lead/{lead_id} auth, GET /wp/{slug} publik + tracking)
+- backend/web_preview_templates/{klinik,bengkel,kontraktor}.html + backend/web_preview_assets/{key}/ (6.2MB)
+- frontend next.config.js: rewrite /wp/:slug → backend
+
+Langkah deploy (setelah GO Kevin):
+1. Upload file .py via deploy_kantorteman.sh --file (models/web_preview.py, app/services/web_preview_service.py,
+   routers/web_preview.py, app/services/campaign_service.py, main.py — CEK drift main.py live dulu).
+2. Upload aset: rsync backend/web_preview_assets/ → ~/backend/uploads/web_preview_assets/ (sekali, 6.2MB).
+3. `python migrate.py` di server (buat tabel web_previews) — aman, hanya CREATE bila belum ada.
+4. Merge frontend ke main → Vercel deploy otomatis (rewrite /wp).
+5. Uji: generate preview 1 lead via POST API → buka /wp/{slug} → cek gambar + track opened_count.
+
+Catatan: template bank v1 = 3 industri (klinik/bengkel/kontraktor; kontraktor default). Template lain
+(tokobangunan, EO, dll) tinggal tambah file + entry REGISTRY + aset. Gagal generate preview TIDAK
+memblokir blast (try/except, log [WEB_PREVIEW]).

@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Garasi 88 | Bengkel Motor Balikpapan</title>
+<meta name="description" content="Bengkel motor jujur di Balikpapan. Harga di papan, garansi 7 hari, estimasi gratis.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#141c22; --ink2:#1c272f; --mut:#5c6874;
+  --green:#22c55e; --green-d:#15803d; --green-t:#dcfce7;
+  --lime:#b8f34a; --paper:#f4f7f2; --line:#e4ebe3; --white:#fff;
+  --sky:#e8f4ff; --rad:20px; --rad-lg:28px;
+  --shadow:0 14px 40px rgba(20,28,34,.12);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Figtree',sans-serif;color:var(--ink);background:#f7faf6;line-height:1.55;font-size:16px}
+img{display:block;max-width:100%}
+a{text-decoration:none;color:inherit}
+h1,h2,h3{font-family:'Sora',sans-serif;line-height:1.12;letter-spacing:-.03em}
+.wrap{max-width:1180px;margin:0 auto;padding:0 22px}
+.kicker{font-size:13px;font-weight:800;color:var(--green-d);letter-spacing:.02em}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:'Figtree';font-weight:800;font-size:15px;padding:14px 26px;border-radius:14px;transition:transform .16s,box-shadow .16s,background .16s}
+.btn svg{width:18px;height:18px}
+.btn-g{background:var(--lime);color:var(--ink)}
+.btn-g:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(184,243,74,.4)}
+.btn-ink{background:var(--ink);color:#fff}
+.btn-w{background:#fff;color:var(--ink)}
+.promo{background:var(--ink);color:#fff;font-size:13.5px;font-weight:700;text-align:center;padding:10px 16px}
+.promo b{color:var(--lime)}
+.nav{position:absolute;top:40px;left:0;right:0;z-index:50}
+.nav .bar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(20,28,34,.72);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(10px);border-radius:16px;padding:10px 14px 10px 16px}
+.brand{display:flex;align-items:center;gap:10px;color:#fff}
+.brand .mark{width:40px;height:40px;border-radius:12px;background:var(--lime);display:grid;place-items:center;font-family:'Sora';font-weight:800;font-size:14px;color:var(--ink)}
+.brand b{font-family:'Sora';font-size:17px;font-weight:800}
+.brand small{display:block;font-size:11px;font-weight:600;color:rgba(255,255,255,.7)}
+.navlinks{display:flex;gap:22px;align-items:center}
+.navlinks a{color:#e8eef2;font-weight:700;font-size:14px}
+.nav-cta{background:var(--lime)!important;color:var(--ink)!important;padding:10px 18px;border-radius:12px}
+.burger{display:none;width:44px;height:44px;border-radius:12px;border:1.5px solid rgba(255,255,255,.35);background:transparent;cursor:pointer;position:relative}
+.burger span{position:absolute;left:12px;right:12px;height:2px;background:#fff;border-radius:2px}
+.burger span:nth-child(1){top:15px}.burger span:nth-child(2){top:21px}.burger span:nth-child(3){top:27px}
+#nav-toggle{position:absolute;opacity:0;pointer-events:none}
+.hero{position:relative;min-height:100vh;display:flex;align-items:flex-end;overflow:hidden;background:var(--ink)}
+.hero .bg{position:absolute;inset:0}
+.hero .bg img{width:100%;height:100%;object-fit:cover}
+.hero .bg:after{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgba(16,22,27,.92) 0%,rgba(16,22,27,.5) 42%,rgba(16,22,27,.22) 100%)}
+.hero .in{position:relative;z-index:2;width:100%;padding:140px 0 56px}
+.hero h1{font-size:clamp(36px,5.2vw,62px);font-weight:800;color:#fff;max-width:780px}
+.hero h1 em{font-style:normal;color:var(--lime);background:linear-gradient(transparent 58%,rgba(184,243,74,.35) 58%)}
+.hero p{color:rgba(255,255,255,.86);font-size:17px;max-width:540px;margin:16px 0 26px}
+.hero .row{display:flex;gap:12px;flex-wrap:wrap}
+.chips{display:flex;gap:10px;flex-wrap:wrap;margin-top:32px}
+.chip{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(8px);color:#fff;border-radius:14px;padding:12px 16px;min-width:140px}
+.chip b{display:block;font-family:'Sora';font-size:20px;font-weight:800}
+.chip span{font-size:12px;opacity:.8;font-weight:600}
+.note{position:absolute;right:4%;bottom:120px;z-index:3;background:var(--lime);color:var(--ink);transform:rotate(5deg);padding:16px 18px;border-radius:14px;box-shadow:var(--shadow);width:168px;font-weight:800}
+.note small{display:block;font-weight:700;font-size:12px;opacity:.75}
+.svc{padding:80px 0 40px}
+.svc .head{display:flex;justify-content:space-between;gap:24px;align-items:end;margin-bottom:28px;flex-wrap:wrap}
+.svc h2,.sec-h{font-size:clamp(26px,3.4vw,40px);font-weight:800}
+.svc .head p{color:var(--mut);max-width:380px}
+.bento{display:grid;grid-template-columns:repeat(6,1fr);grid-auto-rows:minmax(210px,auto);gap:14px}
+.sc{border-radius:var(--rad);overflow:hidden;position:relative;display:flex;flex-direction:column}
+.sc .ph{height:150px;overflow:hidden}
+.sc .ph img{width:100%;height:100%;object-fit:cover}
+.sc .bd{padding:16px 18px 18px;display:flex;flex-direction:column;flex:1}
+.sc h3{font-size:17px;font-weight:800;margin-bottom:4px}
+.sc .dur{font-size:11px;font-weight:800;opacity:.75}
+.sc .fee{margin-top:auto;border:1.5px solid currentColor;border-radius:999px;padding:6px 12px;width:max-content;font-family:'Sora';font-weight:800;font-size:14px}
+.sc.big{grid-column:span 3;grid-row:span 2}
+.sc.big .ph{height:240px}
+.sc.sm{grid-column:span 2}
+.sc.c-g{background:var(--green);color:#fff}
+.sc.c-ink{background:var(--ink);color:#fff}
+.sc.c-lime{background:var(--lime);color:var(--ink)}
+.sc.c-w{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.flag{position:absolute;top:12px;left:12px;background:#fff;color:var(--ink);font-size:11px;font-weight:800;padding:5px 10px;border-radius:999px;transform:rotate(-3deg);z-index:2}
+.suasana{padding:20px 0 70px}
+.suasana .strip{display:grid;grid-template-columns:1.4fr 1fr 1fr 1.2fr;gap:10px}
+.suasana img{width:100%;height:180px;object-fit:cover;border-radius:16px}
+.about{padding:70px 0;background:var(--paper)}
+.about .grid{display:grid;grid-template-columns:1fr 1.05fr;gap:48px;align-items:center}
+.about .ph{position:relative}
+.about .ph img{border-radius:24px;box-shadow:var(--shadow)}
+.about .badge{position:absolute;left:-12px;bottom:-12px;background:var(--lime);color:var(--ink);font-family:'Sora';font-weight:800;padding:14px 16px;border-radius:14px;transform:rotate(-4deg)}
+.about ul{list-style:none;display:grid;gap:10px;margin-top:18px}
+.about li{display:flex;gap:10px;font-weight:700}
+.about .stats{display:flex;gap:22px;margin-top:24px;flex-wrap:wrap}
+.about .stats div{background:#fff;border-radius:16px;padding:14px 16px;min-width:110px;box-shadow:0 6px 18px rgba(0,0,0,.05)}
+.about .stats b{display:block;font-family:'Sora';font-size:26px}
+.proc{padding:80px 0}
+.psteps{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:32px}
+.pstep{background:#fff;border-radius:20px;padding:28px 20px 22px;position:relative;box-shadow:var(--shadow)}
+.pstep .n{position:absolute;top:-16px;left:20px;width:36px;height:36px;border-radius:50%;background:var(--green);color:#fff;font-family:'Sora';font-weight:800;display:grid;place-items:center}
+.pstep h3{margin:8px 0 8px;font-size:17px}
+.pstep p{color:var(--mut);font-size:14px}
+.pstep .tag{display:inline-block;margin-top:12px;background:var(--green-t);color:var(--green-d);font-size:12px;font-weight:800;padding:4px 10px;border-radius:999px}
+.pkt{padding:80px 0;background:#fff}
+.pkt-grid{display:grid;grid-template-columns:1fr 1.1fr 1fr;gap:16px;align-items:stretch;margin-top:32px}
+.pkt-card{background:var(--paper);border-radius:24px;padding:28px;display:flex;flex-direction:column;border:1px solid var(--line)}
+.pkt-card.feat{background:var(--ink);color:#fff;border:0;transform:translateY(-10px)}
+.pkt-card h3{font-size:22px;margin-bottom:6px}
+.pkt-card .pr{font-family:'Sora';font-size:28px;font-weight:800;margin:10px 0 14px;color:var(--green-d)}
+.pkt-card.feat .pr{color:var(--lime)}
+.pkt-card ul{list-style:none;display:grid;gap:8px;font-weight:650;font-size:14.5px;margin-bottom:18px;flex:1}
+.pkt-card .pflag{display:inline-block;background:var(--lime);color:var(--ink);font-size:11px;font-weight:800;padding:5px 10px;border-radius:999px;margin-bottom:10px}
+.gal{padding:20px 0 70px}
+.gal-grid{display:grid;grid-template-columns:2fr 1fr 1fr;grid-template-rows:200px 200px;gap:10px}
+.gal-grid .g:first-child{grid-row:span 2}
+.gal-grid img{width:100%;height:100%;object-fit:cover;border-radius:16px}
+.testi{padding:70px 0;background:var(--paper)}
+.testi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:28px}
+.tcard{background:#fff;border-radius:20px;padding:22px;box-shadow:var(--shadow)}
+.tcard.green{background:var(--green);color:#fff}
+.tcard .av{width:48px;height:48px;border:6px solid #fff;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:800;box-shadow:0 8px 18px rgba(0,0,0,.12);transform:rotate(-6deg)}
+.tcard p{margin:14px 0;font-weight:650}
+.cta{margin:0 22px 70px;background:var(--lime);border-radius:28px;padding:42px 40px;display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+.cta h2{font-size:clamp(26px,3vw,38px)}
+.faq{padding:0 0 70px}
+.faq .grid{display:grid;grid-template-columns:.8fr 1.2fr;gap:40px}
+.qa{background:#fff;border-radius:16px;margin-bottom:10px;padding:4px 18px;border:1px solid var(--line)}
+.qa summary{list-style:none;cursor:pointer;font-weight:800;padding:14px 0;display:flex;justify-content:space-between}
+.qa .a{color:var(--mut);padding:0 0 14px;font-size:14.5px}
+.lok{padding:0 0 80px}
+.lok .grid{display:grid;grid-template-columns:1fr 1.1fr;gap:18px;background:var(--ink);border-radius:28px;overflow:hidden;color:#fff}
+.lok .info{padding:36px}
+.lok .map iframe{width:100%;height:100%;min-height:360px;border:0;filter:grayscale(.25)}
+footer{background:var(--ink2);color:#c9d4dc;padding:40px 0 20px}
+footer .cols{display:grid;grid-template-columns:1.4fr 1fr 1fr 1.2fr;gap:24px}
+footer h4{color:#fff;margin-bottom:10px}
+footer .base{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:28px;padding-top:16px;border-top:1px solid rgba(255,255,255,.08);font-size:13px}
+.menu{display:none}
+
+.pl{padding:10px 0 70px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 16px}
+.tab{border:1.5px solid var(--ink);background:transparent;color:var(--ink);font-family:'Figtree';font-weight:800;font-size:13px;padding:9px 16px;border-radius:999px;cursor:pointer}
+.tab.on{background:var(--ink);color:#fff}
+.plist{display:none;grid-template-columns:1fr 1fr;gap:8px}
+.plist.on{display:grid}
+.prow{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.prow b{font-size:15px}
+.prow span.meta{display:block;font-size:12px;color:var(--mut);font-weight:650;margin-top:2px}
+.prow .px{font-family:'Sora';font-weight:800;font-size:16px;white-space:nowrap;color:var(--green-d)}
+.stk{font-size:10px;font-weight:800;background:var(--green-t);color:var(--green-d);padding:3px 8px;border-radius:999px;margin-left:8px}
+.stk.low{background:#fff3e0;color:#c05600}
+.sc .ph{position:relative}
+.sc .ph:after{content:"";position:absolute;inset:auto 0 0 0;height:46%;background:linear-gradient(transparent,rgba(0,0,0,.55))}
+.sc.big .ph{height:280px}
+.sc .lab{position:absolute;left:14px;bottom:12px;z-index:2;color:#fff;font-family:'Sora';font-weight:800;font-size:18px;text-shadow:0 2px 10px rgba(0,0,0,.4)}
+.sc .fee{background:rgba(255,255,255,.18);backdrop-filter:blur(4px)}
+.sc.c-w .fee{background:var(--green-t);border-color:transparent;color:var(--green-d)}
+
+@media(max-width:900px){
+  .navlinks{display:none}
+  .burger{display:block}
+  .bento{grid-template-columns:1fr 1fr}
+  .sc.big,.sc.sm{grid-column:span 2}
+  .psteps,.pkt-grid,.testi-grid,.about .grid,.faq .grid,.lok .grid,footer .cols,.suasana .strip,.gal-grid,.plist{grid-template-columns:1fr}
+  .gal-grid{grid-template-rows:none}
+  .gal-grid .g:first-child{grid-row:auto}
+  .pkt-card.feat{transform:none}
+  .note{display:none}
+  .hero .in{padding:110px 0 44px}
+  .btn{width:100%}
+  .cta{margin:0 16px 50px;padding:28px}
+  .menu{display:none;position:fixed;inset:0;z-index:80;background:rgba(16,22,27,.45)}
+  .menu .panel{position:absolute;top:0;right:0;bottom:0;width:min(86vw,340px);background:#fff;padding:72px 22px 24px;display:flex;flex-direction:column;gap:4px}
+  .menu a{display:block;padding:14px 8px;font-weight:800;border-bottom:1px solid var(--line);color:var(--ink)}
+  .menu a.menu-cta{background:var(--ink);color:#fff!important;border:0;border-radius:14px;text-align:center;margin-top:12px}
+  #nav-toggle:checked ~ .menu{display:block}
+  .close-x{position:absolute;top:16px;right:16px;border:0;background:var(--paper);width:40px;height:40px;border-radius:10px;font-size:18px}
+}
+@media(max-width:620px){
+  .bento{grid-template-columns:1fr}
+  .sc.big,.sc.sm{grid-column:auto}
+  section{padding:56px 0}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*:before,*:after{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+
+<div class="promo">Promo September · <b>Tune-up + cuci Rp 99.000</b> sampai 30 Sep · sebut "G88WEB" di WA</div>
+<nav class="nav"><div class="wrap">
+  <div class="bar">
+    <a class="brand" href="#"><span class="mark">G88</span><span><b>Garasi 88</b><small>Bengkel Motor</small></span></a>
+    <div class="navlinks">
+      <a href="#servis">Papan Servis</a>
+      <a href="#tentang">Tentang</a>
+      <a href="#pricelist">Pricelist</a>
+      <a href="#paket">Paket</a>
+      <a href="#lokasi">Lokasi</a>
+      <a class="nav-cta" href="#kontak">Booking</a>
+    </div>
+    <label class="burger" for="nav-toggle" aria-label="Buka menu"><span></span><span></span><span></span></label>
+  </div>
+</div></nav>
+<header class="hero">
+  <div class="bg"><img src="bengkel-assets/b1-hero.jpg" alt="Mekanik Garasi 88 mengerjakan motor di lift"></div>
+  <div class="note">Buka hari ini<small>08.00 - 20.00</small></div>
+  <div class="in wrap">
+    <p class="kicker" style="color:var(--lime)">Sejak 2011 di Soekarno Hatta KM 5</p>
+    <h1>Harga di papan. Kerja setelah kamu <em>setuju</em>.</h1>
+    <p>Bengkel motor Balikpapan yang nulis estimasi dulu. Tanpa tambalan tagihan di akhir.</p>
+    <div class="row">
+      <a class="btn btn-g" href="https://wa.me/6281254780088">Booking via WA</a>
+      <a class="btn btn-w" href="#servis">Lihat papan servis</a>
+    </div>
+    <div class="chips">
+      <div class="chip"><b>7 hari</b><span>garansi jasa</span></div>
+      <div class="chip"><b>4.9</b><span>rating Google</span></div>
+      <div class="chip"><b>15rb+</b><span>motor dilayani</span></div>
+      <div class="chip"><b>14</b><span>mekanik tetap</span></div>
+    </div>
+  </div>
+</header>
+<section class="svc" id="servis">
+  <div class="wrap">
+    <div class="head">
+      <div>
+        <p class="kicker">Papan servis</p>
+        <h2 class="sec-h" style="margin-top:8px">Harga di depan, sama buat semua motor.</h2>
+      </div>
+      <p>Kalau di luar daftar, kami kasih estimasi dulu. Kerja mulai setelah kamu oke.</p>
+    </div>
+    <div class="bento">
+      <article class="sc big c-g"><span class="flag">Paling sering</span><div class="ph"><img src="bengkel-assets/b2-oli.jpg" alt="Ganti oli"><div class="lab">Ganti Oli</div></div><div class="bd"><span class="dur">30 menit · oli standar</span><div class="fee">Rp 75.000</div></div></article>
+      <article class="sc sm c-ink"><div class="ph"><img src="bengkel-assets/b4-mesin.jpg" alt="Tune-up"><div class="lab">Tune-Up</div></div><div class="bd"><span class="dur">2 jam</span><div class="fee">Rp 120.000</div></div></article>
+      <article class="sc sm c-lime"><div class="ph"><img src="bengkel-assets/b3-rem.jpg" alt="Servis rem"><div class="lab">Servis Rem</div></div><div class="bd"><span class="dur">45 menit</span><div class="fee">Rp 60.000</div></div></article>
+      <article class="sc sm c-w"><div class="ph"><img src="bengkel-assets/b5-listrik.jpg" alt="Kelistrikan"><div class="lab">Kelistrikan</div></div><div class="bd"><span class="dur">40 menit</span><div class="fee">Rp 90.000</div></div></article>
+      <article class="sc sm c-g"><div class="ph"><img src="bengkel-assets/b6-ban.jpg" alt="Ban"><div class="lab">Ban</div></div><div class="bd"><span class="dur">25 menit</span><div class="fee">Rp 50.000</div></div></article>
+      <article class="sc sm c-ink"><div class="ph"><img src="bengkel-assets/b7-cuci.jpg" alt="Cuci"><div class="lab">Cuci</div></div><div class="bd"><span class="dur">50 menit</span><div class="fee">Rp 35.000</div></div></article>
+    </div>
+    <div class="pl" id="pricelist">
+      <p class="kicker" style="margin-top:36px">Pricelist lengkap</p>
+      <h2 class="sec-h" style="margin-top:8px">24 item, harga di papan.</h2>
+      <div class="tabs" id="ptabs">
+        <button class="tab on" data-t="harian" type="button">Harian</button>
+        <button class="tab" data-t="mesin" type="button">Mesin</button>
+        <button class="tab" data-t="ban" type="button">Ban & rem</button>
+        <button class="tab" data-t="cuci" type="button">Cuci & listrik</button>
+      </div>
+      <div class="plist on" data-t="harian">
+        <div class="prow"><div><b>Ganti oli mesin</b><span class="meta">30 mnt · oli standar</span></div><div><span class="stk">STOK</span> <span class="px">Rp 75.000</span></div></div>
+        <div class="prow"><div><b>Ganti oli + filter</b><span class="meta">40 mnt</span></div><div><span class="stk">STOK</span> <span class="px">Rp 95.000</span></div></div>
+        <div class="prow"><div><b>Cek rantai + setel</b><span class="meta">20 mnt</span></div><div><span class="stk">STOK</span> <span class="px">Rp 25.000</span></div></div>
+        <div class="prow"><div><b>Ganti busi</b><span class="meta">15 mnt · part terpisah</span></div><div><span class="stk">STOK</span> <span class="px">Rp 20.000</span></div></div>
+        <div class="prow"><div><b>Isi angin nitrogen</b><span class="meta">10 mnt / 2 ban</span></div><div><span class="stk">STOK</span> <span class="px">Rp 10.000</span></div></div>
+        <div class="prow"><div><b>Cuci standar</b><span class="meta">25 mnt</span></div><div><span class="stk">STOK</span> <span class="px">Rp 20.000</span></div></div>
+      </div>
+      <div class="plist" data-t="mesin">
+        <div class="prow"><div><b>Tune-up mesin</b><span class="meta">2 jam</span></div><div><span class="stk">STOK</span> <span class="px">Rp 120.000</span></div></div>
+        <div class="prow"><div><b>Setel karburator</b><span class="meta">45 mnt</span></div><div><span class="stk">STOK</span> <span class="px">Rp 80.000</span></div></div>
+        <div class="prow"><div><b>Ganti kampas kopling</b><span class="meta">2 jam · part terpisah</span></div><div><span class="stk low">MENIPIS</span> <span class="px">Rp 150.000</span></div></div>
+        <div class="prow"><div><b>Servis CVT matik</b><span class="meta">2.5 jam</span></div><div><span class="stk">STOK</span> <span class="px">Rp 185.000</span></div></div>
+        <div class="prow"><div><b>Ganti vanbelt</b><span class="meta">1 jam · part terpisah</span></div><div><span class="stk">STOK</span> <span class="px">Rp 90.000</span></div></div>
+        <div class="prow"><div><b>Overhaul kecil</b><span class="meta">estimasi dulu</span></div><div><span class="px">mulai 450rb</span></div></div>
+      </div>
+      <div class="plist" data-t="ban">
+        <div class="prow"><div><b>Servis rem depan</b><span class="meta">45 mnt · part terpisah</span></div><div><span class="stk">STOK</span> <span class="px">Rp 60.000</span></div></div>
+        <div class="prow"><div><b>Servis rem belakang</b><span class="meta">40 mnt</span></div><div><span class="stk">STOK</span> <span class="px">Rp 55.000</span></div></div>
+        <div class="prow"><div><b>Ganti kampas rem</b><span class="meta">35 mnt · part terpisah</span></div><div><span class="stk">STOK</span> <span class="px">Rp 45.000</span></div></div>
+        <div class="prow"><div><b>Pasang ban + balancing</b><span class="meta">25 mnt / ban</span></div><div><span class="stk">STOK</span> <span class="px">Rp 50.000</span></div></div>
+        <div class="prow"><div><b>Tambal ban tubeless</b><span class="meta">15 mnt</span></div><div><span class="stk">STOK</span> <span class="px">Rp 15.000</span></div></div>
+        <div class="prow"><div><b>Spooring ringan</b><span class="meta">30 mnt</span></div><div><span class="stk low">MENIPIS</span> <span class="px">Rp 40.000</span></div></div>
+      </div>
+      <div class="plist" data-t="cuci">
+        <div class="prow"><div><b>Cuci detailing</b><span class="meta">50 mnt</span></div><div><span class="stk">STOK</span> <span class="px">Rp 35.000</span></div></div>
+        <div class="prow"><div><b>Cuci mesin</b><span class="meta">40 mnt</span></div><div><span class="stk">STOK</span> <span class="px">Rp 45.000</span></div></div>
+        <div class="prow"><div><b>Cek aki + cas</b><span class="meta">30 mnt</span></div><div><span class="stk">STOK</span> <span class="px">Rp 40.000</span></div></div>
+        <div class="prow"><div><b>Ganti aki</b><span class="meta">20 mnt · part terpisah</span></div><div><span class="stk">STOK</span> <span class="px">Rp 35.000</span></div></div>
+        <div class="prow"><div><b>Servis kelistrikan</b><span class="meta">40 mnt</span></div><div><span class="stk">STOK</span> <span class="px">Rp 90.000</span></div></div>
+        <div class="prow"><div><b>Pasang alarm / USB</b><span class="meta">1 jam</span></div><div><span class="stk low">MENIPIS</span> <span class="px">Rp 75.000</span></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="suasana">
+  <div class="wrap">
+    <p class="kicker">Suasana bengkel</p>
+    <div class="strip" style="margin-top:14px">
+      <img src="bengkel-assets/b9-exterior.jpg" alt="Depan bengkel">
+      <img src="bengkel-assets/b8-tools.jpg" alt="Perkakas">
+      <img src="bengkel-assets/b3-rem.jpg" alt="Rem">
+      <img src="bengkel-assets/b6-ban.jpg" alt="Ban">
+    </div>
+  </div>
+</section>
+
+<section class="about" id="tentang">
+  <div class="wrap grid">
+    <div class="ph">
+      <img src="bengkel-assets/b10-tim.jpg" alt="Tim mekanik Garasi 88">
+      <div class="badge">Sejak 2011<br><small>Balikpapan</small></div>
+    </div>
+    <div>
+      <p class="kicker">Tentang Garasi 88</p>
+      <h2 class="sec-h" style="margin-top:8px">Bengkel keluarga, mekanik tetap.</h2>
+      <p style="color:var(--mut);margin:14px 0 0">Motor kamu dikerjakan orang yang sama tiap datang. Riwayat servis dicatat, jadi nggak perlu cerita ulang.</p>
+      <ul>
+        <li>Diagnostik gratis, baru bahas biaya</li>
+        <li>Sparepart asli atau alternatif, kamu pilih</li>
+        <li>Cuci bersih tiap selesai servis besar</li>
+        <li>Riwayat motor tercatat di buku bengkel</li>
+      </ul>
+      <div class="stats">
+        <div><b>15.000+</b><span>motor dilayani</span></div>
+        <div><b>4.9</b><span>rating Google</span></div>
+        <div><b>14</b><span>mekanik tetap</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="proc" id="proses">
+  <div class="wrap">
+    <p class="kicker">Cara kerja</p>
+    <h2 class="sec-h" style="margin-top:8px">Empat langkah, motor balik tanpa drama.</h2>
+    <div class="psteps">
+      <div class="pstep"><span class="n">1</span><h3>Datang, cerita</h3><p>Cek fisik dan tes singkat. Gratis, nggak wajib booking.</p><span class="tag">15 menit</span></div>
+      <div class="pstep"><span class="n">2</span><h3>Estimasi dulu</h3><p>Pekerjaan dan harga ditulis. Kerja mulai setelah kamu oke.</p><span class="tag">Harga dikunci</span></div>
+      <div class="pstep"><span class="n">3</span><h3>Dikerjakan tetap</h3><p>Part lama dibawa pulang. Foto progres kalau servis lama.</p><span class="tag">Update via WA</span></div>
+      <div class="pstep"><span class="n">4</span><h3>Uji jalan</h3><p>Motor dites bareng sebelum bayar. Jasa bergaransi 7 hari.</p><span class="tag">Garansi 7 hari</span></div>
+    </div>
+  </div>
+</section>
+<section class="pkt" id="paket">
+  <div class="wrap">
+    <p class="kicker">Paket servis</p>
+    <h2 class="sec-h" style="margin-top:8px">Sekali datang, semua kelar.</h2>
+    <div class="pkt-grid">
+      <div class="pkt-card">
+        <h3>Keringanan</h3>
+        <p style="color:var(--mut);font-size:14px">Motor harian di bawah 10.000 km/tahun</p>
+        <div class="pr">Rp 120.000</div>
+        <ul>
+          <li>Ganti oli mesin dan filter</li>
+          <li>Cek rem plus rantai</li>
+          <li>Cek tekanan ban dan aki</li>
+          <li>Cuci motor standar</li>
+        </ul>
+        <a class="btn btn-ink" href="#kontak">Booking paket ini</a>
+      </div>
+      <div class="pkt-card feat">
+        <span class="pflag">Paling sering diambil</span>
+        <h3>Komplit</h3>
+        <p style="opacity:.8;font-size:14px">Ojol, antar sekolah, touring</p>
+        <div class="pr">Rp 285.000</div>
+        <ul>
+          <li>Semua item Keringanan</li>
+          <li>Tune-up mesin plus setel karbu</li>
+          <li>Ganti busi dan cek listrik</li>
+          <li>Servis rem depan-belakang</li>
+          <li>Cuci detailing</li>
+        </ul>
+        <a class="btn btn-g" href="#kontak">Booking paket ini</a>
+      </div>
+      <div class="pkt-card">
+        <h3>Borongan 6 bulan</h3>
+        <p style="color:var(--mut);font-size:14px">Motor dijaga tanpa mikir jadwal</p>
+        <div class="pr">Rp 1.350.000</div>
+        <ul>
+          <li>Paket Komplit 3 kali</li>
+          <li>Pengingat jadwal via WA</li>
+          <li>Prioritas antrian</li>
+          <li>Cek gratis di antara jadwal</li>
+        </ul>
+        <a class="btn btn-ink" href="#kontak">Booking paket ini</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="gal" id="galeri">
+  <div class="wrap">
+    <p class="kicker">Galeri kerja</p>
+    <h2 class="sec-h" style="margin-top:8px;margin-bottom:18px">Mampir dulu, lihat caranya kami kerja.</h2>
+    <div class="gal-grid">
+      <div class="g"><img src="bengkel-assets/b9-exterior.jpg" alt="Depan bengkel Garasi 88"></div>
+      <div class="g"><img src="bengkel-assets/b8-tools.jpg" alt="Perkakas tertata"></div>
+      <div class="g"><img src="bengkel-assets/b4-mesin.jpg" alt="Tune-up mesin"></div>
+      <div class="g"><img src="bengkel-assets/b5-listrik.jpg" alt="Kelistrikan"></div>
+      <div class="g"><img src="bengkel-assets/b7-cuci.jpg" alt="Cuci detailing"></div>
+    </div>
+  </div>
+</section>
+<section class="testi" id="testimoni">
+  <div class="wrap">
+    <p class="kicker">Kata pelanggan</p>
+    <h2 class="sec-h" style="margin-top:8px">Yang balik lagi bukan cuma cerita.</h2>
+    <div class="testi-grid">
+      <div class="tcard">
+        <div class="av">RH</div>
+        <p>"Motor ojol, tiap dua minggu mampir. Harga papan beneran nggak berubah. Mekaniknya hafal riwayat motor saya."</p>
+        <b>Rian Hidayat</b><br><span style="color:var(--mut);font-size:13px">Driver ojol, Gunung Bahagia</span>
+      </div>
+      <div class="tcard green">
+        <div class="av" style="background:#fff;color:var(--ink)">MA</div>
+        <p>"Dulu kena tambalan tagihan di bengkel lain. Di sini estimasi disetujui dulu, part lama dibalikin. Langganan keluarga sejak 2019."</p>
+        <b>Maria Aprilia</b><br><span style="opacity:.85;font-size:13px">Karyawan, Balikpapan Baru</span>
+      </div>
+      <div class="tcard">
+        <div class="av">AS</div>
+        <p>"Motor tua 2012 dikerjain rapi. Tune-up komplit, langsung enteng. Diuji bareng sebelum bayar, jadi tenang."</p>
+        <b>Agus Setiawan</b><br><span style="color:var(--mut);font-size:13px">Pensiunan, Damai Bahagia</span>
+      </div>
+    </div>
+  </div>
+</section>
+<div class="cta">
+  <div>
+    <p class="kicker">Siap servis?</p>
+    <h2 style="margin-top:6px">Tulis keluhan di WA, kami balas estimasi.</h2>
+  </div>
+  <a class="btn btn-ink" href="https://wa.me/6281254780088">Chat WA 0812-5478-0088</a>
+</div>
+<section class="faq" id="faq">
+  <div class="wrap grid">
+    <div>
+      <p class="kicker">Pertanyaan umum</p>
+      <h2 class="sec-h" style="margin-top:8px">Yang paling sering ditanya.</h2>
+    </div>
+    <div>
+      <details class="qa" open><summary>Harus janjian dulu?</summary><div class="a">Ganti oli dan keringanan: datang langsung. Tune-up besar: WA dulu biar slot mekanik siap.</div></details>
+      <details class="qa"><summary>Kalau part belum ready?</summary><div class="a">Estimasi part plus waktu tunggu dikasih sebelum motor dicabut. Part laris biasanya ready hari itu.</div></details>
+      <details class="qa"><summary>Garansi 7 hari ngitungnya?</summary><div class="a">Masalah yang sama dalam 7 hari dikerjain ulang tanpa biaya jasa. Hangus kalau sudah dioprek bengkel lain.</div></details>
+      <details class="qa"><summary>Bawa part sendiri boleh?</summary><div class="a">Boleh. Garansi cuma jasa, bukan part. Kalau part gagal, kami bantu cari pengganti.</div></details>
+      <details class="qa"><summary>Motor ojol ada harga khusus?</summary><div class="a">Paket borongan 6 bulan: tiga kali komplit plus prioritas antrian.</div></details>
+    </div>
+  </div>
+</section>
+<section class="lok" id="lokasi">
+  <div class="wrap">
+    <div class="grid">
+      <div class="info" id="kontak">
+        <p class="kicker" style="color:var(--lime)">Kunjungi kami</p>
+        <h2 class="sec-h" style="margin-top:8px">Garasi 88, Soekarno Hatta KM 5.</h2>
+        <p style="opacity:.8;margin:12px 0 18px">Cari papan hijau G88 sebelah SPBU KM 5. Parkir luas.</p>
+        <p><b>Senin-Sabtu</b> 08.00-20.00<br><b>Minggu</b> 09.00-17.00</p>
+        <a class="btn btn-g" style="margin-top:20px" href="https://wa.me/6281254780088">WA 0812-5478-0088</a>
+      </div>
+      <div class="map"><iframe src="https://www.google.com/maps?q=Jalan%20Soekarno%20Hatta%20Balikpapan&output=embed" loading="lazy" title="Lokasi Garasi 88"></iframe></div>
+    </div>
+  </div>
+</section>
+<footer>
+  <div class="wrap">
+    <div class="cols">
+      <div>
+        <a class="brand" href="#"><span class="mark">G88</span><span><b>Garasi 88</b><small>Bengkel Motor</small></span></a>
+        <p style="margin-top:12px;font-size:14px">Bengkel motor jujur di Balikpapan sejak 2011.</p>
+      </div>
+      <div><h4>Navigasi</h4><p><a href="#servis">Papan Servis</a><br><a href="#tentang">Tentang</a><br><a href="#paket">Paket</a></p></div>
+      <div><h4>Servis</h4><p>Ganti oli<br>Tune-up<br>Servis rem<br>Ban</p></div>
+      <div><h4>Kontak</h4><p>Jl. Soekarno Hatta KM 5<br>WA 0812-5478-0088<br>halo@garasi88.id</p></div>
+    </div>
+    <div class="base"><span>Garasi 88 Balikpapan</span><span>Estimasi gratis. Setuju dulu, baru kerja.</span></div>
+  </div>
+</footer>
+<input type="checkbox" id="nav-toggle">
+<div class="menu">
+  <div class="panel">
+    <button class="close-x" onclick="document.getElementById('nav-toggle').checked=false" aria-label="Tutup">x</button>
+    <a href="#servis" onclick="document.getElementById('nav-toggle').checked=false">Papan Servis</a>
+    <a href="#tentang" onclick="document.getElementById('nav-toggle').checked=false">Tentang</a>
+    <a href="#pricelist" onclick="document.getElementById('nav-toggle').checked=false">Pricelist</a>
+    <a href="#paket" onclick="document.getElementById('nav-toggle').checked=false">Paket</a>
+    <a href="#lokasi" onclick="document.getElementById('nav-toggle').checked=false">Lokasi</a>
+    <a class="menu-cta" href="#kontak" onclick="document.getElementById('nav-toggle').checked=false">Booking via WA</a>
+  </div>
+</div>
+
+<script>
+(function(){
+  var tabs=document.querySelectorAll('#ptabs .tab');
+  var lists=document.querySelectorAll('.plist');
+  tabs.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      tabs.forEach(function(b){b.classList.remove('on')});
+      lists.forEach(function(l){l.classList.remove('on')});
+      btn.classList.add('on');
+      var id=btn.getAttribute('data-t');
+      lists.forEach(function(l){ if(l.getAttribute('data-t')===id) l.classList.add('on'); });
+    });
+  });
+})();
+</script>
+</body>
+</html>

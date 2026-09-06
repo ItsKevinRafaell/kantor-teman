@@ -315,6 +315,26 @@ if "mysql" in _db_url:
     else:
         print("= MySQL: whatsapp_numbers sudah ada, skip")
 
+    if not _table_exists("web_previews"):
+        _cur.execute("""
+            CREATE TABLE web_previews (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                slug VARCHAR(64) NOT NULL UNIQUE,
+                lead_id INT NOT NULL,
+                campaign_id VARCHAR(36) NULL,
+                template_key VARCHAR(64) NOT NULL,
+                html LONGTEXT NOT NULL,
+                opened_count INT NOT NULL DEFAULT 0,
+                first_opened_at VARCHAR(255) NULL,
+                last_opened_at VARCHAR(255) NULL,
+                created_at VARCHAR(255) NOT NULL
+            )
+        """)
+        _cur.execute("CREATE INDEX ix_web_previews_lead_id ON web_previews (lead_id)")
+        print("+ MySQL: tabel web_previews dibuat")
+    else:
+        print("= MySQL: web_previews sudah ada, skip")
+
     for table, col, sql in _migrations:
         if not _table_exists(table):
             print(f"= {table} belum ada, skip (akan dibuat SQLAlchemy)")
@@ -2031,6 +2051,27 @@ if not cur.fetchone():
     print("+ tabel whatsapp_numbers dibuat")
 else:
     print("= whatsapp_numbers sudah ada, skip")
+
+cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='web_previews'")
+if not cur.fetchone():
+    cur.execute("""
+        CREATE TABLE web_previews (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug VARCHAR(64) NOT NULL UNIQUE,
+            lead_id INTEGER NOT NULL,
+            campaign_id VARCHAR(36),
+            template_key VARCHAR(64) NOT NULL,
+            html TEXT NOT NULL,
+            opened_count INTEGER NOT NULL DEFAULT 0,
+            first_opened_at VARCHAR(255),
+            last_opened_at VARCHAR(255),
+            created_at VARCHAR(255) NOT NULL
+        )
+    """)
+    cur.execute("CREATE INDEX ix_web_previews_lead_id ON web_previews (lead_id)")
+    print("+ tabel web_previews dibuat")
+else:
+    print("= web_previews sudah ada, skip")
 
 for _t in ("blast_campaigns", "blast_messages"):
     cur.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{_t}'")

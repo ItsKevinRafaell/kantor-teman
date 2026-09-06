@@ -30,6 +30,7 @@ from .document import (
     DocumentDraft, DocumentVersion
 )
 from .rate_limit import RateLimit
+from .web_preview import WebPreview
 
 __all__ = [
     # base
@@ -66,4 +67,6 @@ __all__ = [
     "DocumentDraft", "DocumentVersion",
     # rate_limit
     "RateLimit",
+    # web_preview
+    "WebPreview",
 ]

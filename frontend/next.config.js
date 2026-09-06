@@ -59,6 +59,9 @@ const nextConfig = {
       { source: "/r/:slug/", destination: `${BACKEND_URL}/r/:slug` },
       { source: "/p/:slug", destination: `${BACKEND_URL}/p/:slug` },
       { source: "/p/:slug/", destination: `${BACKEND_URL}/p/:slug` },
+      // Web preview per-lead (blast WA hot prospect → simulasi web)
+      { source: "/wp/:slug", destination: `${BACKEND_URL}/wp/:slug` },
+      { source: "/wp/:slug/", destination: `${BACKEND_URL}/wp/:slug` },
       // Proxy every JSON API call through Vercel so dashboard fetches are
       // same-origin. Backend cookies (samesite=lax, domain=.kantorteman.my.id)
       // would otherwise be blocked by browsers because the SPA lives on
