@@ -47,6 +47,12 @@ REGISTRY: dict = {
             ("Peta area Gunung Samarinda, Balikpapan", "Peta area layanan {brand}"),
             ("Jl. Soekarno-Hatta, Gunung Samarinda", "{address_line}"),
             ("Dekat simpang Soekarno-Hatta, Balikpapan Utara. Parkir motor &amp; mobil di halaman.", "{address_line}"),
+            # Netralisasi nama dokter fiktif → label jadwal netral (ACC Kevin 6 Sep)
+            ("dr. Aulia Rahman", "dr. Umum (Pagi)"),
+            ("dr. Farhan Yusuf", "dr. Umum (Sore)"),
+            ("drg. Sinta Maharani", "drg. Gigi (Pagi)"),
+            ("dr. Maya Putri, Sp.A", "dr. Anak (KIA)"),
+            ("drg. Rizky Ananda", "drg. Gigi (Sore)"),
         ],
     },
     "bengkel": {
@@ -66,6 +72,12 @@ REGISTRY: dict = {
             ("halo@garasi88.id", "{contact_text}"),
             (">G88<", ">{brand_short}<"),
             ("Balikpapan</span>", "</span>"),
+            # Netralisasi garansi spesifik palsu (ACC Kevin 6 Sep)
+            ("<b>7 hari</b><span>garansi jasa</span>", "<b>Garansi</b><span>jasa tertulis</span>"),
+            ("Jasa bergaransi 7 hari.</p><span class=\"tag\">Garansi 7 hari</span>", "Jasa bergaransi sesuai kesepakatan.</p><span class=\"tag\">Garansi tertulis</span>"),
+            ("<summary>Garansi 7 hari ngitungnya?</summary>", "<summary>Garansinya ngitungnya?</summary>"),
+            ("Masalah yang sama dalam 7 hari dikerjain ulang tanpa biaya jasa.", "Masalah yang sama dikerjain ulang tanpa biaya jasa, ketentuannya sepakati di awal."),
+            ("Langganan keluarga sejak 2019.", "Langganan keluarga kami."),
         ],
     },
     "kontraktor": {
@@ -92,6 +104,36 @@ REGISTRY: dict = {
             (">CG<", ">{brand_short}<"),
             ("Cipta Griya", "{brand}"),
             ("Jl. MT Haryono No. 88, Damai Bahagia,<br>Balikpapan 76114, Kalimantan Timur", "{address_line}"),
+            # ── Netralisasi klaim fiktif (ACC Kevin 6 Sep: "eksekusi aja semuanya") ──
+            # Nama orang/perusahaan fiktif → label netral
+            ("<b>Ibu Ratna</b>", "<b>Rumah 2 lantai</b>"),
+            ("<b>PT Bina Logistik Kaltim</b>", "<b>Gudang logistik</b>"),
+            ("<b>Ir. Hartono Wijaya</b> — Direktur Operasional, sejak 2012", "— Prinsip kerja tim {brand_short}"),
+            # Garansi spesifik palsu → netral (prospek bisa quote ke pelanggannya)
+            ("<h3>Garansi 5 Tahun</h3><p>Cacat struktur diperbaiki tanpa biaya. Garansi tertulis di lampiran kontrak.</p>", "<h3>Garansi Tertulis</h3><p>Ketentuan garansi ditulis di lampiran kontrak, mengikuti skope proyek Anda.</p>"),
+            # Angka personel fiktif (42)
+            ("<b>42</b><span>Personel internal, tersertifikasi SKK</span>", "<b>SKK</b><span>Personel internal tersertifikasi</span>"),
+            ("<small>42 personel tersertifikasi konstruksi</small>", "<small>Personel tersertifikasi konstruksi</small>"),
+            ("<b>Rekor 0 kecelakaan kerja</b> sejak 2022 — diaudit internal setiap bulan.", "<b>Prosedur K3</b> sama di semua proyek — diaudit internal berkala."),
+            # Berita fiktif: nama proyek + klaim jadwal sewa
+            ("Topping off Ruko Damai Bahagia tahap II", "Topping off proyek ruko tahap II"),
+            ("<h3>Topping off Ruko Damai Bahagia, tahap II</h3>", "<h3>Topping off proyek ruko, tahap II</h3>"),
+            ("Struktur 12 unit tahap kedua mencapai atap. Penyewaan dibuka mulai November 2026.", "Struktur tahap kedua mencapai atap — progress proyek berjalan."),
+            ("Cara tim kami meratakan adukan dan menyusun bata di proyek Sepinggan.", "Cara tim kami meratakan adukan dan menyusun bata di lapangan."),
+            ("<h3>Pelatihan K3 ulang untuk 42 personel</h3>", "<h3>Pelatihan K3 berkala seluruh personel</h3>"),
+            # Nama proyek portfolio/hero fiktif + referensi kota template bank → generik
+            ("<h1>Struktur Perumahan Balikpapan Baru<br>Tahap II</h1>", "<h1>Struktur Perumahan<br>Tahap II</h1>"),
+            ("Rumah Dua Lantai, Sepinggan", "Rumah Dua Lantai"),
+            ("Rumah dua lantai Sepinggan", "Rumah dua lantai"),
+            ("Ruko Damai Bahagia Balikpapan Kota", "Ruko Dua Lantai"),
+            ("<h3>Ruko Damai Bahagia, Tahap I</h3>", "<h3>Ruko Dua Lantai, Tahap I</h3>"),
+            ("Gudang Logistik Karang Joang", "Gudang Logistik"),
+            ("Gudang logistik Karang Joang", "Gudang logistik"),
+            ("Kantor Bina Cakrawala, MT Haryono", "Renovasi Kantor"),
+            ("Renovasi kantor Bina Cakrawala", "Renovasi kantor"),
+            # Lokasi template bank di stat/hero → netral
+            ("Hunian berderet · 32 unit · Balikpapan, Kalimantan Timur", "Hunian berderet · {area_text}"),
+            ("Tahun beroperasi di Kalimantan Timur", "Tahun beroperasi"),
         ],
     },
 }
