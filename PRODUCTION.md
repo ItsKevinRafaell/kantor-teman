@@ -239,6 +239,16 @@ Catatan: template bank v1 = 3 industri (klinik/bengkel/kontraktor; kontraktor de
 (tokobangunan, EO, dll) tinggal tambah file + entry REGISTRY + aset. Gagal generate preview TIDAK
 memblokir blast (try/except, log [WEB_PREVIEW]).
 
+Netralisasi klaim fiktif (6 Sep 2026, ACC Kevin "eksekusi aja semuanya", commit facd7b4/cb6af0d):
+REGISTRY['sanitize'] tiap template juga menimpa klaim fiktif yang keliatan asli sebelum render
+per-lead — nama orang/perusahaan (Ibu Ratna, PT Bina Logistik, Ir. Hartono, 5 dr. klinik),
+garansi spesifik (Garansi 5 Tahun → Garansi Tertulis; garansi 7 hari bengkel → netral),
+angka personel (42), berita fiktif (Ruko Damai Bahagia, jadwal sewa Nov 2026, Sepinggan),
+nama proyek/lokasi template bank (Balikpapan/Sepinggan/Karang Joang) → generik. Sengaja DIBIARIN:
+angka filler desain (128 proyek, 98%, 16 tahun, jadwal klinik, tahun portfolio) + struktur desain.
+Test: test_render_neutralizes_fictive_claims. Preview lama (sebelum patch) TIDAK otomatis ke-render
+ulang — reuse slug lama; regenerate force_new bila butuh versi bersih.
+
 
 ## PageSpeed Scoring Lead (kolom + auto-check + endpoint + cron) — feat/raka-pagespeed-leads
 
