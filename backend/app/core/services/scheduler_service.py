@@ -201,6 +201,7 @@ async def process_pending_blasts():
                     ))
                     if success:
                         lead.status = "WA Terkirim"
+                        lead.last_followup_at = datetime.now(timezone.utc).isoformat()
                         sent += 1
                     else:
                         failed += 1
@@ -267,6 +268,7 @@ async def scheduled_followup_processor():
             })
             if not result.ok:
                 continue
+            lead.last_followup_at = datetime.now(timezone.utc).isoformat()
             seq.current_step += 1
             if seq.current_step >= len(delays):
                 seq.status = "COMPLETED"; seq.next_send_at = None

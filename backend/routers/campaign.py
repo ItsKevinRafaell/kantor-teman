@@ -340,6 +340,7 @@ async def process_followups(current_user: User = Depends(require_admin), db: Ses
         })
         if not result.ok:
             continue
+        lead.last_followup_at = datetime.now(timezone.utc).isoformat()
         sent_count += 1
 
         seq.current_step += 1
