@@ -17,7 +17,7 @@ export function middleware(request: NextRequest) {
   const isPublicProposal = pathname.startsWith("/proposal/");
   const isPublicReport = pathname.startsWith("/report/");
   const isPublicClientReport = pathname.startsWith("/client-report/");
-  const isShortLink = pathname.startsWith("/r/") || pathname.startsWith("/p/");
+  const isShortLink = pathname.startsWith("/r/") || pathname.startsWith("/p/") || pathname.startsWith("/wp/");
 
   if (isPublicProposal || isPublicReport || isPublicClientReport || isShortLink) {
     return NextResponse.next();
