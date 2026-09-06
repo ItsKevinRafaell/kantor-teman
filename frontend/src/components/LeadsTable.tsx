@@ -1,7 +1,7 @@
 "use client";
 import NativeSelect from "./ui/NativeSelect";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLeadsTable } from "../hooks/useLeads";
 import { apiFetch, apiFetchJson } from "../lib/api";
 import { downloadBlob } from "../utils/download";
@@ -95,6 +95,19 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
   // Toast
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   function showToast(message: string, type: "success" | "error" | "info" = "success") { setToast({ message, type }); }
+
+  // Hitungan lead per status buat tombol filter cepat (ikut aturan arsip sama kayak tabel).
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    let total = 0;
+    for (const l of leads as any[]) {
+      if (!showArchived && l.is_archived) continue;
+      counts[l.status] = (counts[l.status] || 0) + 1;
+      total += 1;
+    }
+    counts.__all = total;
+    return counts;
+  }, [leads, showArchived]);
 
   // ─── Action handlers ──────────────────────────────────────────────────────
 
@@ -532,7 +545,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string }) 
       {/* Filter Bar */}
       <LeadsFilterBar
         searchQuery={searchQuery} onSearchChange={setSearchQuery}
-        filters={filters} batches={batches}
+        filters={filters} batches={batches} statusCounts={statusCounts}
         onStatusChange={setFilterStatus} onBatchChange={setFilterBatch}
         onScoreChange={setFilterScore} onRatingChange={setFilterRating}
         onAddLead={() => { setLeadForm({ ...emptyLeadForm }); setAddLeadModal(true); }}

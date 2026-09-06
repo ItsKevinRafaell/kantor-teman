@@ -477,6 +477,26 @@ if "mysql" in _db_url:
     else:
         print("= MySQL: tabel project_addons sudah ada, skip")
 
+    # Backfill leads.last_followup_at dari riwayat blast sukses.
+    # Sumber data nyata: blast_messages.status='sent' (di-set engine saat kirim
+    # result.ok). Hanya mengisi baris yang masih NULL — idempotent, aman diulang.
+    if _table_exists("blast_messages") and _table_exists("leads"):
+        _cur.execute("""
+            UPDATE leads
+            SET last_followup_at = (
+                SELECT MAX(bm.sent_at) FROM blast_messages bm
+                WHERE bm.lead_id = leads.id AND bm.status = 'sent'
+            )
+            WHERE last_followup_at IS NULL
+              AND EXISTS (
+                SELECT 1 FROM blast_messages bm2
+                WHERE bm2.lead_id = leads.id AND bm2.status = 'sent'
+              )
+        """)
+        print("+ MySQL: backfill leads.last_followup_at dari riwayat blast sukses (hanya baris NULL)")
+    else:
+        print("= MySQL: skip backfill last_followup_at (tabel belum ada)")
+
     _mc.commit()
     _mc.close()
     print("MySQL migration selesai.")
@@ -930,6 +950,22 @@ if "last_followup_at" not in lead_cols_2:
     print("+ kolom last_followup_at ditambahkan ke leads")
 else:
     print("= leads.last_followup_at sudah ada, skip")
+
+# Backfill last_followup_at dari riwayat blast sukses (sama seperti jalur MySQL;
+# hanya mengisi baris NULL — idempotent).
+cur.execute("""
+    UPDATE leads
+    SET last_followup_at = (
+        SELECT MAX(bm.sent_at) FROM blast_messages bm
+        WHERE bm.lead_id = leads.id AND bm.status = 'sent'
+    )
+    WHERE last_followup_at IS NULL
+      AND EXISTS (
+        SELECT 1 FROM blast_messages bm2
+        WHERE bm2.lead_id = leads.id AND bm2.status = 'sent'
+      )
+""")
+print("+ backfill leads.last_followup_at dari riwayat blast sukses (hanya baris NULL)")
 
 conn.commit()
 

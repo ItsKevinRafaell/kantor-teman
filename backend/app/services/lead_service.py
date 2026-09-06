@@ -9,7 +9,7 @@ from sqlalchemy import func
 
 from app.constants import LeadStatus, lead_status_label
 from app.services.scoring_service import recalculate_lead_score_with_context
-from models import Lead, LeadActivityLog, BlastMessage, AuditLog
+from models import Lead, LeadActivityLog, BlastMessage, AuditLog, log_audit
 from schemas import LeadOut, StatusUpdate
 
 
@@ -134,7 +134,9 @@ def update_lead_status(
 
     old_status = lead.status
     lead.status = new_status
-    lead.last_followup_at = datetime.now(timezone.utc).isoformat()
+    # last_followup_at TIDAK diubah di sini — kolom ini = "terakhir follow-up
+    # TERKIRIM via Fonnte", di-set otomatis di jalur kirim (blast engine +
+    # followup processor). Ganti status manual ≠ mengirim pesan.
 
     # Mark replied BlastMessages
     if new_status == "Replied":

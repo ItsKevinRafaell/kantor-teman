@@ -16,6 +16,7 @@ interface LeadsFilterBarProps {
   onSearchChange: (q: string) => void;
   filters: LeadFilters;
   batches: string[];
+  statusCounts: Record<string, number>;
   onStatusChange: (s: string) => void;
   onBatchChange: (b: string) => void;
   onScoreChange: (s: "" | "hot" | "warm" | "cold") => void;
@@ -54,7 +55,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function LeadsFilterBar({
-  searchQuery, onSearchChange, filters, batches,
+  searchQuery, onSearchChange, filters, batches, statusCounts,
   onStatusChange, onBatchChange, onScoreChange, onRatingChange,
   onAddLead, onExportCSV, onOpenBlast, onRecalculate, onRefresh,
   recalculating, showArchived, onShowArchivedChange, onDeleteBatch,
@@ -166,6 +167,32 @@ export default function LeadsFilterBar({
             )}
           </div>
         </div>
+      </div>
+
+      {/* Filter cepat per status (klik = set filter status; sinkron dgn dropdown Status) */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button onClick={() => onStatusChange("")}
+          className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+            filters.status === ""
+              ? "bg-amber-500 text-white shadow-sm"
+              : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-[var(--bg-surface)] dark:text-gray-300 dark:hover:bg-gray-800"
+          }`}>
+          Semua <span className={filters.status === "" ? "text-amber-100" : "text-gray-400"}>({statusCounts.__all ?? 0})</span>
+        </button>
+        {STATUSES.map(s => {
+          const active = filters.status === s;
+          const count = statusCounts[s] ?? 0;
+          return (
+            <button key={s} onClick={() => onStatusChange(active ? "" : s)}
+              className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                active
+                  ? "bg-amber-500 text-white shadow-sm"
+                  : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-[var(--bg-surface)] dark:text-gray-300 dark:hover:bg-gray-800"
+              } ${count === 0 && !active ? "opacity-50" : ""}`}>
+              {s} <span className={active ? "text-amber-100" : "text-gray-400"}>({count})</span>
+            </button>
+          );
+        })}
       </div>
 
       <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-3 dark:border-amber-900/50 dark:bg-amber-950/10">

@@ -264,6 +264,7 @@ async def execute_blast_campaign(campaign: BlastCampaign, db: Session, SessionLo
         ))
         if success:
             lead.status = LeadStatus.WA_SENT
+            lead.last_followup_at = datetime.now(timezone.utc).isoformat()
             sent += 1
         else:
             failed += 1
@@ -389,6 +390,7 @@ async def scheduled_followup_processor(
             })
             if not result.ok:
                 continue
+            lead.last_followup_at = datetime.now(timezone.utc).isoformat()
 
             seq.current_step += 1
             if seq.current_step >= len(delays):
