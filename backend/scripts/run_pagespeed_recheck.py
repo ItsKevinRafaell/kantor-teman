@@ -16,10 +16,19 @@ Usage (di server hosting, venv cPanel):
   ~/virtualenv/backend/3.13/bin/python scripts/run_pagespeed_recheck.py            # eksekusi
   ~/virtualenv/backend/3.13/bin/python scripts/run_pagespeed_recheck.py --limit 20
 
-Crontab (mingguan, Senin 09:07 WIB, flock anti-tabrakan):
-  7 9 * * 1 flock -n /tmp/kt-pagespeed.lock cd /home/qqwtlphb/backend && \
-      /home/qqwtlphb/virtualenv/backend/3.13/bin/python scripts/run_pagespeed_recheck.py \
-      >> logs/pagespeed_recheck.log 2>&1
+Crontab (mingguan, Senin 09:07 WIB, flock anti-tabrakan). CATATAN WAJIB:
+script ini sudah `os.chdir(BACKEND_DIR)` sendiri — JANGAN pakai `cd` di dalam
+`flock`. `cd` itu shell builtin, bukan binary → `flock -n lock cd ...` gagal
+exec (exit 69), `&&` putus, python TAK PERNAH jalan, dan tidak ada log karena
+redirect nempel di perintah python (bug no-op diam-diam, 7 Sep 2026). Pakai
+absolute path python + script:
+
+  7 9 * * 1 flock -n /tmp/kt-pagespeed.lock /home/qqwtlphb/virtualenv/backend/3.13/bin/python /home/qqwtlphb/backend/scripts/run_pagespeed_recheck.py >> /home/qqwtlphb/backend/logs/pagespeed_recheck.log 2>&1
+
+Verifikasi first-run (WAJIB, jangan cuma "crontab terpasang"):
+  stat /tmp/kt-pagespeed.lock          # mtime = menit jalan
+  tail logs/pagespeed_recheck.log      # HARUS ada output
+  GET /api/leads → page_speed_score terisi > 0 setelah run pertama
 
 Fail-open: error per-lead di-print, TIDAK menghentikan loop; exit code 0 kecuali
 fatal (DB ga konek). Rate limit: sleep 1.5s antar call PSI.

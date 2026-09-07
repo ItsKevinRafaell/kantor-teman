@@ -266,10 +266,17 @@ File:
 - scripts/run_pagespeed_recheck.py BARU: re-check mingguan lead aktif (status bukan closed/deal/klien),
   web belum dicek atau stale >7 hari; `--dry-run`, `--limit`, sleep 1.5s antar call, fail-open
 
-Cron mingguan (crontab hosting, BUKAN APScheduler web) — Senin 09:07 WIB:
-  `7 9 * * 1` + `flock -n /tmp/kt-pagespeed.lock` + cd /home/qqwtlphb/backend +
-  `~/virtualenv/backend/3.13/bin/python scripts/run_pagespeed_recheck.py`
-  append ke logs/pagespeed_recheck.log
+Cron mingguan (crontab hosting, BUKAN APScheduler web) — Senin 09:07 WIB (kanonis):
+  `7 9 * * 1 flock -n /tmp/kt-pagespeed.lock /home/qqwtlphb/virtualenv/backend/3.13/bin/python /home/qqwtlphb/backend/scripts/run_pagespeed_recheck.py >> /home/qqwtlphb/backend/logs/pagespeed_recheck.log 2>&1`
+  Script sudah chdir sendiri — JANGAN sisipkan `cd` dalam `flock` (builtin, exec gagal
+  exit 69 → no-op diam-diam). Verifikasi tiap pasang: lock mtime + log berisi + skor terisi.
+
+⚠️ STATUS 7 Sep 2026 (audit malam raka): crontab live MASIH versi lama yang rusak
+  (`flock ... cd ... && python`) → Senin 07 Sep 09:07 WIB first-run = NO-OP total
+  (bukti: `/tmp/kt-pagespeed.lock` mtime 07 Sep 09:07, log absen, 0/148 lead terisi
+  skor). Ganti 1 baris crontab jadi kanonis di atas — itu mutasi prod, butuh go
+  Kevin/day-shift; JANGAN anggap "terpasang = jalan" tanpa first-run terverifikasi.
+  Backfill manual (`--dry-run` lalu eksekusi) juga belum pernah dilakukan.
 
 Langkah deploy:
 1. Upload: models/lead.py, migrate.py, app/services/pagespeed_service.py, routers/leads.py,
