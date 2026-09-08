@@ -143,6 +143,13 @@ REGISTRY: dict = {
         "phone_display_anchor": "0812 2200 8899",
         "wa_anchor": "6281222008899",
     },
+    "kafe": {
+        "title": "Landing kafe/kedai kopi",
+        "keywords": ["kafe", "coffee shop", "kedai kopi", "warung kopi", "kedai", "roastery"],
+        "brand_anchor": "Kopi Ruang Tengah",
+        "phone_display_anchor": "0812 3344 5566",
+        "wa_anchor": "6281233445566",
+    },
     "salon": {
         "title": "Landing salon/kecantikan",
         "keywords": ["salon", "kecantikan", "spa", "perawatan", "hair salon", "makeup", "facial"],
