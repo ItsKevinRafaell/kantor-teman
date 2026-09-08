@@ -249,6 +249,22 @@ angka filler desain (128 proyek, 98%, 16 tahun, jadwal klinik, tahun portfolio) 
 Test: test_render_neutralizes_fictive_claims. Preview lama (sebelum patch) TIDAK otomatis ke-render
 ulang — reuse slug lama; regenerate force_new bila butuh versi bersih.
 
+Template bank diperluas (8 Sep 2026, commit 23eadd6 feat/raka-template-bank-19 — BELUM deploy,
+tunggu GO Kevin): REGISTRY 3 → 18 vertikal aktif. +15 template ACC dari _refshots (otomotif, salon,
+konsultan, konveksi, interior, percetakan, tokobangunan, laundry, properti, bimbel, konstruksi-kecil,
+eo-wedding, jasa-b2b, hukum, travel). Beda pola dgn bundle 6 Sep: klaim fiktif di-neutralize IN-FILE
+(baked di bank copy — garansi berangka otomotif/konstruksi-kecil/jasa-b2b, tahun berdiri salon/travel;
+WA CTA otomotif di-wire 15 link wa.me, sebelumnya href="#" mati) karena ada perubahan struktural yang
+tidak bisa render-pair; file sumber bersih tetap di _refshots/auto-web-prospek. Kafe DEFERRED (14 foto
+menu kafe_m_*.jpg hilang dari disk, tidak ada fallback — jangan ship menu grid broken; regen imaginer
+kalau mau hidupkan). QA staging 15/15 PASS (aset termuat via symlink; QA bank copy mentah = broken-img
+false positive karena path aset cuma resolve via rewrite /uploads). eo-wedding dup basename 01.jpg
+(v4 vs v4b) dipisah → tablescape.jpg. Kontraktor gen1-7.jpg dilengkapi di repo copy (sumber: _refshots).
+Deploy step tambahan dgn langkah 1-5 di atas: rsync backend/web_preview_assets/ ke server (asets baru
+15 key, termasuk kontraktor gen1-7) SEBELUM restart — kalau tidak, render template baru broken-img.
+select_template_key = skor keyword (bukan urutan): keyword baru HANYA nambah match di niche kosong,
+dua template kena skor sama → entry lama (klinik/bengkel/kontraktor) menang tie-break.
+
 
 ## PageSpeed Scoring Lead (kolom + auto-check + endpoint + cron) — feat/raka-pagespeed-leads
 
