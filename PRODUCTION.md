@@ -249,19 +249,26 @@ angka filler desain (128 proyek, 98%, 16 tahun, jadwal klinik, tahun portfolio) 
 Test: test_render_neutralizes_fictive_claims. Preview lama (sebelum patch) TIDAK otomatis ke-render
 ulang — reuse slug lama; regenerate force_new bila butuh versi bersih.
 
-Template bank diperluas (8 Sep 2026, commit 23eadd6 feat/raka-template-bank-19 — BELUM deploy,
-tunggu GO Kevin): REGISTRY 3 → 18 vertikal aktif. +15 template ACC dari _refshots (otomotif, salon,
-konsultan, konveksi, interior, percetakan, tokobangunan, laundry, properti, bimbel, konstruksi-kecil,
-eo-wedding, jasa-b2b, hukum, travel). Beda pola dgn bundle 6 Sep: klaim fiktif di-neutralize IN-FILE
+Template bank diperluas (8 Sep 2026, commit 23eadd6 → 5d044e4 — DEPLOYED ke prod 8 Sep,
+GO Kevin "selesain sampai akhir baru deploy"): REGISTRY 3 → 19 vertikal aktif. +15 template ACC
+dari _refshots (otomotif, salon, konsultan, konveksi, interior, percetakan, tokobangunan, laundry,
+properti, bimbel, konstruksi-kecil, eo-wedding, jasa-b2b, hukum, travel). Beda pola dgn bundle 6 Sep: klaim fiktif di-neutralize IN-FILE
 (baked di bank copy — garansi berangka otomotif/konstruksi-kecil/jasa-b2b, tahun berdiri salon/travel;
 WA CTA otomotif di-wire 15 link wa.me, sebelumnya href="#" mati) karena ada perubahan struktural yang
-tidak bisa render-pair; file sumber bersih tetap di _refshots/auto-web-prospek. Kafe DEFERRED (14 foto
-menu kafe_m_*.jpg hilang dari disk, tidak ada fallback — jangan ship menu grid broken; regen imaginer
-kalau mau hidupkan). QA staging 15/15 PASS (aset termuat via symlink; QA bank copy mentah = broken-img
-false positive karena path aset cuma resolve via rewrite /uploads). eo-wedding dup basename 01.jpg
+tidak bisa render-pair; file sumber bersih tetap di _refshots/auto-web-prospek. Kafe masuk juga di
+deploy yang sama (5d044e4): 14 foto menu kafe_m_*.jpg digenerate ulang via imaginer (lama hilang dari
+disk; sample vision 3/3 bersih, tanpa teks), REGISTRY +kafe. QA staging PASS (aset termuat via symlink;
+QA bank copy mentah = broken-img false positive karena path aset cuma resolve via rewrite /uploads).
+eo-wedding dup basename 01.jpg
 (v4 vs v4b) dipisah → tablescape.jpg. Kontraktor gen1-7.jpg dilengkapi di repo copy (sumber: _refshots).
 Deploy step tambahan dgn langkah 1-5 di atas: rsync backend/web_preview_assets/ ke server (asets baru
 15 key, termasuk kontraktor gen1-7) SEBELUM restart — kalau tidak, render template baru broken-img.
+WAJIB (lesson 8 Sep): upload JUGA backend/web_preview_templates/*.html → ~/backend/web_preview_templates/
+(tar+base64 via ssh, tar -C /home/qqwtlphb/backend) — PRODUCTION.md runbook lama cuma nyebut aset;
+tanpa ini _render FileNotFoundError fail-open → preview lead baru blank. Verifikasi deploy:
+md5 service == remote, `grep -c` marker, REGISTRY=19 via venv python, render test in-memory
+(select_template_key + _render dgn Lead dummy: swap brand/aset OK, WA fallback kalau lead tanpa
+nomor = by-design), curl /wp/<slug-lama> 200. Buktinya: openapi 200, ROW slug kontraktor lead 163 OK.
 select_template_key = skor keyword (bukan urutan): keyword baru HANYA nambah match di niche kosong,
 dua template kena skor sama → entry lama (klinik/bengkel/kontraktor) menang tie-break.
 
