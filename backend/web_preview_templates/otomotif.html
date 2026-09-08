@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bengkel Rajawali Motor — Servis Mobil Cepat & Jujur di Balikpapan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16181c; --muted:#5a6472; --line:#e6e9ef;
+    --bg:#ffffff; --soft:#f5f3ee; --soft2:#ece7dd;
+    --accent:#f5a524; --accent-d:#d98a0e; --accent-soft:#fdf1dc;
+    --steel:#16324f;
+    --radius:16px; --r-sm:11px;
+    --sh:0 14px 40px rgba(18,22,30,.09); --sh-sm:0 4px 16px rgba(18,22,30,.07);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:'Manrope',system-ui,sans-serif;color:var(--ink);background:var(--bg);line-height:1.62;-webkit-font-smoothing:antialiased}
+  h1,h2,h3{font-family:'Sora',sans-serif;line-height:1.1;letter-spacing:-.015em}
+  a{color:inherit;text-decoration:none}
+  img{display:block;width:100%;height:100%;object-fit:cover}
+  section{position:relative}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+  .kicker{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-d)}
+  .kicker::before{content:"";width:26px;height:2px;background:var(--accent);border-radius:2px}
+  .sec-head{max-width:640px;margin-bottom:44px}
+  .sec-head h2{font-size:clamp(1.9rem,3.6vw,2.7rem);margin:14px 0 12px;font-weight:800}
+  .sec-head p{color:var(--muted);font-size:1.02rem}
+  .btn{display:inline-flex;align-items:center;gap:9px;font-family:'Manrope';font-weight:700;font-size:.96rem;padding:13px 24px;border-radius:12px;cursor:pointer;border:none;transition:transform .18s ease,box-shadow .18s ease,background .18s ease}
+  .btn svg{width:18px;height:18px}
+  .btn-primary{background:var(--accent);color:var(--steel);box-shadow:0 10px 24px rgba(216,31,40,.26)}
+  .btn-primary:hover{background:var(--accent-d);transform:translateY(-2px)}
+  .btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  .btn-ghost:hover{border-color:#c7ccd6;transform:translateY(-2px)}
+
+  /* NAV */
+  .nav{position:sticky;top:0;z-index:60;background:rgba(255,255,255,.9);backdrop-filter:saturate(150%) blur(10px);border-bottom:1px solid var(--line)}
+  .nav-in{display:flex;align-items:center;justify-content:space-between;height:70px}
+  .brand{display:flex;align-items:center;gap:11px}
+  .brand .mark{width:40px;height:40px;border-radius:11px;background:var(--steel);display:grid;place-items:center;position:relative;overflow:hidden}
+  .brand .mark svg{width:22px;height:22px;stroke:#fff}
+  .brand .mark::after{content:"";position:absolute;left:0;bottom:0;width:100%;height:5px;background:var(--accent)}
+  .brand b{font-family:'Sora';font-weight:800;font-size:1.12rem;display:block;line-height:1.1}
+  .brand small{display:block;font-weight:600;font-size:.68rem;color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
+  .menu{display:flex;gap:30px;align-items:center}
+  .menu a{font-weight:600;font-size:.94rem;color:var(--muted);transition:color .18s}
+  .menu a:hover{color:var(--ink)}
+  .nav-cta{display:flex;align-items:center;gap:16px}
+  .nav-phone{font-weight:700;font-size:.95rem;display:flex;align-items:center;gap:7px}
+  .nav-phone svg{width:16px;height:16px;stroke:var(--accent-d)}
+  /* HERO */
+  .hero{padding:60px 0 74px;background:linear-gradient(180deg,#fff 0%,var(--soft) 100%)}
+  .hero-grid{display:grid;grid-template-columns:1.06fr 1.1fr;gap:54px;align-items:center}
+  .hero h1{font-size:clamp(2.3rem,5vw,3.5rem);font-weight:800;margin:20px 0 18px}
+  .hero h1 em{font-style:normal;color:var(--accent-d)}
+  .hero .lead{font-size:1.1rem;color:var(--muted);max-width:480px;margin-bottom:28px}
+  .hero-cta{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:30px}
+  .hero-trust{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .stars{display:flex;gap:2px}
+  .stars svg{width:17px;height:17px;fill:#f5a623;stroke:none}
+  .hero-trust b{font-weight:800}
+  .hero-trust span{color:var(--muted);font-size:.9rem}
+  .hero-trust .div{width:1px;height:26px;background:var(--line)}
+  /* hero visual: photo + overlapping estimasi card */
+  .hero-visual{position:relative}
+  .hero-photo{border-radius:22px;overflow:hidden;box-shadow:var(--sh);aspect-ratio:4/3;position:relative}
+  .hero-photo::after{content:"";position:absolute;inset:0;background:linear-gradient(120deg,rgba(20,26,36,.28),transparent 55%)}
+  .estimasi{position:absolute;left:-26px;bottom:-30px;width:270px;background:#fff;border-radius:16px;box-shadow:var(--sh);padding:18px 20px;border:1px solid var(--line)}
+  .estimasi .lab{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .estimasi .big{font-family:'Sora';font-weight:800;font-size:1.5rem;margin:3px 0 2px}
+  .estimasi .sub{font-size:.82rem;color:var(--muted)}
+  .estimasi .row{display:flex;align-items:center;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+  .estimasi .row .dot{width:34px;height:34px;border-radius:9px;background:var(--accent-soft);display:grid;place-items:center;flex:none}
+  .estimasi .row .dot svg{width:17px;height:17px;stroke:var(--accent-d)}
+  .estimasi .row div b{display:block;font-size:.86rem}
+  .estimasi .row div span{font-size:.74rem;color:var(--muted)}
+  .hero-badge{position:absolute;top:-14px;right:18px;background:var(--steel);color:#fff;font-weight:700;font-size:.8rem;padding:9px 16px;border-radius:999px;box-shadow:var(--sh-sm);display:flex;align-items:center;gap:7px}
+  .hero-badge svg{width:15px;height:15px;stroke:#fff}
+  /* STRIP */
+  .strip{background:var(--steel);color:#fff;padding:26px 0}
+  .strip-in{display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
+  .strip-i{display:flex;align-items:center;gap:13px}
+  .strip-i .ic{width:44px;height:44px;border-radius:11px;background:rgba(255,255,255,.09);display:grid;place-items:center;flex:none}
+  .strip-i .ic svg{width:21px;height:21px;stroke:#fff}
+  .strip-i b{font-family:'Sora';font-weight:700;font-size:1.02rem;display:block}
+  .strip-i span{font-size:.82rem;color:rgba(255,255,255,.66)}
+  /* SERVICES */
+  .svc{padding:88px 0}
+  .svc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  .svc-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:26px 24px;transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}
+  .svc-card:hover{transform:translateY(-4px);box-shadow:var(--sh);border-color:transparent}
+  .svc-card .ic{width:50px;height:50px;border-radius:13px;background:var(--accent-soft);display:grid;place-items:center;margin-bottom:16px}
+  .svc-card .ic svg{width:24px;height:24px;stroke:var(--accent-d)}
+  .svc-card h3{font-size:1.16rem;font-weight:700;margin-bottom:8px}
+  .svc-card p{color:var(--muted);font-size:.94rem}
+  /* featured photo card spans 2 cols */
+  .svc-feat{grid-column:span 2;border-radius:var(--radius);overflow:hidden;position:relative;min-height:230px;color:#fff}
+  .svc-feat img{position:absolute;inset:0}
+  .svc-feat .ov{position:absolute;inset:0;background:linear-gradient(90deg,rgba(18,22,30,.86),rgba(18,22,30,.15) 82%)}
+  .svc-feat .txt{position:relative;padding:30px;max-width:340px;height:100%;display:flex;flex-direction:column;justify-content:flex-end}
+  .svc-feat h3{color:#fff;font-size:1.4rem;margin-bottom:8px}
+  .svc-feat p{color:rgba(255,255,255,.82);font-size:.95rem}
+  /* FLOW / cara kerja */
+  .flow{padding:88px 0;background:var(--soft)}
+  .flow-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;counter-reset:step}
+  .flow-step{position:relative;padding-top:12px}
+  .flow-step .num{width:52px;height:52px;border-radius:14px;background:#fff;border:1px solid var(--line);display:grid;place-items:center;font-family:'Sora';font-weight:800;font-size:1.3rem;color:var(--accent-d);box-shadow:var(--sh-sm);margin-bottom:18px}
+  .flow-step h3{font-size:1.12rem;font-weight:700;margin-bottom:7px}
+  .flow-step p{color:var(--muted);font-size:.92rem}
+  .flow-step::after{content:"";position:absolute;top:38px;left:64px;right:-14px;height:2px;background:repeating-linear-gradient(90deg,var(--line) 0 8px,transparent 8px 14px)}
+  .flow-step:last-child::after{display:none}
+  /* PROOF / galeri kerja */
+  .proof{padding:88px 0}
+  .proof-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr;grid-template-rows:200px 200px;gap:16px}
+  .pcard{border-radius:14px;overflow:hidden;position:relative;min-height:0}
+  .pcard img{width:100%;height:100%;object-fit:cover}
+  .pcard:first-child{grid-row:span 2}
+  .pcard .cap{position:absolute;left:0;bottom:0;right:0;padding:16px;background:linear-gradient(0deg,rgba(16,20,28,.82),transparent);color:#fff;font-weight:600;font-size:.88rem}
+  .pcard .cap span{display:block;font-size:.72rem;color:rgba(255,255,255,.7);font-weight:500}
+  /* ABOUT */
+  .about{padding:88px 0;background:var(--soft)}
+  .about-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:56px;align-items:center}
+  .about-photo{border-radius:20px;overflow:hidden;box-shadow:var(--sh);aspect-ratio:5/4;position:relative}
+  .about-photo .tag{position:absolute;right:-18px;top:28px;background:#fff;border-radius:14px;box-shadow:var(--sh);padding:16px 20px;text-align:center;border:1px solid var(--line)}
+  .about-photo .tag b{font-family:'Sora';font-weight:800;font-size:2rem;color:var(--accent-d);display:block;line-height:1}
+  .about-photo .tag span{font-size:.76rem;color:var(--muted);font-weight:600}
+  .about h2{font-size:clamp(1.9rem,3.4vw,2.6rem);font-weight:800;margin:14px 0 16px}
+  .about p{color:var(--muted);margin-bottom:14px}
+  .about-list{display:grid;gap:14px;margin-top:22px}
+  .about-list li{display:flex;gap:12px;align-items:flex-start;list-style:none}
+  .about-list .ck{width:26px;height:26px;border-radius:8px;background:var(--accent-soft);display:grid;place-items:center;flex:none;margin-top:2px}
+  .about-list .ck svg{width:15px;height:15px;stroke:var(--accent-d)}
+  .about-list b{font-weight:700;font-size:.98rem}
+  .about-list span{color:var(--muted);font-size:.9rem}
+  /* PAKET */
+  .pkg{padding:88px 0}
+  .pkg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;align-items:stretch}
+  .pcol{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:30px 26px;display:flex;flex-direction:column}
+  .pcol.hot{background:var(--steel);border-color:var(--steel);color:#fff;transform:scale(1.02)}
+  .pcol .tier{font-weight:700;font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-d)}
+  .pcol.hot .tier{color:#ffc861}
+  .pcol .price{font-family:'Sora';font-weight:800;font-size:2rem;margin:8px 0 2px}
+  .pcol .price small{font-family:'Manrope';font-weight:600;font-size:.86rem;color:var(--muted)}
+  .pcol.hot .price small{color:rgba(255,255,255,.6)}
+  .pcol .who{font-size:.9rem;color:var(--muted);margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--line)}
+  .pcol.hot .who{color:rgba(255,255,255,.72);border-color:rgba(255,255,255,.14)}
+  .pcol ul{list-style:none;display:grid;gap:11px;margin-bottom:24px;flex:1}
+  .pcol li{display:flex;gap:10px;font-size:.92rem;align-items:flex-start}
+  .pcol li svg{width:17px;height:17px;stroke:var(--accent-d);flex:none;margin-top:3px}
+  .pcol.hot li svg{stroke:#ffc861}
+  .pcol .hotbadge{display:inline-block;background:var(--accent);color:#fff;font-weight:700;font-size:.72rem;padding:5px 12px;border-radius:999px;margin-bottom:12px;width:fit-content}
+  .pcol .why{font-size:.82rem;color:var(--muted);margin-top:14px}
+  .pcol.hot .why{color:rgba(255,255,255,.7)}
+  .pcol .btn{width:100%;justify-content:center}
+  .pcol .btn-ghost{background:transparent}
+  .pcol.hot .btn-ghost{border-color:rgba(255,255,255,.3);color:#fff}
+  /* TESTIMONI */
+  .testi{padding:88px 0;background:var(--soft)}
+  .testi-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:22px}
+  .tbig{background:var(--steel);color:#fff;border-radius:var(--radius);padding:38px 36px;display:flex;flex-direction:column;justify-content:center}
+  .tbig .qm{font-family:'Sora';font-size:3rem;color:var(--accent);line-height:.6;margin-bottom:8px}
+  .tbig p{font-size:1.24rem;font-weight:600;line-height:1.5;margin-bottom:22px}
+  .tside{display:grid;gap:22px}
+  .tcard{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:24px}
+  .tcard p{font-size:.95rem;color:var(--ink);margin-bottom:16px}
+  .tperson{display:flex;align-items:center;gap:12px}
+  .tperson .av{width:42px;height:42px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:800;font-family:'Sora';flex:none}
+  .tbig .tperson .av{background:var(--accent)}
+  .tperson b{font-weight:700;font-size:.92rem;display:block}
+  .tperson span{font-size:.8rem;color:var(--muted)}
+  .tbig .tperson span{color:rgba(255,255,255,.6)}
+  .tbig .tperson b{color:#fff}
+  /* CTA */
+  .cta{padding:80px 0}
+  .cta-box{background:var(--steel);border-radius:24px;padding:56px 48px;color:#fff;display:grid;grid-template-columns:1.3fr 1fr;gap:40px;align-items:center;position:relative;overflow:hidden}
+  .cta-box::after{content:"";position:absolute;right:-60px;top:-60px;width:260px;height:260px;border-radius:50%;background:rgba(255,255,255,.08)}
+  .cta-box h2{font-size:clamp(1.8rem,3.4vw,2.5rem);font-weight:800;margin-bottom:12px}
+  .cta-box p{color:rgba(255,255,255,.86);font-size:1.02rem}
+  .cta-actions{display:flex;flex-direction:column;gap:12px;position:relative;z-index:2}
+  .cta-actions .btn-white{background:var(--accent);color:var(--steel);justify-content:center}
+  .cta-actions .btn-white:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(0,0,0,.18)}
+  .cta-actions .btn-line{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.32);justify-content:center}
+  .cta-actions .btn-line:hover{background:rgba(255,255,255,.2);transform:translateY(-2px)}
+  /* FOOTER */
+  .footer{background:var(--steel);color:rgba(255,255,255,.72);padding:56px 0 28px}
+  .foot-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1.2fr;gap:36px;margin-bottom:36px}
+  .footer .brand b{color:#fff}
+  .footer .brand small{color:rgba(255,255,255,.5)}
+  .foot-about{margin-top:16px;font-size:.9rem;max-width:280px}
+  .foot-col h4{color:#fff;font-family:'Sora';font-size:.98rem;margin-bottom:16px}
+  .foot-col a{display:block;font-size:.9rem;margin-bottom:10px;color:rgba(255,255,255,.72);transition:color .18s}
+  .foot-col a:hover{color:#fff}
+  .foot-contact div{display:flex;gap:10px;margin-bottom:12px;font-size:.9rem;align-items:flex-start}
+  .foot-contact svg{width:17px;height:17px;stroke:var(--accent);flex:none;margin-top:2px}
+  .foot-bottom{border-top:1px solid rgba(255,255,255,.1);padding-top:22px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;font-size:.84rem}
+  /* WA float */
+  .wa{position:fixed;right:22px;bottom:22px;z-index:80;width:56px;height:56px;border-radius:50%;background:#25d366;display:grid;place-items:center;box-shadow:0 8px 24px rgba(37,211,102,.4);transition:transform .18s}
+  .wa:hover{transform:scale(1.08)}
+  .wa svg{width:28px;height:28px;fill:#fff}
+  /* RESPONSIVE */
+  @media(max-width:900px){
+    .menu,.nav-phone{display:none}
+    .hero-grid{grid-template-columns:1fr;gap:60px}
+    .estimasi{left:0;bottom:-24px;width:230px}
+    .strip-in{grid-template-columns:1fr 1fr;gap:20px}
+    .svc-grid{grid-template-columns:1fr}
+    .svc-feat{grid-column:auto}
+    .flow-grid{grid-template-columns:1fr 1fr}
+    .flow-step::after{display:none}
+    .proof-grid{grid-template-columns:1fr 1fr;grid-template-rows:auto}
+    .pcard{aspect-ratio:4/3}
+    .pcard:first-child{grid-row:auto;grid-column:span 2}
+    .about-grid{grid-template-columns:1fr;gap:40px}
+    .about-photo .tag{right:12px}
+    .pkg-grid{grid-template-columns:1fr}
+    .pcol.hot{transform:none}
+    .testi-grid{grid-template-columns:1fr}
+    .cta-box{grid-template-columns:1fr;padding:40px 28px}
+    .foot-grid{grid-template-columns:1fr 1fr}
+  }
+  @media(prefers-reduced-motion:reduce){
+    *{transition:none!important;scroll-behavior:auto!important}
+    [data-reveal]{opacity:1!important;transform:none!important}
+  }
+  /* MOTION: scroll reveal */
+  [data-reveal]{opacity:0;transform:translateY(26px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+  [data-reveal].in{opacity:1;transform:none}
+  /* proof gallery interaktif: zoom + caption slide */
+  .pcard{cursor:pointer}
+  .pcard img{transition:transform .7s cubic-bezier(.16,1,.3,1)}
+  .pcard:hover img{transform:scale(1.08)}
+  .pcard .cap{transform:translateY(8px);opacity:.92;transition:transform .4s ease,opacity .4s ease}
+  .pcard:hover .cap{transform:translateY(0);opacity:1}
+  .pcard::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 0 var(--accent);transition:box-shadow .3s ease;pointer-events:none;border-radius:14px}
+  .pcard:hover::after{box-shadow:inset 0 0 0 3px var(--accent)}
+  /* flow line grow on reveal */
+  .flow-step::after{transform:scaleX(0);transform-origin:left;transition:transform .7s ease .2s}
+  .flow-step.in::after{transform:scaleX(1)}
+  .flow-step .num{transition:transform .3s ease,box-shadow .3s ease,background .3s ease}
+  .flow-step:hover .num{transform:translateY(-4px);background:var(--steel);color:#fff}
+  /* svc-feat parallax-ish zoom */
+  .svc-feat img{transition:transform 1s cubic-bezier(.16,1,.3,1)}
+  .svc-feat:hover img{transform:scale(1.06)}
+  /* count-up target */
+  .stat-num{font-variant-numeric:tabular-nums}
+
+/* ===== INTERACTIVE ===== */
+.car{position:relative;margin-top:8px}
+.car-view{overflow:hidden;border-radius:16px;cursor:grab}
+.car-view.drag{cursor:grabbing}
+.car-track{display:flex;gap:16px;transition:transform .5s cubic-bezier(.16,1,.3,1);will-change:transform}
+.car-track.nodrag{transition:none}
+.car-slide{flex:0 0 clamp(240px,33%,340px);position:relative;border-radius:14px;overflow:hidden;aspect-ratio:4/3}
+.car-slide img{transition:transform .8s cubic-bezier(.16,1,.3,1)}
+.car-slide:hover img{transform:scale(1.07)}
+.car-slide .cap{position:absolute;left:0;right:0;bottom:0;padding:16px;background:linear-gradient(0deg,rgba(16,20,28,.82),transparent);color:#fff;font-weight:600;font-size:.9rem}
+.car-slide .cap span{display:block;font-size:.74rem;opacity:.8;font-weight:500}
+.car-nav{display:flex;gap:12px;justify-content:flex-end;margin-top:20px}
+.car-btn{width:50px;height:50px;border-radius:12px;border:1px solid var(--line);background:#fff;display:grid;place-items:center;cursor:pointer;transition:all .25s ease}
+.car-btn:hover{background:var(--steel);border-color:var(--steel)}
+.car-btn svg{width:20px;height:20px;stroke:var(--ink);transition:stroke .25s}
+.car-btn:hover svg{stroke:#fff}
+.car-btn:disabled{opacity:.34;cursor:not-allowed}
+.car-btn:disabled:hover{background:#fff;border-color:var(--line)}.car-btn:disabled:hover svg{stroke:var(--ink)}
+.ba-wrap{display:grid;grid-template-columns:1fr 1fr;gap:50px;align-items:center;margin-top:8px}
+.ba{position:relative;aspect-ratio:4/3;border-radius:16px;overflow:hidden;box-shadow:var(--sh);user-select:none;touch-action:none}
+.ba img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
+.ba .after{clip-path:inset(0 0 0 50%)}
+.ba .lbl{position:absolute;top:14px;padding:6px 14px;border-radius:999px;font-weight:700;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:rgba(16,20,28,.62);backdrop-filter:blur(4px)}
+.ba .lbl.b{left:14px}.ba .lbl.a{right:14px}
+.ba-handle{position:absolute;top:0;bottom:0;left:50%;width:3px;background:var(--accent);transform:translateX(-1.5px);pointer-events:none}
+.ba-grip{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:46px;height:46px;border-radius:50%;background:var(--accent);box-shadow:var(--sh-sm);display:grid;place-items:center;cursor:ew-resize;pointer-events:none}
+.ba-grip svg{width:22px;height:22px;stroke:var(--steel)}
+.ba-copy h2{font-size:clamp(1.9rem,3.6vw,2.7rem);font-weight:800;margin:12px 0 12px}
+.ba-copy p{color:var(--muted)}
+.mq{overflow:hidden;padding:22px 0;background:var(--steel);--sp:34s}
+.mq-row{display:flex;gap:50px;width:max-content;animation:mqscroll var(--sp) linear infinite}
+.mq:hover .mq-row{animation-play-state:paused}
+.mq-item{font-family:'Sora',sans-serif;font-weight:700;font-size:1.5rem;color:#fff;white-space:nowrap;display:flex;align-items:center;gap:50px;letter-spacing:-.01em}
+.mq-item::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}
+@keyframes mqscroll{to{transform:translateX(-50%)}}
+@media(prefers-reduced-motion:reduce){.mq-row{animation:none}}
+@media(max-width:768px){.ba-wrap{grid-template-columns:1fr;gap:28px}.car-slide{flex:0 0 80%}}
+
+/* ===== SERVICE ACCORDION (customer journey per service) ===== */
+.acc{display:grid;gap:14px;margin-top:8px}
+.acc-item{border:1px solid var(--line);border-radius:16px;background:#fff;overflow:hidden;transition:border-color .3s ease,box-shadow .3s ease}
+.acc-item.open{border-color:transparent;box-shadow:var(--sh)}
+.acc-head{display:flex;align-items:center;gap:18px;padding:22px 24px;cursor:pointer;user-select:none}
+.acc-head .ic{width:48px;height:48px;border-radius:12px;background:var(--accent-soft);display:grid;place-items:center;flex:none;transition:background .3s}
+.acc-item.open .acc-head .ic{background:var(--steel)}
+.acc-head .ic svg{width:24px;height:24px;stroke:var(--accent-d);transition:stroke .3s}
+.acc-item.open .acc-head .ic svg{stroke:#fff}
+.acc-head .htxt{flex:1;min-width:0}
+.acc-head h3{font-size:1.2rem;font-weight:700;margin:0}
+.acc-head .sub{font-size:.88rem;color:var(--muted);margin-top:2px}
+.acc-head .from{font-family:'Sora';font-weight:700;font-size:.95rem;color:var(--steel);white-space:nowrap;text-align:right}
+.acc-head .from span{display:block;font-family:'Manrope';font-weight:500;font-size:.72rem;color:var(--muted)}
+.acc-head .chev{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;flex:none;transition:transform .35s ease,background .3s}
+.acc-head .chev svg{width:16px;height:16px;stroke:var(--ink);transition:stroke .3s}
+.acc-item.open .chev{transform:rotate(180deg);background:var(--accent)}
+.acc-item.open .chev svg{stroke:var(--steel)}
+.acc-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .4s cubic-bezier(.16,1,.3,1)}
+.acc-item.open .acc-body{grid-template-rows:1fr}
+.acc-inner{overflow:hidden}
+.acc-panel{display:grid;grid-template-columns:1fr 1fr;gap:26px;padding:4px 24px 26px;align-items:start}
+.acc-photo{border-radius:14px;overflow:hidden;aspect-ratio:4/3;position:relative}
+.acc-photo img{width:100%;height:100%;object-fit:cover}
+.acc-photo .pb{position:absolute;left:12px;bottom:12px;background:rgba(16,20,28,.72);backdrop-filter:blur(4px);color:#fff;font-size:.74rem;font-weight:600;padding:5px 12px;border-radius:999px}
+.acc-detail p.lead{font-size:.96rem;color:var(--ink);margin-bottom:16px}
+.acc-deliver{display:grid;gap:10px;margin-bottom:18px}
+.acc-deliver li{display:flex;gap:10px;list-style:none;font-size:.9rem;align-items:flex-start}
+.acc-deliver li svg{width:17px;height:17px;stroke:var(--accent-d);flex:none;margin-top:3px}
+.acc-deliver b{font-weight:700}
+.acc-cta{display:flex;gap:12px;flex-wrap:wrap}
+.acc-cta .btn{padding:11px 20px;font-size:.9rem}
+@media(max-width:768px){.acc-panel{grid-template-columns:1fr}.acc-head .sub{display:none}}
+
+.acc-head .thumb{width:60px;height:52px;border-radius:10px;overflow:hidden;flex:none;box-shadow:var(--sh-sm);position:relative;border:2px solid #fff;outline:1px solid var(--line)}
+.acc-head .thumb img{width:100%;height:100%;object-fit:cover}
+.acc-head .thumb::after{content:"";position:absolute;inset:0;border-radius:9px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
+.acc-item.open .acc-head .thumb{display:none}
+.acc-head .hint{font-size:.72rem;color:var(--accent-d);font-weight:600;margin-top:3px;display:flex;align-items:center;gap:5px}
+.acc-item.open .acc-head .hint{display:none}
+.acc-head .hint svg{width:12px;height:12px;stroke:var(--accent-d)}
+@media(max-width:768px){.acc-head .thumb{display:none}}
+
+.acc-head .ic{display:none}
+.acc-item.open .acc-head .ic{display:grid}
+.acc-item.open .acc-head .thumb{display:none}
+.acc-head .thumb{width:64px;height:56px;border-radius:11px}
+
+/* deliverable badge on head (key selling point visible when closed) */
+.acc-head .kbadge{display:inline-flex;align-items:center;gap:5px;font-family:'Manrope';font-weight:700;font-size:.7rem;letter-spacing:.02em;color:var(--accent-d);background:var(--accent-soft);padding:4px 10px;border-radius:999px;margin-top:6px;white-space:nowrap;width:fit-content}
+.acc-head .kbadge svg{width:12px;height:12px;stroke:var(--accent-d)}
+.acc-item.open .acc-head .kbadge{display:none}
+/* trust strip above accordion */
+.svc-trust{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:26px}
+.svc-trust .tb{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:10px 18px;font-family:'Manrope';font-weight:600;font-size:.86rem}
+.svc-trust .tb svg{width:17px;height:17px;stroke:var(--accent-d);flex:none}
+@media(max-width:768px){.svc-trust .tb{font-size:.8rem;padding:8px 14px}}
+/* LOKASI */
+.lokasi{padding:76px 0;background:var(--soft)}
+.lok-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:32px;align-items:stretch}
+.lok-map{border-radius:var(--radius);overflow:hidden;box-shadow:var(--sh);min-height:340px;border:1px solid var(--line);position:relative}
+.lok-map img{width:100%;height:100%;min-height:340px;object-fit:cover;display:block}
+.map-pin{position:absolute;top:50%;left:50%;transform:translate(-50%,-100%);width:46px;height:46px;border-radius:50% 50% 50% 0;background:var(--accent);rotate:45deg;display:grid;place-items:center;box-shadow:0 8px 20px rgba(217,138,14,.5)}
+.map-pin svg{width:22px;height:22px;stroke:#fff;rotate:-45deg}
+.lok-info{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--sh-sm);padding:30px;display:flex;flex-direction:column;gap:20px;justify-content:center}
+.lok-item{display:flex;gap:14px;align-items:flex-start}
+.lok-ic{width:44px;height:44px;border-radius:12px;background:var(--accent-soft);display:grid;place-items:center;flex:none}
+.lok-ic svg{width:21px;height:21px;stroke:var(--accent-d)}
+.lok-item b{display:block;font-size:.98rem;font-weight:700;margin-bottom:2px}
+.lok-item span{color:var(--muted);font-size:.92rem}
+.lok-cta{margin-top:6px;align-self:flex-start}
+@media(max-width:840px){.lok-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="nav"><div class="wrap nav-in">
+  <a class="brand" href="#">
+    <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13v5a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><circle cx="7" cy="16" r="1"/><circle cx="17" cy="16" r="1"/></svg></span>
+    <span><b>Rajawali Motor</b><small>Bengkel Mobil Balikpapan</small></span>
+  </a>
+  <nav class="menu">
+    <a href="#layanan">Layanan</a>
+    <a href="#cara-kerja">Cara Kerja</a>
+    <a href="#galeri">Hasil Kerja</a>
+    <a href="#paket">Paket Servis</a>
+    <a href="#tentang">Tentang</a>
+  </nav>
+  <div class="nav-cta">
+    <span class="nav-phone"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8.1 9.6a16 16 0 0 0 6 6l1.2-1.1a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/></svg>0812 2200 8899</span>
+    <a class="btn btn-primary" href="#paket"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Booking Servis</a>
+  </div>
+</div></header>
+<section class="hero"><div class="wrap hero-grid">
+  <div class="hero-copy">
+    <span class="kicker">Servis mobil sejak 2009</span>
+    <h1>Servis mobil <em>cepat, jujur,</em> dan bergaransi.</h1>
+    <p class="lead">Bengkel keluarga di Balikpapan yang ngerjain mobil kamu apa adanya. Estimasi biaya di depan, tidak ada tagihan kejutan, selesai tepat waktu.</p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="#paket">Booking Servis Sekarang</a>
+      <a class="btn btn-ghost" href="#layanan">Lihat Layanan</a>
+    </div>
+    <div class="hero-trust">
+      <span class="stars"><svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/></svg></span>
+      <span><b class="stat-num" data-count="4.9" data-dec="1">4.9</b> dari 320+ ulasan Google</span>
+      <span class="div"></span>
+      <span><b class="stat-num" data-count="12000" data-suffix="+">12.000+</b> mobil ditangani</span>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <div class="hero-badge"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>Garansi servis 30 hari</div>
+    <div class="hero-photo"><img src="gen/oto_o1_hero.jpg" alt="Teknisi bengkel Rajawali Motor sedang servis mobil"></div>
+    <div class="estimasi">
+      <div class="lab">Estimasi servis rutin</div>
+      <div class="big">Rp 350rb–650rb</div>
+      <div class="sub">Termasuk oli, filter, dan cek 20 titik</div>
+      <div class="row"><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><b>Rata-rata 2–3 jam</b><span>Bisa ditunggu di lounge</span></div></div>
+    </div>
+  </div>
+</div></section>
+<section class="strip"><div class="wrap strip-in">
+  <div class="strip-i"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></span><div><b>Transparan</b><span>Estimasi sebelum dikerjakan</span></div></div>
+  <div class="strip-i"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l7 4v6c0 5-3 8-7 10-4-2-7-5-7-10V6z"/></svg></span><div><b>Sparepart Ori</b><span>Bergaransi resmi</span></div></div>
+  <div class="strip-i"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><b>Tepat Waktu</b><span>Selesai sesuai janji</span></div></div>
+  <div class="strip-i"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg></span><div><b>Mekanik Ahli</b><span>Pengalaman 10+ tahun</span></div></div>
+</div></section>
+<section class="svc" id="layanan"><div class="wrap">
+  <div class="sec-head">
+    <span class="kicker">Layanan Kami</span>
+    <h2>Semua kebutuhan mobil, satu bengkel.</h2>
+    <p>Dari servis rutin sampai perbaikan berat. Ditangani mekanik berpengalaman dengan alat lengkap dan diagnosa komputer.</p>
+  </div>
+  <div class="svc-trust">
+    <span class="tb"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l7 4v6c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg> Semua servis bergaransi</span>
+    <span class="tb"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v9h14v-9M12 8C12 5 10 3 8 3s-3 3 4 5zM12 8c0-3 2-5 4-5s3 3-4 5z"/></svg> Diagnosa &amp; cek gratis</span>
+    <span class="tb"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4L13.4 20.6a2 2 0 0 1-2.8 0l-8-8V3h9.6l8.4 8.4a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.2"/></svg> Estimasi jelas di depan</span>
+  </div>
+  <div class="acc">
+    <div class="acc-item open" data-reveal>
+      <div class="acc-head" onclick="this.parentNode.classList.toggle('open')">
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-6.6 6.6a2 2 0 1 0 2.8 2.8l6.6-6.6a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.1-2.1z"/></svg></span><span class="thumb"><img src="gen/oto_o1_hero.jpg" alt=""></span>
+        <span class="htxt"><h3>Overhaul & Mesin</h3><div class="sub">Turun mesin, timing belt, perbaikan berat</div><div class="hint"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg> Lihat foto hasil &amp; garansi</div><span class="kbadge"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.5 2.3 7.1-6.3-4.6L5.7 21l2.3-7.1-6-4.5h7.6z"/></svg> Garansi 30 hari</span></span><span class="from">Rp 1,5jt<span>mulai</span></span>
+        <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+      </div>
+      <div class="acc-body"><div class="acc-inner"><div class="acc-panel">
+        <div class="acc-photo"><img src="gen/oto_o1_hero.jpg" alt="Hasil Overhaul & Mesin"><span class="pb">Avanza 2018 · overhaul selesai 3 hari</span></div>
+        <div class="acc-detail"><p class="lead">Mesin ngelitik, ngebul, atau tenaga hilang? Kami bongkar, ukur, dan perbaiki sampai akar masalahnya — bukan tambal sementara.</p><ul class="acc-deliver"><li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><div><b>Garansi pengerjaan</b> jasa &amp; sparepart terpasang</div></li><li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><div><b>Durasi 2–4 hari</b> tergantung tingkat kerusakan</div></li><li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><div><b>Laporan kondisi</b> foto sebelum-sesudah + part yang diganti</div></li></ul><div class="acc-cta"><a class="btn btn-primary" href="https://wa.me/6281222008899">Booking Service Ini</a><a class="btn btn-ghost" href="https://wa.me/6281222008899">Tanya Dulu</a></div></div>
+      </div></div></div>
+    </div>
+    <div class="acc-item" data-reveal>
+      <div class="acc-head" onclick="this.parentNode.classList.toggle('open')">
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-6.6 6.6a2 2 0 1 0 2.8 2.8l6.6-6.6a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.1-2.1z"/></svg></span><span class="thumb"><img src="gen/oto_o2_oli.jpg" alt=""></span>
+        <span class="htxt"><h3>Servis Berkala</h3><div class="sub">Ganti oli, filter, tune up, cek 20 titik</div><div class="hint"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg> Lihat foto hasil &amp; garansi</div><span class="kbadge"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.5 2.3 7.1-6.3-4.6L5.7 21l2.3-7.1-6-4.5h7.6z"/></svg> Cek 20 titik</span></span><span class="from">Rp 350rb<span>mulai</span></span>
+        <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+      </div>
+      <div class="acc-body"><div class="acc-inner"><div class="acc-panel">
+        <div class="acc-photo"><img src="gen/oto_o2_oli.jpg" alt="Hasil Servis Berkala"><span class="pb">Innova · servis rutin + cek 20 titik</span></div>
+        <div class="acc-detail"><p class="lead">Perawatan rutin biar mobil awet & irit. Kami cek menyeluruh, bukan cuma ganti oli lalu selesai.</p><ul class="acc-deliver"><li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><div><b>Selesai 2–3 jam</b> bisa ditunggu di lounge</div></li><li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><div><b>Checklist 20 titik</b> kamu dapat rincian kondisi</div></li><li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><div><b>Reminder servis</b> kami ingatkan jadwal berikutnya</div></li></ul><div class="acc-cta"><a class="btn btn-primary" href="https://wa.me/6281222008899">Booking Service Ini</a><a class="btn btn-ghost" href="https://wa.me/6281222008899">Tanya Dulu</a></div></div>
+      </div></div></div>
+    </div>
+    <div class="acc-item" data-reveal>
+      <div class="acc-head" onclick="this.parentNode.classList.toggle('open')">
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-6.6 6.6a2 2 0 1 0 2.8 2.8l6.6-6.6a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.1-2.1z"/></svg></span><span class="thumb"><img src="gen/oto_o3_rem.jpg" alt=""></span>
+        <span class="htxt"><h3>Kaki-kaki & Rem</h3><div class="sub">Kampas, shockbreaker, bearing, spooring</div><div class="hint"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg> Lihat foto hasil &amp; garansi</div><span class="kbadge"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.5 2.3 7.1-6.3-4.6L5.7 21l2.3-7.1-6-4.5h7.6z"/></svg> Garansi pengerjaan + tes jalan</span></span><span class="from">Rp 250rb<span>mulai</span></span>
+        <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+      </div>
+      <div class="acc-body"><div class="acc-inner"><div class="acc-panel">
+        <div class="acc-photo"><img src="gen/oto_o3_rem.jpg" alt="Hasil Kaki-kaki & Rem"><span class="pb">Brio · ganti kampas &amp; disc, rem pakem lagi</span></div>
+        <div class="acc-detail"><p class="lead">Rem bunyi, setir bergetar, atau limbung? Kami perbaiki demi keselamatan — tes jalan sebelum diserahkan.</p><ul class="acc-deliver"><li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><div><b>Garansi pengerjaan</b> untuk jasa pemasangan</div></li><li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><div><b>Tes jalan</b> dicek langsung sebelum serah terima</div></li><li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><div><b>Spooring gratis</b> untuk paket ganti kaki-kaki</div></li></ul><div class="acc-cta"><a class="btn btn-primary" href="https://wa.me/6281222008899">Booking Service Ini</a><a class="btn btn-ghost" href="https://wa.me/6281222008899">Tanya Dulu</a></div></div>
+      </div></div></div>
+    </div>
+    <div class="acc-item" data-reveal>
+      <div class="acc-head" onclick="this.parentNode.classList.toggle('open')">
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-6.6 6.6a2 2 0 1 0 2.8 2.8l6.6-6.6a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.1-2.1z"/></svg></span><span class="thumb"><img src="gen/oto_o5_diag.jpg" alt=""></span>
+        <span class="htxt"><h3>Kelistrikan & AC</h3><div class="sub">Servis AC, aki, dinamo, kelistrikan bodi</div><div class="hint"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg> Lihat foto hasil &amp; garansi</div><span class="kbadge"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.5 2.3 7.1-6.3-4.6L5.7 21l2.3-7.1-6-4.5h7.6z"/></svg> Diagnosa GRATIS</span></span><span class="from">Rp 150rb<span>mulai</span></span>
+        <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+      </div>
+      <div class="acc-body"><div class="acc-inner"><div class="acc-panel">
+        <div class="acc-photo"><img src="gen/oto_o5_diag.jpg" alt="Hasil Kelistrikan & AC"><span class="pb">Xenia · servis AC, dingin dalam 2 jam</span></div>
+        <div class="acc-detail"><p class="lead">AC gak dingin atau kelistrikan bermasalah? Kami lacak sumbernya dengan alat, bukan tebak-tebakan.</p><ul class="acc-deliver"><li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><div><b>Diagnosa gratis</b> cek dulu sebelum kamu setuju biaya</div></li><li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><div><b>Selesai 1–3 jam</b> untuk servis AC standar</div></li><li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><div><b>Garansi freon</b> tidak bocor dalam 7 hari, kami cek ulang</div></li></ul><div class="acc-cta"><a class="btn btn-primary" href="https://wa.me/6281222008899">Booking Service Ini</a><a class="btn btn-ghost" href="https://wa.me/6281222008899">Tanya Dulu</a></div></div>
+      </div></div></div>
+    </div>
+    <div class="acc-item" data-reveal>
+      <div class="acc-head" onclick="this.parentNode.classList.toggle('open')">
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-6.6 6.6a2 2 0 1 0 2.8 2.8l6.6-6.6a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.1-2.1z"/></svg></span><span class="thumb"><img src="gen/oto_o5_diag.jpg" alt=""></span>
+        <span class="htxt"><h3>Diagnosa Komputer</h3><div class="sub">Scan ECU, cek sensor, cari sumber masalah</div><div class="hint"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg> Lihat foto hasil &amp; garansi</div><span class="kbadge"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.5 2.3 7.1-6.3-4.6L5.7 21l2.3-7.1-6-4.5h7.6z"/></svg> Hasil dijelaskan</span></span><span class="from">Rp 100rb<span>mulai</span></span>
+        <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+      </div>
+      <div class="acc-body"><div class="acc-inner"><div class="acc-panel">
+        <div class="acc-photo"><img src="gen/oto_o5_diag.jpg" alt="Hasil Diagnosa Komputer"><span class="pb">HR-V · scan ECU, sumber check-engine ketemu</span></div>
+        <div class="acc-detail"><p class="lead">Lampu check engine nyala? Kami scan ECU dan jelaskan hasilnya dengan bahasa yang kamu ngerti.</p><ul class="acc-deliver"><li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><div><b>Hasil scan dijelaskan</b> bukan cuma kode, tapi artinya</div></li><li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><div><b>Rekomendasi jujur</b> kami sarankan yang perlu saja</div></li><li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><div><b>15–30 menit</b> langsung tahu masalahnya</div></li></ul><div class="acc-cta"><a class="btn btn-primary" href="https://wa.me/6281222008899">Booking Service Ini</a><a class="btn btn-ghost" href="https://wa.me/6281222008899">Tanya Dulu</a></div></div>
+      </div></div></div>
+    </div>
+    <div class="acc-item" data-reveal>
+      <div class="acc-head" onclick="this.parentNode.classList.toggle('open')">
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-6.6 6.6a2 2 0 1 0 2.8 2.8l6.6-6.6a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.1-2.1z"/></svg></span><span class="thumb"><img src="gen/oto_o4_mobil.jpg" alt=""></span>
+        <span class="htxt"><h3>Cat & Body Repair</h3><div class="sub">Perbaikan lecet, penyok, cat ulang panel</div><div class="hint"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg> Lihat foto hasil &amp; garansi</div><span class="kbadge"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.5 2.3 7.1-6.3-4.6L5.7 21l2.3-7.1-6-4.5h7.6z"/></svg> Warna dijamin sama</span></span><span class="from">Rp 400rb<span>mulai</span></span>
+        <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+      </div>
+      <div class="acc-body"><div class="acc-inner"><div class="acc-panel">
+        <div class="acc-photo"><img src="gen/oto_o4_mobil.jpg" alt="Hasil Cat & Body Repair"><span class="pb">Jazz · cat ulang bumper, warna presisi</span></div>
+        <div class="acc-detail"><p class="lead">Lecet, penyok, atau warna kusam? Kami perbaiki sampai mulus — cat dioven biar tahan lama & warna presisi.</p><ul class="acc-deliver"><li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><div><b>Warna dijamin sama</b> dicocokkan dengan kode cat mobilmu</div></li><li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><div><b>Cat oven</b> lebih awet & rata dari cat jemur</div></li><li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><div><b>Estimasi foto dulu</b> kami kirim rincian sebelum dikerjakan</div></li></ul><div class="acc-cta"><a class="btn btn-primary" href="https://wa.me/6281222008899">Booking Service Ini</a><a class="btn btn-ghost" href="https://wa.me/6281222008899">Tanya Dulu</a></div></div>
+      </div></div></div>
+    </div>
+  </div>
+</div></section>
+<section class="flow" id="cara-kerja"><div class="wrap">
+  <div class="sec-head">
+    <span class="kicker">Cara Kerja</span>
+    <h2>Servis tanpa ribet, dari datang sampai jadi.</h2>
+    <p>Kami buka semua di depan. Kamu tahu apa yang dikerjakan dan berapa biayanya sebelum mekanik mulai.</p>
+  </div>
+  <div class="flow-grid">
+    <div class="flow-step" data-reveal><div class="num">1</div><h3>Booking</h3><p>Chat WhatsApp atau datang langsung. Pilih jadwal yang pas buat kamu.</p></div>
+    <div class="flow-step" data-reveal><div class="num">2</div><h3>Diagnosa</h3><p>Mekanik cek kondisi mobil dan pakai scanner untuk cari masalahnya.</p></div>
+    <div class="flow-step" data-reveal><div class="num">3</div><h3>Estimasi Disetujui</h3><p>Kami kasih rincian biaya. Dikerjakan hanya setelah kamu setuju.</p></div>
+    <div class="flow-step" data-reveal><div class="num">4</div><h3>Selesai & Garansi</h3><p>Mobil dikerjakan, dites, lalu diserahkan lengkap dengan garansi servis.</p></div>
+  </div>
+</div></section>
+<section class="proof" id="galeri"><div class="wrap">
+  <div class="sec-head">
+    <span class="kicker">Hasil Kerja</span>
+    <h2>Bukti nyata, bukan sekadar janji.</h2>
+    <p>Ribuan mobil sudah kami tangani. Ini sebagian foto pengerjaan di bengkel kami.</p>
+  </div>
+  <div class="car" data-reveal>
+    <div class="car-view" id="galView"><div class="car-track" id="galTrack">
+      <div class="car-slide"><img src="gen/oto_o1_hero.jpg" alt="Overhaul mesin diesel"><div class="cap">Overhaul mesin diesel<span>Estimasi 2 hari, garansi pengerjaan</span></div></div>
+      <div class="car-slide"><img src="gen/oto_o3_rem.jpg" alt="Servis rem"><div class="cap">Servis rem<span>Ganti kampas & disc</span></div></div>
+      <div class="car-slide"><img src="gen/oto_o4_mobil.jpg" alt="Cat ulang panel"><div class="cap">Cat ulang panel<span>Hasil mulus seperti baru</span></div></div>
+      <div class="car-slide"><img src="gen/oto_o5_diag.jpg" alt="Servis AC"><div class="cap">Servis AC<span>Dingin maksimal</span></div></div>
+      <div class="car-slide"><img src="gen/oto_o5_diag.jpg" alt="Scan ECU"><div class="cap">Scan ECU<span>Diagnosa akurat</span></div></div>
+      <div class="car-slide"><img src="gen/oto_o2_oli.jpg" alt="Tune up mesin"><div class="cap">Tune up mesin<span>Tarikan enteng lagi</span></div></div>
+    </div></div>
+    <div class="car-nav">
+      <button class="car-btn" id="galPrev" aria-label="Sebelumnya"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <button class="car-btn" id="galNext" aria-label="Berikutnya"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
+    </div>
+  </div>
+</div></section>
+<section class="proof" style="padding-top:24px"><div class="wrap">
+  <div class="ba-wrap">
+    <div class="ba-copy" data-reveal>
+      <span class="kicker">Sebelum &amp; Sesudah</span>
+      <h2>Geser, lihat <span class="amber" style="color:var(--accent-d)">hasilnya.</span></h2>
+      <p>Tarik garis di tengah untuk membandingkan kondisi mobil sebelum dan sesudah kami tangani. Bukti nyata, bukan editan.</p>
+    </div>
+    <div class="ba" id="ba1" data-reveal>
+      <img class="before" src="gen/oto_o4_mobil.jpg" alt="Sebelum diperbaiki">
+      <img class="after" src="gen/oto_o1_hero.jpg" alt="Sesudah diperbaiki">
+      <span class="lbl b">Sebelum</span><span class="lbl a">Sesudah</span>
+      <div class="ba-handle"></div><div class="ba-grip"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg></div>
+    </div>
+  </div>
+</div></section>
+
+<div class="mq" aria-hidden="true"><div class="mq-row" id="mqRow">
+  <div class="mq-item">Overhaul Mesin</div><div class="mq-item">Servis Berkala</div><div class="mq-item">Kaki-kaki &amp; Rem</div><div class="mq-item">Kelistrikan &amp; AC</div><div class="mq-item">Diagnosa Komputer</div><div class="mq-item">Cat &amp; Body</div>
+</div></div>
+
+<section class="about" id="tentang"><div class="wrap about-grid">
+  <div class="about-photo" data-reveal><img src="gen/oto_o4_mobil.jpg" alt="Suasana bengkel Rajawali Motor"><div class="tag"><b class="stat-num" data-count="16">16</b><span>Tahun melayani</span></div></div>
+  <div class="about-copy" data-reveal>
+    <span class="kicker">Tentang Kami</span>
+    <h2>Bengkel keluarga yang mengutamakan kejujuran.</h2>
+    <p>Rajawali Motor berdiri tahun 2009 di Balikpapan, berawal dari garasi kecil milik keluarga. Kami percaya bengkel yang baik bukan yang paling murah, tapi yang paling jujur soal kondisi mobil dan biayanya.</p>
+    <p>Hari ini kami punya tim mekanik bersertifikat, alat diagnosa modern, dan ribuan pelanggan yang balik lagi karena percaya.</p>
+    <ul class="about-list">
+      <li><span class="ck"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span><div><b>Tidak ada biaya tersembunyi</b><span>Semua dirinci sebelum dikerjakan.</span></div></li>
+      <li><span class="ck"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span><div><b>Mekanik bersertifikat</b><span>Bukan asal bongkar pasang.</span></div></li>
+      <li><span class="ck"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span><div><b>Sparepart bergaransi</b><span>Kami sarankan yang terbaik untuk mobilmu.</span></div></li>
+    </ul>
+  </div>
+</div></section>
+<section class="pkg" id="paket"><div class="wrap">
+  <div class="sec-head" style="margin-left:auto;margin-right:auto;text-align:center">
+    <span class="kicker">Paket Servis</span>
+    <h2>Harga jelas, pilih sesuai kebutuhan.</h2>
+    <p>Semua paket sudah termasuk jasa dan pengecekan menyeluruh. Sparepart dihitung terpisah dan dikonfirmasi dulu.</p>
+  </div>
+  <div class="pkg-grid">
+    <div class="pcol" data-reveal>
+      <span class="tier">Servis Ringan</span>
+      <div class="price">Rp 350rb<small> / kunjungan</small></div>
+      <p class="who">Untuk mobil harian yang butuh perawatan rutin.</p>
+      <ul>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Ganti oli mesin & filter oli</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Cek rem, aki, dan air radiator</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Pengecekan 20 titik gratis</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Reset indikator servis</li>
+      </ul>
+      <a class="btn btn-ghost" href="https://wa.me/6281222008899">Pilih Paket Ini</a>
+      <p class="why">Cocok untuk servis tiap 5.000 km.</p>
+    </div>
+    <div class="pcol hot">
+      <span class="hotbadge">Paling Dipilih</span>
+      <span class="tier">Servis Lengkap</span>
+      <div class="price">Rp 750rb<small> / kunjungan</small></div>
+      <p class="who">Perawatan menyeluruh untuk mobil yang jarang diservis.</p>
+      <ul>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Semua di paket Servis Ringan</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Tune up & pembersihan injektor</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Ganti filter udara & filter bensin</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Cek kaki-kaki & spooring ringan</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Diagnosa komputer (scan ECU)</li>
+      </ul>
+      <a class="btn btn-primary" href="https://wa.me/6281222008899">Booking Paket Ini</a>
+      <p class="why">Pilihan terbaik untuk servis tiap 10.000 km.</p>
+    </div>
+    <div class="pcol" data-reveal>
+      <span class="tier">Perbaikan Berat</span>
+      <div class="price">Custom<small> / sesuai kondisi</small></div>
+      <p class="who">Untuk turun mesin, transmisi, atau kerusakan besar.</p>
+      <ul>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Diagnosa menyeluruh + estimasi rinci</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Overhaul mesin & transmisi</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Sparepart bergaransi resmi</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Update progres via WhatsApp</li>
+      </ul>
+      <a class="btn btn-ghost" href="https://wa.me/6281222008899">Konsultasi Dulu</a>
+      <p class="why">Kami kabari biaya sebelum mulai kerja.</p>
+    </div>
+  </div>
+</div></section>
+<section class="testi"><div class="wrap">
+  <div class="sec-head">
+    <span class="kicker">Kata Pelanggan</span>
+    <h2>Dipercaya ribuan pemilik mobil.</h2>
+  </div>
+  <div class="testi-grid">
+    <div class="tbig">
+      <div class="qm">"</div>
+      <p>Sudah 4 tahun servis mobil keluarga di sini. Yang bikin balik terus: mereka jujur. Kalau belum perlu ganti, ya bilang belum perlu. Estimasi selalu sesuai, tidak ada tagihan mendadak.</p>
+      <div class="tperson"><span class="av">BS</span><div><b>Budi Santoso</b><span>Pemilik Avanza, pelanggan sejak 2021</span></div></div>
+    </div>
+    <div class="tside">
+      <div class="tcard" data-reveal><p>AC mobil saya yang lama ngadat langsung dingin lagi. Dikerjain cepat, harga masuk akal.</p><div class="tperson"><span class="av">RW</span><div><b>Rina Wijaya</b><span>Pemilik Xpander</span></div></div></div>
+      <div class="tcard" data-reveal><p>Turun mesin di sini beres tanpa drama. Dikabari progresnya lewat WA tiap hari. Recommended.</p><div class="tperson"><span class="av">HP</span><div><b>Hendra Pratama</b><span>Pemilik Innova</span></div></div></div>
+    </div>
+  </div>
+</div></section>
+<section class="lokasi" id="lokasi"><div class="wrap">
+  <div class="sec-head">
+    <span class="kicker">Lokasi & Jam Buka</span>
+    <h2>Mudah ditemukan di tengah kota Balikpapan.</h2>
+    <p>Datang langsung atau chat dulu buat pastikan slot. Parkir luas, ruang tunggu ber-AC.</p>
+  </div>
+  <div class="lok-grid">
+    <div class="lok-map">
+      <img src="assets_map_balikpapan.png" alt="Lokasi bengkel Rajawali Motor di peta Balikpapan">
+      <span class="map-pin"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+    </div>
+    <div class="lok-info">
+      <div class="lok-item"><span class="lok-ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span><div><b>Alamat</b><span>Jl. MT Haryono No. 88, Balikpapan Kota</span></div></div>
+      <div class="lok-item"><span class="lok-ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><b>Jam Buka</b><span>Senin sampai Sabtu, 08.00 sampai 17.00</span></div></div>
+      <div class="lok-item"><span class="lok-ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8.1 9.6a16 16 0 0 0 6 6l1.2-1.1a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/></svg></span><div><b>Telepon / WA</b><span>0812 2200 8899</span></div></div>
+      <a class="btn btn-primary lok-cta" href="#">Buka di Google Maps</a>
+    </div>
+  </div>
+</div></section>
+<section class="cta"><div class="wrap"><div class="cta-box">
+  <div>
+    <h2>Mobil bermasalah? Jangan tunggu tambah parah.</h2>
+    <p>Chat kami sekarang, ceritakan keluhannya. Kami bantu diagnosa dan kasih estimasi biaya tanpa biaya konsultasi.</p>
+  </div>
+  <div class="cta-actions">
+    <a class="btn btn-white" href="#">Chat WhatsApp Sekarang</a>
+    <a class="btn btn-line" href="#">Telepon 0812 2200 8899</a>
+  </div>
+</div></div></section>
+<footer class="footer"><div class="wrap">
+  <div class="foot-grid">
+    <div>
+      <a class="brand" href="#"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13v5a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><circle cx="7" cy="16" r="1"/><circle cx="17" cy="16" r="1"/></svg></span><span><b>Rajawali Motor</b><small>Bengkel Mobil Balikpapan</small></span></a>
+      <p class="foot-about">Bengkel mobil keluarga yang jujur dan bergaransi. Melayani servis rutin hingga perbaikan berat sejak 2009.</p>
+    </div>
+    <div class="foot-col"><h4>Layanan</h4><a href="#layanan">Servis Berkala</a><a href="#layanan">Overhaul Mesin</a><a href="#layanan">Kaki-kaki & Rem</a><a href="#layanan">Kelistrikan & AC</a></div>
+    <div class="foot-col"><h4>Perusahaan</h4><a href="#tentang">Tentang Kami</a><a href="#galeri">Hasil Kerja</a><a href="#paket">Paket Servis</a><a href="#cara-kerja">Cara Kerja</a></div>
+    <div class="foot-col foot-contact"><h4>Kontak</h4>
+      <div><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>Jl. MT Haryono No. 88, Balikpapan</span></div>
+      <div><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8.1 9.6a16 16 0 0 0 6 6l1.2-1.1a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/></svg><span>0812 2200 8899</span></div>
+      <div><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Senin sampai Sabtu, 08.00 sampai 17.00</span></div>
+    </div>
+  </div>
+  <!--FOOT_BOTTOM-->
+</div></footer>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var items = Array.prototype.slice.call(document.querySelectorAll('[data-reveal]'));
+  if(reduce){ items.forEach(function(el){el.classList.add('in');}); }
+  else if('IntersectionObserver' in window){
+    // stagger within same parent
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){
+          var el=e.target;
+          var sibs=Array.prototype.slice.call(el.parentNode.querySelectorAll('[data-reveal]'));
+          var idx=sibs.indexOf(el);
+          el.style.transitionDelay=(Math.max(0,idx)*70)+'ms';
+          el.classList.add('in');
+          io.unobserve(el);
+        }
+      });
+    },{threshold:0.14, rootMargin:'0px 0px -8% 0px'});
+    items.forEach(function(el){io.observe(el);});
+  } else { items.forEach(function(el){el.classList.add('in');}); }
+
+  // count-up numbers
+  function animateCount(el){
+    var target=parseFloat(el.getAttribute('data-count'));
+    var dec=(el.getAttribute('data-dec')==='1');
+    var suffix=el.getAttribute('data-suffix')||'';
+    var dur=1200, start=null;
+    function step(ts){
+      if(!start) start=ts;
+      var p=Math.min((ts-start)/dur,1);
+      var eased=1-Math.pow(1-p,3);
+      var val=target*eased;
+      el.textContent=(dec?val.toFixed(1):Math.round(val).toLocaleString('id-ID'))+suffix;
+      if(p<1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+  var nums=Array.prototype.slice.call(document.querySelectorAll('[data-count]'));
+  if(reduce){ nums.forEach(function(el){ var t=parseFloat(el.getAttribute('data-count')); el.textContent=((el.getAttribute('data-dec')==='1')?t.toFixed(1):t.toLocaleString('id-ID'))+(el.getAttribute('data-suffix')||''); }); }
+  else if('IntersectionObserver' in window){
+    var io2=new IntersectionObserver(function(entries){
+      entries.forEach(function(e){ if(e.isIntersecting){ animateCount(e.target); io2.unobserve(e.target); } });
+    },{threshold:0.6});
+    nums.forEach(function(el){io2.observe(el);});
+  }
+})();
+</script>
+
+<script>
+(function(){
+  var view=document.getElementById('galView'), track=document.getElementById('galTrack'); if(!view||!track)return;
+  var prev=document.getElementById('galPrev'), next=document.getElementById('galNext');
+  var idx=0,startX=0,curX=0,dragging=false,baseX=0;
+  function slideW(){var s=track.querySelector('.car-slide');var g=parseFloat(getComputedStyle(track).gap)||16;return s.getBoundingClientRect().width+g;}
+  function maxIdx(){var vis=Math.max(1,Math.round(view.clientWidth/slideW()));return Math.max(0,track.children.length-vis);}
+  function go(i){idx=Math.min(Math.max(0,i),maxIdx());track.style.transform='translateX('+(-idx*slideW())+'px)';upd();}
+  function upd(){if(prev)prev.disabled=(idx<=0);if(next)next.disabled=(idx>=maxIdx());}
+  if(next)next.onclick=function(){go(idx+1)};if(prev)prev.onclick=function(){go(idx-1)};
+  view.addEventListener('pointerdown',function(e){dragging=true;startX=e.clientX;baseX=-idx*slideW();track.classList.add('nodrag');view.classList.add('drag');view.setPointerCapture(e.pointerId);});
+  view.addEventListener('pointermove',function(e){if(!dragging)return;curX=e.clientX-startX;track.style.transform='translateX('+(baseX+curX)+'px)';});
+  function end(){if(!dragging)return;dragging=false;track.classList.remove('nodrag');view.classList.remove('drag');if(Math.abs(curX)>slideW()*0.22){go(idx+(curX<0?1:-1));}else{go(idx);}curX=0;}
+  view.addEventListener('pointerup',end);view.addEventListener('pointercancel',end);view.addEventListener('pointerleave',end);
+  window.addEventListener('resize',function(){go(idx)});upd();
+})();
+(function(){
+  var ba=document.getElementById('ba1');if(!ba)return;
+  var after=ba.querySelector('.after'),handle=ba.querySelector('.ba-handle'),grip=ba.querySelector('.ba-grip');
+  function set(p){p=Math.min(100,Math.max(0,p));after.style.clipPath='inset(0 0 0 '+p+'%)';handle.style.left=p+'%';grip.style.left=p+'%';}
+  var active=false;
+  function fe(e){var r=ba.getBoundingClientRect();var x=(e.clientX!=null?e.clientX:(e.touches&&e.touches[0].clientX));return((x-r.left)/r.width)*100;}
+  ba.addEventListener('pointerdown',function(e){active=true;ba.setPointerCapture(e.pointerId);set(fe(e));});
+  ba.addEventListener('pointermove',function(e){if(active)set(fe(e));});
+  window.addEventListener('pointerup',function(){active=false;});set(50);
+})();
+(function(){
+  var row=document.getElementById('mqRow');if(!row)return;
+  if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  row.innerHTML=row.innerHTML+row.innerHTML;
+})();
+</script>
+</body>
+</html>

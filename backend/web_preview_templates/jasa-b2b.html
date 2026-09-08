@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sinar Teknik Mandiri — Supplier Industri & Fabrikasi Balikpapan</title>
+<meta name="description" content="Supplier sparepart industri, distributor komponen, dan fabrikasi baja di Balikpapan. Stok ready kirim H+1, penawaran resmi ≤ 2×24 jam.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chivo:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=Chivo+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --zinc:#f2f5f6; --ink:#1a232c; --petrol:#0b5c66; --petrol-d:#08444c;
+  --amber:#ffb02e; --steel:#5d6b75; --line:#dbe3e6; --white:#ffffff;
+  --ok:#1f7a45; --okbg:#e3f3e9; --warnbg:#fff3d6;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Chivo',sans-serif;background:var(--zinc);color:var(--ink);line-height:1.6;font-size:16.5px}
+.mono{font-family:'Chivo Mono',monospace}
+img{display:block;max-width:100%}
+a{text-decoration:none;color:inherit}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.fade{animation:fadeUp .2s ease both}
+.d1{animation-delay:.05s}.d2{animation-delay:.1s}.d3{animation-delay:.15s}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* NAV overlay */
+nav{position:absolute;top:0;left:0;right:0;z-index:40}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:76px;max-width:1180px;margin:0 auto;padding:0 24px}
+.brand{color:#fff;font-weight:900;font-size:20px;letter-spacing:.5px;line-height:1.1}
+.brand small{display:block;font-family:'Chivo Mono',monospace;font-weight:500;font-size:10.5px;letter-spacing:3px;color:var(--amber)}
+.menu{display:flex;align-items:center;gap:26px;list-style:none}
+.menu a{color:rgba(255,255,255,.92);font-size:14.5px;font-weight:600;transition:color .15s}
+.menu a:hover{color:var(--amber)}
+.nav-cta{background:var(--amber);color:var(--ink)!important;padding:9px 16px;border-radius:3px;font-weight:800;font-size:13px;letter-spacing:.4px}
+.nav-cta:hover{background:#ffc257;color:var(--ink)!important}
+#nav-toggle{display:none}
+.burger{display:none;cursor:pointer;border:1.5px solid rgba(255,255,255,.7);border-radius:3px;padding:9px 10px}
+.burger span{display:block;width:20px;height:2px;background:#fff;margin:4px 0;transition:transform .15s}
+/* HERO */
+.hero{position:relative;min-height:100vh;display:flex;align-items:center;background:#101418}
+.hero>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.hero .scrim{position:absolute;inset:0;background:linear-gradient(90deg,rgba(10,16,20,.88) 0%,rgba(10,16,20,.62) 42%,rgba(10,16,20,.18) 78%,rgba(10,16,20,.38) 100%)}
+.hero .in{position:relative;z-index:2;max-width:1180px;margin:0 auto;padding:110px 24px 96px;width:100%}
+.kick{display:inline-block;font-family:'Chivo Mono',monospace;font-size:11.5px;font-weight:600;letter-spacing:2.6px;color:var(--amber);border:1px solid rgba(255,176,46,.55);padding:7px 12px;border-radius:3px;margin-bottom:22px;text-transform:uppercase}
+h1{color:#fff;font-weight:900;font-size:clamp(38px,5.2vw,64px);line-height:1.06;letter-spacing:-1px;max-width:760px}
+h1 em{font-style:normal;color:var(--amber)}
+.hero p.lead{color:rgba(255,255,255,.88);font-size:18.5px;max-width:560px;margin:20px 0 30px}
+.btnrow{display:flex;gap:14px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:15px;padding:15px 26px;border-radius:3px;letter-spacing:.3px;transition:background .15s,transform .15s}
+.btn-petrol{background:var(--petrol);color:#fff}
+.btn-petrol:hover{background:var(--petrol-d)}
+.btn-ghost{border:1.5px solid rgba(255,255,255,.65);color:#fff}
+.btn-ghost:hover{background:rgba(255,255,255,.12)}
+.cap-bar{position:absolute;left:0;right:0;bottom:0;z-index:3;background:rgba(12,18,22,.82);border-top:1px solid rgba(255,255,255,.14)}
+.cap-in{max-width:1180px;margin:0 auto;padding:13px 24px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-family:'Chivo Mono',monospace;font-size:12px;letter-spacing:1px;color:rgba(255,255,255,.85)}
+/* TICKER */
+.ticker{background:var(--amber);overflow:hidden;white-space:nowrap}
+.ticker .tk{display:inline-block;padding:11px 0;font-family:'Chivo Mono',monospace;font-weight:600;font-size:13px;letter-spacing:2px;color:var(--ink);animation:tk 26s linear infinite}
+@keyframes tk{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+/* STATS */
+.stats{background:var(--white);border-bottom:1px solid var(--line)}
+.stats .grid{display:grid;grid-template-columns:repeat(4,1fr)}
+.stat{padding:30px 26px;border-left:1px solid var(--line)}
+.stat:first-child{border-left:none}
+.stat b{display:block;font-family:'Chivo Mono',monospace;font-weight:700;font-size:32px;color:var(--petrol);letter-spacing:-1px}
+.stat span{font-size:14px;color:var(--steel);font-weight:500}
+/* SECTIONS */
+section{padding:96px 0}
+.shead{max-width:760px;margin-bottom:44px}
+.kicker{font-family:'Chivo Mono',monospace;font-size:11.5px;font-weight:600;letter-spacing:2.6px;color:var(--petrol);text-transform:uppercase;display:inline-block;border-bottom:2px solid var(--amber);padding-bottom:6px;margin-bottom:16px}
+h2{font-weight:900;font-size:clamp(28px,3.4vw,40px);line-height:1.12;letter-spacing:-.5px}
+.shead p{color:var(--steel);margin-top:12px;font-size:16.5px}
+/* KATALOG DATASHEET */
+.kat{background:var(--white)}
+.kat-grid{display:grid;grid-template-columns:1.75fr 1fr;gap:26px;align-items:start}
+.kat-grid>*{min-width:0}
+.sheet{border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.sheet-scroll{overflow-x:auto}
+.sheet table{width:100%;border-collapse:collapse;min-width:640px}
+.sheet thead th{background:var(--ink);color:#fff;font-family:'Chivo Mono',monospace;font-weight:600;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;text-align:left;padding:12px 14px;white-space:nowrap}
+.sheet tbody td{padding:15px 14px;border-top:1px solid var(--line);vertical-align:top;font-size:14.5px}
+.sheet tbody tr:nth-child(even){background:#f8fafa}
+.sheet td.kode{font-family:'Chivo Mono',monospace;font-weight:600;font-size:12.5px;color:var(--petrol);white-space:nowrap}
+.sheet td b{font-weight:700}
+.sheet td small{display:block;color:var(--steel);font-size:12.5px;margin-top:2px}
+.sheet td.harga{font-family:'Chivo Mono',monospace;font-weight:700;white-space:nowrap;font-size:13.5px}
+.badge{display:inline-block;font-family:'Chivo Mono',monospace;font-weight:700;font-size:10.5px;letter-spacing:1px;padding:4px 8px;border-radius:3px;white-space:nowrap}
+.b-ready{background:var(--okbg);color:var(--ok)}
+.b-menipis{background:var(--warnbg);color:#8a5a00}
+.b-po{background:#e3eef3;color:#0f4d63}
+.kat-note{font-size:13px;color:var(--steel);margin-top:12px;font-family:'Chivo Mono',monospace}
+.detail{background:var(--ink);color:#fff;border-radius:3px;padding:26px}
+.detail img{border-radius:3px;height:190px;width:100%;object-fit:cover}
+.detail h3{font-size:20px;font-weight:800;margin:18px 0 4px}
+.detail .dtag{font-family:'Chivo Mono',monospace;font-size:11.5px;letter-spacing:2px;color:var(--amber);text-transform:uppercase}
+.detail ul{list-style:none;margin:16px 0 20px}
+.detail li{padding:9px 0;border-top:1px solid rgba(255,255,255,.14);font-size:14px;display:flex;justify-content:space-between;gap:10px}
+.detail li span:last-child{font-family:'Chivo Mono',monospace;color:#cfe3e7;text-align:right}
+.detail .btn{width:100%;justify-content:center}
+.detail p.terms{font-size:12px;color:rgba(255,255,255,.72);margin-top:14px;line-height:1.55}
+/* KAPABILITAS */
+.kap{background:var(--zinc)}
+.kap-grid{display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:stretch}
+.kap-foto{display:grid}
+.kap-foto img{width:100%;height:100%;min-height:440px;object-fit:cover;border-radius:3px}
+.kap-list{background:var(--white);border:1px solid var(--line);border-radius:3px;padding:34px}
+.kap-list h2{margin-bottom:10px}
+.kap-list>p{color:var(--steel);font-size:15.5px;margin-bottom:22px}
+.kap-item{display:flex;gap:16px;padding:16px 0;border-top:1px solid var(--line)}
+.kap-item:first-of-type{border-top:none}
+.kap-item .no{font-family:'Chivo Mono',monospace;font-weight:700;color:var(--petrol);font-size:14px;padding-top:2px;min-width:34px}
+.kap-item b{display:block;font-size:16px}
+.kap-item small{color:var(--steel);font-size:13.5px;line-height:1.5}
+.kap-proses{margin-top:20px;background:#eef4f5;border-left:4px solid var(--petrol);border-radius:3px;padding:14px 16px;font-size:13.5px;color:var(--ink)}
+/* RFQ */
+.rfq{background:var(--ink);color:#fff}
+.rfq .kicker{color:var(--amber)}
+.rfq h2{color:#fff}
+.rfq .shead p{color:rgba(255,255,255,.78)}
+.rfq-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.rfq-step{background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.13);border-radius:3px;padding:26px 22px}
+.rfq-step .n{font-family:'Chivo Mono',monospace;font-weight:700;font-size:15px;color:var(--amber);letter-spacing:2px}
+.rfq-step b{display:block;font-size:17.5px;margin:10px 0 6px;color:#fff}
+.rfq-step p{font-size:13.5px;color:rgba(255,255,255,.78);line-height:1.55}
+.rfq-prep{margin-top:34px;background:rgba(255,176,46,.12);border:1px solid rgba(255,176,46,.35);border-radius:3px;padding:20px 24px;display:flex;gap:14px;align-items:flex-start}
+.rfq-prep .ptag{font-family:'Chivo Mono',monospace;font-weight:700;font-size:11px;letter-spacing:2px;color:var(--amber);white-space:nowrap;padding-top:3px}
+.rfq-prep p{color:rgba(255,255,255,.9);font-size:14.5px}
+/* SERTIFIKASI */
+.cert{background:var(--white)}
+.cert-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.cert-card{border:1px solid var(--line);border-radius:3px;padding:24px;background:var(--zinc)}
+.cert-card b{display:block;font-size:15.5px;margin-bottom:6px}
+.cert-card small{color:var(--steel);font-size:13px;line-height:1.5;display:block}
+.cert-card .ic{font-family:'Chivo Mono',monospace;font-weight:700;color:var(--petrol);font-size:12px;letter-spacing:2px;display:block;margin-bottom:12px}
+/* TESTIMONI */
+.testi{background:var(--zinc)}
+.testi-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:26px;align-items:stretch}
+.tq{background:var(--petrol);color:#fff;border-radius:3px;padding:44px 42px;display:flex;flex-direction:column;justify-content:space-between}
+.tq blockquote{font-size:clamp(20px,2.4vw,27px);font-weight:500;line-height:1.45;letter-spacing:-.2px}
+.tq blockquote mark{background:none;color:var(--amber);font-weight:700}
+.tq footer{margin-top:26px;border-top:1px solid rgba(255,255,255,.2);padding-top:18px}
+.tq footer b{display:block;font-size:15px}
+.tq footer span{font-size:13px;color:rgba(255,255,255,.75);font-family:'Chivo Mono',monospace}
+.timg{border-radius:3px;overflow:hidden;position:relative}
+.timg img{width:100%;height:100%;object-fit:cover;min-height:320px}
+.timg .tag{position:absolute;left:14px;bottom:14px;background:rgba(12,18,22,.85);color:#fff;font-family:'Chivo Mono',monospace;font-size:11px;letter-spacing:1.4px;padding:8px 12px;border-radius:3px}
+/* FAQ */
+.faq{background:var(--white)}
+.faq-grid{display:grid;grid-template-columns:.9fr 1.4fr;gap:40px;align-items:start}
+.faq details{border:1px solid var(--line);border-radius:3px;background:var(--zinc);padding:0 22px;margin-bottom:12px}
+.faq details summary{cursor:pointer;font-weight:700;font-size:16px;padding:18px 0;list-style:none;display:flex;justify-content:space-between;gap:12px}
+.faq details summary::-webkit-details-marker{display:none}
+.faq details summary::after{content:"+";font-family:'Chivo Mono',monospace;color:var(--petrol);font-weight:700}
+.faq details[open] summary::after{content:"–"}
+.faq details p{color:var(--steel);font-size:14.5px;padding:0 0 18px;line-height:1.65}
+/* CTA + FOOTER */
+.cta{background:var(--ink);padding:88px 0;text-align:center}
+.cta h2{color:#fff}
+.cta p{color:rgba(255,255,255,.8);max-width:540px;margin:14px auto 30px}
+.cta .btnrow{justify-content:center}
+.cta .sub{font-family:'Chivo Mono',monospace;font-size:12px;letter-spacing:1.6px;color:rgba(255,255,255,.55);margin-top:22px}
+footer.ft{background:#131b23;color:rgba(255,255,255,.75);padding:52px 0 34px}
+.ft-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:32px;margin-bottom:34px}
+.ft-grid h4{color:#fff;font-size:13px;font-family:'Chivo Mono',monospace;letter-spacing:2px;margin-bottom:14px;text-transform:uppercase}
+.ft-grid a,.ft-grid p{display:block;font-size:14px;padding:3px 0;color:rgba(255,255,255,.72)}
+.ft-grid a:hover{color:var(--amber)}
+.ft-bottom{border-top:1px solid rgba(255,255,255,.12);padding-top:20px;font-size:12.5px;color:rgba(255,255,255,.45);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+/* MOBILE */
+@media (max-width:940px){
+  .kat-grid,.kap-grid,.testi-grid,.faq-grid{grid-template-columns:1fr}
+  .rfq-grid,.cert-grid{grid-template-columns:1fr 1fr}
+  .stats .grid{grid-template-columns:1fr 1fr}
+  .stat{border-top:1px solid var(--line)}
+  .stat:nth-child(odd){border-left:none}
+  .ft-grid{grid-template-columns:1fr 1fr}
+}
+@media (max-width:900px){
+  .menu{display:none;position:absolute;top:60px;left:0;right:0;background:#131b23;flex-direction:column;align-items:stretch;gap:0;padding:6px 0 10px;border-bottom:4px solid var(--amber);box-shadow:0 14px 30px rgba(0,0,0,.35)}
+  #nav-toggle:checked ~ .menu{display:flex}
+  .menu li{width:100%}
+  .menu a{display:block;padding:13px 22px;font-size:15px;border-top:1px solid rgba(255,255,255,.1);color:#fff}
+  .menu a:first-child{border-top:none}
+  .nav-cta{margin:10px 14px 4px;text-align:center;display:flex!important}
+  .burger{display:block}
+  .nav-in{height:60px}
+  .brand{font-size:18px}
+  section{padding:64px 0}
+  .hero .in{padding:96px 22px 120px}
+  .cap-in{justify-content:center;text-align:center}
+}
+@media (max-width:560px){
+  .rfq-grid,.cert-grid{grid-template-columns:1fr}
+  h1{font-size:34px}
+  .btnrow .btn{width:100%;justify-content:center}
+  .kap-list{padding:26px 22px}
+  .tq{padding:32px 24px}
+}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-in">
+    <a href="#" class="brand">SINAR TEKNIK MANDIRI<small>SUPPLIER · FABRIKASI · BALIKPAPAN</small></a>
+    <input id="nav-toggle" type="checkbox">
+    <label class="burger" for="nav-toggle" aria-label="Menu"><span></span><span></span><span></span></label>
+    <ul class="menu">
+      <li><a href="#katalog">Katalog &amp; Stok</a></li>
+      <li><a href="#kapabilitas">Kapabilitas</a></li>
+      <li><a href="#rfq">Cara Pesan</a></li>
+      <li><a href="#faq">FAQ</a></li>
+      <li><a href="#rfq" class="nav-cta menu-cta">Minta Penawaran</a></li>
+    </ul>
+  </div>
+</nav>
+<header class="hero">
+  <img src="jasa-b2b-assets/hero-gen.jpg" alt="Gudang distribusi Sinar Teknik Mandiri Balikpapan">
+  <div class="scrim"></div>
+  <div class="in">
+    <span class="kick fade">Supplier Industri &amp; Fabrikasi — Kalimantan Timur</span>
+    <h1 class="fade d1">Produksi jalan terus.<br><em>Itu tugas kami.</em></h1>
+    <p class="lead fade d2">Sparepart industri, komponen mesin, dan fabrikasi baja untuk pabrik, tambang, dan pelabuhan. Stok terdata, penawaran resmi, kirim sesuai jadwal.</p>
+    <div class="btnrow fade d3">
+      <a class="btn btn-petrol" href="#rfq">Minta Penawaran ≤ 2×24 Jam</a>
+      <a class="btn btn-ghost" href="#katalog">Lihat Katalog &amp; Stok</a>
+    </div>
+  </div>
+  <div class="cap-bar">
+    <div class="cap-in"><span>GUDANG &amp; DISTRIBUSI — Jl. Soekarno Hatta KM 7, Balikpapan</span><span>SENIN–SABTU 08.00–17.00 WITA</span></div>
+  </div>
+</header>
+<div class="ticker" aria-hidden="true"><div class="tk">STOK READY KIRIM H+1 &nbsp;✦&nbsp; PENAWARAN RESMI ≤ 2×24 JAM &nbsp;✦&nbsp; FABRIKASI LAS &amp; BUBUT IN-HOUSE &nbsp;✦&nbsp; GARANSI PRODUK 6 BULAN &nbsp;✦&nbsp; DOKUMEN LENGKAP: INVOICE · FAKTUR · COA &nbsp;✦&nbsp; STOK READY KIRIM H+1 &nbsp;✦&nbsp; PENAWARAN RESMI ≤ 2×24 JAM &nbsp;✦&nbsp; FABRIKASI LAS &amp; BUBUT IN-HOUSE &nbsp;✦&nbsp; GARANSI PRODUK 6 BULAN &nbsp;✦&nbsp; DOKUMEN LENGKAP: INVOICE · FAKTUR · COA &nbsp;✦&nbsp;</div></div>
+<section class="stats">
+  <div class="grid">
+    <div class="stat"><b>1.800+</b><span>item katalog &amp; stok terdata</span></div>
+    <div class="stat"><b>120+</b><span>klien industri aktif</span></div>
+    <div class="stat"><b>2×24 jam</b><span>balas penawaran resmi</span></div>
+    <div class="stat"><b>98%</b><span>pengiriman on-schedule 2025</span></div>
+  </div>
+</section>
+<section class="kat fade" id="katalog">
+  <div class="wrap">
+    <div class="shead">
+      <span class="kicker">Katalog &amp; Ketersediaan</span>
+      <h2>Cek dulu sebelum telpon: stok, lead time, harga mulai.</h2>
+      <p>Update setiap Senin. Yang READY biasanya dikirim H+1; status MENIPIS dan PO ditulis jujur biar jadwal produksi Anda aman.</p>
+    </div>
+    <div class="kat-grid">
+      <div>
+        <div class="sheet">
+          <div class="sheet-scroll">
+            <table>
+              <thead><tr><th>Kode</th><th>Item</th><th>Status</th><th>Lead Time</th><th>Harga Mulai</th></tr></thead>
+              <tbody>
+                <tr><td class="kode">BRG-62XX</td><td><b>Bearing bola seri 62xx</b><small>Bore 20–100 mm, sealed, industri standar</small></td><td><span class="badge b-ready">READY</span></td><td>H+1</td><td class="harga">Rp 85rb</td></tr>
+                <tr><td class="kode">HYD-100R2</td><td><b>Selang hidraulik SAE 100R2</b><small>Diameter 1/4"–1", potong &amp; fitting di tempat</small></td><td><span class="badge b-ready">READY</span></td><td>H+1</td><td class="harga">Rp 190rb/m</td></tr>
+                <tr><td class="kode">PLT-A36</td><td><b>Plat baja ASTM A36</b><small>Tebal 6–25 mm, potong sesuai ukuran kerja</small></td><td><span class="badge b-menipis">MENIPIS</span></td><td>H+2</td><td class="harga">Rp 15,5jt/ton</td></tr>
+                <tr><td class="kode">CN-2INC</td><td><b>Rantai conveyor pitch 2"</b><small>Standar BS, pin solid, tahan beban berat</small></td><td><span class="badge b-ready">READY</span></td><td>H+1</td><td class="harga">Rp 340rb/m</td></tr>
+                <tr><td class="kode">SEAL-HP</td><td><b>Seal kit pompa hidraulik</b><small>Untuk seri pompa umum dipakai di Kalimantan</small></td><td><span class="badge b-po">PO</span></td><td>5–7 hari</td><td class="harga">Rp 620rb</td></tr>
+                <tr><td class="kode">FAB-CSTM</td><td><b>Fabrikasi rangka &amp; bucket custom</b><small>Las MIG/TIG, dari gambar kerja Anda</small></td><td><span class="badge b-po">PO</span></td><td>7–14 hari</td><td class="harga">Rp 14rb/kg</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <p class="kat-note">* Harga "mulai" indikatif. Harga neto mengikuti qty, merek pilihan, dan spesifikasi final di penawaran resmi.</p>
+      </div>
+      <aside class="detail">
+        <img src="jasa-b2b-assets/gen3.jpg" alt="Rak sparepart industri: bearing, selang hidraulik, komponen mesin">
+        <span class="dtag">Detail Item — HYD-100R2</span>
+        <h3>Selang Hidraulik SAE 100R2</h3>
+        <ul>
+          <li><span>Tekanan kerja</span><span>275 bar</span></li>
+          <li><span>Rentang suhu</span><span>−40 s/d +100 °C</span></li>
+          <li><span>Fitting</span><span>jilid &amp; crimping di tempat</span></li>
+          <li><span>Garansi sambungan</span><span>3 bulan</span></li>
+        </ul>
+        <a class="btn btn-petrol" href="#rfq">Minta penawaran item ini</a>
+        <p class="terms">Item detail bisa diganti sesuai permintaan. Semua permintaan dibalas penawaran resmi maksimal 2×24 jam kerja.</p>
+      </aside>
+    </div>
+  </div>
+</section>
+<section class="kap fade" id="kapabilitas">
+  <div class="wrap">
+    <div class="kap-grid">
+      <div class="kap-foto">
+        <img src="jasa-b2b-assets/gen1.jpg" alt="Pengelasan rangka baja di workshop fabrikasi Sinar Teknik Mandiri">
+      </div>
+      <div class="kap-list">
+        <span class="kicker">Kapabilitas Workshop</span>
+        <h2>Yang gak ada di stok, kami bikin.</h2>
+        <p>Workshop fabrikasi sendiri di Balikpapan — part custom gak harus kirim ke Jawa.</p>
+        <div class="kap-item"><span class="no">01</span><div><b>Fabrikasi las &amp; rangka baja</b><small>Rangka mesin, bracket, bucket, skid — MIG/TIG, hasil dicek dimensi sebelum kirim.</small></div></div>
+        <div class="kap-item"><span class="no">02</span><div><b>Bubut &amp; frais part custom</b><small>Pin, bushing, gear sederhana dari sampel atau gambar kerja Anda.</small></div></div>
+        <div class="kap-item"><span class="no">03</span><div><b>Potong &amp; bending plat</b><small>Guillotine 6 mm dan bending sampai 2000 mm — potong ukuran kerja, gak perlu sisa.</small></div></div>
+        <div class="kap-item"><span class="no">04</span><div><b>Rakitan &amp; instalasi ringan</b><small>Tim kami bisa bongkar-pasang komponen di lokasi area Balikpapan &amp; sekitarnya.</small></div></div>
+        <div class="kap-proses"><b>Standar kerja kami:</b> tiap tahap fabrikasi difoto &amp; dikirim ke Anda. Yang setuju dulu, baru lanjut. Tanpa kejutan di akhir.</div>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="rfq fade" id="rfq">
+  <div class="wrap">
+    <div class="shead">
+      <span class="kicker">Cara Pesan / RFQ</span>
+      <h2>Dari spesifikasi ke penawaran resmi, ≤ 2×24 jam.</h2>
+      <p>B2B itu soal kepastian. Kami gak bilang "nanti kami follow-up" — tenggatnya kami yang pegang.</p>
+    </div>
+    <div class="rfq-grid">
+      <div class="rfq-step"><span class="n">01</span><b>Kirim kebutuhan</b><p>WA atau email: nama item, spesifikasi, atau foto/gambar kerja. Belum tahu part-nya? Deskripsikan aja.</p></div>
+      <div class="rfq-step"><span class="n">02</span><b>Cek stok &amp; teknis</b><p>Tim kami cek ketersediaan + kesesuaian teknis, maksimal 1 hari kerja.</p></div>
+      <div class="rfq-step"><span class="n">03</span><b>Penawaran resmi</b><p>PDF lengkap: harga neto, lead time, garansi. Dibalas maksimal 2×24 jam.</p></div>
+      <div class="rfq-step"><span class="n">04</span><b>PO &amp; jadwal kirim</b><p>PO masuk → jadwal terkunci. Status pengiriman diinfokan sampai barang diterima.</p></div>
+    </div>
+    <div class="rfq-prep"><span class="ptag">SIAPKAN</span><p>Nama part / fungsi · qty · merek pilihan (kalau ada) · foto part lama atau gambar kerja · tenggat kapan dibutuhkan. Itu aja — sisanya kami urus.</p></div>
+  </div>
+</section>
+<section class="cert fade" id="sertifikasi">
+  <div class="wrap">
+    <div class="shead">
+      <span class="kicker">Jaminan &amp; Kepatuhan</span>
+      <h2>Yang bikin Purchasing tenang.</h2>
+    </div>
+    <div class="cert-grid">
+      <div class="cert-card"><span class="ic">GARANSI</span><b>Garansi produk</b><small>Claim diganti/tukar — tanpa drama, sesuai ketentuan di penawaran.</small></div>
+      <div class="cert-card"><span class="ic">WELDER</span><b>Welder ber-sertifikat</b><small>Lasersertifikat kompetensi (WPI) untuk pekerjaan fabrikasi struktural.</small></div>
+      <div class="cert-card"><span class="ic">DOKUMEN</span><b>Dokumen lengkap</b><small>Invoice, faktur pajak, COA/dooring, surat jalan — siap untuk audit.</small></div>
+      <div class="cert-card"><span class="ic">SLA</span><b>Tenggat tertulis</b><small>Lead time &amp; tanggal kirim tertulis di PO. Telat = eskalasi langsung ke owner.</small></div>
+    </div>
+  </div>
+</section>
+<section class="testi fade">
+  <div class="wrap">
+    <div class="testi-grid">
+      <div class="tq">
+        <blockquote>"Dulu tiap unit standby nunggu part 2–3 minggu dari Jawa. Sekarang penawaran balas <mark>hari yang sama</mark>, barang sering kebawa besoknya."</blockquote>
+        <footer><b>Pak Hendra — Purchasing Manager</b><span>PT BORNEO MINING SUPPORT (klien sejak 2022)</span></footer>
+      </div>
+      <div class="timg">
+        <img src="jasa-b2b-assets/qc-tim.jpg" alt="Tim QC mengecek kelengkapan order sebelum kirim">
+        <span class="tag">QC SEBELUM KIRIM — FOTO DOKUMEN DIKIRIM KE KLIEN</span>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="faq fade" id="faq">
+  <div class="wrap">
+    <div class="faq-grid">
+      <div class="shead" style="margin-bottom:0">
+        <span class="kicker">FAQ</span>
+        <h2>Pertanyaan yang sering masuk.</h2>
+        <p>Sisanya? Tanya langsung — dibalas manusia, bukan bot.</p>
+      </div>
+      <div>
+        <details><summary>Minimal order berapa?</summary><p>Untuk item stok: tidak ada MOQ ketat, 1 unit bisa. Untuk part custom/fabrikasi: disesuaikan panjang batch produksi — nanti tertulis di penawaran.</p></details>
+        <details><summary>Harga di tabel itu harga final?</summary><p>Bukan — itu harga mulai indikatif. Harga neto keluar di penawaran resmi setelah qty, merek, dan spesifikasi jelas.</p></details>
+        <details><summary>Bisa kirim ke luar Balikpapan?</summary><p>Bisa. Rutin kirim ke Samarinda, handil, area Kariangau/Kuang Anyar, dan site tambang via ekspedisi rekan atau armada Anda.</p></details>
+        <details><summary>Kalau part-nya tidak standar / sudah tidak diproduksi lagi?</summary><p>Justru itu bagian kami: bawa sampel atau gambar kerja, kami bubut/fabrikasi ulang di workshop sendiri.</p></details>
+        <details><summary>Termin pembayaran?</summary><p>Baru klien: umumnya 100% sebelum kirim atau DP 50%. Klien terkontrak: termin 30 hari dengan PO resmi.</p></details>
+        <details><summary>Ada garansi pekerjaan fabrikasi?</summary><p>Ada — sambungan las &amp; dimensi tergaransi, material sesuai sertifikat mill test yang kami serahkan.</p></details>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="cta fade">
+  <div class="wrap">
+    <h2>Spesifikasinya siap?<br>Penawarannya kami balas ≤ 2×24 jam.</h2>
+    <p>Kirim kebutuhan hari ini, sambil jalan. Gak perlu datang ke kantor dulu.</p>
+    <div class="btnrow">
+      <a class="btn btn-petrol" href="https://wa.me/6281255507777">Chat WhatsApp Sekarang</a>
+      <a class="btn btn-ghost" href="#katalog">Cek Katalog &amp; Stok Dulu</a>
+    </div>
+    <p class="sub">WA 0812-5550-7777 · SENIN–SABTU 08.00–17.00 WITA</p>
+  </div>
+</section>
+<footer class="ft">
+  <div class="wrap">
+    <div class="ft-grid">
+      <div>
+        <a href="#" class="brand" style="color:#fff">SINAR TEKNIK MANDIRI<small>SUPPLIER · FABRIKASI · BALIKPAPAN</small></a>
+        <p style="margin-top:14px;max-width:320px">Supplier sparepart industri, distributor komponen mesin, dan workshop fabrikasi baja untuk industri Kalimantan Timur.</p>
+      </div>
+      <div>
+        <h4>Katalog</h4>
+        <a href="#katalog">Bearing &amp; power transmission</a>
+        <a href="#katalog">Selang &amp; fitting hidraulik</a>
+        <a href="#katalog">Plat &amp; baja struktural</a>
+        <a href="#katalog">Fabrikasi custom</a>
+      </div>
+      <div>
+        <h4>Kontak</h4>
+        <p>Jl. Soekarno Hatta KM 7,<br>Balikpapan, Kalimantan Timur</p>
+        <a href="https://wa.me/6281255507777">WA 0812-5550-7777</a>
+        <a href="#">halo@sinarteknikmandiri.co.id</a>
+        <p>Senin–Sabtu 08.00–17.00 WITA</p>
+      </div>
+    </div>
+    <div class="ft-bottom"><span>© 2026 Sinar Teknik Mandiri. Semua nama klien &amp; angka di halaman ini contoh.</span><span>SITUS CONTOH — TEMPLATE UMKM</span></div>
+  </div>
+</footer>
+<script>document.querySelectorAll('.menu a').forEach(a=>a.addEventListener('click',()=>{document.getElementById('nav-toggle').checked=false}))</script>
+</body>
+</html>

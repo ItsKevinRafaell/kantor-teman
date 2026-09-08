@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prakasa Konsultan — Konsultan Bisnis &amp; Manajemen, Balikpapan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --pine:#1e4d3d; --pine-d:#122c24; --bone:#f4f2ec; --brass:#75591a;
+  --ink:#1c2a24; --muted:#5a6b62; --line:#d8d2c4; --white:#fff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Public Sans',system-ui,sans-serif;color:var(--ink);background:var(--bone);line-height:1.55;-webkit-font-smoothing:antialiased}
+img{display:block;width:100%;height:100%;object-fit:cover}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1180px;margin:0 auto;padding:0 28px}
+h1,h2,h3{font-family:'Bricolage Grotesque','Public Sans',sans-serif;font-weight:700;letter-spacing:-.03em;line-height:1.05}
+.kicker{font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--brass)}
+
+/* NAV — solid pine, bukan glass */
+nav{position:sticky;top:0;z-index:40;background:var(--pine-d);color:#e6eee9}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:62px;gap:12px;position:relative}
+.burger{display:none;background:transparent;border:0;color:#fff;font:inherit;font-weight:700;font-size:13px;cursor:pointer;padding:8px 0}
+#nav-toggle{position:absolute;opacity:0;pointer-events:none}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand strong{font-family:'Bricolage Grotesque';font-size:17px;color:#fff}
+.brand em{font-style:normal;font-size:12px;color:#9bb5a8;font-weight:500}
+.menu{display:flex;gap:20px}
+.menu a{font-size:13.5px;font-weight:600;color:#c5d4cc}
+.menu a:hover{color:#fff}
+.nav-cta{background:var(--brass);color:#fff;font-weight:700;font-size:13.5px;padding:9px 16px}
+.nav-cta:hover{filter:brightness(1.08)}
+.btn,.nav-cta{transition:filter .15s ease,opacity .15s ease}
+.hero-copy,.index,.dos,.cara,.faq,.lok{animation:fade .18s ease-out}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+/* HERO — foto full-bleed, teks di atas, BUKAN split 50/50 */
+.hero{position:relative;min-height:78vh;color:#fff;display:flex;align-items:flex-end}
+.hero-bg{position:absolute;inset:0}
+.hero-bg img{object-position:center 30%}
+.hero-bg::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(18,44,36,.88) 0%,rgba(18,44,36,.55) 48%,rgba(18,44,36,.18) 100%)}
+.hero-in{position:relative;z-index:1;padding:0 0 56px;max-width:640px}
+.hero h1{font-size:clamp(2.4rem,5vw,4.1rem);margin:12px 0 16px;color:#fff}
+.hero h1 span{display:block;color:#d8c48a}
+.lead{font-size:1.08rem;color:#d5e0da;max-width:480px;margin-bottom:24px}
+.cta-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.btn{display:inline-flex;align-items:center;font-weight:700;font-size:14.5px;padding:13px 22px;border:0;cursor:pointer;font-family:inherit}
+.btn-brass{background:var(--brass);color:#fff}
+.btn-ghost{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.55)}
+.hours{margin-top:28px;font-size:13px;color:#b7c8bf}
+
+/* INDEX STRIP — daftar isi, bukan 4 kartu */
+.index{background:var(--white);border-bottom:1px solid var(--line)}
+.index-in{display:grid;grid-template-columns:repeat(6,1fr)}
+.index a{padding:18px 14px;border-right:1px solid var(--line);font-size:13px}
+.index a:last-child{border-right:0}
+.index a b{display:block;font-family:'Bricolage Grotesque';font-size:1.05rem;color:var(--pine-d);margin-bottom:2px}
+.index a span{color:var(--muted);font-size:12px}
+.index a:hover{background:var(--bone)}
+
+/* DOSSIER — 2 kolom: kiri sticky, kanan stacked files */
+.dos{padding:72px 0 40px}
+.dos-grid{display:grid;grid-template-columns:280px 1fr;gap:48px;align-items:start}
+.dos-side{position:sticky;top:86px}
+.dos-side h2{font-size:clamp(1.7rem,2.6vw,2.2rem);margin:10px 0 12px}
+.dos-side p{color:var(--muted);font-size:15px}
+.file{display:grid;grid-template-columns:200px 1fr;background:#fff;border:1px solid var(--line);margin-bottom:16px}
+.file-pic{min-height:160px;max-height:200px;overflow:hidden}
+.file-body{padding:22px 26px}
+.file-body .num{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--brass)}
+.file-body h3{font-size:1.35rem;margin:6px 0 8px}
+.file-body p{color:var(--muted);font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.chips i{font-style:normal;font-size:12px;font-weight:600;border:1px solid var(--line);padding:3px 8px;background:var(--bone)}
+
+/* PETA — timeline vertikal, BUKAN tabel 3 kolom */
+.peta{padding:28px 0 80px}
+.peta h2{font-size:clamp(1.8rem,3vw,2.4rem);margin:8px 0 8px}
+.peta .sub{color:var(--muted);max-width:520px;margin-bottom:28px}
+.tl{border-left:2px solid var(--pine);margin-left:8px}
+.tl-item{padding:0 0 28px 28px;position:relative}
+.tl-item::before{content:"";position:absolute;left:-7px;top:6px;width:12px;height:12px;background:var(--pine);border:2px solid var(--bone)}
+.tl-item h3{font-size:1.12rem;margin-bottom:4px}
+.tl-item .pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:14px;color:var(--muted)}
+.tl-item .pair b{display:block;color:var(--pine-d);font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:2px}
+
+/* CARA KERJA — rail gelap, 1 kolom nomor besar */
+.cara{background:var(--pine-d);color:#e4eee9;padding:72px 0}
+.cara h2{font-size:clamp(1.8rem,3vw,2.5rem);color:#fff;margin:8px 0 32px}
+.step{display:grid;grid-template-columns:90px 1fr;gap:20px;padding:22px 0;border-top:1px solid rgba(255,255,255,.12)}
+.step .n{font-family:'Bricolage Grotesque';font-size:2.4rem;color:#d8c48a;line-height:1}
+.step h3{color:#fff;font-size:1.25rem;margin-bottom:6px}
+.step p{color:#b7c8bf;max-width:640px}
+
+/* MODEL — 3 bar full-width, lebar beda */
+.model{padding:72px 0}
+.model h2{font-size:clamp(1.8rem,3vw,2.4rem);margin:8px 0 24px}
+.bar{background:#fff;border:1px solid var(--line);padding:22px 26px;margin-bottom:12px}
+.bar.wide{max-width:100%}
+.bar.mid{max-width:88%}
+.bar.nar{max-width:74%}
+.bar .lab{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--brass)}
+.bar h3{font-size:1.3rem;margin:4px 0 6px}
+.bar p{color:var(--muted);font-size:14.5px}
+.bar .fee{margin-top:8px;font-size:13px;font-weight:700;color:var(--pine-d)}
+
+/* FAQ 2 kolom koran */
+.faq{padding:0 0 72px}
+.faq h2{font-size:clamp(1.7rem,2.8vw,2.2rem);margin-bottom:20px}
+.faq-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 40px;column-gap:48px}
+details{border-top:1px solid var(--line);padding:14px 0}
+details summary{cursor:pointer;font-weight:700;font-size:15px;list-style:none}
+details summary::-webkit-details-marker{display:none}
+details p{margin-top:8px;color:var(--muted);font-size:14.5px}
+
+/* LOKASI split map | pine panel */
+.lok{display:grid;grid-template-columns:1.15fr .85fr;min-height:420px}
+.lok-map{min-height:420px;overflow:hidden}
+.lok-copy{background:var(--pine);color:#e6eee9;padding:48px 40px}
+.lok-copy h2{color:#fff;font-size:1.8rem;margin:8px 0 16px}
+.lok-copy p{color:#c5d4cc;margin-bottom:10px}
+.lok-copy a.btn{margin-top:18px}
+
+footer{background:var(--pine-d);color:#8aa196;padding:22px 0;font-size:13px}
+footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+
+@media (max-width:900px){
+  .hero{min-height:70vh}
+  .index-in,.dos-grid,.file,.lok,.faq-grid,.tl-item .pair,.step{grid-template-columns:1fr}
+  .dos-side{position:static}
+  .index-in{grid-template-columns:1fr 1fr}
+  .bar.mid,.bar.nar{max-width:100%}
+  .burger{display:block}
+  .menu{display:none;position:absolute;top:62px;left:0;right:0;background:var(--pine-d);flex-direction:column;padding:12px 20px 16px;gap:12px;z-index:41}
+  #nav-toggle:checked ~ .menu{display:flex}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<nav>
+  <div class="wrap nav-in">
+    <a class="brand" href="#top"><strong>Prakasa</strong><em>Konsultan · Balikpapan</em></a>
+    <input id="nav-toggle" type="checkbox">
+    <label class="burger" for="nav-toggle">Menu</label>
+    <div class="menu">
+      <a href="#kerja">Area kerja</a>
+      <a href="#peta">Peta masalah</a>
+      <a href="#cara">Cara kerja</a>
+      <a href="#model">Model</a>
+      <a href="#faq">FAQ</a>
+    </div>
+    <a class="nav-cta" href="https://wa.me/628134556789">Sesi awal via WA</a>
+  </div>
+</nav>
+
+<section class="hero" id="top">
+  <div class="hero-bg"><img src="konsultan-assets/01.jpg" alt="Sesi kerja konsultan dengan pemilik usaha di kantor kecil Balikpapan"></div>
+  <div class="wrap hero-in">
+    <p class="kicker" style="color:#d8c48a">Konsultan bisnis &amp; manajemen · Balikpapan</p>
+    <h1>Urusan usaha yang numpuk,<span>diurutkan lalu dibereskan.</span></h1>
+    <p class="lead">Perizinan, pembukuan, harga jual, sampai SOP tim — dipetakan dulu, dikerjakan dengan rencana tertulis. Bukan seminar motivasi.</p>
+    <div class="cta-row">
+      <a class="btn btn-brass" href="https://wa.me/628134556789">Jadwalkan sesi awal</a>
+      <a class="btn btn-ghost" href="#cara">Lihat cara kerja</a>
+    </div>
+    <p class="hours">Senin–Jumat 08.30–17.00 · Sabtu 09.00–14.00 · Sesi awal 30–60 menit, gratis</p>
+  </div>
+</section>
+
+<div class="index">
+  <div class="wrap index-in">
+    <a href="#kerja"><b>01</b><span>Perizinan</span></a>
+    <a href="#kerja"><b>02</b><span>Pembukuan</span></a>
+    <a href="#kerja"><b>03</b><span>SOP tim</span></a>
+    <a href="#kerja"><b>04</b><span>Harga &amp; modal</span></a>
+    <a href="#peta"><b>05</b><span>Peta masalah</span></a>
+    <a href="#cara"><b>06</b><span>4 langkah</span></a>
+  </div>
+</div>
+
+<section class="dos wrap" id="kerja">
+  <div class="dos-grid">
+    <aside class="dos-side">
+      <p class="kicker">Dossier</p>
+      <h2>Empat area yang paling sering kami bereskan.</h2>
+      <p>Praktis, bukan teori. Tiap area ada hasil konkret yang kamu pegang setelah selesai.</p>
+    </aside>
+    <div>
+      <article class="file" id="izin">
+        <div class="file-pic"><img src="konsultan-assets/05.jpg" alt="Serah terima dokumen perizinan"></div>
+        <div class="file-body">
+          <p class="num">01 — Perizinan &amp; legalitas</p>
+          <h3>NIB, OSS, sampai PIRT.</h3>
+          <p>NIB lewat OSS, sertifikat standar, NPWP badan, halal &amp; PIRT untuk usaha makanan. Kami isi formulirnya — kamu kasih data &amp; tanda tangan.</p>
+          <div class="chips"><i>Data disiapkan bersama</i><i>Estimasi 1–2 minggu</i></div>
+        </div>
+      </article>
+      <article class="file">
+        <div class="file-pic"><img src="konsultan-assets/04.jpg" alt="Catatan pembukuan dan kalkulator di meja kerja"></div>
+        <div class="file-body">
+          <p class="num">02 — Keuangan &amp; pembukuan</p>
+          <h3>Pisah kas, hitung harga dari HPP.</h3>
+          <p>Pisah uang usaha dan pribadi, pencatatan harian yang realistis dijalankan, arus kas dibaca tiap bulan, harga jual dari HPP — bukan tebak margin.</p>
+          <div class="chips"><i>Mulai: pisah rekening</i><i>Output: laporan bulanan</i></div>
+        </div>
+      </article>
+      <article class="file">
+        <div class="file-pic"><img src="konsultan-assets/02.jpg" alt="Diskusi alur kerja di papan tulis"></div>
+        <div class="file-body">
+          <p class="num">03 — SOP &amp; tim</p>
+          <h3>Usaha jalan tanpa kamu standby 12 jam.</h3>
+          <p>Struktur sederhana, deskripsi kerja, SOP kasir-gudang-dapur tertulis, plus kontrak kerja yang benar.</p>
+          <div class="chips"><i>SOP siap pakai</i><i>Evaluasi 30 hari</i></div>
+        </div>
+      </article>
+      <article class="file">
+        <div class="file-pic"><img src="konsultan-assets/03.jpg" alt="Rapat kecil membahas rencana usaha"></div>
+        <div class="file-body">
+          <p class="num">04 — Harga, pemasaran &amp; modal</p>
+          <h3>Promo yang tidak makan margin.</h3>
+          <p>Hitung ulang harga jual, atur promo, Google Bisnis &amp; marketplace, sampai dokumen siap ajukan pinjaman atau kemitraan.</p>
+          <div class="chips"><i>Harga jual</i><i>Google Bisnis</i><i>Berkas modal</i></div>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="peta wrap" id="peta">
+  <p class="kicker">Peta masalah</p>
+  <h2>Kalau baris ini nyambung, itu area kerja kami.</h2>
+  <p class="sub">Detail realitanya disesuaikan saat sesi awal — tiap usaha beda kondisi.</p>
+  <div class="tl">
+    <div class="tl-item">
+      <h3>Pembukuan cuma ada di kepala</h3>
+      <div class="pair"><div><b>Kami kerjakan</b>Setup pencatatan harian + template sederhana</div><div><b>Kamu pegang</b>Pembukuan rapi + laporan tiap bulan</div></div>
+    </div>
+    <div class="tl-item">
+      <h3>Belum punya NIB / izin resmi</h3>
+      <div class="pair"><div><b>Kami kerjakan</b>Pendataan usaha + pengajuan OSS</div><div><b>Kamu pegang</b>NIB &amp; sertifikat standar terbit</div></div>
+    </div>
+    <div class="tl-item">
+      <h3>Harga jual masih tebak-tebakan</h3>
+      <div class="pair"><div><b>Kami kerjakan</b>Hitung HPP &amp; margin per produk</div><div><b>Kamu pegang</b>Daftar harga + batas diskon aman</div></div>
+    </div>
+    <div class="tl-item">
+      <h3>Karyawan tidak jelas bagiannya</h3>
+      <div class="pair"><div><b>Kami kerjakan</b>Susun SOP &amp; deskripsi kerja</div><div><b>Kamu pegang</b>SOP tertulis + jadwal evaluasi</div></div>
+    </div>
+    <div class="tl-item">
+      <h3>Uang usaha campur uang pribadi</h3>
+      <div class="pair"><div><b>Kami kerjakan</b>Pemisahan kas &amp; aturan gaji pemilik</div><div><b>Kamu pegang</b>Aturan ambil uang yang tegas</div></div>
+    </div>
+    <div class="tl-item">
+      <h3>Mau ajukan modal / kemitraan</h3>
+      <div class="pair"><div><b>Kami kerjakan</b>Rapikan dokumen &amp; proyeksi sederhana</div><div><b>Kamu pegang</b>Berkas siap diajukan ke bank / mitra</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="cara" id="cara">
+  <div class="wrap">
+    <p class="kicker" style="color:#d8c48a">Cara kerja</p>
+    <h2>Empat langkah. Biaya muncul di langkah tiga, tertulis.</h2>
+    <div class="step"><div class="n">01</div><div><h3>Sesi awal</h3><p>Chat WA atau datang ke kantor. 30–60 menit bahas satu masalah utama. Gratis, tidak dipungut.</p></div></div>
+    <div class="step"><div class="n">02</div><div><h3>Diagnostik</h3><p>Dokumen &amp; kondisi usaha dicek beneran: pembukuan, izin, cara kerja tim. 3–5 hari kerja.</p></div></div>
+    <div class="step"><div class="n">03</div><div><h3>Proposal tertulis</h3><p>Isinya: apa yang dikerjakan, berapa lama, berapa biaya. Setuju baru jalan — tidak ada biaya kejutan. Biaya pihak ketiga (materai, retribusi izin) ditanyakan dulu.</p></div></div>
+    <div class="step"><div class="n">04</div><div><h3>Eksekusi &amp; pendampingan</h3><p>Kerja sesuai rencana, progres dilaporin rutin, kamu dibimbing pegang sendiri setelah selesai.</p></div></div>
+  </div>
+</section>
+
+<section class="model wrap" id="model">
+  <p class="kicker">Model kerja</p>
+  <h2>Tiga cara bayar. Pilih yang pas, bukan paket bundling.</h2>
+  <div class="bar wide">
+    <p class="lab">Sekali bayar</p>
+    <h3>Sesi konsultasi</h3>
+    <p>Satu masalah spesifik, butuh arah cepat. Sesi 1–2 jam + catatan rencana aksi.</p>
+    <p class="fee">Dikabarin dulu via WA — tidak ada tarif di website.</p>
+  </div>
+  <div class="bar mid">
+    <p class="lab">Proyek</p>
+    <h3>Satu area dibereskan tuntas</h3>
+    <p>Izin, pembukuan, atau SOP. Diagnostik, dokumen siap pakai, pendampingan sampai jalan.</p>
+    <p class="fee">Proposal tertulis setelah diagnostik.</p>
+  </div>
+  <div class="bar nar">
+    <p class="lab">Retainer</p>
+    <h3>Pendampingan bulanan</h3>
+    <p>Usaha sudah jalan, butuh dicek rutin. Kunjungan terjadwal, laporan bulanan, WA antar waktu.</p>
+    <p class="fee">Mulai 3 bulan. Angka di proposal, bukan di sini.</p>
+  </div>
+</section>
+
+<section class="faq wrap" id="faq">
+  <p class="kicker">Sering ditanya</p>
+  <h2>Sebelum mulai.</h2>
+  <div class="faq-grid">
+    <div>
+      <details open><summary>Berapa biaya konsultasinya?</summary><p>Belum bisa disebut sebelum kami lihat kondisi usahamu. Sesi awal gratis, setelah itu proposal tertulis. Tidak ada biaya belakangan tanpa persetujuanmu.</p></details>
+      <details><summary>Usahaku masih kecil, layak sewa konsultan?</summary><p>Justru saat kecil, perbaikan sistem paling murah. Membiasakan pencatatan sekarang lebih gampang daripada merapikan lima tahun data nanti.</p></details>
+      <details><summary>Kerjanya online atau datang ke tempat?</summary><p>Dua-duanya. Sesi awal bisa WA. Diagnostik dan implementasi biasanya butuh datang ke lokasi usaha di Balikpapan &amp; sekitarnya.</p></details>
+    </div>
+    <div>
+      <details><summary>Data keuangan usahaku dijamin aman?</summary><p>Sebelum dokumen dititipkan, kami tandatangani perjanjian kerahasiaan tertulis. Datamu hanya untuk pekerjaan di proposal.</p></details>
+      <details><summary>Bedanya dengan merekrut karyawan?</summary><p>Konsultan bekerja per rencana dan berakhir setelah serah terima — tidak menambah gaji bulanan permanen. Tim kamu dilatih pegang sendiri.</p></details>
+      <details><summary>Sekali konsultasi langsung beres semua?</summary><p>Tidak. Ada yang selesai satu sesi (hitung harga jual), ada yang 2–3 bulan (SOP &amp; pembukuan). Rencananya tertulis sejak awal.</p></details>
+    </div>
+  </div>
+</section>
+
+<section class="lok" id="lokasi">
+  <div class="lok-map"><img src="konsultan-assets/map.jpg" alt="Peta lokasi kantor di Jl. Soekarno Hatta KM 5, Balikpapan"></div>
+  <div class="lok-copy">
+    <p class="kicker" style="color:#d8c48a">Kantor</p>
+    <h2>Jl. Soekarno Hatta KM 5, Balikpapan</h2>
+    <p>Ruko 2 lantai, sisi jalan raya KM 5 — area perkantoran. Parkir motor &amp; mobil depan.</p>
+    <p>Senin–Jumat 08.30–17.00. Sabtu 09.00–14.00. Minggu tutup.</p>
+    <p>0813-455-6789 (preview)</p>
+    <a class="btn btn-brass" href="https://wa.me/628134556789">Jadwalkan sesi awal</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Prakasa Konsultan · preview template · dummy nama &amp; jadwal</span>
+    <span>Konsultan bisnis &amp; manajemen · Balikpapan</span>
+  </div>
+</footer>
+</body>
+</html>

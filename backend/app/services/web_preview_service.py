@@ -136,6 +136,111 @@ REGISTRY: dict = {
             ("Tahun beroperasi di Kalimantan Timur", "Tahun beroperasi"),
         ],
     },
+    "otomotif": {
+        "title": "Landing servis mobil/bengkel mobil",
+        "keywords": ["servis mobil", "bengkel mobil", "servis berkala", "tune up", "oli mobil", "overhaul", "ac mobil", "tuning mesin"],
+        "brand_anchor": "Rajawali Motor",
+        "phone_display_anchor": "0812 2200 8899",
+        "wa_anchor": "6281222008899",
+    },
+    "salon": {
+        "title": "Landing salon/kecantikan",
+        "keywords": ["salon", "kecantikan", "spa", "perawatan", "hair salon", "makeup", "facial"],
+        "brand_anchor": "Rumah Cantik Sehat",
+        "phone_display_anchor": "",  # tidak menampilkan nomor teks
+        "wa_anchor": "6281234567890",
+    },
+    "konsultan": {
+        "title": "Landing konsultan bisnis/manajemen",
+        "keywords": ["konsultan", "manajemen", "konsultan bisnis", "perizinan usaha", "bisnis plan", "pendampingan usaha"],
+        "brand_anchor": "Prakasa Konsultan",
+        "phone_display_anchor": "0813-455-6789",
+        "wa_anchor": "628134556789",
+    },
+    "konveksi": {
+        "title": "Landing konveksi/seragam custom",
+        "keywords": ["konveksi", "seragam", "kaos custom", "jersey", "bordir", "sablon", "pakaian custom"],
+        "brand_anchor": "Benang Merah Konveksi",
+        "phone_display_anchor": "0813-455-6789",
+        "wa_anchor": "628134556789",
+    },
+    "interior": {
+        "title": "Landing furniture/meubel interior",
+        "keywords": ["mebel", "furniture", "meubel", "kitchen set", "furnitur", "interior custom", "lemari custom"],
+        "brand_anchor": "Borneo Jati Furniture",
+        "phone_display_anchor": "0813-4556-789",
+        "wa_anchor": "628134556789",
+    },
+    "percetakan": {
+        "title": "Landing percetakan/sablon",
+        "keywords": ["percetakan", "cetak undangan", "stiker", "banner", "spanduk", "digital printing", "cetak"],
+        "brand_anchor": "Cetak Timur",
+        "phone_display_anchor": "",  # tidak menampilkan nomor teks
+        "wa_anchor": "628134556789",
+    },
+    "tokobangunan": {
+        "title": "Landing toko bangunan/material",
+        "keywords": ["toko bangunan", "semen", "hebel", "keramik", "kaca", "material bangunan"],
+        "brand_anchor": "Jaya Abadi Material",
+        "phone_display_anchor": "",  # tidak menampilkan nomor teks
+        "wa_anchor": "628134556789",
+    },
+    "laundry": {
+        "title": "Landing laundry/kiloan",
+        "keywords": ["laundry", "kiloan", "cuci kiloan", "dry clean", "setrika", "cuci sepatu"],
+        "brand_anchor": "Laundry Ceria",
+        "phone_display_anchor": "",  # tidak menampilkan nomor teks
+        "wa_anchor": "628134556789",
+    },
+    "properti": {
+        "title": "Landing agen properti/developer",
+        "keywords": ["properti", "agen properti", "rumah dijual", "tanah dijual", "developer", "listing"],
+        "brand_anchor": "Arunika Properti",
+        "phone_display_anchor": "",  # tidak menampilkan nomor teks
+        "wa_anchor": "628134556789",
+    },
+    "bimbel": {
+        "title": "Landing bimbel/kursus",
+        "keywords": ["bimbel", "bimbingan belajar", "les privat", "kursus", "tutor", "calistung", "try out"],
+        "brand_anchor": "Rumah Belajar",
+        "phone_display_anchor": "",  # tidak menampilkan nomor teks
+        "wa_anchor": "628134556789",
+    },
+    "konstruksi-kecil": {
+        "title": "Landing teknisi panggilan (AC/pipa/listrik)",
+        "keywords": ["teknisi panggilan", "servis ac", "cuci ac", "isi freon", "perbaikan pipa", "instalasi listrik", "bocor"],
+        "brand_anchor": "Maju Jaya Teknik",
+        "phone_display_anchor": "0812-5550-8899",
+        "wa_anchor": "6281255508899",
+    },
+    "eo-wedding": {
+        "title": "Landing wedding organizer",
+        "keywords": ["wedding", "wedding organizer", "pernikahan", "lamaran", "akad", "resepsi", "pengantin"],
+        "brand_anchor": "Mahligai Wedding",
+        "phone_display_anchor": "0812-5550-7777",
+        "wa_anchor": "6281255507777",
+    },
+    "jasa-b2b": {
+        "title": "Landing supplier industri/fabrikasi",
+        "keywords": ["fabrikasi", "supplier industri", "bengkel las", "baja", "welding", "custom metal", "maintenance mesin"],
+        "brand_anchor": "Sinar Teknik Mandiri",
+        "phone_display_anchor": "0812-5550-7777",
+        "wa_anchor": "6281255507777",
+    },
+    "hukum": {
+        "title": "Landing advokat/konsultan hukum",
+        "keywords": ["advokat", "hukum", "pengacara", "notaris", "akta", "legal", "siup"],
+        "brand_anchor": "Rahayu &amp; Partners",
+        "phone_display_anchor": "0813-4556-789",
+        "wa_anchor": "628134556789",
+    },
+    "travel": {
+        "title": "Landing travel/tour & open trip",
+        "keywords": ["travel", "tour", "open trip", "paket wisata", "wisata", "sewa bus", "rental bus"],
+        "brand_anchor": "Jelajah Timur Tour",
+        "phone_display_anchor": "0812-5550-9999",
+        "wa_anchor": "6281255509999",
+    },
 }
 
 

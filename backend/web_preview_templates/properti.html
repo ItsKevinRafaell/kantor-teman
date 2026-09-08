@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arunika Properti — 24 listing aktif · Balikpapan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --forest:#1a3c34; --forest-d:#122b25; --bone:#f1ece1; --bone-d:#e5ded0;
+  --lime:#c8f04a; --lime-d:#a8d428; --ink:#151f1c; --muted:#5f6f68; --line:#d5cfc0; --white:#fff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Sora',system-ui,sans-serif;color:var(--ink);background:var(--bone);line-height:1.55;-webkit-font-smoothing:antialiased}
+img{display:block;width:100%;height:100%;object-fit:cover}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1220px;margin:0 auto;padding:0 26px}
+h1,h2,h3{font-weight:800;letter-spacing:-.03em;line-height:1.04}
+.kicker{font-family:'IBM Plex Mono',monospace;font-size:11.5px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--forest)}
+.mono{font-family:'IBM Plex Mono',monospace}
+
+nav{position:absolute;top:0;left:0;right:0;z-index:40;color:#fff}
+nav::after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,rgba(21,31,28,.9),rgba(21,31,28,0));pointer-events:none;z-index:-1}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:66px;gap:14px;position:relative}
+.brand{font-weight:800;font-size:20px;letter-spacing:-.02em;color:#fff;line-height:1}
+.brand small{display:block;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:500;letter-spacing:.24em;text-transform:uppercase;color:var(--lime);margin-top:4px}
+.menu{display:flex;gap:22px}
+.menu a{font-size:13.5px;font-weight:500;color:#dde6e0;letter-spacing:.02em}
+.menu a:hover{color:#fff}
+.nav-cta{background:var(--lime);color:var(--ink);font-weight:700;font-size:13px;padding:11px 18px;letter-spacing:.02em}
+.nav-cta:hover{background:var(--lime-d)}
+.burger{display:none;background:transparent;border:1px solid rgba(255,255,255,.35);cursor:pointer;padding:10px 11px;margin-left:auto}
+.burger span{display:block;width:20px;height:2px;background:#fff;margin:4px 0}
+#nav-toggle{position:absolute;opacity:0;pointer-events:none}
+.btn,.nav-cta,.chip,.menu a,.link{transition:background .15s ease,color .15s ease,opacity .15s ease,border-color .15s ease}
+
+/* HERO — search panel marketplace, BUKAN full-bleed */
+.hero{position:relative;min-height:100vh;background:var(--forest);display:grid;grid-template-columns:1.05fr .95fr}
+.hero .panel{position:relative;z-index:2;display:flex;flex-direction:column;justify-content:center;padding:110px 56px 56px 56px;color:#fff}
+.hero .panel .cnt{font-family:'IBM Plex Mono',monospace;font-size:12.5px;letter-spacing:.14em;color:var(--lime);text-transform:uppercase;margin-bottom:18px}
+.hero h1{font-size:clamp(2.4rem,4.6vw,4rem);color:#fff;max-width:15ch}
+.hero h1 em{font-style:normal;color:var(--lime)}
+.hero .panel p{max-width:44ch;color:#c4d2c9;margin-top:16px;font-size:15px}
+/* search bar */
+.search{margin-top:26px;display:flex;background:var(--white);max-width:520px}
+.search .fld{flex:1;display:flex;align-items:center;gap:10px;padding:15px 18px;color:var(--muted);font-size:14px;border-right:1px solid var(--line)}
+.search .fld b{color:var(--ink);font-weight:600}
+.search .go{background:var(--forest);color:#fff;border:0;font-family:inherit;font-weight:700;font-size:13.5px;padding:0 26px;cursor:pointer;letter-spacing:.04em}
+.search .fld .ic{width:18px;height:18px;border:2px solid var(--forest);border-radius:50%;position:relative;flex:none}
+.search .fld .ic::after{content:"";position:absolute;width:7px;height:2px;background:var(--forest);bottom:-2px;right:-4px;transform:rotate(45deg)}
+.chips{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.chip{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;padding:9px 14px;border:1px solid rgba(255,255,255,.35);color:#e4ece5}
+.chip.on{background:var(--lime);border-color:var(--lime);color:var(--ink);font-weight:600}
+.chip:hover{border-color:var(--lime)}
+.hero .pic{position:relative;min-height:380px}
+.hero .pic img{position:absolute;inset:0;height:100%}
+.hero .pic .float{position:absolute;left:26px;bottom:26px;right:26px;background:rgba(21,31,28,.92);backdrop-filter:blur(4px);color:#fff;padding:18px 20px;border-left:5px solid var(--lime)}
+.hero .pic .float .mono{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--lime)}
+.hero .pic .float b{display:block;font-size:15px;margin-top:4px}
+
+/* STATS strip */
+.stats{background:var(--ink);color:#e8e4d8;display:grid;grid-template-columns:repeat(4,1fr);text-align:center;padding:26px 0}
+.stats div{border-right:1px solid rgba(255,255,255,.12)}
+.stats div:last-child{border-right:0}
+.stats .n{font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:600;color:var(--lime)}
+.stats span{display:block;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:#9db3a8;margin-top:4px}
+
+/* KATALOG grid */
+#katalog{padding:70px 0 80px}
+.sec-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:30px}
+.sec-head h2{font-size:clamp(1.9rem,3.2vw,2.6rem)}
+.sec-head .ref{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.card{background:var(--white);border:1px solid var(--line);display:flex;flex-direction:column}
+.card .ph{position:relative;min-height:190px;overflow:hidden}
+.card .ph img{height:100%;min-height:190px}
+.card .tag{position:absolute;top:12px;left:12px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.14em;padding:6px 10px;text-transform:uppercase}
+.card .tag.j{background:var(--forest);color:#fff}
+.card .tag.s{background:var(--lime);color:var(--ink)}
+.card .body{padding:18px 18px 16px;display:flex;flex-direction:column;gap:7px;flex:1}
+.card .loc{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.card h3{font-size:1.05rem;letter-spacing:-.015em}
+.card .spec{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.card .spec b{color:var(--ink);font-weight:600}
+.card .price{margin-top:auto;padding-top:12px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:baseline}
+.card .price b{font-family:'IBM Plex Mono',monospace;font-size:16.5px;font-weight:600;color:var(--forest)}
+.card .price small{font-size:11px;color:var(--muted)}
+.more{display:block;text-align:center;margin-top:26px}
+.more a{font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.08em;border-bottom:2px solid var(--lime);padding-bottom:3px}
+
+/* ZONA board */
+#zona{background:var(--forest);color:#fff;padding:60px 0 70px}
+.zgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 60px;margin-top:26px}
+.zrow{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:15px 4px;border-bottom:1px solid rgba(255,255,255,.16)}
+.zrow b{font-size:15px;font-weight:600}
+.zrow .ct{font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--lime);white-space:nowrap}
+.zrow .pr{font-family:'IBM Plex Mono',monospace;font-size:12px;color:#9db3a8;white-space:nowrap}
+#zona h2{font-size:clamp(1.7rem,2.8vw,2.3rem);color:#fff;max-width:22ch}
+#zona .sub{color:#aebfb4;font-size:14.5px;margin-top:8px;max-width:52ch}
+
+/* ALUR strip */
+#alur{background:var(--bone);padding:56px 0 64px}
+.alrow{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;margin-top:26px}
+.al{background:var(--white);border:1px solid var(--line);padding:20px 18px}
+.al .n{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--forest);letter-spacing:.14em}
+.al b{display:block;font-size:15px;margin-top:8px}
+.al p{font-size:13px;color:var(--muted);margin-top:5px}
+
+/* QUOTE */
+#kata .qwrap{display:grid;grid-template-columns:1.15fr .85fr;min-height:400px}
+#kata .side{background:var(--lime);color:var(--ink);padding:50px 44px;display:flex;flex-direction:column;justify-content:center}
+#kata blockquote{font-size:clamp(1.25rem,2.1vw,1.7rem);font-weight:700;letter-spacing:-.02em;line-height:1.3}
+#kata .who{margin-top:20px;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#3a5a3f}
+#kata .pic{position:relative;min-height:280px}
+#kata .pic img{height:100%;min-height:280px}
+
+/* FAQ + LOKASI */
+.faq{background:var(--bone);padding:58px 0 68px;border-top:1px solid var(--line)}
+details{border-bottom:1px solid var(--line);padding:15px 0}
+details summary{cursor:pointer;font-weight:600;font-size:15.5px;list-style:none}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:"+";color:var(--forest);margin-right:12px;font-weight:700}
+details[open] summary::before{content:"–"}
+details p{margin-top:9px;color:var(--muted);font-size:14.5px}
+.lok{position:relative;min-height:320px}
+.lok>img{min-height:320px;object-position:center 55%}
+.addr{position:absolute;left:28px;bottom:28px;background:var(--forest);color:#e2ece5;padding:24px 28px;max-width:380px;border-left:5px solid var(--lime)}
+.addr h2{color:#fff;font-size:1.6rem;margin-bottom:8px}
+.addr p{font-size:14px;color:#b7c9bd;margin-bottom:4px}
+.addr .btn{margin-top:14px;background:var(--lime);color:var(--ink);display:inline-flex;font-weight:700;font-size:13.5px;padding:12px 20px}
+footer{background:var(--ink);color:#8a9a92;padding:20px 0;font-size:13px}
+footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-family:'IBM Plex Mono',monospace;letter-spacing:.06em}
+.katalog,.zona,.alur,.faq,.lok{animation:fade .18s ease-out}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+@media (max-width:960px){
+  .hero{grid-template-columns:1fr;min-height:100svh}
+  .hero .panel{padding:96px 20px 34px;justify-content:flex-end}
+  .hero .pic{min-height:320px}
+  .search{flex-direction:column}
+  .search .fld{border-right:0;border-bottom:1px solid var(--line);padding:13px 16px}
+  .search .go{padding:14px}
+  .grid{grid-template-columns:1fr 1fr}
+  .zgrid{grid-template-columns:1fr;gap:0}
+  .alrow{grid-template-columns:1fr 1fr}
+  #kata .qwrap{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .burger{display:block}
+  .menu{display:none;position:absolute;top:66px;left:0;right:0;background:var(--forest);flex-direction:column;padding:14px 22px 18px;gap:14px;z-index:41;border-bottom:4px solid var(--lime)}
+  #nav-toggle:checked ~ .menu{display:flex}
+  .grid{grid-template-columns:1fr}
+  .stats{grid-template-columns:1fr 1fr;gap:18px 0}
+  .stats div:nth-child(2){border-right:0}
+  .alrow{grid-template-columns:1fr}
+  #kata .qwrap{display:block}
+  .addr{left:14px;right:14px;bottom:14px;max-width:none}
+  .lok>img{min-height:240px}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<nav>
+  <div class="wrap nav-in">
+    <a class="brand" href="#top">Arunika<small>Properti · Balikpapan</small></a>
+    <input id="nav-toggle" type="checkbox">
+    <label class="burger" for="nav-toggle" aria-label="Buka menu"><span></span><span></span><span></span></label>
+    <div class="menu">
+      <a href="#katalog">Katalog</a>
+      <a href="#zona">Zona</a>
+      <a href="#alur">Alur</a>
+      <a href="#lokasi">Kontak</a>
+    </div>
+    <a class="nav-cta" href="https://wa.me/628134556789">Kirim katalog</a>
+  </div>
+</nav>
+
+<section class="hero" id="top">
+  <div class="panel">
+    <p class="cnt">24 LISTING AKTIF — UPDATE PEKAN INI</p>
+    <h1>Cari rumah mulai dari zona, bukan iklan.</h1>
+    <p>Sebut budget + zona — kami kirim katalog yang sertifikatnya jelas, sisanya survey bareng. Tanpa biaya tersembunyi.</p>
+    <div class="search" role="search">
+      <div class="fld"><span class="ic" aria-hidden="true"></span><span>Zona: <b>Graha Indah, Karang Joang…</b></span></div>
+      <div class="fld">Budget: <b>&lt; Rp 200 jt</b></div>
+      <button class="go" type="button" onclick="location.href='#katalog'">Cari</button>
+    </div>
+    <div class="chips">
+      <span class="chip on">Semua</span><span class="chip">Jual</span><span class="chip">Sewa</span><span class="chip">Kavling</span><span class="chip">SHM</span>
+    </div>
+  </div>
+  <div class="pic">
+    <img src="properti-assets/01.jpg" alt="Agent Arunika memandu keluarga muda survey rumah di Balikpapan">
+    <div class="float">
+      <span class="mono">Survey bareng agent</span>
+      <b>Dampingi dari lihat unit sampai AJB — gratis, tanpa komitmen.</b>
+    </div>
+  </div>
+</section>
+
+<div class="stats" aria-hidden="false">
+  <div><span class="n">24</span><span>listing aktif</span></div>
+  <div><span class="n">9</span><span>zona Balikpapan</span></div>
+  <div><span class="n">14 thn</span><span>operasi lokal</span></div>
+  <div><span class="n">0</span><span>biaya tersembunyi</span></div>
+</div>
+
+<section class="katalog" id="katalog">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="kicker">Katalog</p>
+        <h2>Paling sering ditanyakan pekan ini</h2>
+      </div>
+      <span class="ref">3 DARI 24 — KATALOG PENUH VIA WA</span>
+    </div>
+    <div class="grid">
+      <article class="card">
+        <div class="ph"><img src="properti-assets/03.jpg" alt="Rumah dua lantai facade andesit dan genteng di Graha Indah"><span class="tag j">Jual</span></div>
+        <div class="body">
+          <span class="loc">Balikpapan Selatan · Graha Indah</span>
+          <h3>Rumah 2 lantai carport luas</h3>
+          <div class="spec"><span>LT <b>120 m²</b></span><span>LB <b>180 m²</b></span><span>KT <b>4</b></span><span><b>SHM</b></span></div>
+          <div class="price"><b>Rp 1,85 M</b><small>nego</small></div>
+        </div>
+      </article>
+      <article class="card">
+        <div class="ph"><img src="properti-assets/02.jpg" alt="Ruang tamu tropis rumah sewa keluarga di Damai Bahagia"><span class="tag s">Sewa</span></div>
+        <div class="body">
+          <span class="loc">Balikpapan Timur · Damai Bahagia</span>
+          <h3>Rumah keluarga hadap taman</h3>
+          <div class="spec"><span>LT <b>95 m²</b></span><span>LB <b>110 m²</b></span><span>KT <b>3</b></span><span><b>SHGB</b></span></div>
+          <div class="price"><b>Rp 6,5 jt/bln</b><small>min 1 th</small></div>
+        </div>
+      </article>
+      <article class="card">
+        <div class="ph"><img src="properti-assets/04.jpg" alt="Kavling siap bangun dengan tiang batas di Karang Joang"><span class="tag j">Jual</span></div>
+        <div class="body">
+          <span class="loc">Balikpapan Utara · Karang Joang</span>
+          <h3>Kavling siap bangun dekat kampus</h3>
+          <div class="spec"><span>Luas <b>120 m²</b></span><span><b>SHM</b> induk</span><span>Akses <b>mobil</b></span></div>
+          <div class="price"><b>Rp 95 jt</b><small>cicilan dev</small></div>
+        </div>
+      </article>
+    </div>
+    <p class="more"><a href="https://wa.me/628134556789">Lihat 24 listing di katalog →</a></p>
+  </div>
+</section>
+
+<section class="zona" id="zona">
+  <div class="wrap">
+    <h2>Harga rata-rata per zona, biar kamu punya patokan</h2>
+    <p class="sub">Angka ini update dari transaksi nyata 6 bulan terakhir — bukan angka iklan.</p>
+    <div class="zgrid">
+      <div class="zrow"><b>Graha Indah</b><span class="pr">rumah tapak</span><span class="ct">Rp 11–15 jt/m²</span></div>
+      <div class="zrow"><b>Karang Joang</b><span class="pr">kavling</span><span class="ct">Rp 700 rb–1,2 jt/m²</span></div>
+      <div class="zrow"><b>Damai Bahagia</b><span class="pr">sewa rumah</span><span class="ct">Rp 4–8 jt/bln</span></div>
+      <div class="zrow"><b>Batakan</b><span class="pr">kavling view</span><span class="ct">Rp 350–600 rb/m²</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="alur" id="alur">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="kicker">Alur</p>
+        <h2>4 langkah, kami yang jalan di depan</h2>
+      </div>
+    </div>
+    <div class="alrow">
+      <div class="al"><span class="n">01</span><b>Kirim kriteria</b><p>Budget, zona, kebutuhan. Cukup chat.</p></div>
+      <div class="al"><span class="n">02</span><b>Katalog tersaring</b><p>Kami saring listing legal — bukan sebar semua.</p></div>
+      <div class="al"><span class="n">03</span><b>Survey bareng</b><p>Agent dampingi + cek dokumen unit.</p></div>
+      <div class="al"><span class="n">04</span><b>Deal &amp; AJB</b><p>Nego, notaris/PPAT, serah kunci.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="kata" id="kata">
+  <div class="qwrap">
+    <div class="side">
+      <blockquote>“Dari WA pertama sampai serah kunci 6 minggu. Survey dibimbing, dokumen dicek, harga dikunci. <span style="color:#2a5a2f">Kami ga paham properti — Arunika yang jalan di depan.”</span></blockquote>
+      <p class="who">Bpk. Yusuf &amp; Keluarga — Pembeli, Graha Indah</p>
+    </div>
+    <div class="pic"><img src="properti-assets/01.jpg" alt="Keluarga muda ditemani agent saat serah terima rumah"></div>
+  </div>
+</section>
+
+<section class="faq" id="faq">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="kicker">FAQ</p>
+        <h2>Yang sering ditanya</h2>
+      </div>
+    </div>
+    <details open><summary>Survey gratis beneran?</summary><p>Gratis, tanpa komitmen. Agent datang bareng kamu lihat unit — kalau ga cocok, cari yang lain. Kita ga maksa deal.</p></details>
+    <details><summary>Katalognya cuma 3?</summary><p>3 di atas cuma highlight pekan ini. 24 listing aktif dikirim lengkap via WA — sebut zona + budget, katalog nyampe dalam 15 menit jam kerja.</p></details>
+    <details><summary>Bisa bantu KPR?</summary><p>Bisa — hitung awal, rekomendasi bank sesuai profil, bantu siapkan berkas. Kredit tetap atas nama kamu.</p></details>
+    <details><summary>Legalitas dijamin?</summary><p>Listing kami wajib sertifikat jelas (SHM/SHGB) sebelum masuk katalog. Kalau dokumen bermasalah, kami bilang dari awal — bukan pas di meja notaris.</p></details>
+  </div>
+</section>
+
+<section class="lok" id="lokasi">
+  <img src="properti-assets/02.jpg" alt="Ruang kerja Arunika Properti di Jalan Jenderal Sudirman Balikpapan">
+  <div class="addr">
+    <h2>Arunika Properti</h2>
+    <p>Jl. Jenderal Sudirman No. 51, Balikpapan</p>
+    <p>Senin–Sabtu 08.00–17.00 · Survey weekend on-request</p>
+    <a class="btn" href="https://wa.me/628134556789">Minta katalog lengkap</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 ARUNIKA PROPERTI — BALIKPAPAN</span>
+    <span>24 LISTING · 9 ZONA · UPDATE PEKAN INI</span>
+  </div>
+</footer>
+</body>
+</html>

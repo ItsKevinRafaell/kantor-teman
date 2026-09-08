@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cetak Timur — Percetakan &amp; Sablon, Balikpapan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#141c26; --ink-d:#0c121a; --paper:#f6f1e4; --paper-d:#ede6d2;
+  --red:#d8372a; --red-d:#b02a20; --cyan:#0f8fa8; --mag:#c22b6e; --yellow:#f2b705;
+  --muted:#5c6b7a; --line:#ddd2ba; --white:#fff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Archivo',system-ui,sans-serif;color:var(--ink);background:var(--paper);line-height:1.55;-webkit-font-smoothing:antialiased}
+img{display:block;width:100%;height:100%;object-fit:cover}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1200px;margin:0 auto;padding:0 26px}
+h1,h2,h3{font-weight:900;letter-spacing:-.03em;line-height:1.02;text-transform:uppercase}
+.mono{font-family:'IBM Plex Mono',monospace}
+.kicker{font-family:'IBM Plex Mono',monospace;font-size:11.5px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--red)}
+
+/* CMYK reg mark */
+.reg{display:inline-flex;gap:0;height:10px}
+.reg i{width:22px;height:10px}
+.reg i.c{background:var(--cyan)}.reg i.m{background:var(--mag)}.reg i.y{background:var(--yellow)}.reg i.k{background:var(--ink)}
+
+/* NAV */
+nav{position:absolute;top:0;left:0;right:0;z-index:40;color:#fff}
+nav::after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,rgba(12,18,26,.88),rgba(12,18,26,0));pointer-events:none;z-index:-1}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:66px;gap:14px;position:relative}
+.brand{font-weight:900;font-size:19px;letter-spacing:-.02em;color:#fff;line-height:1}
+.brand small{display:block;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:500;letter-spacing:.26em;text-transform:uppercase;color:var(--yellow);margin-top:3px}
+.menu{display:flex;gap:22px}
+.menu a{font-size:13.5px;font-weight:600;color:#d7dee6;letter-spacing:.02em}
+.menu a:hover{color:#fff}
+.nav-cta{background:var(--red);color:#fff;font-weight:800;font-size:13px;padding:11px 18px;letter-spacing:.02em}
+.nav-cta:hover{background:var(--red-d)}
+.burger{display:none;background:transparent;border:1px solid rgba(255,255,255,.35);cursor:pointer;padding:10px 11px;margin-left:auto}
+.burger span{display:block;width:20px;height:2px;background:#fff;margin:4px 0}
+#nav-toggle{position:absolute;opacity:0;pointer-events:none}
+.btn,.nav-cta,.menu a,.link{transition:background .15s ease,color .15s ease,filter .15s ease,opacity .15s ease}
+.hero .bar{animation:rise .2s ease-out}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* HERO 100vh */
+.hero{position:relative;min-height:100vh;background:var(--ink-d)}
+.hero>img{position:absolute;inset:0;width:100%;height:100%;min-height:100vh;object-position:center 40%}
+.hero .reg{position:absolute;top:86px;right:26px;opacity:.95}
+.bar{position:absolute;left:0;right:0;bottom:0;background:var(--paper);padding:30px 40px 32px;border-top:8px solid var(--ink)}
+.bar .top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.bar h1{font-size:clamp(2rem,4.8vw,3.6rem);max-width:17ch;color:var(--ink);margin-top:10px}
+.bar p{max-width:46ch;color:var(--muted);margin-top:10px;font-size:15px}
+.cta-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.btn{display:inline-flex;align-items:center;font-weight:800;font-size:14px;padding:13px 20px;border:0;cursor:pointer;font-family:inherit;text-transform:uppercase;letter-spacing:.03em}
+.btn-g{background:var(--red);color:#fff}
+.btn-g:hover{background:var(--red-d)}
+.link{font-weight:700;font-size:14px;color:var(--ink);border-bottom:2px solid var(--red)}
+
+/* TICKER */
+.ticker{background:var(--ink);color:#eaf0f4;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.16em;text-transform:uppercase;overflow:hidden;padding:12px 0;white-space:nowrap}
+.ticker .trk{display:inline-block;animation:tick 20s linear infinite}
+.ticker span{color:var(--yellow)}
+@keyframes tick{to{transform:translateX(-50%)}}
+
+/* SPES — split sticky, bukan grid card */
+#spes{background:var(--paper);padding:70px 0 80px}
+.spes-grid{display:grid;grid-template-columns:.85fr 1.15fr;gap:40px;align-items:start}
+.spes-left{position:sticky;top:30px}
+.spes-left h2{font-size:clamp(2.2rem,4vw,3.2rem)}
+.spes-left p{color:var(--muted);margin-top:12px;max-width:34ch;font-size:15px}
+.spes-left .reg{margin-top:18px}
+.slist{border-top:3px solid var(--ink)}
+.srow{display:grid;grid-template-columns:64px 1fr auto;gap:18px;align-items:baseline;padding:19px 4px;border-bottom:1px solid var(--line)}
+.srow .code{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--red);font-weight:600}
+.srow b{font-size:17px;text-transform:uppercase;letter-spacing:-.01em}
+.srow span{display:block;font-size:14px;color:var(--muted);margin-top:3px;font-weight:400}
+.srow .jml{font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--ink);white-space:nowrap}
+.srow:hover{background:#fbf7ec}
+.srow:hover .code{color:var(--ink)}
+
+/* TICKET harga — perforasi + punch hole */
+#harga{background:var(--ink);padding:70px 0 80px;color:#e6ecf1}
+#harga .kicker{color:var(--yellow)}
+#harga .sec-head h2{color:#fff}
+.sec-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:30px}
+.sec-head .ref{font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8fa0ad;letter-spacing:.08em}
+.ticket{background:var(--paper);color:var(--ink);position:relative;padding:6px 0 4px;box-shadow:10px 10px 0 rgba(0,0,0,.35)}
+.ticket::before{content:"";position:absolute;left:0;right:0;top:-7px;height:14px;background:radial-gradient(circle at 10px 7px, var(--ink) 5px, transparent 5.5px);background-size:28px 14px;background-position:10px 0;opacity:.9}
+.ticket-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:16px 22px;border-bottom:2px solid var(--ink);font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted)}
+.ticket-top b{color:var(--red)}
+.trow{display:grid;grid-template-columns:52px 1.25fr .9fr .85fr;gap:14px;align-items:center;padding:16px 22px;border-bottom:1px dashed var(--line);font-size:14.5px}
+.trow:last-of-type{border-bottom:0}
+.trow .no{font-family:'IBM Plex Mono',monospace;color:var(--red);font-weight:600}
+.trow b{font-size:15px}
+.trow .harga{font-family:'IBM Plex Mono',monospace;font-weight:600;text-align:right}
+.trow .min{font-size:12.5px;color:var(--muted);text-align:right}
+.trow.head{background:var(--ink);color:#fff;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;padding:11px 22px}
+.trow.head .harga{color:var(--yellow)}
+.ticket-note{font-size:12.5px;color:#8fa0ad;margin-top:16px;font-family:'IBM Plex Mono',monospace}
+
+/* LANTAI — foto lebar + strip stats */
+#lantai{background:var(--paper);padding:0}
+.floorband{display:grid;grid-template-columns:1.35fr .65fr;min-height:420px}
+.floorband .big{position:relative}
+.floorband .big img{height:100%;min-height:420px}
+.floorband .side{background:var(--red);color:#fff;padding:36px 30px;display:flex;flex-direction:column;justify-content:center;gap:18px}
+.floorband .side h2{font-size:clamp(1.7rem,3vw,2.4rem);color:#fff}
+.floorband .side p{font-size:14.5px;color:#ffe9e4}
+.stat{display:flex;gap:14px;align-items:baseline;border-top:1px solid rgba(255,255,255,.3);padding-top:12px}
+.stat .n{font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:600;color:var(--yellow)}
+.stat span{font-size:13px;color:#ffe9e4}
+.floor-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:20px 26px 26px}
+.fs{position:relative}
+.fs img{height:190px;min-height:0}
+.fs .plate-c{position:absolute;left:10px;bottom:10px;background:rgba(12,18,26,.85);color:#fff;font-family:'IBM Plex Mono',monospace;font-size:11.5px;padding:7px 10px;letter-spacing:.05em}
+.fs .plate-c b{color:var(--yellow)}
+
+/* ALUR — jalur cetak */
+#alur{background:var(--paper-d);padding:66px 0 76px;border-top:1px solid var(--line)}
+.path{display:grid;grid-template-columns:repeat(4,1fr);gap:0;position:relative}
+.path::before{content:"";position:absolute;top:24px;left:6%;right:6%;border-top:2px dashed var(--red);z-index:0}
+.step{padding:0 18px;position:relative;z-index:1}
+.step .dot{width:48px;height:48px;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:15px;margin-bottom:14px}
+.step:nth-child(2) .dot{background:var(--cyan)}
+.step:nth-child(3) .dot{background:var(--mag)}
+.step:nth-child(4) .dot{background:var(--red)}
+.step b{display:block;font-size:15.5px;text-transform:uppercase;letter-spacing:-.01em}
+.step p{font-size:13.5px;color:var(--muted);margin-top:5px}
+
+/* QUOTES — proof chit */
+#proof{background:var(--paper);padding:64px 0 72px}
+.chits{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.chit{background:#fff;border:1px solid var(--line);padding:22px 22px 18px;position:relative;box-shadow:4px 4px 0 rgba(20,28,38,.07)}
+.chit::before{content:"";position:absolute;top:0;left:0;right:0;height:5px}
+.chit:nth-child(1)::before{background:var(--cyan)}
+.chit:nth-child(2)::before{background:var(--mag)}
+.chit:nth-child(3)::before{background:var(--yellow)}
+.chit p{font-size:14.5px;color:var(--ink)}
+.chit .who{margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted)}
+.chit .who b{color:var(--red);font-weight:600}
+
+/* FAQ */
+.faq{background:var(--paper);padding:60px 0 70px;border-top:1px solid var(--line)}
+details{border-bottom:1px solid var(--line);padding:16px 0}
+details summary{cursor:pointer;font-weight:700;font-size:15.5px;list-style:none;font-family:'IBM Plex Mono',monospace}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:"+";color:var(--red);margin-right:12px;font-weight:700}
+details[open] summary::before{content:"–"}
+details p{margin-top:9px;color:var(--muted);font-size:14.5px}
+
+/* LOKASI */
+.lok{position:relative;min-height:320px}
+.lok>img{min-height:320px;object-position:center}
+.addr{position:absolute;left:28px;bottom:28px;background:var(--ink);color:#dfe7ec;padding:24px 28px;max-width:370px}
+.addr .reg{margin-bottom:10px}
+.addr h2{color:#fff;font-size:1.7rem;margin:2px 0 8px}
+.addr p{font-size:14px;color:#aebac4;margin-bottom:4px}
+.addr .btn{margin-top:14px}
+
+footer{background:var(--ink);color:#8fa0ad;padding:20px 0;font-size:13px}
+footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-family:'IBM Plex Mono',monospace;letter-spacing:.06em}
+
+.spes,.lantai,.alur,.proof,.faq,.lok,.harga{animation:fade .18s ease-out}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+@media (max-width:900px){
+  .hero{min-height:100svh}
+  .hero>img{min-height:100svh;height:100%}
+  .hero .reg{top:78px;right:16px}
+  .bar{padding:22px 18px 26px}
+  .burger{display:block}
+  .menu{display:none;position:absolute;top:66px;left:0;right:0;background:var(--ink-d);flex-direction:column;padding:14px 22px 18px;gap:14px;z-index:41;border-bottom:4px solid var(--red)}
+  #nav-toggle:checked ~ .menu{display:flex}
+  .spes-grid{grid-template-columns:1fr}
+  .spes-left{position:static}
+  .trow{grid-template-columns:34px 1fr;gap:4px 12px;padding:14px 16px}
+  .trow .harga{grid-column:2;text-align:left}
+  .trow .min{grid-column:2;text-align:left}
+  .trow.head{display:none}
+  .floorband{grid-template-columns:1fr}
+  .floorband .big img{min-height:250px;height:250px}
+  .floor-strip{grid-template-columns:1fr;padding:16px 18px 20px}
+  .path{grid-template-columns:1fr;gap:18px}
+  .path::before{display:none}
+  .step{display:grid;grid-template-columns:48px 1fr;gap:14px;padding:0}
+  .step .dot{margin-bottom:0}
+  .chits{grid-template-columns:1fr}
+  .addr{left:14px;right:14px;bottom:14px;max-width:none}
+  .lok>img{min-height:230px}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<nav>
+  <div class="wrap nav-in">
+    <a class="brand" href="#top">Cetak Timur<small>Percetakan · Balikpapan</small></a>
+    <input id="nav-toggle" type="checkbox">
+    <label class="burger" for="nav-toggle" aria-label="Buka menu"><span></span><span></span><span></span></label>
+    <div class="menu">
+      <a href="#harga">Harga</a>
+      <a href="#lantai">Lantai mesin</a>
+      <a href="#alur">Alur order</a>
+      <a href="#lokasi">Lokasi</a>
+    </div>
+    <a class="nav-cta" href="https://wa.me/628134556789">Order via WA</a>
+  </div>
+</nav>
+
+<section class="hero" id="top">
+  <img src="percetakan-assets/01.jpg" alt="Lantai produksi percetakan: operator di mesin cetak besar, Balikpapan">
+  <div class="reg" aria-hidden="true"><i class="c"></i><i class="m"></i><i class="y"></i><i class="k"></i></div>
+  <div class="bar">
+    <div class="top">
+      <p class="kicker">Offset · Digital · Sablon — sejak 2011</p>
+      <span class="reg" aria-hidden="true"><i class="c"></i><i class="m"></i><i class="y"></i><i class="k"></i></span>
+    </div>
+    <h1>Kertas masuk. Hasil rapi keluar.</h1>
+    <p>Brosur, banner, kartu nama, undangan, kemasan — produksi di lantai sendiri, QC sebelum dikirim. Harga jelas di meja, bukan tebak-tebakan di chat.</p>
+    <div class="cta-row">
+      <a class="btn btn-g" href="https://wa.me/628134556789">Minta penawaran</a>
+      <a class="link" href="#harga">Daftar harga</a>
+    </div>
+  </div>
+</section>
+
+<div class="ticker" aria-hidden="true"><div class="trk">Cetak offset&nbsp;<span>●</span>&nbsp;Cetak digital&nbsp;<span>●</span>&nbsp;Sablon plastisol&nbsp;<span>●</span>&nbsp;Potong &amp; jilid&nbsp;<span>●</span>&nbsp;Laminasi doff / glossy&nbsp;<span>●</span>&nbsp;Antar dalam Balikpapan&nbsp;<span>●</span>&nbsp;</div></div>
+
+<section class="spes" id="spes">
+  <div class="wrap spes-grid">
+    <div class="spes-left">
+      <p class="kicker">Spesifikasi jasa</p>
+      <h2>Apa yang bisa dicetak</h2>
+      <p>Semua dikerjakan in-house — dari file mentah sampai packing. Klik item untuk tanya stok bahan hari ini.</p>
+      <span class="reg" aria-hidden="true"><i class="c"></i><i class="m"></i><i class="y"></i><i class="k"></i></span>
+    </div>
+    <div class="slist">
+      <div class="srow"><span class="code">A.01</span><b>Kartu nama<span>Art paper / ivory 260–310 gsm, 1–2 sisi, laminasi opsional</span></b><span class="jml">min. 100 pcs</span></div>
+      <div class="srow"><span class="code">A.02</span><b>Brosur &amp; flyer<span>Lipat 2 / lipat 3, A4–A6, art paper 120–150 gsm</span></b><span class="jml">min. 500 lbr</span></div>
+      <div class="srow"><span class="code">A.03</span><b>Banner &amp; spanduk<span>Flexi 280–440 gsm, albatros, banner stand</span></b><span class="jml">min. 1 m²</span></div>
+      <div class="srow"><span class="code">A.04</span><b>Undangan<span>Offset A6, amplop + kartu, perforasi &amp; emboss</span></b><span class="jml">min. 100 pcs</span></div>
+      <div class="srow"><span class="code">A.05</span><b>Kemasan custom<span>Box duplex 350 gsm, paper bag, label stiker</span></b><span class="jml">min. 50 pcs</span></div>
+      <div class="srow"><span class="code">A.06</span><b>Sablon kaos<span>Plastisol 1–3 warna, kaos cotton/combed 30s</span></b><span class="jml">min. 24 pcs</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="harga" id="harga">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="kicker">Tiket produksi</p>
+        <h2>Daftar harga</h2>
+      </div>
+      <span class="ref">REV 09-2026 · HARGA *ESTIMASI</span>
+    </div>
+    <div class="ticket">
+      <div class="ticket-top"><span>JOB — <b>CETAK TIMUR</b> · BALIKPAPAN</span><span>STATUS: SIAP PRODUKSI</span></div>
+      <div class="trow head"><span class="no">NO</span><span>ITEM</span><span>SPEK</span><span class="harga">HARGA AWAL</span></div>
+      <div class="trow"><span class="no">01</span><b>Kartu nama</b><span>310 gsm · 2 sisi</span><span class="harga">Rp 60rb / 100 pcs *</span></div>
+      <div class="trow"><span class="no">02</span><b>Brosur lipat 3</b><span>A5 · 150 gsm</span><span class="harga">Rp 800 / lbr *</span></div>
+      <div class="trow"><span class="no">03</span><b>Banner flexi</b><span>340 gsm / m²</span><span class="harga">Rp 35rb / m² *</span></div>
+      <div class="trow"><span class="no">04</span><b>Undangan</b><span>A6 · art carton</span><span class="harga">Rp 2.5rb / pcs *</span></div>
+      <div class="trow"><span class="no">05</span><b>Sablon kaos</b><span>plastisol 1 warna</span><span class="harga">Rp 25rb / pcs *</span></div>
+    </div>
+    <p class="ticket-note">* estimasi — final tergantung bahan &amp; jumlah. File mentah dibantu rapikan tim desain (biaya terpisah *)</p>
+  </div>
+</section>
+
+<section class="lantai" id="lantai">
+  <div class="floorband">
+    <div class="big"><img src="percetakan-assets/02.jpg" alt="Mesin offset CMYK berputar, operator mengawasi lembaran keluar"></div>
+    <div class="side">
+      <p class="kicker" style="color:#fff">Lantai mesin</p>
+      <h2>Dikerjakan di sini — bukan dikirim ke vendor lain</h2>
+      <div class="stat"><span class="n">3</span><span>mesin cetak offset + digital aktif</span></div>
+      <div class="stat"><span class="n">2×</span><span>QC warna: sebelum potong &amp; sebelum packing</span></div>
+      <div class="stat"><span class="n">1–7</span><span>hari kerja sesuai jenis order</span></div>
+    </div>
+  </div>
+  <div class="floor-strip">
+    <div class="fs"><img src="percetakan-assets/05.jpg" alt="Pemeriksaan warna dengan loupe di meja cahaya"><span class="plate-c"><b>QC</b> · cek warna loupe</span></div>
+    <div class="fs"><img src="percetakan-assets/03.jpg" alt="Hasil cetak brosur warna menumpuk siap dipacking"><span class="plate-c"><b>OUTPUT</b> · brosur siap kirim</span></div>
+    <div class="fs"><img src="percetakan-assets/04.jpg" alt="Operator di meja order percetakan"><span class="plate-c"><b>ORDER</b> · meja layanan harian</span></div>
+  </div>
+</section>
+
+<section class="alur" id="alur">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="kicker">Jalur cetak</p>
+        <h2>4 langkah dari file ke tangan</h2>
+      </div>
+    </div>
+    <div class="path">
+      <div class="step"><span class="dot">01</span><b>Kirim file</b><p>PDF, AI, CDR, Canva — lewat WA atau email. Belum punya? Kami buatkan.</p></div>
+      <div class="step"><span class="dot">02</span><b>Approve proof</b><p>Preview digital + harga final. Setuju dulu, baru mesin jalan.</p></div>
+      <div class="step"><span class="dot">03</span><b>Cetak + QC</b><p>Produksi in-house, cek warna dua kali sebelum potong dan packing.</p></div>
+      <div class="step"><span class="dot">04</span><b>Antar / kirim</b><p>Ambil di toko atau antar dalam Balikpapan. Luar kota via ekspedisi.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="proof" id="proof">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="kicker">Proof chit</p>
+        <h2>Kata pelanggan</h2>
+      </div>
+    </div>
+    <div class="chits">
+      <div class="chit"><p>"Banner promosi 20 titik selesai 2 hari, warna semua konsisten. K RL di titik mana pun sama."</p><span class="who"><b>CAFÉ KALTIM</b> · order banner rutin</span></div>
+      <div class="chit"><p>"Undangan 400 pcs jadi 5 hari, perforasi rapi. Tamu pada nanya cetak di mana."</p><span class="who"><b>KEL. HARTONO</b> · undangan pernikahan</span></div>
+      <div class="chit"><p>"Kemasan box custom pertama kami. Dibantu desain sampai proof ke-3 baru cetak."</p><span class="who"><b>SNACK HOUSE</b> · kemasan produk</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="faq" id="faq">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="kicker">FAQ</p>
+        <h2>Yang sering ditanya</h2>
+      </div>
+    </div>
+    <details open><summary>File harus format apa?</summary><p>PDF siap cetak paling aman. Kalau belum pernah, kirim mentah (Canva, Word, PPT) — tim desain rapikan, biaya *terpisah atau gratis untuk order besar.</p></details>
+    <details><summary>Berapa lama jadi?</summary><p>Kartu nama &amp; brosur kecil 1–3 hari kerja. Banner 1 hari. Undangan &amp; kemasan custom 4–7 hari kerja tergantung jumlah.</p></details>
+    <details><summary>Warna cetak bisa beda dengan layar?</summary><p>Bisa — layar RGB, mesin CMYK. Makanya kami kasih proof dulu; order besar bisa minta hard proof sebelum produksi penuh.</p></details>
+    <details><summary>Bisa antar luar Balikpapan?</summary><p>Bisa, via ekspedisi reguler dengan packing aman. Dalam kota gratis antar untuk order di atas *+/-.</p></details>
+  </div>
+</section>
+
+<section class="lok" id="lokasi">
+  <img src="percetakan-assets/06.jpg" alt="Depan percetakan Cetak Timur di Jl. MT Haryono, Balikpapan">
+  <div class="addr">
+    <span class="reg" aria-hidden="true"><i class="c"></i><i class="m"></i><i class="y"></i><i class="k"></i></span>
+    <h2>Cetak Timur</h2>
+    <p>Jl. MT Haryono No. 18, Balikpapan</p>
+    <p>Senin–Sabtu 08.00–18.00</p>
+    <a class="btn btn-g" href="https://wa.me/628134556789">Chat via WA</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 CETAK TIMUR — BALIKPAPAN</span>
+    <span>CETAK · POTONG · JILID · KIRIM</span>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Benang Merah Konveksi — Seragam &amp; Kaos Custom, Balikpapan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --graph:#1a1210; --graph-d:#120c0a; --calico:#fff6ea; --calico-d:#f3e0c4;
+  --stitch:#c41e3a; --ink:#1a1210; --muted:#6b5348; --line:#e8c9a8; --white:#fff;
+  --gold:#e8a317;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Figtree',system-ui,sans-serif;color:var(--ink);background:var(--calico);line-height:1.5;-webkit-font-smoothing:antialiased}
+img{display:block;width:100%;height:100%;object-fit:cover}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1200px;margin:0 auto;padding:0 28px}
+h1,h2,h3{font-family:'Syne',sans-serif;font-weight:700;letter-spacing:-.04em;line-height:1.02}
+.kicker{font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--stitch)}
+
+nav{position:sticky;top:0;z-index:40;background:var(--stitch);color:#fff}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:64px;gap:12px;position:relative}
+.burger{display:none;background:transparent;border:0;color:#fff;font:inherit;font-weight:700;font-size:13px;cursor:pointer;padding:8px 0}
+#nav-toggle{position:absolute;opacity:0;pointer-events:none}
+.brand{display:flex;align-items:center;gap:10px;color:#fff}
+.brand-mark{width:40px;height:40px;flex-shrink:0;background:transparent;padding:0}
+.brand-mark img{width:100%;height:100%;object-fit:contain}
+.brand-name{font-family:'Syne';font-weight:800;font-size:16px;letter-spacing:-.04em;line-height:1.05}
+.brand-name small{display:block;font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--gold)}
+.menu{display:flex;gap:22px}
+.menu a{font-size:14px;font-weight:600;color:#ffd6d0}
+.menu a:hover{color:#fff}
+.nav-cta{background:#fff;color:var(--stitch);font-weight:700;font-size:13.5px;padding:10px 16px}
+.nav-cta:hover{filter:brightness(1.04)}
+.btn,.nav-cta{transition:filter .15s ease,opacity .15s ease}
+.cover-copy,.rack,.line-grid,.tix,.faq,.lok{animation:fade .18s ease-out}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+/* COVER — lookbook, bukan overlay / bukan split 50 */
+.cover{display:grid;grid-template-columns:1.15fr .85fr;min-height:86vh;background:var(--calico)}
+.cover-pic{position:relative;min-height:520px}
+.cover-pic img{object-position:center 40%}
+.cover-cap{position:absolute;left:0;bottom:0;background:var(--stitch);color:#fff;padding:10px 16px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.cover-copy{padding:56px 48px 48px 40px;display:flex;flex-direction:column;justify-content:center}
+.cover h1{font-size:clamp(2.6rem,5.2vw,4.4rem);margin:12px 0 18px}
+.cover h1 em{font-style:normal;color:var(--stitch)}
+.lead{font-size:1.08rem;color:var(--muted);max-width:380px;margin-bottom:26px}
+.cta-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:32px}
+.btn{display:inline-flex;align-items:center;font-weight:700;font-size:14.5px;padding:13px 20px;border:0;cursor:pointer;font-family:inherit}
+.btn-red{background:var(--stitch);color:#fff}
+.btn-line{background:transparent;color:var(--graph);border:1.5px solid var(--graph)}
+.meta{display:grid;grid-template-columns:1fr 1fr;gap:14px 20px;border-top:1px solid var(--line);padding-top:18px}
+.meta b{display:block;font-family:'Syne';font-size:1.15rem}
+.meta span{font-size:12.5px;color:var(--muted)}
+
+/* LOOKBOOK grid — produk sebagai katalog, bukan kartu jasa */
+.look{padding:72px 0 40px;background:var(--calico)}
+.look-head{display:flex;justify-content:space-between;align-items:end;gap:24px;margin-bottom:28px}
+.look-head h2{font-size:clamp(1.8rem,3.2vw,2.6rem);max-width:420px}
+.look-head p{color:var(--muted);max-width:320px}
+.rack{display:grid;grid-template-columns:1.4fr 1fr 1fr;grid-template-rows:auto auto;gap:10px}
+.item{position:relative;background:var(--calico-d);overflow:hidden}
+.item img{aspect-ratio:4/3}
+.item.tall img{aspect-ratio:3/4;min-height:100%}
+.item.tall{grid-row:1 / span 2}
+.tag{position:absolute;left:12px;bottom:12px;background:var(--stitch);color:#fff;padding:8px 12px}
+.tag b{display:block;font-family:'Syne';font-size:15px}
+.tag span{font-size:11.5px;color:#ffd6d0}
+
+/* SPEC — swatch list, bukan tabel 3 kolom klinik */
+.spec{padding:56px 0 72px;background:var(--white);border-top:8px solid var(--stitch)}
+.spec h2{font-size:clamp(1.7rem,2.8vw,2.3rem);margin:8px 0 22px}
+.swatch{display:grid;grid-template-columns:160px 1fr 140px 140px;gap:0;border-top:1px solid var(--line);padding:16px 0;align-items:center}
+.swatch:last-child{border-bottom:1px solid var(--line)}
+.swatch .nm{font-family:'Syne';font-weight:700;font-size:1.05rem}
+.swatch p{color:var(--muted);font-size:14.5px}
+.swatch .cell{font-size:13.5px}
+.swatch .cell b{display:block;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--stitch);margin-bottom:2px}
+
+/* LINE — produksi horizontal, foto proof nempel */
+.line{background:var(--graph);color:#f3e0c4;padding:64px 0}
+.line h2{color:#fff;font-size:clamp(1.7rem,3vw,2.4rem);margin:8px 0 28px}
+.line-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.st{background:#2a1614}
+.st img{aspect-ratio:4/3}
+.st .b{padding:14px 14px 18px}
+.st .n{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--gold)}
+.st h3{font-size:1.05rem;color:#fff;margin:4px 0 6px}
+.st p{font-size:13px;color:#b7b1a6}
+
+/* HARGA — packing-slip */
+.harga{padding:72px 0;background:var(--calico)}
+.slip{background:#fff;border:1px solid var(--line);padding:36px 40px;max-width:920px}
+.slip-top{display:flex;justify-content:space-between;gap:16px;border-bottom:2px dashed var(--line);padding-bottom:16px;margin-bottom:8px}
+.slip h2{font-size:1.8rem}
+.note{font-size:13px;color:var(--muted);max-width:280px;text-align:right}
+table{width:100%;border-collapse:collapse;margin:12px 0 8px;font-size:14.5px}
+th{text-align:left;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--stitch);padding:10px 8px;border-bottom:1px solid var(--line);font-weight:700}
+td{padding:12px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+td.r{text-align:right;font-weight:700;font-family:'Syne'}
+.fine{font-size:13px;color:var(--muted);margin-top:12px}
+
+/* ORDER steps as tickets */
+.order{padding:0 0 72px;background:var(--calico)}
+.order h2{font-size:clamp(1.7rem,2.8vw,2.3rem);margin:0 0 20px}
+.tix{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.tk{background:#fff;border:1px solid var(--line);padding:18px 16px;border-top:6px solid var(--stitch);box-shadow:4px 4px 0 var(--gold)}
+.tk .n{font-family:'Syne';font-size:1.6rem;color:var(--stitch)}
+.tk h3{font-size:1.05rem;margin:4px 0 6px}
+.tk p{font-size:13.5px;color:var(--muted)}
+
+/* FAQ compact 2 col */
+.faq{padding:0 0 64px;background:var(--calico)}
+.faq h2{font-size:1.8rem;margin-bottom:16px}
+.faq-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 40px}
+details{border-top:1px solid var(--line);padding:12px 0}
+details summary{cursor:pointer;font-weight:700;font-size:15px;list-style:none}
+details summary::-webkit-details-marker{display:none}
+details p{margin-top:6px;color:var(--muted);font-size:14.5px}
+
+.lok{display:grid;grid-template-columns:1.2fr .8fr;min-height:400px}
+.lok-map{min-height:400px;overflow:hidden}
+.lok-copy{background:var(--stitch);color:#ffd6d0;padding:44px 36px}
+.lok-copy h2{color:#fff;font-size:1.7rem;margin:8px 0 14px}
+.lok-copy p{margin-bottom:8px}
+.lok-copy .btn{margin-top:16px;background:#fff;color:var(--stitch)}
+
+footer{background:var(--graph-d);color:#8a8580;padding:18px 0;font-size:13px}
+footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.foot-brand{display:flex;align-items:center;gap:8px;color:#fff;font-family:'Syne';font-weight:700}
+.foot-brand img{width:28px;height:28px;background:transparent;padding:0;object-fit:contain}
+
+@media (max-width:900px){
+  .cover,.rack,.line-grid,.tix,.faq-grid,.lok,.swatch{grid-template-columns:1fr}
+  .item.tall{grid-row:auto}
+  .cover-copy{padding:32px 24px}
+  .burger{display:block}
+  .menu{display:none;position:absolute;top:64px;left:0;right:0;background:var(--stitch);flex-direction:column;padding:12px 20px 16px;gap:12px;z-index:41}
+  #nav-toggle:checked ~ .menu{display:flex}
+  .slip{padding:24px}
+  td.r{text-align:left}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<nav>
+  <div class="wrap nav-in">
+    <a class="brand" href="#top">
+      <span class="brand-mark"><img src="konveksi-assets/logo-mark.png" alt=""></span>
+      <span class="brand-name">Benang Merah<small>Konveksi</small></span>
+    </a>
+    <input id="nav-toggle" type="checkbox">
+    <label class="burger" for="nav-toggle">Menu</label>
+    <div class="menu">
+      <a href="#katalog">Katalog</a>
+      <a href="#bahan">Bahan</a>
+      <a href="#produksi">Produksi</a>
+      <a href="#harga">Harga</a>
+      <a href="#order">Order</a>
+    </div>
+    <a class="nav-cta" href="https://wa.me/628134556789">Minta penawaran</a>
+  </div>
+</nav>
+
+<section class="cover" id="top">
+  <div class="cover-pic">
+    <img src="konveksi-assets/03.jpg" alt="Tumpukan polo seragam hasil produksi di meja kerja konveksi">
+    <span class="cover-cap">Lantai produksi · polo &amp; seragam</span>
+  </div>
+  <div class="cover-copy">
+    <p class="kicker">Konveksi · Balikpapan</p>
+    <h1>Seragam.<br>Kaos.<br><em>Tepat waktu.</em></h1>
+    <p class="lead">Jahit di tempat, QC per lusin, kirim sesuai tanggal di PO. Bukan dropship — mesinnya di KM 5.</p>
+    <div class="cta-row">
+      <a class="btn btn-red" href="https://wa.me/628134556789">Minta penawaran via WA</a>
+      <a class="btn btn-line" href="#katalog">Lihat katalog</a>
+    </div>
+    <div class="meta">
+      <div><b>50 pcs</b><span>Minimum order</span></div>
+      <div><b>12–18 hari</b><span>Lead time setelah ACC sample</span></div>
+      <div><b>Sablon / bordir</b><span>Logo dikerjakan di sini</span></div>
+      <div><b>Senin–Sabtu</b><span>08.00–17.00 · Minggu tutup</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="look" id="katalog">
+  <div class="wrap">
+    <div class="look-head">
+      <div>
+        <p class="kicker">Katalog</p>
+        <h2>Yang kami jahit tiap minggu.</h2>
+      </div>
+      <p>Bukan etalase teori. Ini jenis order yang masuk ke lantai produksi — seragam kantor, kaos event, batik dinas, almamater.</p>
+    </div>
+    <div class="rack">
+      <article class="item tall">
+        <img src="konveksi-assets/01.jpg" alt="Penjahit di mesin industri mengerjakan kain batik">
+        <div class="tag"><b>Seragam batik dinas</b><span>Katun / rayon · bordir nama</span></div>
+      </article>
+      <article class="item">
+        <img src="konveksi-assets/04.jpg" alt="Pemeriksaan mutu polo navy sebelum packing">
+        <div class="tag"><b>Polo kantor</b><span>CVC 24s · sablon / bordir logo</span></div>
+      </article>
+      <article class="item">
+        <img src="konveksi-assets/02.jpg" alt="Mesin juki mengerjakan bahan denim">
+        <div class="tag"><b>Kaos event</b><span>Cotton combed 30s · sablon plastisol</span></div>
+      </article>
+      <article class="item">
+        <img src="konveksi-assets/06.jpg" alt="Gulungan kain batik siap potong">
+        <div class="tag"><b>Almamater &amp; jas</b><span>Drill / taslan · bordir punggung</span></div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="spec wrap" id="bahan">
+  <p class="kicker">Bahan &amp; finishing</p>
+  <h2>Pilih kain dulu, harga menyusul di penawaran.</h2>
+  <div class="swatch">
+    <div class="nm">Cotton combed 30s</div>
+    <p>Kaos event, komunitas, merchandise. Adem, rapi di sablon.</p>
+    <div class="cell"><b>Min. order</b>50 pcs</div>
+    <div class="cell"><b>Lead time</b>12 hari</div>
+  </div>
+  <div class="swatch">
+    <div class="nm">CVC 24s</div>
+    <p>Polo kantor &amp; seragam harian. Lebih tebal, tahan cuci mesin.</p>
+    <div class="cell"><b>Min. order</b>50 pcs</div>
+    <div class="cell"><b>Lead time</b>14 hari</div>
+  </div>
+  <div class="swatch">
+    <div class="nm">Katun / rayon batik</div>
+    <p>Seragam dinas, seragam sekolah, kemeja batik. Motif dari stok atau kain bawa sendiri.</p>
+    <div class="cell"><b>Min. order</b>30 pcs</div>
+    <div class="cell"><b>Lead time</b>16 hari</div>
+  </div>
+  <div class="swatch">
+    <div class="nm">Drill / taslan</div>
+    <p>Jas almamater, jaket komunitas. Bordir punggung &amp; lengan.</p>
+    <div class="cell"><b>Min. order</b>40 pcs</div>
+    <div class="cell"><b>Lead time</b>18 hari</div>
+  </div>
+</section>
+
+<section class="line" id="produksi">
+  <div class="wrap">
+    <p class="kicker" style="color:var(--gold)">Lantai produksi</p>
+    <h2>Dari kain sampai karton. Di sini, bukan disubkon ke kota lain.</h2>
+    <div class="line-grid">
+      <div class="st">
+        <img src="konveksi-assets/05.jpg" alt="Pemotongan kain sesuai pola di meja kayu">
+        <div class="b"><p class="n">01 · Potong</p><h3>Pola &amp; marker</h3><p>Kain dilayer, dipotong sesuai size-run. Sample 1 pcs dulu sebelum massal.</p></div>
+      </div>
+      <div class="st">
+        <img src="konveksi-assets/02.jpg" alt="Proses jahit di mesin industri">
+        <div class="b"><p class="n">02 · Jahit</p><h3>Mesin industri</h3><p>Jahit rantai, obras, lubang kancing. Operator tetap, bukan borongan harian acak.</p></div>
+      </div>
+      <div class="st">
+        <img src="konveksi-assets/04.jpg" alt="Quality control polo sebelum dikirim">
+        <div class="b"><p class="n">03 · QC</p><h3>Per lusin</h3><p>Cek jahitan, noda, size. Yang lolos baru masuk packing — yang gagal disetel ulang.</p></div>
+      </div>
+      <div class="st">
+        <img src="konveksi-assets/03.jpg" alt="Tumpukan seragam siap kirim">
+        <div class="b"><p class="n">04 · Kirim</p><h3>Sesuai PO</h3><p>Folding, packing per size, kirim Balikpapan &amp; sekitar. Tanggal di PO = tanggal jalan.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="harga wrap" id="harga">
+  <div class="slip">
+    <div class="slip-top">
+      <div>
+        <p class="kicker">Perkiraan harga</p>
+        <h2>Angka di kertas ini contoh.</h2>
+      </div>
+      <p class="note">Harga final di penawaran, tergantung jumlah, bahan, dan finishing. Placeholder — bukan tarif live.</p>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Jenis</th><th>Bahan acuan</th><th>Min.</th><th>Perkiraan / pcs</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Kaos sablon 1 sisi</td><td>Combed 30s</td><td>50</td><td class="r">dari Rp 55.000*</td></tr>
+        <tr><td>Polo bordir dada</td><td>CVC 24s</td><td>50</td><td class="r">dari Rp 95.000*</td></tr>
+        <tr><td>Kemeja batik dinas</td><td>Katun batik</td><td>30</td><td class="r">dari Rp 145.000*</td></tr>
+        <tr><td>Jas almamater</td><td>Drill</td><td>40</td><td class="r">dari Rp 220.000*</td></tr>
+      </tbody>
+    </table>
+    <p class="fine">*Placeholder preview. Sablon tambahan, size 5XL, dan rush 7 hari dihitung terpisah di penawaran.</p>
+  </div>
+</section>
+
+<section class="order wrap" id="order">
+  <p class="kicker">Cara order</p>
+  <h2>Empat tiket. Sample dulu, massal kemudian.</h2>
+  <div class="tix">
+    <div class="tk"><p class="n">01</p><h3>Brief via WA</h3><p>Jenis, jumlah, size-run, logo. Foto referensi boleh. Kami balas estimasi 1 hari kerja.</p></div>
+    <div class="tk"><p class="n">02</p><h3>Sample 1 pcs</h3><p>Jahit 1 pcs sesuai spek. ACC sample = kunci massal. Revisi sample 1× included.</p></div>
+    <div class="tk"><p class="n">03</p><h3>DP 50%</h3><p>PO tertulis: jumlah, tanggal kirim, harga. Sisa pelunasan sebelum barang keluar.</p></div>
+    <div class="tk"><p class="n">04</p><h3>Produksi &amp; kirim</h3><p>Update progres di WA. QC foto sebelum packing kalau diminta.</p></div>
+  </div>
+</section>
+
+<section class="faq wrap" id="faq">
+  <p class="kicker">Sering ditanya</p>
+  <h2>Sebelum transfer DP.</h2>
+  <div class="faq-grid">
+    <div>
+      <details open><summary>Bisa order di bawah 50 pcs?</summary><p>Bisa, tapi harga satuan naik — setup sablon/bordir sama saja. Di bawah 20 pcs biasanya kami arahkan ke sablon satuan, bukan konveksi.</p></details>
+      <details><summary>Logo saya file apa?</summary><p>AI / PDF vektor paling bersih. PNG transparan 300 dpi masih bisa. File HP blur = bordir kasar — kami kabari sebelum jalan.</p></details>
+      <details><summary>Kalau size-run salah?</summary><p>Yang sudah dijahit tidak bisa ditukar size. Koreksi size-run hanya sebelum ACC sample. Simpan cadangan 5% size tengah.</p></details>
+    </div>
+    <div>
+      <details><summary>Kerja di luar Balikpapan?</summary><p>Produksi di KM 5. Kirim ekspedisi ke Samarinda, Bontang, Tenggarong. Ongkir di penawaran, bukan ditelan di harga pcs.</p></details>
+      <details><summary>Bahan dari saya, jahit di sini?</summary><p>Bisa (maklun). Kain ditimbang masuk, sisa dikembalikan. Lead time sama, harga jahit-only lebih rendah.</p></details>
+      <details><summary>Telat dari tanggal PO?</summary><p>Kalau telat dari sisi kami, rush sisa tanpa biaya. Kalau ACC sample molor dari klien, tanggal geser sama molornya.</p></details>
+    </div>
+  </div>
+</section>
+
+<section class="lok" id="lokasi">
+  <div class="lok-map"><img src="konveksi-assets/map.jpg" alt="Peta lokasi workshop di Jl. Soekarno Hatta KM 5, Balikpapan"></div>
+  <div class="lok-copy">
+    <p class="kicker" style="color:var(--gold)">Workshop</p>
+    <h2>Jl. Soekarno Hatta KM 5, Balikpapan</h2>
+    <p>Ruko produksi 2 lantai. Fitting sample &amp; ambil barang di lantai 1. Parkir motor &amp; 1 mobil.</p>
+    <p>Senin–Sabtu 08.00–17.00. Minggu tutup.</p>
+    <p>0813-455-6789 (preview)</p>
+    <a class="btn btn-red" href="https://wa.me/628134556789">Minta penawaran</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span class="foot-brand"><img src="konveksi-assets/logo-mark.png" alt=""> Benang Merah · preview · dummy nama &amp; harga</span>
+    <span>Seragam &amp; kaos custom · Balikpapan</span>
+  </div>
+</footer>
+</body>
+</html>

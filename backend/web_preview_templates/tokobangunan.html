@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jaya Abadi Material — Toko Bangunan, Balikpapan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1d232b; --ink-d:#141920; --concrete:#e9e6df; --concrete-d:#ddd8cc;
+  --orange:#e8630a; --orange-d:#c45008; --steel:#3a6ea5; --muted:#66707c; --line:#cfc9ba; --white:#fff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Space Grotesk',system-ui,sans-serif;color:var(--ink);background:var(--concrete);line-height:1.55;-webkit-font-smoothing:antialiased}
+img{display:block;width:100%;height:100%;object-fit:cover}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1200px;margin:0 auto;padding:0 26px}
+h1,h2,h3{font-weight:700;letter-spacing:-.03em;line-height:1.04}
+.mono{font-family:'IBM Plex Mono',monospace}
+.kicker{font-family:'IBM Plex Mono',monospace;font-size:11.5px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--orange)}
+.hazard{display:inline-flex;height:9px;width:64px;background:repeating-linear-gradient(45deg,var(--orange),var(--orange) 8px,var(--ink) 8px,var(--ink) 16px)}
+
+nav{position:absolute;top:0;left:0;right:0;z-index:40;color:#fff}
+nav::after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,rgba(20,25,32,.9),rgba(20,25,32,0));pointer-events:none;z-index:-1}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:66px;gap:14px;position:relative}
+.brand{font-weight:700;font-size:19px;letter-spacing:-.02em;color:#fff;line-height:1}
+.brand small{display:block;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:500;letter-spacing:.26em;text-transform:uppercase;color:var(--orange);margin-top:3px}
+.menu{display:flex;gap:22px}
+.menu a{font-size:13.5px;font-weight:500;color:#d5dade;letter-spacing:.02em}
+.menu a:hover{color:#fff}
+.nav-cta{background:var(--orange);color:#fff;font-weight:700;font-size:13px;padding:11px 18px;letter-spacing:.02em}
+.nav-cta:hover{background:var(--orange-d)}
+.burger{display:none;background:transparent;border:1px solid rgba(255,255,255,.35);cursor:pointer;padding:10px 11px;margin-left:auto}
+.burger span{display:block;width:20px;height:2px;background:#fff;margin:4px 0}
+#nav-toggle{position:absolute;opacity:0;pointer-events:none}
+.btn,.nav-cta,.menu a,.link{transition:background .15s ease,color .15s ease,filter .15s ease,opacity .15s ease}
+.hero .bar{animation:rise .2s ease-out}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+.hero{position:relative;min-height:100vh;background:var(--ink-d)}
+.hero>img{position:absolute;inset:0;width:100%;height:100%;min-height:100vh;object-position:center 35%}
+.bar{position:absolute;left:0;right:0;bottom:0;background:var(--concrete);padding:30px 40px 32px;border-top:8px solid var(--ink)}
+.bar .top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.bar h1{font-size:clamp(2rem,4.8vw,3.6rem);max-width:18ch;color:var(--ink);margin-top:10px}
+.bar p{max-width:46ch;color:var(--muted);margin-top:10px;font-size:15px}
+.cta-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.btn{display:inline-flex;align-items:center;font-weight:700;font-size:14px;padding:13px 20px;border:0;cursor:pointer;font-family:inherit;text-transform:uppercase;letter-spacing:.03em}
+.btn-g{background:var(--orange);color:#fff}
+.btn-g:hover{background:var(--orange-d)}
+.link{font-weight:600;font-size:14px;color:var(--ink);border-bottom:2px solid var(--orange)}
+
+.ticker{background:var(--ink);color:#e8ecf0;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.16em;text-transform:uppercase;overflow:hidden;padding:12px 0;white-space:nowrap}
+.ticker .trk{display:inline-block;animation:tick 20s linear infinite}
+.ticker span{color:var(--orange)}
+@keyframes tick{to{transform:translateX(-50%)}}
+
+/* STOCK BOARD — baris rak, bukan card grid */
+#stok{background:var(--concrete);padding:70px 0 80px}
+.sec-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:30px}
+.sec-head .ref{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:.08em}
+.board{border:2px solid var(--ink);background:var(--white);box-shadow:8px 8px 0 rgba(29,35,43,.12)}
+.board-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 22px;border-bottom:2px solid var(--ink);font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);background:var(--concrete)}
+.board-top b{color:var(--orange)}
+.brow{display:grid;grid-template-columns:46px 1.2fr 1fr .8fr;gap:14px;align-items:center;padding:16px 22px;border-bottom:1px dashed var(--line);font-size:14.5px}
+.brow:last-of-type{border-bottom:0}
+.brow .no{font-family:'IBM Plex Mono',monospace;color:var(--orange);font-weight:600}
+.brow b{font-size:15.5px}
+.brow .stok{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--steel);font-weight:600}
+.brow .harga{font-family:'IBM Plex Mono',monospace;font-weight:600;text-align:right}
+.brow.head{background:var(--ink);color:#fff;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;padding:11px 22px}
+.brow.head .stok{color:#9fd0ff}
+.board-note{font-size:12.5px;color:var(--muted);margin-top:16px;font-family:'IBM Plex Mono',monospace}
+
+/* DUA DUNIA — indoor / outdoor split */
+#dua{padding:0}
+.duo{display:grid;grid-template-columns:1fr 1fr;min-height:440px}
+.duo .side{position:relative;min-height:440px}
+.duo .cap{position:absolute;left:26px;bottom:26px;background:var(--ink);color:#e8ecf0;padding:20px 22px;max-width:340px}
+.duo .cap h3{color:#fff;font-size:1.45rem;margin-bottom:6px}
+.duo .cap p{font-size:13.5px;color:#aeb8c2}
+.duo .cap .hazard{margin-bottom:10px}
+
+/* KALKULASI — estimator strip */
+#kalk{background:var(--ink);padding:64px 0 72px;color:#e8ecf0}
+#kalk .kicker{color:var(--orange)}
+.kalk-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:start}
+.kalk-grid h2{color:#fff;font-size:clamp(1.9rem,3.4vw,2.6rem)}
+.kalk-grid p{color:#aeb8c2;margin-top:10px;font-size:15px;max-width:40ch}
+.klist{border-top:2px solid rgba(255,255,255,.25)}
+.krow{display:flex;justify-content:space-between;gap:14px;padding:15px 4px;border-bottom:1px dashed rgba(255,255,255,.2);font-size:14.5px}
+.krow b{font-weight:600}
+.krow .unit{font-family:'IBM Plex Mono',monospace;color:var(--orange);white-space:nowrap}
+.kfoot{margin-top:22px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#8b97a3}
+
+/* LAYANAN — strip proses */
+#layanan{background:var(--concrete-d);padding:66px 0 76px;border-top:1px solid var(--line)}
+.path{display:grid;grid-template-columns:repeat(4,1fr);gap:0;position:relative}
+.path::before{content:"";position:absolute;top:24px;left:6%;right:6%;border-top:2px dashed var(--orange);z-index:0}
+.step{padding:0 18px;position:relative;z-index:1}
+.step .dot{width:48px;height:48px;background:var(--orange);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:15px;margin-bottom:14px}
+.step:nth-child(2) .dot{background:var(--steel)}
+.step:nth-child(3) .dot{background:var(--ink)}
+.step:nth-child(4) .dot{background:var(--orange-d)}
+.step b{display:block;font-size:15.5px}
+.step p{font-size:13.5px;color:var(--muted);margin-top:5px}
+
+/* FAQ + LOKASI */
+.faq{background:var(--concrete);padding:60px 0 70px}
+details{border-bottom:1px solid var(--line);padding:16px 0}
+details summary{cursor:pointer;font-weight:600;font-size:15.5px;list-style:none}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:"+";color:var(--orange);margin-right:12px;font-weight:700}
+details[open] summary::before{content:"–"}
+details p{margin-top:9px;color:var(--muted);font-size:14.5px}
+.lok{position:relative;min-height:320px}
+.lok>img{min-height:320px;object-position:center}
+.addr{position:absolute;left:28px;bottom:28px;background:var(--ink);color:#dfe5ea;padding:24px 28px;max-width:370px}
+.addr .hazard{margin-bottom:10px}
+.addr h2{color:#fff;font-size:1.7rem;margin:2px 0 8px}
+.addr p{font-size:14px;color:#aeb8c2;margin-bottom:4px}
+.addr .btn{margin-top:14px}
+footer{background:var(--ink);color:#8b95a0;padding:20px 0;font-size:13px}
+footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-family:'IBM Plex Mono',monospace;letter-spacing:.06em}
+.stok,.duo,.kalk,.layanan,.faq,.lok{animation:fade .18s ease-out}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+@media (max-width:900px){
+  .hero{min-height:100svh}
+  .hero>img{min-height:100svh;height:100%}
+  .bar{padding:22px 18px 26px}
+  .burger{display:block}
+  .menu{display:none;position:absolute;top:66px;left:0;right:0;background:var(--ink-d);flex-direction:column;padding:14px 22px 18px;gap:14px;z-index:41;border-bottom:4px solid var(--orange)}
+  #nav-toggle:checked ~ .menu{display:flex}
+  .brow{grid-template-columns:34px 1fr;gap:4px 12px;padding:14px 16px}
+  .brow .stok{grid-column:2}
+  .brow .unit-h{display:none}
+  .brow.head{display:none}
+  .duo{grid-template-columns:1fr}
+  .duo .cap{left:14px;right:14px;bottom:14px;max-width:none}
+  .path{grid-template-columns:1fr;gap:18px}
+  .path::before{display:none}
+  .step{display:grid;grid-template-columns:48px 1fr;gap:14px;padding:0}
+  .step .dot{margin-bottom:0}
+  .kalk-grid{grid-template-columns:1fr}
+  .addr{left:14px;right:14px;bottom:14px;max-width:none}
+  .lok>img{min-height:230px}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<nav>
+  <div class="wrap nav-in">
+    <a class="brand" href="#top">Jaya Abadi<small>Material · Balikpapan</small></a>
+    <input id="nav-toggle" type="checkbox">
+    <label class="burger" for="nav-toggle" aria-label="Buka menu"><span></span><span></span><span></span></label>
+    <div class="menu">
+      <a href="#stok">Stok</a>
+      <a href="#kalk">Harga</a>
+      <a href="#layanan">Layanan</a>
+      <a href="#lokasi">Lokasi</a>
+    </div>
+    <a class="nav-cta" href="https://wa.me/628134556789">Tanya stok</a>
+  </div>
+</nav>
+
+<section class="hero" id="top">
+  <img src="tokobangunan-assets/01.jpg" alt="Rak material toko bangunan: pipa PVC, cat, dan tumpukan semen di depan jalan, Balikpapan">
+  <div class="bar">
+    <div class="top">
+      <p class="kicker">Semen · Besi · Pipa · Cat — stok harian</p>
+      <span class="hazard" aria-hidden="true"></span>
+    </div>
+    <h1>Semen masuk subuh. Siap diambil pagi.</h1>
+    <p>Toko material lengkap di Balikpapan — cek stok dulu via WA sebelum jalan, atau kirim langsung ke lokasi proyek. Harga pas di rak, bukan di chat nanti.</p>
+    <div class="cta-row">
+      <a class="btn btn-g" href="https://wa.me/628134556789">Tanya stok hari ini</a>
+      <a class="link" href="#kalk">Cek harga</a>
+    </div>
+  </div>
+</section>
+
+<div class="ticker" aria-hidden="true"><div class="trk">Semen 50kg&nbsp;<span>●</span>&nbsp;Besi beton&nbsp;<span>●</span>&nbsp;Pipa PVC&nbsp;<span>●</span>&nbsp;Bata merah&nbsp;<span>●</span>&nbsp;Keramik &amp; granit&nbsp;<span>●</span>&nbsp;Cat interior/eksterior&nbsp;<span>●</span>&nbsp;Antar within Balikpapan&nbsp;<span>●</span>&nbsp;</div></div>
+
+<section class="stok" id="stok">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="kicker">Papan stok</p>
+        <h2>Yang ready di rak</h2>
+      </div>
+      <span class="ref">UPDATE 09-2026 · STOK HARIAN</span>
+    </div>
+    <div class="board">
+      <div class="board-top"><span>RAK — <b>JAYA ABADI</b> · BALIKPAPAN</span><span>STATUS: BUKA</span></div>
+      <div class="brow head"><span>KD</span><span>MATERIAL</span><span>SATUAN</span><span class="stok">HARGA</span></div>
+      <div class="brow"><span class="no">01</span><b>Semen 50kg</b><span>kantong /sak</span><span class="stok">Rp 68rb *</span></div>
+      <div class="brow"><span class="no">02</span><b>Besi beton 10mm</b><span>batang 12m</span><span class="stok">Rp 82rb *</span></div>
+      <div class="brow"><span class="no">03</span><b>Pipa PVC 1/2 inci</b><span>batang 4m</span><span class="stok">Rp 22rb *</span></div>
+      <div class="brow"><span class="no">04</span><b>Bata merah</b><span>1000 pcs</span><span class="stok">Rp 850rb *</span></div>
+      <div class="brow"><span class="no">05</span><b>Cat interior</b><span>kaleng 25kg</span><span class="stok">Rp 480rb *</span></div>
+    </div>
+    <p class="board-note">* estimasi harian — final di toko / via WA. Volume proyek: minta harga borongan.</p>
+  </div>
+</section>
+
+<section class="duo" id="dua">
+  <div class="side"><img src="tokobangunan-assets/02.jpg" alt="Pekerja menaikkan kantong semen ke motor pelanggan di depan toko">
+    <div class="cap"><h3>Antar sampai depan rumah</h3><p>Order by phone/WA — bongkar di lokasi, gratis within Balikpapan untuk belanja di atas *+/-.</p></div>
+  </div>
+  <div class="side"><img src="tokobangunan-assets/03.jpg" alt="Rak cat dan perlengkapan tukang di toko bangunan">
+    <div class="cap"><h3>Rak cat &amp; perlengkapan</h3><p>Merek lokal &amp; impor — cocokin budget proyek. Tanya dulu warna/sample sebelum beli.</p></div>
+  </div>
+</section>
+
+<section class="kalk" id="kalk">
+  <div class="wrap kalk-grid">
+    <div>
+      <p class="kicker">Estimasi cepat</p>
+      <h2>Hitung dulu sebelum datang</h2>
+      <p>Kirim denah atau daftar kebutuhan via WA — kami balas estimasi harga &amp; stok hari itu. Volume besar = harga borongan.</p>
+      <span class="hazard" aria-hidden="true"></span>
+    </div>
+    <div>
+      <div class="krow"><b>Rumah 1 lantai 45m²</b><span class="unit">±180 sak semen</span></div>
+      <div class="krow"><b>Rumah 1 lantai 70m²</b><span class="unit">±280 sak semen</span></div>
+      <div class="krow"><b>Pagar 20m</b><span class="unit">±12 batang besi 10</span></div>
+      <div class="krow"><b>Renovasi kamar</b><span class="unit">±15 sak + keramik 25m²</span></div>
+      <p class="kalk-note">Angka kasar buat gambaran — final via WA + foto denah.</p>
+    </div>
+  </div>
+</section>
+
+<section class="layanan" id="layanan">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="kicker">Cara belanja</p>
+        <h2>4 langkah dari chat ke terpasang</h2>
+      </div>
+    </div>
+    <div class="path">
+      <div class="step"><span class="dot">01</span><b>Chat WA</b><p>Sebut kebutuhan: semen berapa sak, besi ukuran apa, keramik tipe apa.</p></div>
+      <div class="step"><span class="dot">02</span><b>Cek stok</b><p>Konfirmasi ketersediaan + harga final di hari itu. Kalau kosong, tawarkan alternatif.</p></div>
+      <div class="step"><span class="dot">03</span><b>Bayar &amp; siapkan</b><p>COD di toko / transfer. Barang disiapkan di yard sebelum jadwal antar.</p></div>
+      <div class="step"><span class="dot">04</span><b>Antar / ambil</b><p>Ambil sendiri atau antar within Balikpapan. Bongkar di titik yang kamu tunjuk.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="faq" id="faq">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="kicker">FAQ</p>
+        <h2>Yang sering ditanya</h2>
+      </div>
+    </div>
+    <details open><summary>Harga bisa turun kalau borongan?</summary><p>Bisa — untuk volume proyek (puluhan sak semen, besi per kolom, keramik per box) harga dihitung ulang. Kirim daftar via WA, kami balas harga borongan.</p></details>
+    <details><summary>Bisa antar ke luar Balikpapan?</summary><p>Antar dalam Balikpapan gratis di atas *+/- belanja. Luar kota (Penajam, Samarinda) via rekanan armada — biaya ngikut jarak &amp; berat.</p></details>
+    <details><summary>Stoknya beneran ready?</summary><p>Ya, rak kita update tiap pagi. Kalau stok habis dadakan, kabarin sebelum kamu jalan — lebih murah dari bolak-balik.</p></details>
+    <details><summary>Bisa kirim hari yang sama?</summary><p>Untuk area Balikpapan kota, order sebelum jam 12 biasanya sampai sore hari itu. Volume besar &amp; luar kota sesuai jadwal armada.</p></details>
+  </div>
+</section>
+
+<section class="lok" id="lokasi">
+  <img src="tokobangunan-assets/05.jpg" alt="Pelayanan kasir toko bangunan: pembeli menandatangani nota">
+  <div class="addr">
+    <span class="hazard" aria-hidden="true"></span>
+    <h2>Jaya Abadi Material</h2>
+    <p>Jl. Soekarno Hatta KM 5, Balikpapan</p>
+    <p>Senin–Sabtu 07.30–18.00</p>
+    <a class="btn btn-g" href="https://wa.me/628134556789">Tanya stok via WA</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 JAYA ABADI MATERIAL — BALIKPAPAN</span>
+    <span>SEMEN · BESI · PIPA · CAT</span>
+  </div>
+</footer>
+</body>
+</html>

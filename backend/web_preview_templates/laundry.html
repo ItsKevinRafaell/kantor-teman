@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laundry Ceria — Kiloan &amp; Kontrak, Balikpapan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ocean:#1b6ca8; --ocean-d:#155a8d; --ice:#f2f7fa; --ice-d:#e4edf3;
+  --mint:#7fd8be; --mint-d:#4fbf9f; --ink:#16232b; --muted:#5f7280; --line:#d3e0e8; --white:#fff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:var(--ink);background:var(--ice);line-height:1.55;-webkit-font-smoothing:antialiased}
+img{display:block;width:100%;height:100%;object-fit:cover}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1200px;margin:0 auto;padding:0 26px}
+h1,h2,h3{font-weight:800;letter-spacing:-.025em;line-height:1.06}
+.mono{font-family:'JetBrains Mono',monospace}
+.kicker{font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--ocean)}
+.dots{display:inline-flex;gap:6px}
+.dots i{width:8px;height:8px;border-radius:50%;background:var(--mint)}
+.dots i:nth-child(2){background:var(--ocean)}
+.dots i:nth-child(3){background:var(--mint-d)}
+
+nav{position:absolute;top:0;left:0;right:0;z-index:40;color:#fff}
+nav::after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,rgba(22,35,43,.85),rgba(22,35,43,0));pointer-events:none;z-index:-1}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:66px;gap:14px;position:relative}
+.brand{font-weight:800;font-size:19px;letter-spacing:-.02em;color:#fff;line-height:1}
+.brand small{display:block;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:#b7f0dd;margin-top:4px;text-shadow:0 1px 3px rgba(22,35,43,.85);white-space:nowrap}
+.menu{display:flex;gap:22px}
+.menu a{font-size:13.5px;font-weight:600;color:#dbe6ec;letter-spacing:.02em}
+.menu a:hover{color:#fff}
+.nav-cta{background:var(--mint);color:var(--ink);font-weight:700;font-size:13px;padding:11px 18px;letter-spacing:.02em}
+.nav-cta:hover{background:var(--mint-d);color:#fff}
+.burger{display:none;background:transparent;border:1px solid rgba(255,255,255,.35);cursor:pointer;padding:10px 11px;margin-left:auto}
+.burger span{display:block;width:20px;height:2px;background:#fff;margin:4px 0}
+#nav-toggle{position:absolute;opacity:0;pointer-events:none}
+.btn,.nav-cta,.menu a,.link{transition:background .15s ease,color .15s ease,filter .15s ease,opacity .15s ease}
+.hero .bar{animation:rise .2s ease-out}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+.hero{position:relative;min-height:100vh;background:var(--ink)}
+.hero>img{position:absolute;inset:0;width:100%;height:100%;min-height:100vh;object-position:center 40%}
+.bar{position:absolute;left:0;right:0;bottom:0;background:var(--ice);padding:30px 40px 32px;border-top:8px solid var(--ocean)}
+.bar .top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.bar h1{font-size:clamp(2rem,4.6vw,3.4rem);max-width:18ch;color:var(--ink);margin-top:10px}
+.bar p{max-width:46ch;color:var(--muted);margin-top:10px;font-size:15px}
+.cta-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.btn{display:inline-flex;align-items:center;font-weight:700;font-size:14px;padding:13px 20px;border:0;cursor:pointer;font-family:inherit;text-transform:uppercase;letter-spacing:.03em}
+.btn-g{background:var(--ocean);color:#fff}
+.btn-g:hover{background:var(--ocean-d)}
+.btn-m{background:var(--mint);color:var(--ink)}
+.btn-m:hover{background:var(--mint-d);color:#fff}
+.link{font-weight:700;font-size:14px;color:var(--ink);border-bottom:2px solid var(--ocean)}
+
+.ticker{background:var(--ocean);color:#eaf4fb;font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.16em;text-transform:uppercase;overflow:hidden;padding:12px 0;white-space:nowrap}
+.ticker .trk{display:inline-block;animation:tick 20s linear infinite}
+.ticker span{color:var(--mint)}
+@keyframes tick{to{transform:translateX(-50%)}}
+
+/* TARIF — tag gantung dua kolom */
+#tarif{background:var(--ice);padding:70px 0 80px}
+.sec-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:30px}
+.sec-head .ref{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:.08em}
+.tags{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.tagcol h3{font-size:1.15rem;margin-bottom:14px;display:flex;align-items:center;gap:10px}
+.tagcol h3 .dots{margin-left:auto}
+.tag{position:relative;background:var(--white);border:1.5px dashed var(--ocean);padding:18px 20px 14px 44px;margin-bottom:12px;box-shadow:4px 4px 0 rgba(27,108,168,.08)}
+.tag::before{content:"";position:absolute;left:14px;top:50%;transform:translateY(-50%);width:12px;height:12px;border-radius:50%;background:var(--ice);border:2px solid var(--ocean)}
+.tag b{font-size:15.5px}
+.tag p{font-size:13px;color:var(--muted);margin-top:2px}
+.tag .price{position:absolute;right:16px;top:50%;transform:translateY(-50%);font-family:'JetBrains Mono',monospace;font-weight:600;font-size:14.5px;color:var(--ocean)}
+.tag .price small{display:block;font-size:10.5px;color:var(--muted);text-align:right;font-weight:400}
+.tag-note{font-size:12.5px;color:var(--muted);margin-top:8px;font-family:'JetBrains Mono',monospace}
+
+/* PROSES — 3 step jemput */
+#proses{background:var(--white);padding:64px 0 72px;border-top:1px solid var(--line)}
+.path{display:grid;grid-template-columns:repeat(3,1fr);gap:0;position:relative}
+.path::before{content:"";position:absolute;top:24px;left:9%;right:9%;border-top:2px dashed var(--mint-d);z-index:0}
+.step{padding:0 18px;position:relative;z-index:1}
+.step .dot{width:48px;height:48px;background:var(--ocean);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-weight:600;font-size:15px;margin-bottom:14px}
+.step:nth-child(2) .dot{background:var(--mint-d)}
+.step:nth-child(3) .dot{background:var(--ink)}
+.step b{display:block;font-size:15.5px}
+.step p{font-size:13.5px;color:var(--muted);margin-top:5px}
+
+/* KONTRAK — split B2B */
+#kontrak{background:var(--ink);padding:0;color:#e6eef3}
+.kon-grid{display:grid;grid-template-columns:1.15fr .85fr;min-height:460px}
+.kon-grid .pic{position:relative;min-height:320px}
+.kon-grid .pic img{height:100%;min-height:320px}
+.kon-grid .side{padding:44px 36px;display:flex;flex-direction:column;justify-content:center;gap:16px}
+.kon-grid .side h2{color:#fff;font-size:clamp(1.8rem,3vw,2.4rem)}
+.kon-grid .side p{font-size:14.5px;color:#a9bac5;max-width:44ch}
+.krow{display:flex;justify-content:space-between;gap:14px;padding:13px 2px;border-bottom:1px dashed rgba(255,255,255,.18);font-size:14px}
+.krow b{font-weight:600;color:#fff}
+.krow .unit{font-family:'JetBrains Mono',monospace;color:var(--mint);white-space:nowrap}
+.kfoot{margin-top:14px;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#7d919e}
+
+/* LAYANAN KECIL — strip foto duo */
+#layanan{background:var(--ice);padding:0}
+.duo{display:grid;grid-template-columns:1fr 1fr;min-height:400px}
+.duo .side{position:relative;min-height:400px}
+.duo .cap{position:absolute;left:24px;bottom:24px;background:var(--ice);padding:20px 22px;max-width:340px;border-left:6px solid var(--mint)}
+.duo .cap h3{font-size:1.35rem;margin-bottom:6px}
+.duo .cap p{font-size:13.5px;color:var(--muted)}
+
+/* FAQ + LOKASI */
+.faq{background:var(--ice);padding:60px 0 70px;border-top:1px solid var(--line)}
+details{border-bottom:1px solid var(--line);padding:16px 0}
+details summary{cursor:pointer;font-weight:700;font-size:15.5px;list-style:none}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:"+";color:var(--ocean);margin-right:12px;font-weight:700}
+details[open] summary::before{content:"–"}
+details p{margin-top:9px;color:var(--muted);font-size:14.5px}
+.lok{position:relative;min-height:320px}
+.lok>img{min-height:320px;object-position:center}
+.addr{position:absolute;left:28px;bottom:28px;background:var(--ocean);color:#e8f3fa;padding:24px 28px;max-width:370px}
+.addr .dots{margin-bottom:10px}
+.addr h2{color:#fff;font-size:1.7rem;margin:2px 0 8px}
+.addr p{font-size:14px;color:#cfe4f0;margin-bottom:4px}
+.addr .btn{margin-top:14px}
+footer{background:var(--ink);color:#8b9aa5;padding:20px 0;font-size:13px}
+footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;letter-spacing:.06em}
+.tarif,.proses,.kontrak,.layanan,.faq,.lok{animation:fade .18s ease-out}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+@media (max-width:900px){
+  .hero{min-height:100svh}
+  .hero>img{min-height:100svh;height:100%}
+  .bar{padding:22px 18px 26px}
+  .burger{display:block}
+  .menu{display:none;position:absolute;top:66px;left:0;right:0;background:var(--ink);flex-direction:column;padding:14px 22px 18px;gap:14px;z-index:41;border-bottom:4px solid var(--mint)}
+  #nav-toggle:checked ~ .menu{display:flex}
+  .tags{grid-template-columns:1fr}
+  .kon-grid{grid-template-columns:1fr}
+  .kon-grid .pic img{min-height:250px;height:250px}
+  .duo{grid-template-columns:1fr}
+  .duo .cap{left:14px;right:14px;bottom:14px;max-width:none}
+  .path{grid-template-columns:1fr;gap:18px}
+  .path::before{display:none}
+  .step{display:grid;grid-template-columns:48px 1fr;gap:14px;padding:0}
+  .step .dot{margin-bottom:0}
+  .addr{left:14px;right:14px;bottom:14px;max-width:none}
+  .lok>img{min-height:230px}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<nav>
+  <div class="wrap nav-in">
+    <a class="brand" href="#top">Laundry Ceria<small>Kiloan · Balikpapan</small></a>
+    <input id="nav-toggle" type="checkbox">
+    <label class="burger" for="nav-toggle" aria-label="Buka menu"><span></span><span></span><span></span></label>
+    <div class="menu">
+      <a href="#tarif">Tarif</a>
+      <a href="#proses">Alur</a>
+      <a href="#kontrak">Kontrak</a>
+      <a href="#lokasi">Lokasi</a>
+    </div>
+    <a class="nav-cta" href="https://wa.me/628134556789">Jemput cucian</a>
+  </div>
+</nav>
+
+<section class="hero" id="top">
+  <img src="laundry-assets/01.jpg" alt="Pekerja memuat linen ke mesin cuci industri di laundry kiloan, Balikpapan">
+  <div class="bar">
+    <div class="top">
+      <p class="kicker">Cuci · Kering · Setrika · Lipat — 24 jam kerja</p>
+      <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+    </div>
+    <h1>Titip pagi, rapi sore. Ga perlu antri.</h1>
+    <p>Laundry kiloan + layanan jemput-antar dalam Balikpapan. Kiloan 2 hari kerja, express sehari. Kontrak rutin untuk hotel, klinik, dan resto — linennya diambil &amp; dikembalikan sesuai jadwal.</p>
+    <div class="cta-row">
+      <a class="btn btn-g" href="https://wa.me/628134556789">Jadwalkan jemput</a>
+      <a class="btn btn-m" href="#tarif">Lihat tarif</a>
+    </div>
+  </div>
+</section>
+
+<div class="ticker" aria-hidden="true"><div class="trk">Cuci kering setrika&nbsp;<span>●</span>&nbsp;Cuci kiloan 2 hari&nbsp;<span>●</span>&nbsp;Express 1 hari&nbsp;<span>●</span>&nbsp;Bed cover &amp; selimut&nbsp;<span>●</span>&nbsp;Jemput-antar Balikpapan&nbsp;<span>●</span>&nbsp;Kontrak hotel &amp; klinik&nbsp;<span>●</span>&nbsp;</div></div>
+
+<section class="tarif" id="tarif">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="kicker">Tarif</p>
+        <h2>Harga jelas, ga ada biaya tersembunyi</h2>
+      </div>
+      <span class="ref">UPDATE 09-2026</span>
+    </div>
+    <div class="tags">
+      <div class="tagcol">
+        <h3>Kiloan <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span></h3>
+        <div class="tag"><b>Cuci kering setrika</b><p>cuci + kering + setrika + lipat</p><span class="price">Rp 7.000<small>/ kg</small></span></div>
+        <div class="tag"><b>Cuci kering</b><p>tanpa setrika, dilipat rapi</p><span class="price">Rp 5.000<small>/ kg</small></span></div>
+        <div class="tag"><b>Express 1 hari</b><p>masuk pagi, selesai sore</p><span class="price">Rp 12.000<small>/ kg</small></span></div>
+        <p class="tag-note">min. 2 kg · rata-rata 2 hari kerja</p>
+      </div>
+      <div class="tagcol">
+        <h3>Satuan <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span></h3>
+        <div class="tag"><b>Bed cover king</b><p>cuci + kering + setrika</p><span class="price">Rp 45.000<small>/ pcs</small></span></div>
+        <div class="tag"><b>Jas &amp; gaun</b><p>dry clean, hanger + cover</p><span class="price">Rp 35.000<small>/ pcs</small></span></div>
+        <div class="tag"><b>Sepatu kanvas</b><p>cuci manual, tanpa mesin</p><span class="price">Rp 25.000<small>/ pasang</small></span></div>
+        <p class="tag-note">selesai 1–3 hari sesuai jenis</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="proses" id="proses">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="kicker">Alur</p>
+        <h2>3 langkah, ga perlu keluar rumah</h2>
+      </div>
+    </div>
+    <div class="path">
+      <div class="step"><span class="dot">01</span><b>Chat / jadwal</b><p>Kirim lokasi + perkiraan berat via WA. Kurir jemput sesuai slot pagi/sore.</p></div>
+      <div class="step"><span class="dot">02</span><b>Timbang &amp; proses</b><p>Ditimbang di depan kamu atau foto timbangan dikirim. Cuci terpisah per pelanggan.</p></div>
+      <div class="step"><span class="dot">03</span><b>Antar rapi</b><p>Dikemas rapi + wanginya segar, diantar balik sesuai jadwal. Bayar saat terima.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="kontrak" id="kontrak">
+  <div class="kon-grid">
+    <div class="pic"><img src="laundry-assets/04.jpg" alt="Staf laundry memuat linen ke mesin cuci industri untuk kontrak hotel"></div>
+    <div class="side">
+      <p class="kicker" style="color:var(--mint)">Kontrak B2B</p>
+      <h2>Linen bisnis, jadwal tetap</h2>
+      <p>Hotel, klinik, resto, dan kantor — linen dijemput &amp; dikembalikan rutin dengan stok cadangan biar operasional ga berhenti.</p>
+      <div class="krow"><b>Hotel / penginapan</b><span class="unit">±80 kg / minggu</span></div>
+      <div class="krow"><b>Klinik</b><span class="unit">±40 kg / minggu</span></div>
+      <div class="krow"><b>Resto (seragam + napkin)</b><span class="unit">±30 kg / minggu</span></div>
+      <div class="krow"><b>Kantor</b><span class="unit">±20 kg / minggu</span></div>
+      <p class="kfoot">Harga kontrak = tarif di bawah kiloan, kunci per bulan. Survey lokasi gratis.</p>
+    </div>
+  </div>
+</section>
+
+<section class="layanan" id="layanan">
+  <div class="duo">
+    <div class="side"><img src="laundry-assets/03.jpg" alt="Rak handduk bersih bertumpuk di outlet laundry kiloan">
+      <div class="cap"><h3>Outlet kiloan harian</h3><p>Titip langsung di outlet — rak handduk &amp; pakaian siap diambil sesuai jadwal.</p></div>
+    </div>
+    <div class="side"><img src="laundry-assets/06.jpg" alt="Kemeja tergantung rapi dengan tag klaim di laundry satuan">
+      <div class="cap"><h3>Satuan &amp; setrika</h3><p>Kemeja kerja, jas, gaun — dry clean + hanger, tag klaim di tiap piece.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="faq" id="faq">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="kicker">FAQ</p>
+        <h2>Yang sering ditanya</h2>
+      </div>
+    </div>
+    <details open><summary>Cucianku campur sama orang lain?</summary><p>Ga. Tiap pelanggan dicuci terpisah (satu mesin satu order). Handuk &amp; pakaian bayi juga dipisah dari cucian umum.</p></details>
+    <details><summary>Zona jemput-antar sampai mana?</summary><p>Balikpapan kota — gratis di atas 5 kg. Luar zona (Batulicin arah, Samarinda) via rekanan kurir, biaya ngikut jarak.</p></details>
+    <details><summary>Kalau ada yang rusak / hilang?</summary><p>Lapor maksimal 24 jam setelah terima. Kami ganti sesuai kesepakatan — makanya tiap order ada tag &amp; catatan kondisi awal.</p></details>
+    <details><summary>Kontrak minimal berapa lama?</summary><p>Bulanan, review per bulan. Survey + trial 1 minggu dulu gratis sebelum kontrak resmi.</p></details>
+  </div>
+</section>
+
+<section class="lok" id="lokasi">
+  <img src="laundry-assets/02.jpg" alt="Pekerja melipat handduk bersih di meja lipat laundry">
+  <div class="addr">
+    <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+    <h2>Laundry Ceria</h2>
+    <p>Jl. Marsma R. Iswahyudi No. 24, Balikpapan</p>
+    <p>Senin–Sabtu 07.00–20.00 · Outlet buka tiap hari</p>
+    <a class="btn btn-m" href="https://wa.me/628134556789">Chat via WA</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 LAUNDRY CERIA — BALIKPAPAN</span>
+    <span>CUCI · KERING · SETRIKA · LIPAT</span>
+  </div>
+</footer>
+</body>
+</html>

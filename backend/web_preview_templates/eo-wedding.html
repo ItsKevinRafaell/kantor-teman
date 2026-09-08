@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mahligai Wedding — Wedding Organizer Balikpapan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Marcellus&family=Urbanist:wght@400;600;700;800&display=swap');
+:root{--bg:#faf7f3;--ink:#2b1f16;--body:#4a3b2f;--terra:#c05a2e;--terra-d:#a34620;--gold:#a8823c;--line:#e8e0d6;--white:#fff;--tint:#f3ece2}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:Urbanist,sans-serif;background:var(--bg);color:var(--body);font-size:16px;line-height:1.55}
+h1,h2,h3{font-family:Marcellus,serif;color:var(--ink);font-weight:400;line-height:1.15}
+img{display:block;max-width:100%;height:auto}
+.wrap{max-width:1180px;margin:0 auto;padding:0 28px}
+.eyebrow{font-size:12px;letter-spacing:.24em;text-transform:uppercase;font-weight:700;color:var(--terra)}
+.btn{display:inline-block;padding:15px 28px;border-radius:3px;font-weight:700;font-size:13px;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;transition:background .18s,border-color .18s}
+.btn-terra{background:var(--terra);color:var(--white)}
+.btn-terra:hover{background:var(--terra-d)}
+.btn-ghost{border:1.5px solid var(--ink);color:var(--ink)}
+.btn-ghost:hover{background:var(--ink);color:var(--white)}
+/* ===== HERO ===== */
+.hero{position:relative;min-height:92vh;display:flex;align-items:flex-end;overflow:hidden;background:var(--ink)}
+.hero>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.hero:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(43,31,22,.32) 0%,rgba(43,31,22,.55) 52%,rgba(30,20,12,.9) 100%)}
+.hero-in{position:relative;z-index:2;width:100%;max-width:1180px;margin:0 auto;padding:150px 28px 0}
+.hero h1{font-size:clamp(42px,6.4vw,84px);color:var(--white);max-width:16ch}
+.hero h1 em{font-style:italic;color:#e9b478}
+.hero-sub{color:rgba(255,248,240,.88);font-size:clamp(16px,1.6vw,19px);max-width:52ch;margin:18px 0 26px}
+.btnrow{display:flex;gap:14px;flex-wrap:wrap}
+.hero-stats{display:flex;gap:0;margin:36px 0 44px;border-top:1px solid rgba(233,180,120,.4)}
+.hero-stats div{flex:1;padding:22px 26px 0 0;border-right:1px solid rgba(233,180,120,.25)}
+.hero-stats div:last-child{border-right:none}
+.hero-stats b{font-family:Marcellus,serif;font-size:32px;color:#e9b478;display:block;font-weight:400}
+.hero-stats span{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,248,240,.78)}
+.facttag{position:absolute;z-index:3;top:36px;right:28px;background:var(--ink);color:#e9b478;font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;padding:12px 18px;border-left:3px solid var(--terra)}
+.tick{overflow:hidden;background:var(--terra);position:relative;z-index:4}
+.tick .tr{display:inline-block;white-space:nowrap;animation:tk 26s linear infinite;padding:12px 0;color:var(--white);font-size:12.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+@keyframes tk{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+/* ===== GALERI — grid disiplin ===== */
+.folio{padding:96px 0}
+.folio-h{display:flex;justify-content:space-between;align-items:baseline;gap:18px;flex-wrap:wrap;margin-bottom:40px;border-bottom:2px solid var(--ink);padding-bottom:20px}
+.folio-h h2{font-size:clamp(32px,4.4vw,54px)}
+.folio-h .n{font-size:12px;letter-spacing:.2em;text-transform:uppercase;font-weight:700;color:var(--gold)}
+.ggrid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
+.ggrid figure{position:relative;overflow:hidden;border-radius:3px}
+.ggrid img{width:100%;height:100%;object-fit:cover}
+.g-a{grid-column:span 8;height:420px}
+.g-b{grid-column:span 4;height:420px}
+.g-c,.g-d,.g-e{grid-column:span 4;height:330px}
+.gcap{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px 18px;background:var(--ink);color:rgba(255,248,240,.92);font-size:13px;font-weight:600}
+.gcap small{color:#e9b478;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;white-space:nowrap}
+.g-fact{grid-column:span 12;background:var(--ink);border-radius:3px;display:grid;grid-template-columns:1fr 1fr 1fr;height:110px}
+.g-fact div{display:flex;flex-direction:column;justify-content:center;padding:0 30px;border-right:1px solid rgba(233,180,120,.3)}
+.g-fact div:last-child{border-right:none}
+.g-fact b{font-family:Marcellus,serif;font-size:30px;color:#e9b478;font-weight:400}
+.g-fact span{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,248,240,.8)}
+/* ===== PRICELIST ===== */
+.price{padding:0 0 96px}
+.price-h{max-width:660px;margin:0 auto 44px;text-align:center}
+.price-h h2{font-size:clamp(32px,4.2vw,52px);margin:10px 0 12px}
+.packs{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:stretch}
+.pack{background:var(--white);border:1px solid var(--line);border-radius:3px;padding:30px 26px;position:relative;display:flex;flex-direction:column}
+.pack.hot{background:var(--ink);border-color:var(--ink);color:rgba(255,248,240,.85)}
+.pack.hot h3{color:var(--white)}
+.pack h3{font-size:12.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--terra);font-family:Urbanist,sans-serif;font-weight:800}
+.pack .rp{font-family:Marcellus,serif;font-size:clamp(34px,3.4vw,44px);color:var(--ink);margin:12px 0 2px;font-weight:400}
+.pack.hot .rp{color:#e9b478}
+.pack .who{font-size:13.5px;opacity:.85;margin-bottom:20px}
+.pack ul{list-style:none;display:grid;gap:10px;border-top:1px solid var(--line);padding-top:18px;font-size:14.5px}
+.pack.hot ul{border-color:rgba(233,180,120,.3)}
+.pack li:before{content:"— ";color:var(--gold)}
+.flaghot{position:absolute;top:0;right:0;background:var(--terra);color:var(--white);font-size:10.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;padding:8px 14px}
+.pack .pbtn{margin-top:auto;padding-top:22px}
+.unit{margin-top:14px;background:var(--white);border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.unit-h{display:flex;justify-content:space-between;padding:16px 26px;border-bottom:1px solid var(--line);background:var(--tint);font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--ink)}
+.unit table{width:100%;border-collapse:collapse;font-size:14.5px}
+.unit td{padding:13px 26px;border-bottom:1px solid var(--line)}
+.unit tr:last-child td{border-bottom:none}
+.unit td:last-child{text-align:right;font-weight:700;color:var(--ink);white-space:nowrap}
+.unit-note{padding:15px 26px;background:var(--ink);color:#e9b478;font-size:13px;letter-spacing:.04em}
+/* ===== ALUR ===== */
+.alur{padding:0 0 96px}
+.alur-h{margin-bottom:46px}
+.alur-h h2{font-size:clamp(30px,4vw,50px);margin-bottom:10px}
+.gsteps{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:2px solid var(--ink)}
+.gstep{position:relative;padding:26px 24px 0 0;border-right:1px solid var(--line)}
+.gstep:last-child{border-right:none}
+.gstep .gn{font-family:Marcellus,serif;font-size:64px;line-height:1;-webkit-text-stroke:1.5px var(--gold);color:transparent;display:block;margin-bottom:14px}
+.gstep h3{font-size:19px;margin-bottom:8px}
+.gstep p{font-size:14px}
+/* ===== TESTIMONI ===== */
+.tst{padding:0 0 96px}
+.tst-in{display:grid;grid-template-columns:1.2fr 1fr;gap:52px;align-items:center;background:var(--tint);border-radius:3px;padding:56px}
+.tst blockquote{font-family:Marcellus,serif;font-size:clamp(24px,3vw,38px);line-height:1.35;color:var(--ink)}
+.tst blockquote em{color:var(--terra)}
+.tst .who{margin-top:22px;font-size:12.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;color:var(--gold)}
+.polrow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.polrow img{width:100%;height:250px;object-fit:cover;border:6px solid var(--white);box-shadow:0 10px 26px rgba(43,31,22,.14);border-radius:3px}
+/* ===== CTA ===== */
+.cta{background:var(--ink);color:rgba(255,248,240,.85);padding:96px 0}
+.cta-in{display:flex;align-items:center;justify-content:space-between;gap:40px;flex-wrap:wrap}
+.cta h2{color:var(--white);font-size:clamp(30px,4vw,50px);max-width:16ch}
+.cta h2 em{color:#e9b478}
+.cta p{max-width:44ch;margin-top:14px}
+/* ===== FAQ ===== */
+.faq{padding:96px 0}
+.faq-in{display:grid;grid-template-columns:1fr 1.4fr;gap:60px;align-items:start}
+.faq-left{position:sticky;top:40px}
+.faq-left h2{font-size:clamp(28px,3.6vw,44px)}
+.faq-left p{margin-top:14px}
+.faq details{background:var(--white);border:1px solid var(--line);border-radius:3px;margin-bottom:10px}
+.faq summary{cursor:pointer;list-style:none;padding:19px 24px;font-weight:700;color:var(--ink);display:flex;justify-content:space-between;gap:16px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary:after{content:"+";font-family:Marcellus,serif;font-size:22px;color:var(--terra);line-height:1}
+.faq details[open] summary:after{content:"–"}
+.faq details p{padding:0 24px 20px;font-size:14.5px}
+/* ===== FOOT ===== */
+.foot{background:var(--ink);color:rgba(255,248,240,.7);padding:32px 0;font-size:13.5px}
+.foot .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.foot b{color:#e9b478;font-weight:700}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media(max-width:920px){
+ .gsteps{grid-template-columns:1fr 1fr}
+ .gstep{padding-right:16px}
+ .gstep:nth-child(2){border-right:none}
+ .tst-in{grid-template-columns:1fr;gap:36px;padding:36px}
+ .faq-in{grid-template-columns:1fr;gap:28px}
+ .faq-left{position:static}
+ .packs{grid-template-columns:1fr}
+ .g-fact{grid-template-columns:1fr;height:auto}
+ .g-fact div{border-right:none;border-bottom:1px solid rgba(233,180,120,.3);padding:18px 24px}
+ .g-fact div:last-child{border-bottom:none}
+ .facttag{display:none}
+}
+@media(max-width:640px){
+ .ggrid{grid-template-columns:1fr}
+ .g-a,.g-b,.g-c,.g-gd,.g-d,.g-e{grid-column:span 1;height:260px}
+ .gsteps{grid-template-columns:1fr}
+ .gstep{border-right:none;padding:22px 0 0}
+ .polrow{grid-template-columns:1fr}
+ .polrow img{height:220px}
+ .hero{min-height:86vh}
+ .hero-stats{flex-direction:column}
+ .hero-stats div{border-right:none;padding:18px 0 0}
+}
+
+</style>
+</head>
+<body>
+<header class="hero">
+  <img src="../photos/eo-wedding-v4/07.jpg" alt="Prosesi pengantin adat di lorong taburan kelopak bunga">
+  <div class="facttag">120+ acara selesai · sejak 2019</div>
+  <div class="hero-in">
+    <p class="eyebrow" style="color:#e9b478;margin-bottom:18px">Wedding Organizer · Balikpapan</p>
+    <h1>Hari besar Anda, <em>kami yang pegang.</em></h1>
+    <p class="hero-sub">Bukan sekadar penengah vendor. Anggaran, jadwal, dan tanggung jawab kami pegang sampai acara bubar rapi.</p>
+    <div class="btnrow">
+      <a class="btn btn-terra" href="#harga">Lihat Daftar Harga</a>
+      <a class="btn btn-ghost" style="border-color:rgba(255,248,240,.7);color:var(--white)" href="#kontak">Chat WhatsApp</a>
+    </div>
+    <div class="hero-stats">
+      <div><b>120+</b><span>Acara selesai</span></div>
+      <div><b>12</b><span>Crew di lapangan</span></div>
+      <div><b>1</b><span>Nomor PIC</span></div>
+    </div>
+  </div>
+  <div class="tick"><span class="tr">120+ ACARA SELESAI · ANGKA DIKUNCI TERTULIS SEBELUM DP · 12 CREW DI LAPANGAN · 120+ ACARA SELESAI · ANGKA DIKUNCI TERTULIS SEBELUM DP · 12 CREW DI LAPANGAN · </span></div>
+</header>
+
+<section class="folio">
+  <div class="wrap">
+    <div class="folio-h">
+      <h2>Acara yang sudah jalan.</h2>
+      <span class="n">Track record — bukan janji</span>
+    </div>
+    <div class="ggrid">
+      <figure class="g-a"><img src="../photos/eo-wedding-v4/01.jpg" alt="Resepsi pendopo malam dengan lampu string dan meja tamu berbatik"><figcaption class="gcap"><span>Resepsi malam, 300 tamu, rundown 14 jam</span><small>Resepsi · Pendopo</small></figcaption></figure>
+      <figure class="g-b"><img src="../photos/eo-wedding-v4/02.jpg" alt="Pengantin menari di panggung dengan latar bunga"><figcaption class="gcap"><span>Run of show dipegang tiap menit</span><small>Hari H</small></figcaption></figure>
+      <figure class="g-c"><img src="../photos/eo-wedding-v4b/03.jpg" alt="Crew wedding organizer menata dekorasi bunga outdoor"><figcaption class="gcap"><span>12 crew tetap, bukan vendor lisan</span><small>Di lapangan</small></figcaption></figure>
+      <figure class="g-d"><img src="tablescape.jpg" alt="Tablescape dekorasi meja tamu dengan bunga dan lilin"><figcaption class="gcap"><span>Tablescape per meja, dikurasi bareng keluarga</span><small>Dekorasi</small></figcaption></figure>
+      <figure class="g-e"><img src="../photos/eo-wedding-v4/05.jpg" alt="Pengantin tertawa di golden hour taman bunga"><figcaption class="gcap"><span>Slot dokumentasi kami yang jaga</span><small>Dokumentasi</small></figcaption></figure>
+      <div class="g-fact">
+        <div><b>120+</b><span>Acara selesai</span></div>
+        <div><b>12</b><span>Crew di lapangan</span></div>
+        <div><b>1</b><span>Nomor PIC</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="price" id="harga">
+  <div class="wrap">
+    <div class="price-h">
+      <p class="eyebrow">Transparan sejak awal</p>
+      <h2>Daftar Harga 2026</h2>
+      <p>Angka final menyesuaikan venue dan jumlah tamu — dan dikunci tertulis sebelum DP.</p>
+    </div>
+    <div class="packs">
+      <div class="pack">
+        <h3>Intim</h3>
+        <div class="rp">Rp 12,5 jt</div>
+        <div class="who">30 tamu · setengah hari</div>
+        <ul><li>Pelaminan + photo booth</li><li>Koordinasi vendor</li><li>Dokumentasi</li></ul>
+        <div class="pbtn"><a class="btn btn-ghost" href="#kontak">Tanya Intim</a></div>
+      </div>
+      <div class="pack hot">
+        <div class="flaghot">Paling dipesan</div>
+        <h3>Resepsi Penuh</h3>
+        <div class="rp">Rp 28,5 jt</div>
+        <div class="who">300 tamu · satu hari penuh</div>
+        <ul><li>Dekorasi + sound system</li><li>Katering koordinasi</li><li>12 crew di lapangan</li></ul>
+        <div class="pbtn"><a class="btn btn-terra" href="#kontak">Tanya Resepsi</a></div>
+      </div>
+      <div class="pack">
+        <h3>Gala</h3>
+        <div class="rp">Rp 45 jt</div>
+        <div class="who">250 tamu · satu malam</div>
+        <ul><li>Stage + run of show</li><li>Band akustik 2 set</li><li>Dokumentasi profesional</li></ul>
+        <div class="pbtn"><a class="btn btn-ghost" href="#kontak">Tanya Gala</a></div>
+      </div>
+    </div>
+    <div class="unit">
+      <div class="unit-h"><span>Layanan satuan</span><span>Estimasi 2026</span></div>
+      <table>
+        <tr><td>Pelaminan stand</td><td>Rp 8.000.000</td></tr>
+        <tr><td>Sound system + lighting</td><td>Rp 5.000.000</td></tr>
+        <tr><td>Photo booth + backdrop</td><td>Rp 2.500.000</td></tr>
+        <tr><td>MC profesional</td><td>Rp 2.500.000</td></tr>
+        <tr><td>Rias pengantin</td><td>Rp 2.000.000</td></tr>
+        <tr><td>Mobil pengantin</td><td>Rp 1.500.000</td></tr>
+      </table>
+      <div class="unit-note">Semua harga paket sudah termasuk koordinasi H-1 sampai acara selesai. DP 40% mengunci tanggal &amp; angka.</div>
+    </div>
+  </div>
+</section>
+<section class="alur">
+  <div class="wrap">
+    <div class="alur-h">
+      <h2>Dari chat pertama sampai pulang.</h2>
+      <p style="max-width:56ch">Tanggal dan angka nggak main-main di kami — tiap tahap ada bukti tertulisnya.</p>
+    </div>
+    <div class="gsteps">
+      <div class="gstep"><span class="gn">01</span><h3>Konsultasi &amp; venue</h3><p>Chat pertama, survei venue bareng, kebutuhan dipetakan. Gratis, tanpa paksaan.</p></div>
+      <div class="gstep"><span class="gn">02</span><h3>Angka dikunci</h3><p>Proposal tertulis: paket, vendor, biaya. Harga terkunci sebelum DP masuk.</p></div>
+      <div class="gstep"><span class="gn">03</span><h3>Produksi &amp; rundown</h3><p>Vendor digarap, rundown per menit dibuat, meeting H-7 bareng keluarga.</p></div>
+      <div class="gstep"><span class="gn">04</span><h3>Hari H</h3><p>12 crew datang lebih awal. Keluarga cukup jadi tamu kehormatan sendiri.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="tst">
+  <div class="wrap tst-in">
+    <div>
+      <blockquote>&ldquo;Harga di awal = <em>harga akhir.</em> Rundown per menit jalan sesuai janji. Tamu kami bilang acaranya adem.&rdquo;</blockquote>
+      <div class="who">Raka &amp; Dinda — Resepsi Pendopo, 2025</div>
+    </div>
+    <div class="polrow">
+      <img src="../photos/eo-wedding-v4/06.jpg" alt="Pengantin tertawa lepas di resepsi malam dengan lampu gantung">
+      <img src="../photos/eo-wedding-v4/04.jpg" alt="Detail dekorasi meja tamu dengan bunga dan lilin">
+    </div>
+  </div>
+</section>
+
+<section class="cta" id="kontak">
+  <div class="wrap cta-in">
+    <div>
+      <h2>Tanggal besar Anda <em>tinggal satu chat.</em></h2>
+      <p>Slot 2026 terbatas — kalender kami tutup per bulan. Konsultasi pertama gratis.</p>
+    </div>
+    <a class="btn btn-terra" href="https://wa.me/6281255507777">Chat WhatsApp Sekarang</a>
+  </div>
+</section>
+
+<section class="faq">
+  <div class="wrap faq-in">
+    <div class="faq-left">
+      <h2>Sebelum kunci tanggal.</h2>
+      <p>Empat hal yang paling sering ditanyakan. Yang lainnya — tanya langsung, gratis.</p>
+    </div>
+    <div>
+      <details open><summary>Apakah harga di daftar itu final?</summary><p>Itu titik awal jujur. Angka final menyesuaikan venue dan jumlah tamu — tapi begitu tertulis di proposal dan DP masuk, harga terkunci. Nol biaya kejutan.</p></details>
+      <details><summary>Vendor dari kalian atau boleh bawa sendiri?</summary><p>Boleh campur. Vendor favorit keluarga tetap bisa masuk rundown, kami yang koordinasi. Yang penting semua punya kontrak tertulis.</p></details>
+      <details><summary>Crew 12 orang itu siapa saja?</summary><p>Koordinator lapangan, dekorasi, sound, dokumentasi, dan pelayan tamu. Bukan vendor lisan yang datang dadakan — tim tetap kami di tiap acara.</p></details>
+      <details><summary>Kalau acara mundur dibatalkan?</summary><p>Reschedule gratis sekali dalam 12 bulan ke depan, selama slot tersedia. Ketentuan lengkap ada di proposal tertulis.</p></details>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="wrap">
+    <div><b>Mahligai Wedding</b> — Wedding Organizer Balikpapan</div>
+    <div>WhatsApp 0812-5550-7777 · Senin–Sabtu 08.00–20.00</div>
+  </div>
+</footer>
+
+</body>
+</html>

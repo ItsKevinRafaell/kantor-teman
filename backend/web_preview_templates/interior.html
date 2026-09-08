@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Borneo Jati Furniture — Meubel Jati Custom &amp; Interior · Balikpapan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Karla:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--wal:#2f261c;--wal2:#221b12;--krem:#f3ede2;--sage:#6f7d5c;--sage-l:#c9d3b8;--moss:#55613f;--cream-t:#efe8da;--muted:#a99e8b;--line:#d9cfba;--gold:#c9972c}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Karla',system-ui,sans-serif;background:var(--krem);color:var(--wal);line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+h1,h2,h3{font-family:'Instrument Serif',Georgia,serif;font-weight:400;line-height:1.05}
+.wrap{max-width:1180px;margin:0 auto;padding:0 22px}
+a{color:inherit;text-decoration:none;transition:filter .15s ease}
+.mono{font-family:'Space Mono',monospace}
+nav{background:var(--wal);position:sticky;top:0;z-index:50;border-bottom:1px solid rgba(201,151,44,.28)}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:64px;gap:14px;position:relative}
+.brand{font-family:'Instrument Serif',serif;font-size:22px;color:var(--krem);line-height:1}
+.brand small{display:block;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--sage-l);margin-top:4px}
+.menu{display:flex;gap:22px}
+.menu a{font-size:13.5px;font-weight:500;color:#cfc4ae}
+.menu a:hover{color:var(--sage-l)}
+.menu-cta{display:none}
+.nav-cta{background:var(--sage);color:#fff;font-weight:700;font-size:13px;padding:11px 18px}
+.nav-cta:hover{filter:brightness(1.12)}
+.burger{display:none;background:transparent;border:1px solid var(--sage-l);cursor:pointer;padding:10px 11px;margin-left:auto}
+.burger span{display:block;width:20px;height:2px;background:var(--krem);margin:4px 0}
+#nav-toggle{position:absolute;opacity:0;pointer-events:none}
+/* HERO dark + blob organik + sticker */
+.hero{background:var(--wal);color:var(--krem);position:relative;overflow:hidden}
+.hero .glow{position:absolute;left:-160px;bottom:-180px;width:560px;height:560px;border-radius:50%;background:radial-gradient(circle,rgba(111,125,92,.22),transparent 62%)}
+.hero .in{display:grid;grid-template-columns:1.12fr .88fr;gap:40px;align-items:center;padding:74px 0 88px;position:relative}
+.hero .kick{font-family:'Space Mono',monospace;font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--sage-l)}
+.hero h1{font-size:clamp(2.9rem,6.2vw,5.4rem);margin-top:14px}
+.hero h1 em{font-style:italic;color:var(--sage-l)}
+.hero h1 .ol{color:transparent;-webkit-text-stroke:1.5px rgba(243,237,226,.85)}
+.hero-sub{margin-top:18px;font-size:15.5px;color:#cfc4ae;max-width:50ch}
+.cta-row{display:flex;gap:14px;margin-top:30px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;font-weight:600;font-size:14px;padding:15px 26px}
+.btn-s{background:var(--sage);color:#fff;font-weight:700}
+.btn-s:hover{filter:brightness(1.14)}
+.btn-o{border:1.5px solid rgba(243,237,226,.4);color:var(--krem)}
+.btn-o:hover{border-color:var(--sage-l);color:var(--sage-l)}
+.hero .side{position:relative;justify-self:center}
+.blob{width:min(400px,100%);aspect-ratio:1/1.06;overflow:hidden;border-radius:44% 56% 52% 48%/58% 46% 54% 42%;border:2px solid rgba(201,151,44,.4)}
+.blob img{width:100%;height:100%;object-fit:cover;display:block}
+.sticker{position:absolute;right:-26px;top:36px;width:126px;height:126px;border-radius:50%;background:var(--gold);color:var(--wal);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;transform:rotate(10deg);border:2px dashed rgba(47,38,28,.45);box-shadow:0 16px 36px rgba(0,0,0,.4)}
+.sticker b{font-family:'Instrument Serif',serif;font-size:24px;line-height:1}
+.sticker span{font-family:'Space Mono',monospace;font-size:8.5px;letter-spacing:.12em;margin-top:5px}
+.hero .stats{display:flex;gap:26px;flex-wrap:wrap;margin-top:34px}
+.hero .stats div{border-left:2px solid rgba(111,125,92,.7);padding-left:14px}
+.hero .stats b{font-family:'Instrument Serif',serif;font-size:30px;color:var(--sage-l);display:block;line-height:1}
+.hero .stats span{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.12em;color:#a99e8b;text-transform:uppercase}
+/* MOBILE NAV */
+@media(max-width:900px){
+  .burger{display:block}
+  .nav-cta{display:none}
+  .nav-in{height:60px}
+  .menu{display:none;position:absolute;top:60px;left:0;right:0;background:var(--wal2);flex-direction:column;padding:16px 22px 20px;z-index:41;border-bottom:3px solid var(--sage);box-shadow:0 18px 40px rgba(0,0,0,.5)}
+  #nav-toggle:checked ~ .menu{display:flex}
+  .menu a{font-size:15px;font-weight:600;color:var(--krem);padding:13px 2px;border-bottom:1px solid rgba(255,255,255,.1)}
+  .menu a:last-of-type{border-bottom:none}
+  .menu-cta{display:inline-flex;justify-content:center;background:var(--sage);color:#fff;font-weight:700;font-size:14px;padding:13px 18px;margin-top:14px}
+  .hero .in{grid-template-columns:1fr;padding:44px 0 64px}
+  .hero .side{justify-self:start;width:100%}
+  .blob{width:min(320px,88%)}
+  .sticker{right:0;top:-14px;width:106px;height:106px}
+}
+/* TICKER sage */
+.tick{background:var(--sage);color:#fff;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;letter-spacing:.06em;padding:11px 0;white-space:nowrap;overflow:hidden}
+.tick div{display:inline-block;animation:roll 24s linear infinite}
+@keyframes roll{to{transform:translateX(-50%)}}
+/* COUNTERS */
+#angka{padding:58px 0 10px}
+.cgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.ccell{background:#fffdf7;border:1px solid var(--line);padding:26px 22px;position:relative}
+.ccell::after{content:'';position:absolute;left:0;top:0;width:38px;height:3px;background:var(--sage)}
+.ccell b{font-family:'Instrument Serif',serif;font-size:clamp(2.4rem,4vw,3.4rem);line-height:1;display:block}
+.ccell b i{font-style:italic;color:var(--moss)}
+.ccell span{font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.1em;color:#7d7263;text-transform:uppercase;display:block;margin-top:8px}
+/* BENTO portofolio */
+#ruang{padding:56px 0}
+.bento{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:250px;gap:14px}
+.bcard{position:relative;overflow:hidden;padding:28px;display:flex;flex-direction:column;gap:8px;transition:transform .2s ease}
+.bcard:hover{transform:translateY(-6px)}
+.bcard .no{font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.16em;opacity:.7}
+.bcard h3{font-size:clamp(1.4rem,2vw,1.9rem)}
+.bcard p{font-size:13.5px;opacity:.85}
+.bcard .pr{margin-top:auto;font-family:'Space Mono',monospace;font-size:12.5px;font-weight:700;letter-spacing:.05em;border-top:1px dashed currentColor;padding-top:10px;width:max-content}
+.bfoto{padding:0}
+.bfoto img{width:100%;height:100%;object-fit:cover;display:block;position:absolute;inset:0}
+.bfoto .lb{position:absolute;left:0;right:0;bottom:0;padding:46px 20px 16px;background:linear-gradient(transparent,rgba(34,27,18,.88));color:#fff;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.bfoto .lb b{font-family:'Instrument Serif',serif;font-size:20px;font-weight:400}
+.bfoto .lb span{font-family:'Space Mono',monospace;font-size:11px;color:var(--gold);letter-spacing:.06em}
+.bfoto.tilt img{border-radius:38% 62% 56% 44%/42% 52% 48% 58%}
+.bk-krem{background:#fffdf7;border:1px solid var(--line)}
+.bk-krem .pr{color:var(--moss)}
+.bk-wal{background:var(--wal);color:var(--krem)}
+.bk-wal .pr{color:var(--gold)}
+.bk-sage{background:var(--sage);color:#fff}
+.bk-sage .pr{color:var(--gold)}
+.bk-out{background:transparent;border:1.5px solid var(--wal)}
+.bk-out .pr{color:var(--moss)}
+.b-big{grid-column:span 2;grid-row:span 2}
+.b-stick{align-items:flex-start;justify-content:center}
+.b-stick .tag{background:var(--krem);color:var(--wal);font-family:'Instrument Serif',serif;font-size:22px;padding:14px 22px;transform:rotate(-4deg);border:1.5px dashed var(--moss)}
+/* KAYU swatches */
+#kayu{background:var(--wal2);color:var(--krem);padding:70px 0;clip-path:polygon(0 34px,50% 0,100% 34px,100% 100%,0 100%);padding-top:100px}
+.kgrid{display:grid;grid-template-columns:1fr 1fr;gap:44px;align-items:center}
+.kgrid h2{font-size:clamp(2rem,3.6vw,3rem)}
+.kgrid h2 em{font-style:italic;color:var(--sage-l)}
+.kgrid p{font-size:14.5px;color:#b3a88f;margin-top:14px}
+.sw{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:8px}
+.sitem{text-align:center}
+.sdot{width:84px;height:84px;border-radius:50%;margin:0 auto 10px;border:2px solid rgba(243,237,226,.35)}
+.sw1{background:linear-gradient(135deg,#c8a878,#a8814e)}
+.sw2{background:linear-gradient(135deg,#6b4a2c,#452f1b)}
+.sw3{background:linear-gradient(135deg,#f4efe6,#d9d2c2)}
+.sw4{background:linear-gradient(135deg,#8a9271,#5c6547)}
+.sitem span{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#a99e8b}
+.kcheck{margin-top:18px}
+.kcheck li{list-style:none;font-size:13.5px;padding:8px 0;border-bottom:1px dashed rgba(243,237,226,.18);display:flex;gap:9px}
+.kcheck li::before{content:'—';color:var(--sage-l);font-weight:700}
+/* ALUR ghost */
+#alur{padding:64px 0}
+.agrid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:26px}
+.acard .ghost{font-family:'Instrument Serif',serif;font-size:88px;line-height:.9;color:transparent;-webkit-text-stroke:1.2px rgba(85,97,63,.75)}
+.acard h3{font-size:19px;margin-top:8px}
+.acard p{font-size:13px;color:#6b6152;margin-top:6px}
+.acard .tm{font-family:'Space Mono',monospace;font-size:10.5px;color:var(--moss);letter-spacing:.12em;margin-top:8px}
+/* KATA */
+#kata{padding:20px 0 64px}
+.kgrid2{display:grid;grid-template-columns:.9fr 1.1fr;align-items:stretch}
+.kgrid2 img{width:100%;height:100%;min-height:400px;object-fit:cover}
+.kgrid2 .tx{background:var(--wal);color:var(--krem);padding:56px 52px;display:flex;flex-direction:column;justify-content:center}
+.kgrid2 .qm{font-family:'Instrument Serif',serif;font-size:110px;line-height:.6;color:var(--gold);margin-bottom:6px}
+.kgrid2 blockquote{font-family:'Instrument Serif',serif;font-size:clamp(1.5rem,2.6vw,2.1rem);line-height:1.35}
+.kgrid2 blockquote b{color:var(--sage-l);font-style:italic}
+.kgrid2 .who{margin-top:18px;font-family:'Space Mono',monospace;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:#a99e8b}
+/* CTA diagonal */
+#cta{clip-path:polygon(0 46px,100% 0,100% 100%,0 100%);background:var(--sage);color:#fff;padding:110px 0 64px}
+#cta .in{display:grid;grid-template-columns:1.2fr .8fr;gap:30px;align-items:center}
+#cta h2{font-size:clamp(2.2rem,4.6vw,3.8rem)}
+#cta h2 em{font-style:italic;color:var(--gold)}
+#cta p{margin-top:12px;color:#e8efe0;font-size:15px;max-width:46ch}
+#cta .btnw{justify-self:end}
+#cta .btn-w{background:var(--wal);color:var(--krem);font-weight:700;padding:17px 30px}
+#cta .btn-w:hover{filter:brightness(1.2)}
+#cta .tiny{font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.1em;color:#d8e2cc;margin-top:12px;text-align:right}
+/* FAQ + LOKASI */
+#faq{padding:64px 0}
+details{border-bottom:1px solid var(--line);padding:14px 0}
+details summary{cursor:pointer;font-weight:600;font-size:15.5px;list-style:none;display:flex;justify-content:space-between;gap:12px}
+details summary::after{content:'+';font-family:'Space Mono',monospace;color:var(--moss)}
+details[open] summary::after{content:'–'}
+details p{font-size:14px;color:#6b6152;padding:10px 0 4px;max-width:72ch}
+#lokasi .lk{display:grid;grid-template-columns:.9fr 1.1fr}
+#lokasi img{width:100%;height:100%;min-height:360px;object-fit:cover}
+#lokasi .addr{background:#fffdf7;padding:52px 46px;display:flex;flex-direction:column;justify-content:center;gap:14px;border:1px solid var(--line)}
+#lokasi .addr b{font-family:'Instrument Serif',serif;font-size:26px;font-weight:400}
+#lokasi .addr p{font-size:14px;color:#5f5546}
+footer{background:var(--wal2);color:#9c9182;padding:26px 0}
+footer .wrap{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.08em}
+@media(max-width:900px){
+  .cgrid{grid-template-columns:1fr 1fr}
+  .bento{grid-template-columns:1fr 1fr;grid-auto-rows:200px}
+  .b-big{grid-column:span 2;grid-row:span 1}
+  .kgrid{grid-template-columns:1fr;gap:30px}
+  .sw{grid-template-columns:repeat(4,1fr)}
+  .sdot{width:64px;height:64px}
+  .agrid{grid-template-columns:1fr 1fr;gap:22px}
+  .kgrid2{grid-template-columns:1fr}
+  #cta .in{grid-template-columns:1fr}
+  #cta .btnw{justify-self:start}
+  #cta .tiny{text-align:left}
+  #lokasi .lk{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<nav>
+  <div class="wrap nav-in">
+    <a class="brand" href="#top">Borneo Jati<small>Meubel Custom · Balikpapan</small></a>
+    <input id="nav-toggle" type="checkbox">
+    <label class="burger" for="nav-toggle" aria-label="Menu"><span></span><span></span><span></span></label>
+    <div class="menu">
+      <a href="#ruang">Portofolio</a>
+      <a href="#kayu">Kayu</a>
+      <a href="#alur">Cara Order</a>
+      <a href="#lokasi">Workshop</a>
+      <a class="menu-cta" href="https://wa.me/628134556789">Ukur Gratis</a>
+    </div>
+    <a class="nav-cta" href="https://wa.me/628134556789">Jadwal Ukur Gratis</a>
+  </div>
+</nav>
+
+<section class="hero" id="top">
+  <div class="glow"></div>
+  <div class="wrap in">
+    <div>
+      <p class="kick">Meubel jati custom — Balikpapan</p>
+      <h1>Dari balok kayu, <span class="ol">jadi ruang</span> <em>favorit rumah.</em></h1>
+      <p class="hero-sub">Kitchen set, wardrobe, meja, interior kantor — diukur, didesain 3D, dibuat dari jati asli, dipasang sampai rapi. Ukur &amp; desainnya gratis.</p>
+      <div class="cta-row">
+        <a class="btn btn-s" href="https://wa.me/628134556789">Jadwal ukur gratis</a>
+        <a class="btn btn-o" href="#ruang">Lihat portofolio</a>
+      </div>
+      <div class="stats">
+        <div><b>240+</b><span>Proyek selesai</span></div>
+        <div><b>8 th</b><span>Workshop berdiri</span></div>
+        <div><b>5 th</b><span>Garansi konstruksi</span></div>
+      </div>
+    </div>
+    <div class="side">
+      <div class="blob"><img src="interior-assets/02.jpg" alt="Kitchen set jati tropical dengan granit hitam"></div>
+      <div class="sticker"><b>3D</b><span>DESAIN GRATIS</span></div>
+    </div>
+  </div>
+</section>
+
+<div class="tick"><div>DESAIN 3D GRATIS × JATI ASLI KALIMANTAN × PRODUKSI 14–21 HARI × PASANG SAMPAI RAPI × SOFT-CLOSE STANDAR × GARANSI 5 TAHUN ×&nbsp;</div></div>
+
+<section id="angka">
+  <div class="wrap cgrid">
+    <div class="ccell"><b>240<i>+</i></b><span>Proyek rumah &amp; kantor</span></div>
+    <div class="ccell"><b>21<i>hari</i></b><span>Termasuk pasang, bukan cuma buat</span></div>
+    <div class="ccell"><b>100<i>%</i></b><span>Kayu jati asli, nol MDF</span></div>
+    <div class="ccell"><b>3<i>draft</i></b><span>Revisi desain gratis sampai cocok</span></div>
+  </div>
+</section>
+
+<section id="ruang">
+  <div class="wrap">
+    <div class="sec-head" style="display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-bottom:26px">
+      <div>
+        <p class="mono" style="font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--moss)">Portofolio</p>
+        <h2 style="font-size:clamp(2rem,3.6vw,3rem)">Ruangan yang sudah jadi</h2>
+      </div>
+      <span class="mono" style="font-size:11px;color:#7d7263;letter-spacing:.1em">SEMUA UKURAN CUSTOM — BISA TIRU GAYA</span>
+    </div>
+    <div class="bento">
+      <div class="bcard bfoto b-big"><img src="interior-assets/01.jpg" alt="Ruang keluarga jati dengan rak built-in"><div class="lb"><b>Ruang Keluarga + Rak Built-in</b><span>MULAI 15JT</span></div></div>
+      <div class="bcard bfoto tilt"><img src="interior-assets/05.jpg" alt="Ruang makan keluarga meja jati"><div class="lb"><b>Meja Makan</b><span>MULAI 6,5JT</span></div></div>
+      <div class="bcard bk-wal">
+        <span class="no">LAYANAN</span>
+        <h3>Kitchen Set</h3>
+        <p>Dari desain sampai pasang granit &amp; sink. Progres difoto tiap tahap, dikirim ke WA.</p>
+        <span class="pr">MULAI 18JT</span>
+      </div>
+      <div class="bcard bfoto"><img src="interior-assets/04.jpg" alt="Kamar dengan wardrobe jati"><div class="lb"><b>Wardrobe</b><span>MULAI 8JT</span></div></div>
+      <div class="bcard bk-sage b-stick">
+        <div class="tag">Ukur + desain 3D — gratis, tanpa DP</div>
+        <p style="font-size:13px">Cukup WA. Tim datang, ukur, dengerin kebutuhan lu.</p>
+      </div>
+      <div class="bcard bfoto tilt"><img src="interior-assets/06.jpg" alt="Home office meja jati"><div class="lb"><b>Home Office</b><span>MULAI 9JT</span></div></div>
+      <div class="bcard bk-out">
+        <span class="no">LAYANAN</span>
+        <h3>Interior Kantor</h3>
+        <p>Partisi, meja staf, display — untuk kantor yang mulai serius.</p>
+        <span class="pr">SURVEY DULU</span>
+      </div>
+      <div class="bcard bfoto"><img src="interior-assets/08.jpg" alt="Living room reclaimed teak"><div class="lb"><b>Living Room Set</b><span>MULAI 12JT</span></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="kayu">
+  <div class="wrap kgrid">
+    <div>
+      <p class="mono" style="font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--sage-l)">Kayu &amp; finishing</p>
+      <h2>Bukan MDF lapis. <em>Jati asli Kalimantan.</em></h2>
+      <p>Tiap pesanan dipotong, dirakit, dipoles di workshop sendiri di Balikpapan — mampir aja lihat progres.</p>
+      <ul class="kcheck">
+        <li>Engsel &amp; rel soft-close standar semua pesanan</li>
+        <li>Bisa milih finishing pas tim ukur datang</li>
+        <li>Garansi 5 tahun — mengkeret/sesak, kami betulkan</li>
+      </ul>
+    </div>
+    <div class="sw">
+      <div class="sitem"><div class="sdot sw1"></div><span>NATURAL</span></div>
+      <div class="sitem"><div class="sdot sw2"></div><span>WALNUT</span></div>
+      <div class="sitem"><div class="sdot sw3"></div><span>PUTIH DOFF</span></div>
+      <div class="sitem"><div class="sdot sw4"></div><span>SAGE GRAY</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="alur">
+  <div class="wrap">
+    <p class="mono" style="font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--moss)">Cara order</p>
+    <h2 style="font-size:clamp(2rem,3.6vw,3rem)">Dari ukur sampai dipakai</h2>
+    <div class="agrid">
+      <div class="acard"><div class="ghost">1</div><h3>Ukur di lokasi</h3><p>Tim datang ke rumah/kantor. Gratis, tanpa DP.</p><span class="tm">HARI 0</span></div>
+      <div class="acard"><div class="ghost">2</div><h3>Desain 3D + angka</h3><p>Gambar 3D + rincian bahan &amp; harga. Revisi 3x gratis.</p><span class="tm">3–5 HARI</span></div>
+      <div class="acard"><div class="ghost">3</div><h3>Produksi</h3><p>Workshop mengerjakan. Progres difoto via WA tiap tahap.</p><span class="tm">14–21 HARI</span></div>
+      <div class="acard"><div class="ghost">4</div><h3>Pasang &amp; beres</h3><p>Pasang sampai rapi, debu dibereskan. Garansi jalan.</p><span class="tm">SELESAI</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="kata">
+  <div class="wrap kgrid2">
+    <div class="tx">
+      <div class="qm">“</div>
+      <blockquote>Meja makan ini tempat keluarga kumpul tiap hari. Dua tahun dipakai, <b>masih kenceng kayak baru</b>.</blockquote>
+      <p class="who">Keluarga Pak Hendra — Gunung Bahagia, Balikpapan</p>
+    </div>
+    <img src="interior-assets/05.jpg" alt="Keluarga berkumpul di meja makan jati buatan Borneo Jati">
+  </div>
+</section>
+
+<section id="cta">
+  <div class="wrap in">
+    <div>
+      <h2>Rumah lu beda, <em>furniturnya juga.</em></h2>
+      <p>Kirim ukuran kasar atau foto ruangan via WA — tim kami hitung perkiraan biayanya hari itu juga.</p>
+    </div>
+    <div class="btnw">
+      <a class="btn btn-w" href="https://wa.me/628134556789">WhatsApp 0813-4556-789</a>
+      <p class="tiny">UKUR &amp; DESAIN 3D GRATIS</p>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-head" style="margin-bottom:6px"><div><p class="mono" style="font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--moss)">Tanya jawab</p><h2 style="font-size:clamp(2rem,3.6vw,3rem)">Yang sering ditanyakan</h2></div></div>
+    <details><summary>Ukur &amp; desain 3D benar gratis?</summary><p>Gratis untuk area Balikpapan — termasuk gambar 3D + rincian harga. Produksi baru jalan setelah lu setuju desain dan DP.</p></details>
+    <details><summary>Kayunya benar jati asli?</summary><p>Ya — bukan MDF/particle board. Bahan bisa dicek pas tim ukur; sisa potongan di workshop juga bisa dilihat langsung.</p></details>
+    <details><summary>Kalau rumah masih renovasi?</summary><p>Justru enak — ukur selesai dinding bisa, kitchen set dipasang setelah plafon &amp; keramik beres supaya tidak kena noda semen.</p></details>
+    <details><summary>Ada garansi?</summary><p>5 tahun untuk konstruksi (mengkeret, sesak, roboh). Keliru pemakaian &amp; luka bakar tidak masuk garansi.</p></details>
+  </div>
+</section>
+
+<section id="lokasi">
+  <div class="lk">
+    <img src="interior-assets/07.jpg" alt="Workshop terbuka — pengrajin merakit kursi jati">
+    <div class="addr">
+      <p class="mono" style="font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--moss)">Workshop &amp; showroom</p>
+      <b>Jl. Soekarno Hatta KM 5<br>Balikpapan</b>
+      <p>Senin–Sabtu 08.00–17.00. Mampir lihat kayu &amp; progres pesanan — langsung saja, tanpa janji.</p>
+      <a class="btn btn-s" href="https://wa.me/628134556789">WhatsApp 0813-4556-789</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 BORNEO JATI FURNITURE — MEUBEL CUSTOM, BALIKPAPAN</span>
+    <span>UKUR &amp; DESAIN 3D GRATIS</span>
+  </div>
+</footer>
+<script>
+document.querySelectorAll('.menu a').forEach(function(a){
+  a.addEventListener('click',function(){document.getElementById('nav-toggle').checked=false;});
+});
+</script>
+</body>
+</html>

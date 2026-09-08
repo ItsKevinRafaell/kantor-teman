@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maju Jaya Teknik | Teknisi Panggilan Balikpapan — AC, Pipa, Listrik</title>
+<meta name="description" content="Teknisi panggilan Balikpapan untuk servis AC, pipa air, dan instalasi listrik. Respons di bawah 2 jam, harga disepakati sebelum kerja, garansi 30 hari.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,600;0,700;0,800;0,900;1,700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --ink:#163172;--green:#163172;--green-d:#0e224f;--mint:#d6e4f0;--mint-d:#c3d4ea;
+  --amber:#1e56a0;--paper:#f6f6f6;--white:#ffffff;--steel:#5d6b7e;--line:#e2e6ea;
+  --disp:'Archivo',sans-serif;--body:'Hanken Grotesk',sans-serif;
+  --sh:0 1px 0 rgba(22,49,114,.06);
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--body);color:var(--ink);background:var(--paper);line-height:1.65;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+img{display:block;max-width:100%}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+section{scroll-margin-top:92px}
+.sec{padding:92px 0}
+.kick{display:inline-flex;align-items:center;gap:10px;background:none;color:var(--amber);font-family:var(--disp);font-weight:800;font-size:12.5px;letter-spacing:.2em;text-transform:uppercase;padding:0}
+.sec h2{font-family:var(--disp);font-weight:800;font-size:clamp(30px,4.2vw,44px);line-height:1.12;letter-spacing:-.02em;margin:14px 0 10px}
+.sec .sub{color:var(--steel);max-width:580px;font-size:16.5px}
+/* PROMO BAR */
+.promo{background:var(--amber);color:#fff;font-size:13.5px;font-weight:600;text-align:center;padding:9px 16px}
+.promo b{font-weight:700}
+.promo a{text-decoration:underline;text-underline-offset:2px}
+/* NAV */
+.nav{position:sticky;top:0;z-index:70;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;justify-content:space-between;height:66px}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--disp);font-weight:800;font-size:19px;letter-spacing:-.01em}
+.bmark{width:34px;height:34px;border-radius:4px;background:var(--ink);display:grid;place-items:center;flex:none}
+.bmark svg{width:18px;height:18px;stroke:#fff}
+.brand small{display:block;font-family:var(--body);font-weight:500;font-size:11px;color:var(--steel);letter-spacing:.02em;line-height:1;margin-top:2px}
+.nav-links{display:flex;align-items:center;gap:28px;font-weight:500;font-size:15px;color:#3f4b61}
+.nav-links a:hover{color:var(--green)}
+.nav-cta{background:var(--amber);color:#fff !important;font-family:var(--disp);font-weight:700;padding:10px 18px;border-radius:4px;display:inline-flex;align-items:center;gap:8px}
+.nav-cta svg{width:15px;height:15px;stroke:#fff}
+.nav-cta:hover{background:#174a84;color:#fff}
+#nav-toggle{position:absolute;opacity:0;pointer-events:none}
+.burger{display:none;width:42px;height:42px;border:1px solid var(--line);border-radius:4px;cursor:pointer;position:relative;z-index:80}
+.burger span{display:block;width:18px;height:2px;background:var(--ink);border-radius:2px;margin:8px auto;transition:transform .2s,opacity .2s}
+#nav-toggle:checked~.nav .burger span:nth-child(1){transform:translateY(10px) rotate(45deg)}
+#nav-toggle:checked~.nav .burger span:nth-child(2){opacity:0}
+#nav-toggle:checked~.nav .burger span:nth-child(3){transform:translateY(-10px) rotate(-45deg)}
+.mmenu{position:fixed;inset:0;background:var(--white);z-index:60;padding:122px 26px 30px;display:grid;align-content:start;gap:4px;opacity:0;visibility:hidden;transition:opacity .18s,visibility .18s}
+#nav-toggle:checked~.mmenu{opacity:1;visibility:visible}
+.mmenu a{font-family:var(--disp);font-weight:700;font-size:21px;color:var(--ink);padding:13px 4px;border-bottom:1px solid var(--line)}
+.mmenu a.menu-cta{background:var(--amber);color:#fff !important;border:none;border-radius:4px;text-align:center;margin-top:16px;font-size:18px}
+/* HERO */
+.hero{padding:64px 0 76px;border-bottom:1px solid var(--line)}
+.hero .wrap{display:grid;grid-template-columns:1.04fr .96fr;gap:56px;align-items:center}
+.hchip{display:inline-flex;align-items:center;gap:9px;background:none;border:none;border-radius:0;padding:0;font-size:13.5px;font-weight:700;color:#3f4b61;box-shadow:none}
+.hchip .dot{width:8px;height:8px;border-radius:50%;background:#2fa36b;animation:pulse 1.8s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(47,163,107,.45)}70%{box-shadow:0 0 0 7px rgba(47,163,107,0)}100%{box-shadow:0 0 0 0 rgba(47,163,107,0)}}
+.hero h1{font-family:var(--disp);font-weight:800;font-size:clamp(34px,4.9vw,55px);line-height:1.08;letter-spacing:-.025em;margin:18px 0 16px}
+.hero h1 em{font-style:italic;color:var(--amber);position:relative;white-space:nowrap}
+.hero .lead{color:var(--steel);font-size:17.5px;max-width:520px;margin-bottom:26px}
+.hbtns{display:flex;gap:14px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:10px;font-family:var(--disp);font-weight:700;font-size:16px;padding:15px 26px;border-radius:4px;transition:background .15s,border-color .15s}
+.btn svg{width:18px;height:18px}
+.btn-wa{background:var(--amber);color:#fff;box-shadow:none}
+.btn-wa:hover{background:#174a84;color:#fff}
+.btn-ghost{border:1.5px solid var(--line);color:var(--ink);background:var(--white)}
+.btn-ghost:hover{border-color:var(--green);color:var(--green)}
+.htrust{display:flex;gap:22px;flex-wrap:wrap;margin-top:30px;font-size:14px;font-weight:600;color:#3f4b61}
+.htrust span{display:inline-flex;align-items:center;gap:7px}
+.htrust svg{width:16px;height:16px;stroke:var(--green)}
+.hvisual{position:relative}
+.hphoto{border-radius:4px;overflow:hidden;box-shadow:none}
+.hphoto img{width:100%;height:460px;object-fit:cover}
+.fcard{position:absolute;left:0;right:0;bottom:0;background:var(--white);border-radius:0;border-top:2px solid var(--amber);box-shadow:none;padding:12px 18px;display:flex;align-items:center;gap:12px;max-width:none}
+.fcard .ic{width:auto;height:auto;border-radius:0;background:none;display:grid;place-items:center;flex:none}
+.fcard .ic svg{width:19px;height:19px;stroke:var(--amber)}
+.fcard b{display:block;font-family:var(--disp);font-size:14.5px;letter-spacing:.01em}
+.fcard small{color:var(--steel);font-size:12.5px;line-height:1.35;display:block}
+.fchip{position:absolute;right:0;top:0;background:var(--amber);color:#fff;border-radius:0;padding:10px 16px;font-family:var(--disp);font-weight:700;font-size:14.5px;box-shadow:none}
+.fchip small{display:block;font-family:var(--body);font-weight:500;font-size:11.5px;opacity:.92}
+/* TICKER */
+.ticker{background:var(--green);color:#fff;overflow:hidden;padding:12px 0}
+.ticker .track{display:flex;gap:0;width:max-content;animation:mq 26s linear infinite}
+.ticker span{font-family:var(--disp);font-weight:600;font-size:13.5px;letter-spacing:.14em;text-transform:uppercase;padding:0 26px;display:inline-flex;align-items:center;gap:26px;white-space:nowrap}
+.ticker i{width:6px;height:6px;border-radius:50%;background:var(--amber);display:inline-block}
+@keyframes mq{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+/* LAYANAN */
+.cards3{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:42px}
+.svc{background:var(--white);border:1px solid var(--line);border-radius:4px;overflow:hidden;display:flex;flex-direction:column;transition:border-color .18s}
+.svc:hover{transform:none;box-shadow:none;border-color:var(--mint-d)}
+.svc .ph{height:200px;overflow:hidden}
+.svc .ph img{width:100%;height:100%;object-fit:cover;transition:transform .4s}
+.svc:hover .ph img{transform:scale(1.04)}
+.svc .bd{padding:22px 22px 24px;display:flex;flex-direction:column;gap:12px;flex:1}
+.svc h3{font-family:var(--disp);font-weight:700;font-size:21px;letter-spacing:-.01em}
+.svc ul{list-style:none;display:grid;gap:7px;color:var(--steel);font-size:14.5px}
+.svc li{display:flex;gap:9px;align-items:flex-start}
+.svc li svg{width:15px;height:15px;stroke:var(--green);flex:none;margin-top:4px}
+.svc .foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:14px;border-top:1px dashed var(--line)}
+.price{font-family:var(--disp)}
+.price small{display:block;font-size:11.5px;color:var(--steel);font-weight:600;letter-spacing:.05em;text-transform:uppercase}
+.price b{font-size:19px;font-weight:800;color:var(--green)}
+.svc .wa{background:var(--mint);color:var(--green);font-family:var(--disp);font-weight:700;font-size:13.5px;padding:9px 14px;border-radius:4px;display:inline-flex;align-items:center;gap:7px}
+.svc .wa svg{width:14px;height:14px;stroke:var(--green)}
+.svc .wa:hover{background:var(--green);color:#fff}
+.svc .wa:hover svg{stroke:#fff}
+/* GEJALA */
+.gejala{background:var(--mint)}
+.gtabs{display:flex;gap:10px;margin-top:36px;flex-wrap:wrap}
+.gtab{font-family:var(--disp);font-weight:700;font-size:14.5px;padding:11px 2px;border-radius:0;border:none;border-bottom:2px solid transparent;background:none;color:var(--steel);cursor:pointer;transition:color .15s,border-color .15s;display:inline-flex;align-items:center;gap:8px}
+.gtab svg{width:16px;height:16px;stroke:currentColor}
+.gtab:hover{color:var(--green)}
+.gtab.on{background:none;color:var(--green);border-bottom-color:var(--amber)}
+.grows{display:grid;gap:0;margin-top:24px;border-top:1px solid var(--line)}
+.grow{background:none;border-radius:0;padding:17px 2px;display:grid;grid-template-columns:1.1fr 1.2fr auto;gap:16px;align-items:center;border:none;border-bottom:1px solid var(--line)}
+.grow .gj{font-weight:600;font-size:15.5px;display:flex;align-items:center;gap:10px}
+.grow .gj svg{width:17px;height:17px;stroke:var(--amber);flex:none}
+.grow .dg{color:var(--steel);font-size:14px;border-left:1px solid var(--line);padding-left:16px}
+.gpill{background:none;color:var(--green);font-family:var(--disp);font-weight:800;font-size:14.5px;padding:0;border-radius:0;white-space:nowrap}
+.gnote{margin-top:18px;font-size:13.5px;color:#55637a;display:flex;gap:8px;align-items:flex-start}
+.gnote svg{width:15px;height:15px;stroke:var(--green);flex:none;margin-top:3px}
+.gcat{display:none}
+.gcat.on{display:grid;gap:12px}
+/* KUNJUNGAN */
+.plist{border-top:2px solid var(--ink);margin-top:38px}
+.prow{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center;padding:20px 2px;border-bottom:1px dashed var(--line)}
+.prow b{font-family:var(--disp);font-weight:700;font-size:18.5px;display:block}
+.prow b i{font-style:normal;font-weight:800;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--green);margin-left:10px}
+.prow div span{display:block;font-size:13.5px;color:#55637a;margin-top:3px}
+.pprice{font-family:var(--disp);font-weight:800;font-size:21px;color:var(--green);white-space:nowrap;text-align:right}
+.pprice small{display:block;font-family:var(--body);font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--steel);text-align:right;margin-top:2px}
+.prow.feat{background:var(--mint);padding:20px 16px;border-bottom:1px dashed var(--mint-d)}
+.pnote{margin-top:16px;font-size:13.5px;color:#55637a;max-width:640px}
+.pbtns{display:flex;gap:14px;margin-top:24px;flex-wrap:wrap}
+.cta.ghost-g{background:var(--white);color:var(--ink);border:1.5px solid var(--line)}
+.cta.ghost-g:hover{border-color:var(--green);color:var(--green)}
+/* WHY */
+.why{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;margin-top:44px}
+.wcard{background:none;border:none;border-top:2px solid var(--ink);border-radius:0;padding:20px 0 0}
+.wcard .ic{width:auto;height:auto;border-radius:0;background:none;display:block;margin-bottom:12px}
+.wcard .ic svg{width:22px;height:22px;stroke:var(--green)}
+.wcard h3{font-family:var(--disp);font-weight:700;font-size:17.5px;margin-bottom:6px}
+.wcard p{color:var(--steel);font-size:14px}
+/* PROSES */
+.proses{background:var(--white);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-top:44px;counter-reset:st}
+.step{position:relative;padding:0 6px}
+.step::before{counter-increment:st;content:"0" counter(st);font-family:var(--disp);font-weight:800;font-size:14px;color:var(--green);display:block;margin-bottom:14px;position:relative;z-index:2;letter-spacing:.18em}
+.step::after{content:"";position:absolute;top:20px;left:52px;right:-14px;height:2px;background:repeating-linear-gradient(90deg,var(--mint-d) 0 8px,transparent 8px 14px)}
+.step:last-child::after{display:none}
+.step h3{font-family:var(--disp);font-weight:700;font-size:17px;margin-bottom:5px}
+.step p{color:var(--steel);font-size:14px}
+/* HASIL */
+.gal{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:42px}
+.gal figure{position:relative;border-radius:4px;overflow:hidden;box-shadow:none}
+.gal img{width:100%;height:230px;object-fit:cover;transition:transform .4s}
+.gal figure:hover img{transform:scale(1.05)}
+.gal figcaption{position:absolute;left:0;right:0;bottom:0;background:rgba(22,49,114,.88);color:#fff;font-size:12.5px;font-weight:600;padding:9px 14px;border-radius:0}
+/* GARANSI */
+.gr-band{background:var(--green);border-radius:4px;color:#fff;padding:48px 50px;display:grid;grid-template-columns:1fr;gap:16px;align-items:start}
+.gr-band h2{color:#fff;margin-top:14px}
+.gr-band h2 em{font-style:italic;color:var(--amber)}
+.gr-band .sub{color:var(--mint)}
+.grlist{display:grid;gap:14px;margin-top:26px}
+.grlist li{list-style:none;display:flex;gap:12px;align-items:flex-start;font-size:15px;color:var(--mint)}
+.grlist svg{width:19px;height:19px;stroke:var(--amber);flex:none;margin-top:3px}
+.gr-visual{position:relative}
+.gr-visual img{border-radius:20px;width:100%;height:320px;object-fit:cover}
+.gr-badge{position:static;display:inline-flex;margin:0 0 6px;background:rgba(255,255,255,.13);color:#fff;border-radius:6px;padding:9px 14px;font-family:var(--disp);font-weight:800;font-size:12px;letter-spacing:.16em;text-transform:uppercase;box-shadow:none}
+.gr-badge small{display:block;font-family:var(--body);font-weight:500;font-size:11px;opacity:.92}
+/* TESTIMONI */
+.tcards{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:42px}
+.tcard{background:none;border:none;border-top:2px solid var(--line);border-radius:0;padding:22px 0 0}
+.tcard .stars{display:flex;gap:3px;margin-bottom:14px;color:var(--amber);font-size:16px;letter-spacing:3px}
+.tcard .stars svg{width:17px;height:17px;fill:var(--amber);stroke:none}
+.tcard p{font-size:15.5px;color:#3f4b61}
+.tcard .who{margin-top:18px;display:flex;align-items:center;gap:12px}
+.tcard .av{width:42px;height:42px;border-radius:50%;background:var(--mint);color:var(--green);font-family:var(--disp);font-weight:800;font-size:15px;display:grid;place-items:center}
+.tcard .who b{font-family:var(--disp);font-size:15px;display:block}
+.tcard .who small{color:var(--steel);font-size:13px}
+/* FAQ */
+.faqgrid{display:grid;grid-template-columns:.9fr 1.1fr;gap:56px;align-items:start;margin-top:8px}
+.faqs{display:grid;gap:0}
+details{background:none;border:none;border-bottom:1px solid var(--line);border-radius:0;overflow:hidden}
+details[open]{border-color:var(--line);box-shadow:none}
+summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:14px;font-family:var(--disp);font-weight:700;font-size:16px;padding:19px 2px}
+summary::-webkit-details-marker{display:none}
+summary .pm{width:26px;height:26px;border-radius:4px;background:var(--mint);display:grid;place-items:center;flex:none;transition:transform .2s}
+summary .pm svg{width:13px;height:13px;stroke:var(--green)}
+details[open] .pm{transform:rotate(45deg);background:var(--amber)}
+details[open] .pm svg{stroke:#fff}
+.faq-a{padding:0 2px 20px;color:var(--steel);font-size:14.5px;max-width:640px}
+/* LOKASI */
+.lokasi{background:var(--mint)}
+.lok-grid{display:grid;grid-template-columns:.95fr 1.05fr;gap:36px;margin-top:44px;align-items:stretch}
+.lok-card{background:var(--white);border-radius:4px;padding:30px;box-shadow:none;display:flex;flex-direction:column;gap:0}
+.lok-card h3{font-family:var(--disp);font-weight:700;font-size:20px;margin-bottom:6px}
+.lok-row{display:flex;gap:14px;padding:16px 0;border-bottom:1px dashed var(--line);font-size:14.5px}
+.lok-row:last-of-type{border-bottom:none}
+.lok-row .ic{width:38px;height:38px;border-radius:4px;background:var(--mint);display:grid;place-items:center;flex:none}
+.lok-row .ic svg{width:18px;height:18px;stroke:var(--green)}
+.lok-row b{font-family:var(--disp);font-size:14.5px;display:block}
+.lok-row span{color:var(--steel);font-size:13.5px}
+.lok-btns{display:flex;gap:12px;margin-top:22px;flex-wrap:wrap}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
+.chip{font-size:13px;font-weight:500;color:#55637a;background:none;border:none;border-radius:0;padding:0}
+.chip:not(:last-child)::after{content:"·";margin-left:10px;color:var(--steel);opacity:.6}
+.map-wrap{position:relative;border-radius:4px;overflow:hidden;box-shadow:none;min-height:380px}
+.map-wrap img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.pin{position:absolute;left:50%;top:46%;transform:translate(-50%,-100%);z-index:2}
+.pin .pbody{background:var(--white);border-radius:4px;box-shadow:none;border:1px solid var(--line);padding:11px 15px;font-family:var(--disp);font-weight:700;font-size:13.5px;display:flex;align-items:center;gap:9px;white-space:nowrap}
+.pin .pbody .pt{width:10px;height:10px;border-radius:50%;background:var(--amber);flex:none}
+.pin::after{content:"";position:absolute;left:50%;bottom:-11px;transform:translateX(-50%);border:11px solid transparent;border-top-color:var(--white);border-bottom:none}
+/* CTA */
+.cta-band{background:var(--green);border-radius:4px;color:#fff;padding:52px 54px;display:grid;grid-template-columns:1fr;gap:18px;align-items:start}
+.cta-band h2{color:#fff;max-width:520px;margin:0 0 8px}
+.cta-band p{color:var(--mint);max-width:460px}
+.cta-r{display:flex;flex-direction:column;gap:12px;align-items:center}
+.cta-r small{color:var(--mint);font-size:13px}
+/* FOOTER */
+footer{background:var(--green-d);color:var(--mint);margin-top:92px;padding:54px 0 30px}
+.fgrid{display:grid;grid-template-columns:1.3fr .75fr .75fr 1fr;gap:44px}
+.fgrid .brand{color:#fff}
+.fgrid p{font-size:14px;color:#bccfe3;max-width:300px;margin-top:12px}
+.fgrid h4{font-family:var(--disp);font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:#fff;margin-bottom:14px}
+.fgrid ul{list-style:none;display:grid;gap:9px;font-size:14px;color:#bccfe3}
+.fgrid a:hover{color:var(--amber)}
+.fbot{border-top:1px solid rgba(255,255,255,.12);margin-top:40px;padding-top:22px;display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;font-size:12.5px;color:#8fa8c4}
+.cta{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--disp);font-weight:700;font-size:15px;padding:14px 26px;border-radius:4px;transition:all .15s}
+.gr-band .cta{justify-self:start}
+.gr-badge svg{width:16px;height:16px;stroke:#fff;flex:none}
+.cta.amber{background:var(--amber);color:#fff}
+.cta.ghost{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.45)}
+.ctabtns{display:flex;gap:14px;flex-wrap:wrap;margin-top:26px;justify-self:start}
+.fbrand{display:flex;align-items:center;gap:10px;font-family:var(--disp);font-weight:800;font-size:19px;color:#fff}
+.fbrand svg{width:24px;height:24px;flex:none}
+/* RESPONSIVE */
+@media(max-width:1020px){
+ .cards3{grid-template-columns:1fr 1fr}.why{grid-template-columns:1fr 1fr}
+ .gal{grid-template-columns:1fr 1fr}.steps{grid-template-columns:1fr 1fr;gap:34px}
+ .step:nth-child(2)::after{display:none}
+ .faqgrid,.lok-grid{grid-template-columns:1fr;gap:30px}
+ .gr-band{grid-template-columns:1fr;padding:42px 34px}.gr-visual{max-width:480px}
+ .fgrid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:760px){
+ .sec{padding:64px 0}
+ .nav-links{display:none}.burger{display:block}
+ .hero{padding:44px 0 60px}.hero .wrap{grid-template-columns:1fr;gap:44px}
+  .hphoto img{height:340px}.fcard{left:0;right:0;bottom:0;max-width:none;padding:10px 14px}
+  .fchip{right:0;top:0}
+ .cards3{grid-template-columns:1fr}
+  .plist .prow{grid-template-columns:1fr;gap:8px;align-items:start}
+  .pprice,.pprice small{text-align:left}
+ .why{grid-template-columns:1fr}.steps{grid-template-columns:1fr}.step::after{display:none}
+ .grow{grid-template-columns:1fr;gap:8px;padding:16px}
+ .grow .dg{border-left:none;padding-left:0}
+ .tcards{grid-template-columns:1fr}
+ .gal{grid-template-columns:1fr}.gal img{height:210px}
+ .gr-band{padding:36px 26px}.cta-band{padding:40px 26px}
+ .fgrid{grid-template-columns:1fr}
+ .hbtns .btn{width:100%;justify-content:center}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div class="promo">Promo bulan ini: <b>ongkos panggil GRATIS</b> untuk perbaikan lanjutan · <a href="https://wa.me/6281255508899?text=Halo%20Maju%20Jaya%20Teknik%2C%20saya%20mau%20tanya%20jasa%20perbaikan">WA 0812-5550-8899</a></div>
+<input type="checkbox" id="nav-toggle">
+<nav class="nav"><div class="wrap">
+  <a class="brand" href="#top">
+    <span class="bmark"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4.5 4.5 0 0 0-6.09 5.9L3 17.8V21h3.2l5.6-5.61a4.5 4.5 0 0 0 5.9-6.09l-2.8 2.8-2.2-.6-.6-2.2 2.6-2.99z"/></svg></span>
+    <span>Maju Jaya Teknik<small>Teknisi Panggilan Balikpapan</small></span>
+  </a>
+  <div class="nav-links">
+    <a href="#layanan">Layanan</a>
+    <a href="#gejala">Cek Gejala</a>
+    <a href="#kunjungan">Harga</a>
+    <a href="#lokasi">Lokasi</a>
+    <a class="nav-cta" href="https://wa.me/6281255508899?text=Halo%20Maju%20Jaya%20Teknik%2C%20saya%20mau%20panggil%20teknisi"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.4 8.6 8.6 0 0 1-3.9-.9L3 21l2-5.4a8.4 8.4 0 1 1 16-4.1z"/></svg>Panggil Teknisi</a>
+  </div>
+  <label class="burger" for="nav-toggle" aria-label="Menu"><span></span><span></span><span></span></label>
+</div></nav>
+<div class="mmenu">
+  <a href="#layanan">Layanan</a>
+  <a href="#gejala">Cek Gejala</a>
+  <a href="#kunjungan">Harga Kunjungan</a>
+  <a href="#lokasi">Lokasi &amp; Wilayah</a>
+  <a href="#faq">FAQ</a>
+  <a class="menu-cta" href="https://wa.me/6281255508899?text=Halo%20Maju%20Jaya%20Teknik%2C%20saya%20mau%20panggil%20teknisi">Panggil Teknisi — WA 0812-5550-8899</a>
+</div>
+<header class="hero" id="top"><div class="wrap">
+  <div class="htext">
+    <span class="hchip"><span class="dot"></span>3 teknisi standby sekarang · respons rata-rata 47 menit</span>
+    <h1>AC mati, pipa bocor, listrik <em>ngadat</em>? Teknisi datang hari ini juga.</h1>
+    <p class="lead">Jasa perbaikan AC, pipa air, dan instalasi listrik untuk rumah di Balikpapan. Harga disepakati sebelum kerja dimulai — dan bergaransi 30 hari.</p>
+    <div class="hbtns">
+      <a class="btn btn-wa" href="https://wa.me/6281255508899?text=Halo%20Maju%20Jaya%20Teknik%2C%20saya%20mau%20panggil%20teknisi"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.4 8.6 8.6 0 0 1-3.9-.9L3 21l2-5.4a8.4 8.4 0 1 1 16-4.1z"/></svg>Chat WhatsApp</a>
+      <a class="btn btn-ghost" href="#kunjungan">Lihat Harga Kunjungan</a>
+    </div>
+    <div class="htrust">
+      <span><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Garansi 30 hari</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Respons &lt; 2 jam</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Harga transparan</span>
+    </div>
+  </div>
+  <div class="hvisual">
+    <div class="hphoto"><img src="../photos/konstruksi-kecil/01.jpg" alt="Teknisi Maju Jaya Teknik memeriksa instalasi di rumah pelanggan"></div>
+    <div class="fchip">Cek &amp; diagnosis<small>mulai Rp 75.000</small></div>
+    <div class="fcard">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+      <span><b>Status: siap dispatch</b><small>Jadwal hari ini &amp; besok masih tersedia · 08.00–20.00</small></span>
+    </div>
+  </div>
+</div></header>
+<div class="ticker"><div class="track">
+  <span>Servis &amp; cuci AC <i></i></span><span>Pipa &amp; pompa air <i></i></span><span>Instalasi listrik <i></i></span><span>Garansi pengerjaan <i></i></span><span>Harga sepakat sebelum kerja <i></i></span><span>Respons di bawah 2 jam <i></i></span>
+  <span>Servis &amp; cuci AC <i></i></span><span>Pipa &amp; pompa air <i></i></span><span>Instalasi listrik <i></i></span><span>Garansi pengerjaan <i></i></span><span>Harga sepakat sebelum kerja <i></i></span><span>Respons di bawah 2 jam <i></i></span>
+</div></div>
+<section class="sec" id="layanan"><div class="wrap">
+  <span class="kick">01 · Layanan</span>
+  <h2>Tiga gangguan rumah yang paling sering dipanggil.</h2>
+  <p class="sub">Semua harga di bawah adalah harga <b>mulai dari</b> — finalnya disepakati teknisi di tempat, sebelum kerja dimulai.</p>
+  <div class="cards3">
+    <article class="svc">
+      <div class="ph"><img src="kk-assets/gen1.jpg" alt="Teknisi membersihkan dan menservis unit AC"></div>
+      <div class="bd">
+        <h3>Servis &amp; Cuci AC</h3>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Cuci lengkap &amp; isi freon</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>AC tidak dingin, bocor, berbunyi</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Lepas-pasang unit saat renovasi</li>
+        </ul>
+        <div class="foot"><span class="price"><small>mulai</small><b>Rp 75.000</b></span><a class="wa" href="https://wa.me/6281255508899?text=Halo%2C%20saya%20mau%20servis%20AC"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.4 8.6 8.6 0 0 1-3.9-.9L3 21l2-5.4a8.4 8.4 0 1 1 16-4.1z"/></svg>Pesan</a></div>
+      </div>
+    </article>
+    <article class="svc">
+      <div class="ph"><img src="kk-assets/gen2.jpg" alt="Perbaikan pipa dan instalasi air dapur"></div>
+      <div class="bd">
+        <h3>Pipa &amp; Pompa Air</h3>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Bocor, mampet, air lemah</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Pompa mati &amp; setting tekanan</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Tambah titik air dapur / kamar mandi</li>
+        </ul>
+        <div class="foot"><span class="price"><small>mulai</small><b>Rp 100.000</b></span><a class="wa" href="https://wa.me/6281255508899?text=Halo%2C%20saya%20mau%20perbaikan%20pipa%20air"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.4 8.6 8.6 0 0 1-3.9-.9L3 21l2-5.4a8.4 8.4 0 1 1 16-4.1z"/></svg>Pesan</a></div>
+      </div>
+    </article>
+    <article class="svc">
+      <div class="ph"><img src="kk-assets/gen3.jpg" alt="Pekerjaan instalasi listrik dan titik lampu"></div>
+      <div class="bd">
+        <h3>Instalasi Listrik</h3>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>MCB jatuh, titik mati, lampu kedip</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Tambah titik lampu &amp; stopkontak</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Pasang kapasitor &amp; grounding</li>
+        </ul>
+        <div class="foot"><span class="price"><small>mulai</small><b>Rp 125.000</b></span><a class="wa" href="https://wa.me/6281255508899?text=Halo%2C%20saya%20mau%20perbaikan%20listrik"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.4 8.6 8.6 0 0 1-3.9-.9L3 21l2-5.4a8.4 8.4 0 1 1 16-4.1z"/></svg>Pesan</a></div>
+      </div>
+    </article>
+  </div>
+</div></section>
+<section class="sec gejala" id="gejala"><div class="wrap">
+  <span class="kick">02 · Cek Dulu</span>
+  <h2>Kenali gangguannya sebelum teknisi datang.</h2>
+  <p class="sub">Pilih kategori, cocokkan gejalanya — biar teknisi bawa alat yang tepat dan Anda tahu kira-kira biayanya.</p>
+  <div class="gtabs" role="tablist">
+    <button class="gtab on" data-cat="ac"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5.5 6.5l13 11M18.5 6.5l-13 11M4 12h16"/></svg> AC</button>
+    <button class="gtab" data-cat="pipa"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg> Pipa Air</button>
+    <button class="gtab" data-cat="listrik"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11L9.5 22 19 9.5h-6.5L13 2z"/></svg> Listrik</button>
+  </div>
+  <div class="gcat on" data-cat="ac">
+    <div class="grow"><span class="gj"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2"/></svg>AC nyala tapi tidak dingin</span><span class="dg">Freon habis atau kondensor kotor</span><span class="gpill">Cuci + isi, mulai Rp 150rb</span></div>
+    <div class="grow"><span class="gj"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2"/></svg>AC menetes dari unit indoor</span><span class="dg">Saluran pembuatan mampet</span><span class="gpill">Bersih saluran, mulai Rp 100rb</span></div>
+    <div class="grow"><span class="gj"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2"/></svg>Berbunyi kasar saat menyala</span><span class="dg">Kipas atau bearing mulai aus</span><span class="gpill">Ganti part, mulai Rp 200rb</span></div>
+    <div class="grow"><span class="gj"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2"/></svg>Mati total, indikator tidak hidup</span><span class="dg">Kapasitor atau PCB bermasalah</span><span class="gpill">Cek + ganti, mulai Rp 150rb</span></div>
+  </div>
+  <div class="gcat" data-cat="pipa">
+    <div class="grow"><span class="gj"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2"/></svg>Keran / shower airnya lemah</span><span class="dg">Penyumbatan parsial di jalur pipa</span><span class="gpill">Flush pipa, mulai Rp 100rb</span></div>
+    <div class="grow"><span class="gj"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2"/></svg>Air keluar keruh atau berbau</span><span class="dg">Tandon lama tidak dibersihkan</span><span class="gpill">Cuci tandon, mulai Rp 150rb</span></div>
+    <div class="grow"><span class="gj"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2"/></svg>Pompa sering nyala-mati sendiri</span><span class="dg">Pressure switch / tekanan tidak stabil</span><span class="gpill">Cek + setting, mulai Rp 125rb</span></div>
+    <div class="grow"><span class="gj"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2"/></svg>Bercak lembap di plafon / dinding</span><span class="dg">Sambungan pipa halus bocor</span><span class="gpill">Trace + perbaikan, mulai Rp 175rb</span></div>
+  </div>
+  <div class="gcat" data-cat="listrik">
+    <div class="grow"><span class="gj"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2"/></svg>MCB sering jatuh</span><span class="dg">Beban lebih atau korsleting halus</span><span class="gpill">Trace instalasi, mulai Rp 150rb</span></div>
+    <div class="grow"><span class="gj"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2"/></svg>Lampu berkedip tanpa sebab</span><span class="dg">Terminal kendor atau lampu tidak cocok</span><span class="gpill">Rapikan instalasi, mulai Rp 100rb</span></div>
+    <div class="grow"><span class="gj"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2"/></svg>Titik lampu / stopkontak mati</span><span class="dg">Sakelar rusak atau jalur terputus</span><span class="gpill">Trace + perbaikan, mulai Rp 125rb</span></div>
+    <div class="grow"><span class="gj"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2"/></svg>Colokan terasa anget</span><span class="dg">Fitting tua, risiko panas berlebih</span><span class="gpill">Ganti fitting, mulai Rp 150rb</span></div>
+  </div>
+  <p class="gnote"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="8" r=".5"/></svg>Estimasi di atas masih kasar — harga final bisa lebih rendah tergantung kondisi. Yang pasti: tidak ada biaya baru di tengah kerja.</p>
+</div></section>
+<section class="sec" id="kunjungan"><div class="wrap">
+  <span class="kick">03 · Harga Kunjungan</span>
+  <h2>Pilih kunjungannya, harganya jelas dari awal.</h2>
+  <p class="sub">Tiga tipe kunjungan. Ongkos cek masuk potongan biaya perbaikan kalau Anda lanjut.</p>
+  <div class="plist">
+    <div class="prow">
+      <div><b>Cek &amp; Diagnosis</b><span>Teknisi datang ke alamat Anda, cek gangguan + estimasi final sebelum kerja</span></div>
+      <span class="pprice">Rp 75.000<small>flat</small></span>
+    </div>
+    <div class="prow feat">
+      <div><b>Perbaikan<i>paling sering dipilih</i></b><span>Kerja langsung di tempat · ganti part, cuci, trace instalasi · garansi 30 hari</span></div>
+      <span class="pprice">Rp 150rb<small>mulai</small></span>
+    </div>
+    <div class="prow">
+      <div><b>Instalasi &amp; Pasang</b><span>Titik baru, pindah unit AC, pasang pompa &amp; titik air — termasuk material standar</span></div>
+      <span class="pprice">Rp 250rb<small>mulai</small></span>
+    </div>
+  </div>
+  <p class="pnote">Ongkos cek Rp 75.000 masuk potongan biaya perbaikan kalau lanjut. Harga final disepakat teknisi di tempat sebelum kerja dimulai — tidak ada biaya baru di tengah jalan.</p>
+  <div class="pbtns"><a class="cta amber" href="https://wa.me/6281255508899?text=Halo%2C%20saya%20mau%20jadwal%20cek%20dan%20diagnosis">Jadwalkan Cek</a><a class="cta ghost-g" href="https://wa.me/6281255508899?text=Halo%2C%20saya%20mau%20perbaikan">Panggil Sekarang</a></div>
+</div></section>
+<section class="sec" id="kenapa"><div class="wrap">
+  <span class="kick">04 · Kenapa Kami</span>
+  <h2>Alasan rumah di Balikpapan panggil kami lagi.</h2>
+  <div class="why">
+    <div class="wcard">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/></svg></span>
+      <h3>Teknisi tetap, bukan tenaga lepas</h3><p>Yang datang ke rumah Anda orang yang terlatih dan sudah kami kenal.</p>
+    </div>
+    <div class="wcard">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5.5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+      <h3>Harga sepakat sebelum kerja</h3><p>Estimasi final dibacakan dulu. Tidak ada biaya tambahan mendadak.</p>
+    </div>
+    <div class="wcard">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.4 7.9 8 9 4.6-1.1 8-4 8-9V6l-8-3z"/><path d="m9 12 2 2 4-4"/></svg></span>
+      <h3>Garansi 30 hari</h3><p>Masalah yang sama muncul lagi? Kami balik dan bereskan, tanpa biaya.</p>
+    </div>
+    <div class="wcard">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l4-4 4 2 5-6 5 4"/><path d="M3 21h18"/></svg></span>
+      <h3>Peralatan lengkap di mobil</h3><p>Sekali datang biasanya langsung beres — tidak perlu jadwal ulang.</p>
+    </div>
+  </div>
+</div></section>
+<section class="sec proses" id="proses"><div class="wrap">
+  <span class="kick">05 · Cara Kerja</span>
+  <h2>Alurnya cuma empat langkah.</h2>
+  <div class="steps">
+    <div class="step"><h3>Chat / WhatsApp</h3><p>Kirim foto + lokasi gangguan ke 0812-5550-8899.</p></div>
+    <div class="step"><h3>Teknisi dispatch</h3><p>Slot hari ini atau besok. Jam kerja 08.00–20.00.</p></div>
+    <div class="step"><h3>Diagnosis &amp; harga</h3><p>Cek di tempat, harga final sepakat sebelum kerja.</p></div>
+    <div class="step"><h3>Beres + garansi</h3><p>Uji hasil, bersih-bersih, garansi 30 hari aktif.</p></div>
+  </div>
+</div></section>
+<section class="sec" id="hasil"><div class="wrap">
+  <span class="kick">06 · Hasil Kerja</span>
+  <h2>Kerjaan yang bisa Anda periksa sendiri.</h2>
+  <div class="gal">
+    <figure><img src="../photos/konstruksi-kecil/02.jpg" alt="Hasil cuci dan servis AC"><figcaption>Cuci &amp; servis AC rutin</figcaption></figure>
+    <figure><img src="../photos/konstruksi-kecil/03.jpg" alt="Perbaikan pipa air dapur"><figcaption>Perbaikan pipa dapur</figcaption></figure>
+    <figure><img src="../photos/konstruksi-kecil/04.jpg" alt="Instalasi titik lampu"><figcaption>Tambah titik lampu</figcaption></figure>
+    <figure><img src="kk-assets/gen4.jpg" alt="Teknisi siap berangkat dari kantor"><figcaption>Teknisi siap dispatch</figcaption></figure>
+  </div>
+</div></section>
+<section class="sec garansi"><div class="wrap gr-band">
+  <div>
+    <span class="gr-badge"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.4 7.9 8 9 4.6-1.1 8-4 8-9V6l-8-3z"/><path d="m9 12 2 2 4-4"/></svg></span>
+    <h2 style="font-size:30px">Garansi 30 hari, tertulis di nota.</h2>
+    <p style="opacity:.85;max-width:520px">Perbaikan yang sama bermasalah lagi dalam 30 hari? Kami datang lagi dan bereskan tanpa biaya baru. No-nya kami tulis di nota.</p>
+  </div>
+  <a class="cta amber" href="https://wa.me/6281255508899?text=Halo%2C%20saya%20mau%20tanya%20garansi">Tanya Garansi</a>
+</div></section>
+<section class="sec" id="testimoni"><div class="wrap">
+  <span class="kick">07 · Kata Pelanggan</span>
+  <h2>Yang sudah pernah panggil.</h2>
+  <div class="tcards">
+    <article class="tcard">
+      <div class="stars" aria-label="5 dari 5">★★★★★</div>
+      <p>"AC kamar mati mendadak jam 9 malam. Dijadwalkan besok pagi, jam setengah sebelas teknisinya sudah nyolok alat. Sejam beres, dingin balik."</p>
+      <div class="who"><span class="av">IB</span><div><b>Ibu Rina</b><small>Balikpapan Barat — servis AC</small></div></div>
+    </article>
+    <article class="tcard">
+      <div class="stars" aria-label="5 dari 5">★★★★★</div>
+      <p>"Pipa di bawah sink muncrat, saya panik. Harga disebutin dulu di WA, pas teknisi datang nggak ada tambahan. Nota rapi, ada garansinya."</p>
+      <div class="who"><span class="av">PS</span><div><b>Pak Sandi</b><small>Batakan — perbaikan pipa</small></div></div>
+    </article>
+  </div>
+</div></section>
+<section class="sec faq" id="faq"><div class="wrap">
+  <span class="kick">08 · Pertanyaan Umum</span>
+  <h2>Yang paling sering ditanyakan.</h2>
+  <div class="faqs">
+    <details open><summary>Apakah ongkos cek Rp 75.000 hangus kalau saya tidak lanjut perbaikan? <span class="pm"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span></summary><p class="faq-a">Hangus hanya ongkos perjalanan teknisi ke lokasi Anda — sebagian kecil dari ongkos cek. Kalau lanjut perbaikan, seluruh ongkos cek masuk potongan biaya perbaikan.</p></details>
+    <details><summary>Bisa datang hari ini juga? <span class="pm"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span></summary><p class="faq-a">Chat WhatsApp sebelum jam 17.00 biasanya masih dapat slot hari ini — tergantung antrian teknisi. Setelah itu dijadwalkan besok pagi.</p></details>
+    <details><summary>Berapa lama pengerjaan perbaikan biasa? <span class="pm"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span></summary><p class="faq-a">Servis & cuci AC ±1–2 jam per unit. Perbaikan pipa rata-rata 1–3 jam. Instalasi titik baru 2–4 jam tergantung jalur kabel/pipa.</p></details>
+    <details><summary>Material dan sparepart dari mana? <span class="pm"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span></summary><p class="faq-a">Kami bawa stok material standar di mobil. Kalau butuh part khusus, kami kirim opsi harga dulu ke WhatsApp — Anda setuju dulu, baru kami beli.</p></details>
+    <details><summary>Wilayah mana saja yang dilayani? <span class="pm"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span></summary><p class="faq-a">Balikpapan kota dan sekitarnya: Balikpapan Barat, Timur, Utara, Tengah, Selatan, hingga Batakan. Luar rute bisa dikonfirmasi dulu via WhatsApp.</p></details>
+  </div>
+</div></section>
+<section class="sec lokasi" id="lokasi"><div class="wrap lok-grid">
+  <div>
+    <span class="kick">09 · Area Layanan</span>
+    <h2>Dari Gunung Samarinda sampai Batakan.</h2>
+    <p class="sub">Base camp kami di Balikpapan Barat — pusat semua zona, jadi respon lebih cepat.</p>
+    <ul class="lok-list">
+      <li><span class="lok-dot"></span>Balikpapan Barat — base camp</li>
+      <li><span class="lok-dot"></span>Balikpapan Tengah &amp; Kota</li>
+      <li><span class="lok-dot"></span>Balikpapan Timur &amp; Utara</li>
+      <li><span class="lok-dot"></span>Balikpapan Selatan &amp; Batakan</li>
+    </ul>
+    <div class="lok-card"><b>Kantor &amp; Workshop</b><span>Jl. Marsma R. Iswahyudi, Balikpapan Barat</span><span>Jam kerja: 08.00–20.00 WITA, Senin–Sabtu</span></div>
+  </div>
+  <div class="peta-wrap">
+    <svg class="peta" viewBox="0 0 460 360" role="img" aria-label="Peta wilayah layanan Balikpapan">
+      <rect width="460" height="360" rx="4" fill="#e6e9ee"/>
+      <path d="M40 250 C 90 210, 150 230, 190 195 C 230 160, 290 175, 330 140 C 370 105, 420 115, 440 90" fill="none" stroke="#ccd9ea" stroke-width="26" stroke-linecap="round" opacity=".7"/>
+      <path d="M60 320 C 120 300, 200 310, 260 280 C 330 248, 380 260, 430 230" fill="none" stroke="#dde6f2" stroke-width="18" stroke-linecap="round"/>
+      <text x="352" y="72" font-family="Hanken Grotesk, sans-serif" font-size="13" fill="#5d6b7e">Teluk Balikpapan</text>
+      <g><circle cx="150" cy="205" r="26" fill="#163172" opacity=".16"/><circle cx="150" cy="205" r="10" fill="#163172"/><text x="150" y="248" text-anchor="middle" font-family="Hanken Grotesk, sans-serif" font-size="13" font-weight="600" fill="#163172">Base camp — Bpp Barat</text></g>
+      <g><circle cx="265" cy="180" r="7" fill="#1e56a0"/><text x="265" y="165" text-anchor="middle" font-family="Hanken Grotesk, sans-serif" font-size="12" fill="#5d6b7e">Kota</text></g>
+      <g><circle cx="330" cy="140" r="7" fill="#1e56a0"/><text x="334" y="126" text-anchor="middle" font-family="Hanken Grotesk, sans-serif" font-size="12" fill="#5d6b7e">Timur</text></g>
+      <g><circle cx="205" cy="268" r="7" fill="#1e56a0"/><text x="205" y="292" text-anchor="middle" font-family="Hanken Grotesk, sans-serif" font-size="12" fill="#5d6b7e">Selatan</text></g>
+      <g><circle cx="90" cy="120" r="7" fill="#1e56a0"/><text x="90" y="106" text-anchor="middle" font-family="Hanken Grotesk, sans-serif" font-size="12" fill="#5d6b7e">Utara</text></g>
+    </svg>
+  </div>
+</div></section>
+<section class="cta-band" id="kontak"><div class="wrap">
+  <h2>AC mati, pipa bocor, listrik ngadat?</h2>
+  <p>Chat sekarang — teknisi dijadwalkan hari ini juga.</p>
+  <div class="ctabtns">
+    <a class="cta amber" href="https://wa.me/6281255508899?text=Halo%20Maju%20Jaya%20Teknik%2C%20saya%20butuh%20teknisi">Chat WhatsApp 0812-5550-8899</a>
+    <a class="cta ghost" href="#kunjungan">Lihat Harga Kunjungan</a>
+  </div>
+</div></section>
+<footer><div class="wrap fgrid">
+  <div>
+    <div class="fbrand"><svg viewBox="0 0 24 24" fill="none" stroke="#1e56a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg><span>Maju Jaya Teknik</span></div>
+    <p>Teknisi panggilan Balikpapan — AC, pipa air, dan instalasi listrik rumah.</p>
+  </div>
+  <div><h4>Layanan</h4><ul><li><a href="#layanan">Servis &amp; Cuci AC</a></li><li><a href="#layanan">Pipa &amp; Pompa Air</a></li><li><a href="#layanan">Instalasi Listrik</a></li><li><a href="#kunjungan">Harga Kunjungan</a></li></ul></div>
+  <div><h4>Perusahaan</h4><ul><li><a href="#kenapa">Kenapa Kami</a></li><li><a href="#proses">Cara Kerja</a></li><li><a href="#lokasi">Area Layanan</a></li><li><a href="#testimoni">Testimoni</a></li></ul></div>
+  <div><h4>Hubungi</h4><ul><li><a href="https://wa.me/6281255508899">WhatsApp 0812-5550-8899</a></li><li>Jl. Marsma R. Iswahyudi, Bpp Barat</li><li>08.00–20.00 WITA, Sen–Sab</li></ul></div>
+</div><div class="wrap fbot"><span>© 2026 Maju Jaya Teknik. Semua hak dilindungi.</span><span>Balikpapan, Kalimantan Timur</span></div></footer>
+<script>
+document.querySelectorAll('.gtab').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    document.querySelectorAll('.gtab').forEach(function(b){b.classList.remove('on')});
+    btn.classList.add('on');
+    document.querySelectorAll('.gcat').forEach(function(p){p.classList.toggle('on',p.dataset.cat===btn.dataset.cat)});
+  });
+});
+document.querySelectorAll('.mmenu a').forEach(function(a){
+  a.addEventListener('click',function(){document.getElementById('nav-toggle').checked=false;});
+});
+</script>
+</body>
+</html>

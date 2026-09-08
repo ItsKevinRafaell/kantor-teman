@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rahayu &amp; Partners — Kantor Advokat &amp; Konsultan Hukum · Balikpapan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f6f8fb;--ink:#0e1b2c;--slate:#5b6b7c;--line:#e5eaf0;--blue:#2f6bff;--blue2:#1e54d6;--tint:#eaf0ff;--card:#ffffff}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Manrope',system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.65;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+.wrap{max-width:1160px;margin:0 auto;padding:0 22px}
+a{color:inherit;text-decoration:none;transition:all .18s ease}
+svg{display:block}
+/* NAV pill floating */
+nav{position:sticky;top:0;z-index:50;background:var(--ink);box-shadow:0 2px 0 rgba(255,255,255,.06)}
+.nav-in{max-width:1160px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 22px}
+.brand{font-weight:800;font-size:19px;letter-spacing:-.02em;color:#fff}
+.brand small{display:block;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#7ea4ff;margin-top:2px;font-weight:700}
+.menu{display:flex;gap:20px}
+.menu a{font-size:13.5px;font-weight:600;color:#cfd9e6;padding:8px 2px}
+.menu a:hover{color:#fff}
+.menu-cta{display:none}
+.nav-cta{background:var(--ink);color:#fff;font-weight:700;font-size:13px;padding:11px 20px;border-radius:999px}
+.nav-cta:hover{background:var(--blue2)}
+.burger{display:none;background:transparent;border:1px solid rgba(255,255,255,.28);cursor:pointer;padding:12px 13px;border-radius:10px}
+.burger span{display:block;width:18px;height:2px;background:#fff;margin:4px 0;border-radius:2px}
+#nav-toggle{position:absolute;opacity:0;pointer-events:none}
+@media(max-width:900px){
+  .burger{display:block}
+  .nav-cta{display:none}
+  .menu{display:none;position:fixed;top:66px;left:16px;right:16px;background:#fff;border:1px solid var(--line);border-radius:18px;flex-direction:column;padding:12px 20px 18px;z-index:41;box-shadow:0 24px 60px rgba(14,27,44,.25)}
+  #nav-toggle:checked ~ .menu{display:flex}
+  .menu a{font-size:15px;color:var(--ink);padding:13px 2px;border-bottom:1px solid var(--line)}
+  .menu a:last-of-type{border-bottom:none}
+  .menu .menu-cta{display:inline-flex;justify-content:center;background:var(--blue);color:#fff!important;font-weight:700;font-size:14px;padding:13px 18px;margin-top:12px;border-radius:999px;border-bottom:none;text-align:center}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* HERO full-bleed + glass chips */
+.hero{position:relative;min-height:92vh;display:flex;align-items:flex-end;border-radius:0 0 28px 28px;overflow:hidden;background:linear-gradient(rgba(10,20,36,.42),rgba(10,20,36,.84) 76%),url('hukum-assets/01.jpg') center/cover no-repeat}
+.hero .in{padding-bottom:56px;color:#fff}
+.kick{display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#cfe0ff;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(8px);padding:8px 14px;border-radius:999px}
+.hero h1{font-weight:800;font-size:clamp(2.5rem,5.2vw,4.3rem);line-height:1.06;letter-spacing:-.03em;margin-top:16px;max-width:15ch}
+.hero h1 span{color:#5f9bff}
+.hero-sub{margin-top:14px;font-size:15.5px;color:#d5dde8;max-width:54ch}
+.cta-row{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;font-weight:700;font-size:14px;padding:14px 26px;border-radius:999px}
+.btn-b{background:var(--blue);color:#fff;box-shadow:0 10px 24px rgba(47,107,255,.35)}
+.btn-b:hover{background:var(--blue2)}
+.btn-g{border:1.5px solid rgba(255,255,255,.7);color:#fff}
+.btn-g:hover{background:#fff;color:var(--ink)}
+.stats{display:flex;gap:12px;margin-top:28px;flex-wrap:wrap}
+.stats span{display:inline-flex;align-items:baseline;gap:8px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(10px);border-radius:999px;padding:9px 16px;font-size:12px;color:#e3eaf4;font-weight:600}
+.stats b{font-size:15px;font-weight:800;color:#fff}
+.hero .note{position:absolute;right:3%;bottom:160px;width:150px;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);color:var(--ink);padding:16px;transform:rotate(4deg);border-radius:14px;box-shadow:0 18px 40px rgba(0,0,0,.35);text-align:center}
+.hero .note b{font-weight:800;font-size:22px;display:block;line-height:1;color:var(--blue)}
+.hero .note span{font-size:10px;font-weight:700;letter-spacing:.08em;display:block;margin-top:6px;text-transform:uppercase;color:var(--slate)}
+@media(max-width:900px){.hero{min-height:86vh}.note{display:none}}
+/* TICKER slim */
+.tick{margin:20px 16px 0;background:var(--blue);color:#fff;font-size:11.5px;font-weight:700;letter-spacing:.08em;padding:10px 0;white-space:nowrap;overflow:hidden;border-radius:999px}
+.tick div{display:inline-block;animation:roll 26s linear infinite}
+@keyframes roll{to{transform:translateX(-50%)}}
+/* SECTIONS */
+section{padding:72px 0}
+#faq{background:#e9f0f9;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.eyebrow{display:inline-flex;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--blue);background:var(--tint);border-radius:999px;padding:7px 14px;margin-bottom:14px}
+h2{font-weight:800;font-size:clamp(1.8rem,3.2vw,2.6rem);letter-spacing:-.025em;line-height:1.15}
+.sec-head{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-bottom:30px}
+.sec-head .side{font-size:12.5px;color:var(--slate);font-weight:600}
+/* LAYANAN cards modern */
+.sgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.scard{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:26px;display:flex;flex-direction:column;gap:8px;transition:transform .2s ease,box-shadow .2s ease;position:relative;overflow:hidden}
+.scard:hover{transform:translateY(-5px);box-shadow:0 20px 44px rgba(14,27,44,.10)}
+.sc-big{grid-column:span 2;grid-row:span 2;padding:0}
+.sc-big img{width:100%;height:270px;object-fit:cover;display:block}
+.sc-big .tx{padding:22px 26px 26px;display:flex;flex-direction:column;flex:1}
+.ic{width:44px;height:44px;border-radius:12px;background:var(--tint);display:flex;align-items:center;justify-content:center;margin-bottom:4px}
+.ic svg{width:20px;height:20px;stroke:var(--blue)}
+.scard h3{font-weight:800;font-size:1.15rem;letter-spacing:-.01em}
+.scard p{font-size:13.5px;color:var(--slate)}
+.fee{margin-top:auto;align-self:flex-start;font-size:11px;font-weight:800;letter-spacing:.04em;background:var(--tint);color:var(--blue2);border-radius:999px;padding:7px 13px}
+.sflag{position:absolute;top:16px;right:16px;background:var(--ink);color:#fff;font-size:10px;font-weight:800;letter-spacing:.08em;padding:7px 13px;border-radius:999px;z-index:2}
+.sflag.hot{background:var(--blue)}
+.sc-feat{background:linear-gradient(135deg,var(--tint),#f7f9ff);border:1px solid #d7e2ff}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+.chips span{font-size:9.5px;font-weight:700;letter-spacing:.08em;background:#f1f4f8;border:1px solid var(--line);border-radius:6px;padding:4px 8px;color:var(--slate)}
+.sc-blue{background:var(--blue);color:#fff;border:none}
+.sc-blue h3{color:#fff}
+.sc-blue p{color:#d8e4ff}
+.sc-blue .fee{background:rgba(255,255,255,.16);color:#fff}
+.sc-blue .ic{background:rgba(255,255,255,.16)}
+.sc-blue .ic svg{stroke:#fff}
+.sc-ink{background:var(--ink);color:#fff;border:none}
+.sc-ink h3{color:#fff}
+.sc-ink p{color:#aebccd}
+.sc-ink .fee{background:rgba(255,255,255,.14);color:#fff}
+.sc-ink .ic{background:rgba(255,255,255,.14)}
+.sc-ink .ic svg{stroke:#8fb3ff}
+.sc-ink .chips span{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.2);color:#cfd9e6}
+.sc-tint{background:var(--tint);border-color:#d7e2ff}
+.sc-cta{background:var(--ink);color:#fff;border:none;justify-content:center}
+.sc-cta h3{color:#fff}
+.sc-cta p{color:#aebccd}
+.sc-cta a{margin-top:10px;display:inline-flex;background:var(--blue);color:#fff;font-weight:700;font-size:13px;padding:12px 20px;border-radius:999px;width:max-content}
+.sc-cta a:hover{background:var(--blue2)}
+/* ALUR */
+#alur{background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.pbar{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;margin-top:36px;position:relative}
+.pbar::before{content:'';position:absolute;top:25px;left:10%;right:10%;height:2px;background:linear-gradient(90deg,var(--tint),var(--blue),var(--tint))}
+.pstep{text-align:center;padding:0 10px;position:relative}
+.pstep .dot{width:50px;height:50px;border-radius:50%;background:var(--blue);color:#fff;font-weight:800;font-size:17px;display:flex;align-items:center;justify-content:center;margin:0 auto;border:5px solid #fff;box-shadow:0 8px 20px rgba(47,107,255,.30);position:relative;z-index:2}
+.pstep h3{font-weight:800;font-size:1rem;margin-top:14px}
+.pstep p{font-size:12.5px;color:var(--slate);margin-top:6px}
+.pstep .tm{font-size:10px;color:var(--blue);letter-spacing:.12em;margin-top:8px;display:block;font-weight:800}
+/* SUASANA */
+#suasana .sgrid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:28px}
+#suasana img{width:100%;height:225px;object-fit:cover;border-radius:16px;display:block;transition:transform .25s ease}
+#suasana img:hover{transform:scale(1.03)}
+/* TESTIMONI */
+#kata{background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+#kata .in{display:grid;grid-template-columns:1.15fr .85fr;gap:40px;align-items:center}
+#kata .qcard{background:var(--blue);border-radius:24px;padding:36px;color:#fff;box-shadow:0 24px 50px rgba(47,107,255,.25)}
+#kata .qm{font-weight:800;font-size:64px;line-height:.5;color:rgba(255,255,255,.55);display:block;margin-bottom:14px}
+#kata blockquote{font-weight:600;font-size:clamp(1.15rem,2.1vw,1.5rem);line-height:1.5;letter-spacing:-.01em}
+#kata blockquote b{color:#ffe08a}
+#kata .who{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#cfe0ff;margin-top:18px}
+#kata .pic img{width:100%;height:360px;object-fit:cover;border-radius:20px;box-shadow:0 20px 44px rgba(14,27,44,.12)}
+/* CTA panel gelap rounded */
+#cta .panel{background:var(--ink);border-radius:28px;padding:56px 54px;display:grid;grid-template-columns:1.15fr .85fr;gap:28px;align-items:center;color:#fff;position:relative;overflow:hidden}
+#cta .panel::after{content:'';position:absolute;right:-120px;top:-120px;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(47,107,255,.35),transparent 70%)}
+#cta h2 span{color:#5f9bff}
+#cta p{margin-top:12px;color:#aebccd;font-size:15px;max-width:48ch}
+#cta .btnw{justify-self:end;text-align:right;position:relative;z-index:2}
+#cta .btn-b{padding:16px 28px}
+#cta .tiny{font-size:10.5px;letter-spacing:.1em;color:#8ba0b6;margin-top:12px;font-weight:700}
+/* FAQ 2 kolom */
+#faq .fk{display:grid;grid-template-columns:.8fr 1.2fr;gap:44px;align-items:start}
+#faq .sticky{position:sticky;top:96px}
+#faq .sticky img{width:100%;height:200px;object-fit:cover;border-radius:16px;margin-bottom:18px}
+#faq .sticky p{margin-top:12px;color:var(--slate);font-size:14.5px;max-width:36ch}
+#faq .sticky a{display:inline-flex;margin-top:18px;background:var(--ink);color:#fff;font-weight:700;font-size:13.5px;padding:12px 22px;border-radius:999px}
+#faq details{border:1px solid var(--line);background:#fff;border-radius:14px;padding:4px 18px;margin-bottom:10px}
+#faq details summary{cursor:pointer;font-weight:700;font-size:15px;list-style:none;display:flex;justify-content:space-between;gap:12px;padding:13px 0}
+#faq details summary::-webkit-details-marker{display:none}
+#faq details summary::after{content:'+';color:var(--blue);font-weight:800}
+#faq details[open] summary::after{content:'–'}
+#faq details p{font-size:13.5px;color:var(--slate);padding:2px 0 14px;max-width:70ch}
+/* LOKASI */
+#lokasi .lk{display:grid;grid-template-columns:.9fr 1.1fr;gap:16px}
+#lokasi img{width:100%;height:100%;min-height:340px;object-fit:cover;border-radius:22px}
+#lokasi .addr{background:#fff;border:1px solid var(--line);border-radius:22px;padding:46px 42px;display:flex;flex-direction:column;justify-content:center;gap:14px}
+#lokasi .addr b{font-weight:800;font-size:23px;letter-spacing:-.01em}
+#lokasi .addr p{font-size:14px;color:var(--slate)}
+footer{background:var(--ink);padding:34px 0 40px;margin-top:20px}
+footer .wrap{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:11px;letter-spacing:.06em;color:#8ba0b6;font-weight:600}
+@media(max-width:900px){
+  .sgrid{grid-template-columns:1fr}
+  .sc-big{grid-column:span 1;grid-row:span 1}
+  .sc-big img{height:220px}
+  .pbar{grid-template-columns:1fr 1fr;gap:26px 14px}
+  .pbar::before{display:none}
+  .pstep .dot{width:42px;height:42px;font-size:14px}
+  #suasana .sgrid4{grid-template-columns:1fr 1fr}
+  #suasana img{height:165px}
+  #kata .in{grid-template-columns:1fr;gap:26px}
+  #kata .pic img{height:290px}
+  #cta .panel{grid-template-columns:1fr;padding:38px 26px;border-radius:22px}
+  #cta .btnw{justify-self:start;text-align:left}
+  #faq .fk{grid-template-columns:1fr;gap:22px}
+  #faq .sticky{position:static}
+  #lokasi .lk{grid-template-columns:1fr}
+}
+@media(max-width:620px){
+  .pbar{grid-template-columns:1fr;gap:18px}
+  .cta-row .btn{width:100%;justify-content:center}
+  #cta .btnw .btn{width:100%;justify-content:center;text-align:center}
+  section{padding:56px 0}
+  .stats span{padding:8px 13px}
+}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-in">
+    <a class="brand" href="#top">Rahayu &amp; Partners<small>Kantor Advokat · Balikpapan</small></a>
+    <input id="nav-toggle" type="checkbox">
+    <label class="burger" for="nav-toggle" aria-label="Menu"><span></span><span></span><span></span></label>
+    <div class="menu">
+      <a href="#layanan">Layanan</a>
+      <a href="#alur">Alur Kerja</a>
+      <a href="#faq">FAQ</a>
+      <a href="#lokasi">Kantor</a>
+      <a class="menu-cta" href="https://wa.me/628134556789">Konsultasi Gratis</a>
+    </div>
+    <a class="nav-cta" href="https://wa.me/628134556789">Konsultasi Gratis</a>
+  </div>
+</nav>
+
+<section class="hero" id="top" style="padding:0">
+  <div class="wrap in">
+    <span class="kick">Kantor Advokat &amp; Konsultan Hukum — Balikpapan</span>
+    <h1>Perkara Anda, <span>kami pegang langsung.</span></h1>
+    <p class="hero-sub">Penanganan sengketa, kontrak, perizinan, dan urusan keluarga — disertai rencana kerja tertulis dan estimasi biaya sejak konsultasi pertama.</p>
+    <div class="cta-row">
+      <a class="btn btn-b" href="https://wa.me/628134556789">Konsultasi Pertama Gratis</a>
+      <a class="btn btn-g" href="#layanan">Lihat Layanan</a>
+    </div>
+    <div class="stats">
+      <span><b>340+</b> Perkara Ditangani</span>
+      <span><b>12 th</b> Masa Praktik</span>
+      <span><b>98%</b> Tanpa Persidangan</span>
+      <span><b>&lt;15 mnt</b> Respons WhatsApp</span>
+    </div>
+  </div>
+  <div class="note"><b>GRATIS</b><span>Konsultasi 15 menit</span></div>
+</section>
+
+<div class="tick"><div>KONSULTASI PERTAMA GRATIS × RINGKASAN POSISI HUKUM 1×24 JAM × BIAYA DITERTULKAN DI AWAL × ADVOKAT SENIOR LANGSUNG × KANTOR BALIKPAPAN ×&nbsp;</div></div>
+
+<section id="layanan">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <span class="eyebrow">Layanan</span>
+        <h2>Urusan hukum yang kami tangani</h2>
+      </div>
+      <span class="side">Biaya ditertulkan — agar tenang sejak awal.</span>
+    </div>
+    <div class="sgrid">
+      <div class="scard sc-big">
+        <span class="sflag hot">TERBANYAK DIPESAN</span>
+        <img src="hukum-assets/03.jpg" alt="Penandatanganan akta jual beli bersama konsultan hukum">
+        <div class="tx">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15l2 2 4-4"/></svg></div>
+          <h3>Kontrak &amp; Perjanjian</h3>
+          <p>Penelaahan dan perumusan kontrak kerja sama, jual beli, sewa, dan kerja — untuk memastikan setiap klausul melindungi kepentingan Anda.</p>
+          <span class="fee">MULAI Rp 750RB</span>
+        </div>
+      </div>
+      <div class="scard sc-blue">
+        <span class="sflag">PALING CEPAT</span>
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M9 13l-1.5 8L12 18l4.5 3L15 13"/></svg></div>
+        <h3>Akta &amp; Legalisasi</h3>
+        <p>Pendampingan notaris, legalisasi dokumen, kuasa khusus, dan surat pernyataan.</p>
+        <span class="fee">MULAI Rp 500RB</span>
+      </div>
+      <div class="scard">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg></div>
+        <h3>Pendirian PT &amp; Perizinan OSS</h3>
+        <p>Badan hukum, NIB, dan izin usaha — kesiapan mengikuti tender.</p>
+        <div class="chips"><span>NIB</span><span>NPWP</span><span>OSS</span></div>
+        <span class="fee">PAKET Rp 2,5JT</span>
+      </div>
+      <div class="scard sc-ink">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7l-3 6a4 4 0 0 0 8 0z"/><path d="M22 7l-3 6a4 4 0 0 1-8 0z" transform="translate(-4 0)"/><path d="M8 21h8"/></svg></div>
+        <h3>Sengketa Bisnis &amp; Perdata</h3>
+        <p>Piutang, wanprestasi, dan sengketa tanah — diprioritaskan melalui jalur perundingan.</p>
+        <div class="chips"><span>PERUNDINGAN</span><span>PERSIDANGAN</span></div>
+        <span class="fee">BIAYA SESUAI PERKARA</span>
+      </div>
+      <div class="scard">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18"/><path d="M5 10V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v4"/><path d="M7 10v8m5-8v8m5-8v8"/><path d="M4 21h16"/></svg></div>
+        <h3>Perceraian &amp; Harta Bersama</h3>
+        <p>Tahapan, biaya, serta hak pengasuhan anak dan pembagian harta — dijelaskan sejak awal.</p>
+        <span class="fee">MULAI Rp 3,5JT</span>
+      </div>
+      <div class="scard sc-tint">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg></div>
+        <h3>Waris &amp; Kuasa</h3>
+        <p>Pembagian warisan, penetapan ahli waris, dan pengurusan surat kuasa.</p>
+        <span class="fee">MULAI Rp 1,2JT</span>
+      </div>
+      <div class="scard sc-cta">
+        <h3>Perkara Anda tidak tercantum?</h3>
+        <p>Sampaikan secara singkat melalui WhatsApp — tim kami akan memberikan perkiraan pada hari yang sama.</p>
+        <a href="https://wa.me/628134556789">Konsultasi via WhatsApp</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="alur">
+  <div class="wrap">
+    <div class="sec-head" style="margin-bottom:0">
+      <div>
+        <span class="eyebrow">Alur Kerja</span>
+        <h2>Dari konsultasi hingga dokumen selesai</h2>
+      </div>
+    </div>
+    <div class="pbar">
+      <div class="pstep"><div class="dot">1</div><h3>Konsultasi Awal</h3><p>Sampaikan perkara melalui WhatsApp atau kunjungan kantor. Lima belas menit pertama tidak dikenakan biaya.</p><span class="tm">HARI KE-0</span></div>
+      <div class="pstep"><div class="dot">2</div><h3>Analisis &amp; Rencana</h3><p>Ringkasan posisi hukum, rencana kerja, dan estimasi biaya disampaikan secara tertulis.</p><span class="tm">1×24 JAM</span></div>
+      <div class="pstep"><div class="dot">3</div><h3>Pelaksanaan</h3><p>Perumusan dokumen, pengurusan perizinan, atau persidangan — progres diberitahukan pada setiap tahap.</p><span class="tm">SESUAI PERKARA</span></div>
+      <div class="pstep"><div class="dot">4</div><h3>Serah Terima</h3><p>Dokumen diserahkan lengkap beserta penjelasan dan arsip digital.</p><span class="tm">SELESAI</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="suasana">
+  <div class="wrap">
+    <div class="sec-head" style="margin-bottom:0">
+      <div>
+        <span class="eyebrow">Suasana Penanganan</span>
+        <h2>Cara kami bekerja setiap hari</h2>
+      </div>
+      <span class="side">Dokumen tertata — rapat yang jelas.</span>
+    </div>
+    <div class="sgrid4">
+      <img src="hukum-assets/n-01.jpg" alt="Konsultasi awal dengan klien di ruang rapat">
+      <img src="hukum-assets/02.jpg" alt="Penelaahan dokumen kontrak">
+      <img src="hukum-assets/n-03.jpg" alt="Penandatanganan akta bersama notaris">
+      <img src="hukum-assets/n-04.jpg" alt="Diskusi strategi perkara">
+    </div>
+  </div>
+</section>
+
+<section id="kata">
+  <div class="wrap in">
+    <div class="qcard">
+      <span class="qm">“</span>
+      <blockquote>Piutang yang empat tahun saya anggap hilang akhirnya tertagih dalam tiga bulan — <b>tanpa saya harus ke pengadilan</b>.</blockquote>
+      <p class="who">Ibu Nurbaya — Pemilik Toko Bangunan, Balikpapan</p>
+    </div>
+    <div class="pic"><img src="hukum-assets/06.jpg" alt="Diskusi perkara antara advokat dan klien di ruang rapat"></div>
+  </div>
+</section>
+
+<section id="cta">
+  <div class="wrap">
+    <div class="panel">
+      <div>
+        <h2>Sampaikan perkara Anda <span>hari ini.</span></h2>
+        <p>Konsultasi pertama tidak dikenakan biaya. Bila diperlukan analisis lebih lanjut, langkah kerja dan biayanya kami sampaikan tertulis.</p>
+      </div>
+      <div class="btnw">
+        <a class="btn btn-b" href="https://wa.me/628134556789">WhatsApp 0813-4556-789</a>
+        <p class="tiny">RESPONS DI BAWAH 15 MENIT PADA JAM KERJA</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap fk">
+    <div class="sticky">
+      <img src="hukum-assets/n-01.jpg" alt="Advokat melayani konsultasi klien">
+      <span class="eyebrow">Tanya Jawab</span>
+      <h2>Hal yang sering ditanyakan klien</h2>
+      <p>Pertanyaan lebih spesifik seputar perkara Anda? Tim kami menjawab langsung melalui WhatsApp.</p>
+      <a href="https://wa.me/628134556789">Tanya via WhatsApp</a>
+    </div>
+    <div>
+      <details><summary>Apakah konsultasi pertama benar-benar gratis?</summary><p>Ya — lima belas menit pertama melalui WhatsApp, telepon, atau kunjungan kantor tidak dikenakan biaya. Bila perkara memerlukan analisis lebih dalam, langkah dan biayanya kami sampaikan terlebih dahulu.</p></details>
+      <details><summary>Bagaimana skema pembayaran biaya jasa?</summary><p>Setelah tahap analisis, biaya disampaikan secara tertulis: cakupan pekerjaan, yang termasuk, dan yang tidak termasuk. Tidak ada biaya tambahan di luar kesepakatan.</p></details>
+      <details><summary>Apakah harus selalu hadir di kantor?</summary><p>Untuk sebagian besar perkara — kontrak, perizinan, waris — mayoritas tahapan dapat diselesaikan melalui WhatsApp dan kurir dokumen. Kehadiran diperlukan pada penandatanganan akta atau persidangan.</p></details>
+      <details><summary>Bisakah melayani klien di luar Balikpapan?</summary><p>Bisa. Kami menangani klien di Samarinda dan Tenggarong; rapat daring cukup untuk sebagian besar tahapan.</p></details>
+    </div>
+  </div>
+</section>
+
+<section id="lokasi" style="padding-top:0">
+  <div class="wrap lk">
+    <img src="hukum-assets/n-02.jpg" alt="Penandatanganan dokumen dengan stempel kantor">
+    <div class="addr">
+      <span class="eyebrow">Kantor</span>
+      <b>Jl. Gajah Mada No. 17, Balikpapan</b>
+      <p>Senin–Jumat 09.00–17.00; Sabtu dengan perjanjian terlebih dahulu. Tersedia parkir basement.</p>
+      <a class="btn btn-b" href="https://wa.me/628134556789">Jadwalkan Kunjungan</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 RAHAYU &amp; PARTNERS — KANTOR ADVOKAT &amp; KONSULTAN HUKUM, BALIKPAPAN</span>
+    <span>KONSULTASI PERTAMA GRATIS</span>
+  </div>
+</footer>
+<script>
+document.querySelectorAll('.menu a').forEach(function(a){
+  a.addEventListener('click',function(){document.getElementById('nav-toggle').checked=false;});
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rumah Belajar — Bimbel SMA·SMP·SD, Balikpapan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--chalk:#171d1a;--chalk2:#232b26;--paper:#f6f1e3;--stabilo:#ffd60a;--ink:#1d2026;--muted:#8a948c;--red:#c0392b;--line:#d8d2c0;--tomat:#e8443a;--biru:#2f6fde;--hijau:#1f9d55;--oranye:#ff8a3d}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Lexend',system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased}
+img{display:block;width:100%;height:100%;object-fit:cover}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1200px;margin:0 auto;padding:0 26px}
+.mono{font-family:'Space Mono',monospace}
+.kicker{font-family:'Space Mono',monospace;font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--stabilo)}
+h1,h2,h3{font-weight:800;letter-spacing:-.02em;line-height:1.08}
+nav{position:absolute;top:0;left:0;right:0;z-index:40}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:66px;gap:14px;position:relative}
+.brand{font-weight:800;font-size:20px;color:#fff;line-height:1}
+.brand small{display:block;font-family:'Space Mono',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--stabilo);margin-top:4px}
+.menu{display:flex;gap:22px}
+.menu a{font-size:13.5px;font-weight:500;color:#f2f4ee}
+.menu a:hover{color:var(--stabilo)}
+.menu-cta{display:none}
+.nav-cta{background:var(--stabilo);color:var(--ink);font-weight:700;font-size:13px;padding:11px 18px}
+.nav-cta:hover{filter:brightness(.94)}
+.burger{display:none;background:transparent;border:1px solid rgba(255,255,255,.55);cursor:pointer;padding:10px 11px;margin-left:auto}
+.burger span{display:block;width:20px;height:2px;background:#fff;margin:4px 0}
+#nav-toggle{position:absolute;opacity:0;pointer-events:none}
+a,button,.note{transition:filter .15s ease,transform .15s ease,background .15s ease}
+/* HERO foto full-bleed + overlay */
+.hero{position:relative;min-height:100vh;background:linear-gradient(rgba(20,24,22,.5),rgba(20,24,22,.72)),url('bimbel-assets/12gen.jpg') center/cover no-repeat;color:#fff;overflow:hidden;display:flex;align-items:flex-end}
+.hero-in{position:relative;z-index:2;width:100%;padding:120px 0 46px}
+.hero h1{font-size:clamp(2.6rem,5.4vw,4.6rem);color:#fff;max-width:16ch;margin-top:14px}
+.hl{background:linear-gradient(to top,transparent 12%,var(--stabilo) 12%,var(--stabilo) 74%,transparent 74%);color:var(--ink);padding:0 .12em}
+.status{display:inline-flex;gap:12px;align-items:center;font-family:'Space Mono',monospace;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;border:1.5px solid rgba(255,255,255,.55);padding:9px 14px;color:#f2f4ee;background:rgba(20,24,22,.35)}
+.status .dot{width:8px;height:8px;border-radius:50%;background:var(--stabilo)}
+.bignum{display:flex;gap:44px;flex-wrap:wrap;margin-top:30px}
+.bignum div b{font-family:'Space Mono',monospace;font-size:34px;color:#fff;display:block}
+.bignum div span{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.75)}
+.bignum div{border-left:3px solid var(--tomat);padding-left:14px}
+.bignum div:nth-child(2){border-color:var(--stabilo)}
+.bignum div:nth-child(3){border-color:var(--hijau)}
+.cta-row{display:flex;gap:14px;margin-top:32px;flex-wrap:wrap}
+.btn{display:inline-flex;font-weight:700;font-size:14px;padding:13px 20px}
+.btn-s{background:var(--stabilo);color:var(--ink)}
+.btn-s:hover{filter:brightness(.94)}
+.btn-o{border:1.5px solid rgba(255,255,255,.75);color:#fff}
+.btn-o:hover{background:rgba(255,255,255,.14)}
+.polaroid{display:none}
+.pw1,.pw2,.pw3{display:none}
+.tape{display:none}
+.hero .grid{display:none}
+@media(max-width:980px){.polaroid{display:none}}
+/* NOTICES */
+.notice{background:var(--stabilo);color:var(--ink);font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.08em;padding:11px 0;white-space:nowrap;overflow:hidden}
+.notice .trk{display:inline-block;animation:tick 26s linear infinite}
+@keyframes tick{to{transform:translateX(-50%)}}
+/* STICKY JADWAL */
+#jadwal{background:var(--paper);padding:66px 0 72px}
+.sec-head{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-bottom:30px}
+.sec-head h2{font-size:clamp(1.8rem,3vw,2.5rem)}
+.sec-head .ref{font-family:'Space Mono',monospace;font-size:12px;color:#6d766e}
+.board{display:grid;grid-template-columns:150px 1fr;gap:22px}
+.days{display:flex;flex-direction:column;gap:10px}
+.day{font-family:'Space Mono',monospace;font-size:12.5px;letter-spacing:.1em;padding:12px 14px;background:var(--ink);color:#fff}
+.day:nth-child(1){background:var(--tomat)}
+.day:nth-child(2){background:var(--biru)}
+.day:nth-child(3){background:var(--hijau)}
+.day small{display:block;color:var(--stabilo);font-size:10px;margin-top:2px}
+.notes{display:flex;flex-wrap:wrap;gap:18px}
+.note{width:calc(33.33% - 12px);min-width:220px;background:var(--stabilo);color:var(--ink);padding:18px 16px 16px;box-shadow:0 10px 22px rgba(0,0,0,.14)}
+.note:nth-child(odd){transform:rotate(-1.4deg)}
+.note:nth-child(even){transform:rotate(1.1deg)}
+.note:hover{transform:rotate(0) translateY(-3px)}
+.note .tm{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.1em;border-bottom:1px dashed rgba(0,0,0,.35);padding-bottom:7px;display:block}
+.note b{display:block;font-size:15.5px;margin-top:9px}
+.note .cls{font-family:'Space Mono',monospace;font-size:11px;margin-top:5px;color:#4c4a2e}
+.note .q{display:inline-block;margin-top:10px;font-family:'Space Mono',monospace;font-size:10.5px;font-weight:700;padding:4px 9px;background:var(--ink);color:var(--stabilo)}
+.note{width:calc(33.33% - 12px);min-width:220px;background:var(--tomat);color:#fff;padding:18px 16px 16px;box-shadow:0 10px 22px rgba(0,0,0,.14)}
+.note.n2{background:var(--biru)}
+.note.n3{background:var(--hijau)}
+.note .tm{font-family:'Space Mono',monospace;font-size:11px;color:rgba(255,255,255,.85);display:block}
+.note b{display:block;font-size:16.5px;margin-top:6px;color:#fff}
+.note .cls{display:block;font-size:12.5px;color:rgba(255,255,255,.85);margin-top:4px}
+.note .q{display:inline-block;font-family:'Space Mono',monospace;font-size:10.5px;font-weight:700;letter-spacing:.08em;background:#fff;color:var(--tomat);padding:5px 9px;margin-top:10px}
+.note.n2 .q{color:var(--biru)}
+.note.n3 .q{color:var(--hijau)}
+.note .q.full{color:var(--red)}
+/* LEDGER PROGRAM */
+#program{background:var(--tomat);color:#fff;padding:64px 0 70px}
+#program .kicker{color:#fff}
+#program h2{color:#fff}
+.ledger{margin-top:26px;border-top:2px solid #fff}
+.lrow{display:flex;align-items:baseline;gap:18px;padding:24px 4px;border-bottom:2px solid rgba(255,255,255,.55)}
+.lrow .no{font-family:'Space Mono',monospace;font-size:13px;color:var(--stabilo)}
+.lrow .nm b{display:block;font-size:19px;color:#fff}
+.lrow .nm span{font-size:13px;color:rgba(255,255,255,.85)}
+.lrow .dots{flex:1;border-bottom:2px dotted rgba(255,255,255,.6);transform:translateY(-5px)}
+.lrow .pr{font-family:'Space Mono',monospace;font-size:17px;color:#fff;white-space:nowrap}
+.lrow .pr small{display:block;font-size:10.5px;color:rgba(255,255,255,.85);text-align:right}
+.lrow:hover{background:rgba(255,255,255,.1)}
+/* HASIL PROOF */
+#hasil{padding:64px 0 72px;background:var(--paper)}
+#hasil .kicker{color:var(--tomat)}
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:28px}
+.pcard{background:#fff;box-shadow:0 12px 26px rgba(29,32,38,.12);display:flex;flex-direction:column}
+.pcard img{aspect-ratio:16/10}
+.pcard .body{padding:16px 18px 18px;border-top:4px solid var(--ink)}
+.pcard:nth-child(1) .body{border-color:var(--tomat)}
+.pcard:nth-child(2) .body{border-color:var(--biru)}
+.pcard:nth-child(3) .body{border-color:var(--hijau)}
+.pcard:nth-child(4) .body{border-color:var(--oranye)}
+.pcard .tag{display:inline-block;font-family:'Space Mono',monospace;font-size:10.5px;font-weight:700;letter-spacing:.1em;padding:4px 9px;color:#fff;margin-bottom:8px}
+.pcard:nth-child(1) .tag{background:var(--tomat)}
+.pcard:nth-child(2) .tag{background:var(--biru)}
+.pcard:nth-child(3) .tag{background:var(--hijau)}
+.pcard:nth-child(4) .tag{background:var(--oranye)}
+.pcard b{display:block;font-size:15.5px}
+.pcard p{font-size:13px;color:#5f665f;margin-top:4px}
+/* RAPOR */
+#rapor{padding:70px 0 80px;background:var(--paper)}
+.rwrap{display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center}
+.rpaper{background:#fff;border:1px solid var(--line);box-shadow:0 16px 34px rgba(29,32,38,.12);padding:30px 30px 34px;background-image:repeating-linear-gradient(0deg,transparent 0 27px,#e7e2d3 27px 28px)}
+.rpaper .rh{display:flex;justify-content:space-between;border-bottom:2px solid var(--ink);padding-bottom:12px;margin-bottom:6px}
+.rpaper .rh b{font-family:'Space Mono',monospace;font-size:12.5px;letter-spacing:.12em}
+.rpaper .row{display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:9px 0 0}
+.rpaper .row .sc{font-family:'Space Mono',monospace;font-weight:700}
+.rpaper .row .sc.up{color:#1e7a4c}
+.rpaper .row .sc.at{color:var(--red)}
+.rpaper .tut{margin-top:16px;padding-top:12px;border-top:1px dashed #c9c2ae;font-size:13.5px;color:#5b635c}
+.stamp{position:absolute;margin-left:-60px;margin-top:-10px;width:110px;height:110px;border:4px solid var(--red);border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--red);transform:rotate(-14deg);opacity:.85;text-transform:uppercase;background:rgba(255,255,255,.4)}
+#rapor h2{font-size:clamp(1.7rem,2.8vw,2.4rem)}
+#rapor .side p{color:#5f665f;font-size:14.5px;margin-top:10px;max-width:46ch}
+/* QUOTE CHALK */
+#kata{background:var(--biru);color:#eaf1ff;padding:60px 0 66px}
+#kata .kicker{color:#fff}
+#kata blockquote{font-family:'Space Mono',monospace;font-size:clamp(1.05rem,1.8vw,1.4rem);line-height:1.6;max-width:62ch;color:#fff}
+#kata blockquote .u{background:linear-gradient(to top,transparent 20%,var(--stabilo) 20%,var(--stabilo) 80%,transparent 80%);color:var(--ink);padding:0 .1em}
+#kata .who{margin-top:16px;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.8)}
+/* FAQ + LOKASI */
+.faq{padding:58px 0 66px;background:var(--paper)}
+details{border-bottom:1px solid var(--line);padding:14px 0}
+details summary{cursor:pointer;font-weight:700;font-size:15.5px;list-style:none}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:"+";color:var(--ink);margin-right:12px;font-weight:700}
+details[open] summary::before{content:"–"}
+details p{margin-top:9px;color:#5f665f;font-size:14.5px}
+.lok{position:relative;min-height:300px}
+.lok>img{min-height:300px}
+.addr{position:absolute;left:28px;bottom:28px;background:var(--chalk);color:#e8e6dd;padding:24px 28px;max-width:380px;border-left:5px solid var(--stabilo)}
+.addr h2{color:#fff;font-size:1.6rem;margin-bottom:8px}
+.addr p{font-size:14px;color:#b7bdb5;margin-bottom:4px}
+.addr .btn{margin-top:14px;background:var(--stabilo);color:var(--ink)}
+footer{background:var(--ink);color:#8f958e;padding:20px 0;font-size:13px}
+footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;font-family:'Space Mono',monospace;letter-spacing:.06em}
+.jadwal,.program,.rapor,.kata,.faq,.lok{animation:fade .18s ease-out}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@media(max-width:900px){
+  .burger{display:block}
+  .nav-cta{display:none}
+  .nav-in{height:60px}
+  .brand{font-size:18px}
+  .menu{display:none;position:absolute;top:60px;left:0;right:0;background:var(--ink);flex-direction:column;padding:16px 22px 20px;gap:0;z-index:41;border-bottom:4px solid var(--stabilo);box-shadow:0 18px 40px rgba(0,0,0,.35)}
+  #nav-toggle:checked ~ .menu{display:flex}
+  .menu a{font-size:15px;font-weight:600;color:#fff;padding:13px 2px;border-bottom:1px solid rgba(255,255,255,.12)}
+  .menu a:last-of-type{border-bottom:none}
+  .menu-cta{display:inline-flex;justify-content:center;background:var(--stabilo);color:var(--ink);font-weight:700;font-size:14px;padding:13px 18px;margin-top:14px}
+  .board{grid-template-columns:1fr}
+  .days{flex-direction:row;flex-wrap:wrap}
+  .note{width:calc(50% - 9px)}
+  .rwrap{grid-template-columns:1fr}
+  .pgrid{grid-template-columns:1fr}
+  .stamp{margin-left:0;margin-top:-16px}
+}
+@media(max-width:640px){.note{width:100%}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+
+</style>
+</head>
+<body>
+<nav>
+  <div class="wrap nav-in">
+    <a class="brand" href="#top">Rumah Belajar<small>Bimbel · Balikpapan</small></a>
+    <input id="nav-toggle" type="checkbox">
+    <label class="burger" for="nav-toggle" aria-label="Buka menu"><span></span><span></span><span></span></label>
+    <div class="menu">
+      <a href="#jadwal">Jadwal</a>
+      <a href="#program">Program</a>
+      <a href="#rapor">Rapor</a>
+      <a href="#lokasi">Kontak</a>
+      <a class="menu-cta" href="#kontak">Tes penempatan gratis</a>
+    </div>
+    <a class="nav-cta" href="https://wa.me/628134556789">Tes penempatan</a>
+  </div>
+</nav>
+
+<section class="hero" id="top">
+  <div class="grid"></div>
+  <figure class="polaroid pw1">
+    <span class="tape"></span>
+    <img src="bimbel-assets/13gen.jpg" alt="Tutor memberi high-five ke siswa setelah ulangan">
+    <figcaption>TUTOR BAYU · KELAS 10 — SETELAH ULANGAN</figcaption>
+  </figure>
+  <figure class="polaroid pw2">
+    <span class="tape"></span>
+    <img src="bimbel-assets/11gen.jpg" alt="Siswi dan ibunya membawa trofi olimpiade matematika">
+    <figcaption>ADIBA · JUARA 2 OLIMPIADE MATEMATIKA</figcaption>
+  </figure>
+  <figure class="polaroid pw3">
+    <span class="tape"></span>
+    <img src="bimbel-assets/02.jpg" alt="Kelompok belajar siswa Rumah Belajar">
+    <figcaption>KELOMPOK BELAJAR · RABU 16.00</figcaption>
+  </figure>
+  <div class="hero-in">
+    <div class="wrap">
+      <span class="status"><span class="dot"></span>KELAS BERJALAN · SENIN 18.30 · UTBK SAINTEK</span>
+      <h1>Les yang tahu <span class="hl">anakmu ada di mana</span>.</h1>
+      <div class="bignum">
+        <div><b>8</b><span>siswa per kelas</span></div>
+        <div><b>12</b><span>kelas aktif pekan ini</span></div>
+        <div><b>2 pekan</b><span>rapor ke ortu</span></div>
+      </div>
+      <div class="cta-row">
+        <a class="btn btn-s" href="https://wa.me/628134556789">Tes penempatan gratis</a>
+        <a class="btn btn-o" href="#jadwal">Cek jadwal kelas</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="notice" aria-hidden="true"><div class="trk">TRYOUT UTBK 14 SEP — KUOTA TERBATAS&nbsp;&nbsp;✕&nbsp;&nbsp;KELAS SD CALISTUNG TINGGAL 2 KURSI&nbsp;&nbsp;✕&nbsp;&nbsp;RAPOR ORTU KIRIM TIAP 2 PEKAN&nbsp;&nbsp;✕&nbsp;&nbsp;PRIVAT 1-ON-1 DIBUKA SEN–SAB&nbsp;&nbsp;✕&nbsp;&nbsp;TRYOUT UTBK 14 SEP — KUOTA TERBATAS&nbsp;&nbsp;✕&nbsp;&nbsp;KELAS SD CALISTUNG TINGGAL 2 KURSI&nbsp;&nbsp;✕&nbsp;&nbsp;RAPOR ORTU KIRIM TIAP 2 PEKAN&nbsp;&nbsp;✕&nbsp;&nbsp;PRIVAT 1-ON-1 DIBUKA SEN–SAB&nbsp;&nbsp;✕&nbsp;&nbsp;</div></div>
+
+<section class="jadwal" id="jadwal">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="kicker" style="color:var(--ink)">Papan jadwal</p>
+        <h2>Kelas pekan ini, langsung cek kursinya</h2>
+      </div>
+      <span class="ref">UPDATE SENIN PAGI · 09-2026</span>
+    </div>
+    <div class="board">
+      <div class="days">
+        <div class="day">SENIN<small>3 sesi</small></div>
+        <div class="day">SELASA<small>3 sesi</small></div>
+        <div class="day">RABU<small>3 sesi</small></div>
+      </div>
+      <div class="notes">
+        <div class="note"><span class="tm">14.00–15.30</span><b>Matematika SMA</b><span class="cls">Kelas 10–11 · 6/8 terisi</span><span class="q">ADA KURSI</span></div>
+        <div class="note n2"><span class="tm">16.00–17.30</span><b>Fisika SMA</b><span class="cls">Kelas 10–11 · 8/8 terisi</span><span class="q full">PENUH — WAITING LIST</span></div>
+        <div class="note n3"><span class="tm">18.30–20.00</span><b>UTBK Saintek</b><span class="cls">Intensif · 5/8 terisi</span><span class="q">ADA KURSI</span></div>
+        <div class="note n3"><span class="tm">14.00–15.30</span><b>Bahasa Inggris</b><span class="cls">Kelas 7–9 · 4/8 terisi</span><span class="q">ADA KURSI</span></div>
+        <div class="note"><span class="tm">16.00–17.30</span><b>Matematika SMP</b><span class="cls">Kelas 7–9 · 7/8 terisi</span><span class="q">ADA KURSI</span></div>
+        <div class="note n2"><span class="tm">18.30–20.00</span><b>UTBK Soshum</b><span class="cls">Intensif · 8/8 terisi</span><span class="q full">PENUH — WAITING LIST</span></div>
+        <div class="note n2"><span class="tm">14.00–15.30</span><b>Kimia SMA</b><span class="cls">Kelas 11–12 · 3/8 terisi</span><span class="q">ADA KURSI</span></div>
+        <div class="note n3"><span class="tm">16.00–17.30</span><b>Bahasa Indonesia</b><span class="cls">Kelas 12 · 5/8 terisi</span><span class="q">ADA KURSI</span></div>
+        <div class="note"><span class="tm">18.30–20.00</span><b>Tryout pekanan</b><span class="cls">Terbuka semua angkatan</span><span class="q">DAFTAR</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="hasil" id="hasil">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="kicker">Hasil mereka</p>
+        <h2>Anak-anak yang udah buktiin</h2>
+      </div>
+      <span class="ref">UPDATE TIAP SEMESTER</span>
+    </div>
+    <div class="pgrid">
+      <div class="pcard">
+        <img src="bimbel-assets/11gen.jpg" alt="Adiba bersama ibunya membawa trofi olimpiade">
+        <div class="body"><span class="tag">OLIMPIADE 2025</span><b>Adiba — Juara 2 OSN Matematika</b><p>Tingkat Kota Balikpapan, kelas 8. Ditempa 11 bulan di kelas reguler.</p></div>
+      </div>
+      <div class="pcard">
+        <img src="bimbel-assets/12gen.jpg" alt="Wisudawan SMP melempar toga di halaman sekolah">
+        <div class="body"><span class="tag">ANGKATAN 2025</span><b>14 dari 19 siswa tembus PTN</b><p>Angkatan UTBK 2025 — UGM, Undip, Unhas, dan kampus lainnya.</p></div>
+      </div>
+      <div class="pcard">
+        <img src="bimbel-assets/13gen.jpg" alt="Tutor memberi high-five ke siswa di kelas">
+        <div class="body"><span class="tag">NILAI NAIK</span><b>Rata-rata matematika +21 poin</b><p>Kelas 10–11, semester genap. Diukur dari ulangan tengah ke akhir.</p></div>
+      </div>
+      <div class="pcard">
+        <img src="bimbel-assets/02.jpg" alt="Kelompok belajar siswa-siswi Rumah Belajar">
+        <div class="body"><span class="tag">KEBERLANJUTAN</span><b>96% siswa lanjut semester berikutnya</b><p>Ortu perpanjang karena lihat progres di rapor 2 pekanan.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="program" id="program">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="kicker">Daftar program</p>
+        <h2>Pilih jalurnya, sisanya jalan</h2>
+      </div>
+    </div>
+    <div class="ledger">
+      <div class="lrow">
+        <span class="no">01</span>
+        <div class="nm"><b>UTBK Intensif 12 pekan</b><span>Tryout tiap pekan + pembahasan · mapel pilihan · konsultasi kampus</span></div>
+        <span class="dots"></span>
+        <span class="pr">Rp 1,2 jt<small>/bulan</small></span>
+      </div>
+      <div class="lrow">
+        <span class="no">02</span>
+        <div class="nm"><b>Reguler SMA &amp; SMP</b><span>Maks 8 siswa · tutor tetap · remedial gratis kalau nilai turun</span></div>
+        <span class="dots"></span>
+        <span class="pr">Rp 350 rb<small>/bulan per mapel</small></span>
+      </div>
+      <div class="lrow">
+        <span class="no">03</span>
+        <div class="nm"><b>SD &amp; Calistung</b><span>Baca-tulis-hitung bertahap · laporan foto kegiatan · ortu boleh nemenin sesi 1</span></div>
+        <span class="dots"></span>
+        <span class="pr">Rp 250 rb<small>/bulan 2x seminggu</small></span>
+      </div>
+      <div class="lrow">
+        <span class="no">04</span>
+        <div class="nm"><b>Privat 1-on-1</b><span>Jadwal fleksibel Sen–Sab · fokus 1 mapel atau ujian tertentu</span></div>
+        <span class="dots"></span>
+        <span class="pr">Rp 150 rb<small>/sesi</small></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="rapor" id="rapor">
+  <div class="wrap rwrap">
+    <div class="side">
+      <p class="kicker" style="color:var(--ink)">Rapor ortu</p>
+      <h2>Ortu ga perlu nebak-nebak</h2>
+      <p>Tiap 2 pekan ortu terima rapor perkembangan: materi yang kuasai, PR yang telat, dan catatan tutor. Bukan cuma nilai — tapi arah perbaikannya.</p>
+    </div>
+    <div style="position:relative">
+      <div class="rpaper">
+        <div class="rh"><b>RAPOR PERKEMBANGAN</b><b>PERIODE SEPTEMBER</b></div>
+        <div class="row"><span>Nama siswa</span><span class="mono">Daffa H. — Kelas 11</span></div>
+        <div class="row"><span>Tryout UTBK terakhir</span><span class="sc up">178 → 192 ↑</span></div>
+        <div class="row"><span>Fisika</span><span class="sc up">Stabil naik</span></div>
+        <div class="row"><span>Matematika</span><span class="sc at">Perlu jam ekstra</span></div>
+        <div class="row"><span>Kehadiran</span><span class="mono">11/12 sesi</span></div>
+        <div class="tut"><b>Catatan tutor:</b> Daffa rapi di fisika sejak metode drill diganti. Matematika kami jadwalkan 2 sesi tambahan minggu ini — kabarin ortu via WA.</div>
+      </div>
+      <div class="stamp">Review<br>Tutor<br>Lolos</div>
+    </div>
+  </div>
+</section>
+
+<section class="kata" id="kata">
+  <div class="wrap">
+    <p class="kicker">Kata ortu</p>
+    <blockquote>“Anak gue ga pernah mau les — sampai ketemu Rumah Belajar. Sekarang dia <span class="u">nagih sendiri</span> kalau jadwalnya keskip. Rapor 2 pekanan-nya yang bikin gue tenang.”</blockquote>
+    <p class="who">Ibu Ratna — Ortu siswa kelas 11, Balikpapan</p>
+  </div>
+</section>
+
+<section class="faq" id="faq">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="kicker" style="color:var(--ink)">FAQ</p>
+        <h2>Yang sering ditanya</h2>
+      </div>
+    </div>
+    <details open><summary>Tes penempatan bayar?</summary><p>Gratis, 40 menit — nentuin level &amp; kelas yang pas. Hasilnya dikasih ke ortu, ga ada paksaan lanjut.</p></details>
+    <details><summary>Tutor ganti-ganti ga?</summary><p>Tetap per pekan. Kalau tutor berhalangan, kelas dijadwal ulang — bukan diganti orang dadakan.</p></details>
+    <details><summary>Kalau anak telat atau sakit?</summary><p>Kabarin sebelum jadwal — ada kelas pengganti tiap Sabtu. 3x absen tanpa kabar = kursi kembali ke waiting list.</p></details>
+    <details><summary>Bayarnya bisa dicicil?</summary><p>Bisa — skema bulanan per mapel, digabung keluarga dapat potongan. Untuk beasiswa daerah, kami bantu surat rekomendasi nilai.</p></details>
+  </div>
+</section>
+
+<section class="lok" id="lokasi">
+  <img src="bimbel-assets/04.jpg" alt="Guru membimbing siswa di kelas Rumah Belajar, Balikpapan">
+  <div class="addr">
+    <h2>Rumah Belajar</h2>
+    <p>Jl. M.T. Haryono No. 12, Balikpapan</p>
+    <p>Senin–Sabtu 13.00–21.00 · Tes penempatan by-appointment</p>
+    <a class="btn" href="https://wa.me/628134556789">Ambil slot tes</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 RUMAH BELAJAR — BALIKPAPAN</span>
+    <span>KELAS KECIL · RAPOR ORTU 2 PEKANAN</span>
+  </div>
+</footer>
+<script>
+document.querySelectorAll('.menu a').forEach(function(a){
+  a.addEventListener('click',function(){document.getElementById('nav-toggle').checked=false;});
+});
+</script>
+</body>
+</html>
