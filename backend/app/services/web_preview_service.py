@@ -248,6 +248,20 @@ REGISTRY: dict = {
         "phone_display_anchor": "0812-5550-9999",
         "wa_anchor": "6281255509999",
     },
+    "atk": {
+        "title": "Landing toko ATK/print/langganan kantor",
+        "keywords": ["atk", "alat tulis", "stationery", "toko kantor", "langganan kantor", "tinta", "kertas", "print"],
+        "brand_anchor": "Toko Aneka Karya",
+        "phone_display_anchor": "0813-4556-789",
+        "wa_anchor": "628134556789",
+    },
+    "alatberat": {
+        "title": "Landing sewa alat berat/excavator",
+        "keywords": ["alat berat", "excavator", "sewa excavator", "backhoe", "crane", "loader", "forklift", "rental unit"],
+        "brand_anchor": "Tunas Alat Berat",
+        "phone_display_anchor": "0813-4556-789",
+        "wa_anchor": "628134556789",
+    },
 }
 
 

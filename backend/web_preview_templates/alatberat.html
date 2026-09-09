@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tunas Alat Berat — Sewa Excavator, Crane, Loader · Balikpapan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f7f5f0;--ink:#1f2328;--yel:#ffb800;--ok:#1f9d55;--warn:#e6a700;--bad:#d64541;--muted:#6f6a61;--line:#e5e0d5;--card:#ffffff}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Figtree',system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-weight:800;letter-spacing:-.02em;line-height:1.06}
+.wrap{max-width:1180px;margin:0 auto;padding:0 22px}
+a{color:inherit;text-decoration:none}
+nav{position:absolute;top:0;left:0;right:0;z-index:40}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:66px;gap:14px;position:relative}
+.brand{font-weight:800;font-size:20px;color:#fff;line-height:1}
+.brand small{display:block;font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--yel);margin-top:5px}
+.menu{display:flex;gap:22px}
+.menu a{font-size:13.5px;font-weight:500;color:#f2f0ea}
+.menu a:hover{color:var(--yel)}
+.menu-cta{display:none}
+.nav-cta{background:var(--yel);color:var(--ink);font-weight:800;font-size:13px;padding:11px 18px}
+.burger{display:none;background:transparent;border:1px solid rgba(255,255,255,.55);cursor:pointer;padding:10px 11px;margin-left:auto}
+.burger span{display:block;width:20px;height:2px;background:#fff;margin:4px 0}
+#nav-toggle{position:absolute;opacity:0;pointer-events:none}
+a{transition:filter .15s ease,transform .15s ease,background .15s ease}
+/* HERO full-bleed */
+.hero{position:relative;min-height:100vh;display:flex;align-items:flex-end;background:linear-gradient(rgba(24,26,24,.38),rgba(24,26,24,.78) 78%),url('alatberat-assets/01.jpg') center/cover no-repeat;color:#fff}
+.hero-in{position:relative;z-index:2;width:100%;padding:120px 0 52px}
+.hero h1{font-size:clamp(2.5rem,5.2vw,4.4rem);max-width:17ch}
+.hero h1 em{font-style:normal;color:var(--yel)}
+.hero-sub{margin-top:16px;font-size:15.5px;color:#e8e4da;max-width:54ch}
+.statrow{display:flex;gap:0;margin-top:26px;flex-wrap:wrap;border:1px solid rgba(255,255,255,.28);width:max-content;max-width:100%;background:rgba(24,26,24,.35);backdrop-filter:blur(3px)}
+.statrow div{padding:14px 22px;border-right:1px solid rgba(255,255,255,.28)}
+.statrow div:last-child{border-right:none}
+.statrow b{display:block;font-size:22px;font-weight:900;color:var(--yel)}
+.statrow span{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#d9d4c8}
+.cta-row{display:flex;gap:14px;margin-top:28px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;font-weight:800;font-size:14px;padding:14px 22px}
+.btn-s{background:var(--yel);color:var(--ink)}
+.btn-s:hover{filter:brightness(.95)}
+.btn-o{border:1.5px solid rgba(255,255,255,.7);color:#fff}
+.btn-o:hover{background:rgba(255,255,255,.12)}
+/* MOBILE NAV */
+@media(max-width:900px){
+  .burger{display:block}
+  .nav-cta{display:none}
+  .nav-in{height:60px}
+  .menu{display:none;position:absolute;top:60px;left:0;right:0;background:#181a18;flex-direction:column;padding:16px 22px 20px;z-index:41;border-bottom:4px solid var(--yel);box-shadow:0 18px 40px rgba(0,0,0,.4)}
+  #nav-toggle:checked ~ .menu{display:flex}
+  .menu a{font-size:15px;font-weight:600;color:#fff;padding:13px 2px;border-bottom:1px solid rgba(255,255,255,.12)}
+  .menu a:last-of-type{border-bottom:none}
+  .menu-cta{display:inline-flex;justify-content:center;background:var(--yel);color:var(--ink);font-weight:800;font-size:14px;padding:13px 18px;margin-top:14px}
+}
+/* TICKER */
+.tick{background:var(--yel);color:var(--ink);font-family:'Space Mono',monospace;font-size:12px;font-weight:700;letter-spacing:.05em;padding:11px 0;white-space:nowrap;overflow:hidden}
+.tick div{display:inline-block;animation:roll 26s linear infinite}
+@keyframes roll{to{transform:translateX(-50%)}}
+/* UNIT CARDS */
+#unit{padding:64px 0 70px}
+.sec-head{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-bottom:26px}
+.kicker{font-family:'Space Mono',monospace;font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;color:#c99200}
+.sec-head h2{font-size:clamp(1.9rem,3.4vw,2.8rem)}
+.sec-head .ref{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:.1em}
+.ugrid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.ucard{background:var(--card);box-shadow:0 12px 30px rgba(31,35,40,.08);overflow:hidden;display:flex;flex-direction:column;transition:transform .18s ease,box-shadow .18s ease}
+.ucard:hover{transform:translateY(-4px);box-shadow:0 18px 44px rgba(31,35,40,.13)}
+.uimg{position:relative;height:230px;overflow:hidden}
+.uimg img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .25s ease}
+.ucard:hover .uimg img{transform:scale(1.035)}
+.ubadge{position:absolute;top:14px;left:14px;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.08em;color:#fff;padding:6px 11px}
+.ubadge.ready{background:var(--ok)}
+.ubadge.work{background:var(--warn)}
+.ubadge.svc{background:var(--bad)}
+.ubody{padding:20px 22px 22px;display:flex;flex-direction:column;gap:12px;flex:1}
+.ubody h3{font-size:21px}
+.ubody .use{font-size:13.5px;color:var(--muted)}
+.specs{display:flex;flex-wrap:wrap;gap:8px}
+.specs span{font-family:'Space Mono',monospace;font-size:11px;background:var(--bg);border:1px solid var(--line);padding:5px 10px;color:#4c473e}
+.uprice{margin-top:auto;background:var(--yel);color:var(--ink);padding:12px 16px;display:flex;align-items:baseline;gap:8px;font-weight:800}
+.uprice .p{font-size:20px}
+.uprice small{font-size:11.5px;font-weight:600;opacity:.8}
+/* WHY */
+#why{background:var(--ink);color:#fff;padding:56px 0 60px}
+#why .kicker{color:var(--yel)}
+.wgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:26px}
+.wcard{border:1px solid #34383c;padding:22px 20px}
+.wcard .n{font-family:'Space Mono',monospace;color:var(--yel);font-size:12px;font-weight:700}
+.wcard h3{font-size:16.5px;margin-top:8px}
+.wcard p{font-size:13px;color:#b8b2a6;margin-top:6px}
+/* STEPS */
+#cara{padding:60px 0 66px}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:26px}
+.step{background:var(--card);box-shadow:0 10px 26px rgba(31,35,40,.07);padding:24px 22px;position:relative}
+.step b{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.12em;color:#c99200}
+.step h3{font-size:18px;margin-top:8px}
+.step p{font-size:13.5px;color:var(--muted);margin-top:6px}
+/* SERVICE */
+#service{display:grid;grid-template-columns:1.05fr .95fr;background:var(--card);box-shadow:0 12px 30px rgba(31,35,40,.08)}
+#service img{width:100%;height:100%;min-height:420px;object-fit:cover}
+#service .tx{padding:52px 46px}
+#service h2{font-size:clamp(1.8rem,3vw,2.5rem)}
+#service ul{margin-top:16px}
+#service li{list-style:none;font-size:14px;padding:9px 0;border-bottom:1px dashed var(--line);display:flex;gap:10px}
+#service li::before{content:'✓';color:var(--ok);font-weight:800}
+/* KATA */
+#kata{padding:58px 0}
+#kata blockquote{font-size:clamp(1.15rem,2vw,1.5rem);font-weight:700;max-width:30ch}
+#kata blockquote b{background:linear-gradient(to top,transparent 20%,#ffe08a 20%,#ffe08a 84%,transparent 84%);padding:0 .1em}
+#kata .who{margin-top:14px;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+/* FAQ */
+#faq{padding:0 0 60px}
+details{border-bottom:1px solid var(--line);padding:14px 0}
+details summary{cursor:pointer;font-weight:700;font-size:15.5px;list-style:none;display:flex;justify-content:space-between;gap:12px}
+details summary::after{content:'+';font-family:'Space Mono',monospace}
+details[open] summary::after{content:'–'}
+details p{font-size:14px;color:#5f594f;padding:10px 0 4px;max-width:70ch}
+/* LOKASI */
+#lokasi .lk{display:grid;grid-template-columns:1.1fr .9fr}
+#lokasi img{width:100%;height:100%;min-height:380px;object-fit:cover}
+#lokasi .addr{background:var(--ink);color:#fff;padding:52px 46px;display:flex;flex-direction:column;justify-content:center;gap:14px}
+#lokasi .addr .kicker{color:var(--yel)}
+#lokasi .addr b{font-size:26px}
+#lokasi .addr p{font-size:14px;color:#cfc9bd}
+footer{background:#181a18;color:#8f887e;padding:26px 0}
+footer .wrap{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.08em}
+@media(max-width:900px){
+  .ugrid{grid-template-columns:1fr}
+  .wgrid{grid-template-columns:1fr 1fr}
+  .steps{grid-template-columns:1fr}
+  #service{grid-template-columns:1fr}
+  #lokasi .lk{grid-template-columns:1fr}
+  .statrow{width:100%}
+  .statrow div{padding:12px 14px}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<nav>
+  <div class="wrap nav-in">
+    <a class="brand" href="#top">Tunas Alat Berat<small>Sewa Unit · Balikpapan</small></a>
+    <input id="nav-toggle" type="checkbox">
+    <label class="burger" for="nav-toggle" aria-label="Menu"><span></span><span></span><span></span></label>
+    <div class="menu">
+      <a href="#unit">Unit &amp; Tarif</a>
+      <a href="#cara">Cara Sewa</a>
+      <a href="#faq">FAQ</a>
+      <a href="#lokasi">Yard</a>
+      <a class="menu-cta" href="https://wa.me/628134556789">WA: Cek Ketersediaan</a>
+    </div>
+    <a class="nav-cta" href="https://wa.me/628134556789">WA: Cek Unit</a>
+  </div>
+</nav>
+
+<section class="hero" id="top">
+  <div class="hero-in">
+    <div class="wrap">
+      <h1>Unit datang <em>besok pagi</em>, operator ikut.</h1>
+      <p class="hero-sub">Excavator, crane, dan loader untuk proyek di Balikpapan &amp; sekitarnya. BBM terisi, hour meter dicatat bareng — tanpa biaya kejutan.</p>
+      <div class="statrow">
+        <div><b>Rp 1,6jt</b><span>mulai /hari</span></div>
+        <div><b>Termasuk</b><span>operator + fuel</span></div>
+        <div><b>1×24 jam</b><span>mekanik on-call</span></div>
+        <div><b>5 unit</b><span>siap kerja</span></div>
+      </div>
+      <div class="cta-row">
+        <a class="btn btn-s" href="https://wa.me/628134556789">Cek ketersediaan unit</a>
+        <a class="btn btn-o" href="#unit">Lihat tarif harian</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="tick"><div>TARIF MULAI Rp 1,6 JT/HARI × OPERATOR + FUEL TERMASUK × SURVEY LOKASI GRATIS × UNIT GANTI KALAU RUSAK × STANDBY DIHITUNG PER JAM MESIN × LOWBED SENDIRI ×&nbsp;</div></div>
+
+<section id="unit">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="kicker">Armada</p>
+        <h2>Pilih unit, harga jelas</h2>
+      </div>
+      <span class="ref">STATUS DIPERBARUI TIAP 06.00</span>
+    </div>
+    <div class="ugrid">
+      <div class="ucard">
+        <div class="uimg"><img src="alatberat-assets/04.jpg" alt="Excavator Komatsu PC200 menggali tanah basah di site"><span class="ubadge ready">SIAP</span></div>
+        <div class="ubody">
+          <h3>Excavator PC200</h3>
+          <p class="use">Cut &amp; fill, galian pondasi, bongkar tanah</p>
+          <div class="specs"><span>0,8 m³ bucket</span><span>20 ton</span><span>fuel 14 L/jam</span></div>
+          <div class="uprice"><span class="p">Rp 2,8jt</span><small>/hari · fuel &amp; operator termasuk</small></div>
+        </div>
+      </div>
+      <div class="ucard">
+        <div class="uimg"><img src="alatberat-assets/03.jpg" alt="Operator Tunas Alat Berat di kabin unit"><span class="ubadge ready">SIAP</span></div>
+        <div class="ubody">
+          <h3>Excavator PC75</h3>
+          <p class="use">Lahan sempat, galian utilitas, pondasi kecil</p>
+          <div class="specs"><span>0,3 m³ bucket</span><span>7,5 ton</span><span>muat pickup besar</span></div>
+          <div class="uprice"><span class="p">Rp 1,6jt</span><small>/hari · fuel &amp; operator termasuk</small></div>
+        </div>
+      </div>
+      <div class="ucard">
+        <div class="uimg"><img src="alatberat-assets/02.jpg" alt="Mobile crane 25 ton di yard logistik"><span class="ubadge work">KERJA HARI INI</span></div>
+        <div class="ubody">
+          <h3>Mobile Crane 25 T</h3>
+          <p class="use">Angkat baja, pasang girder, pindah mesin</p>
+          <div class="specs"><span>25 ton</span><span>boom 31 m</span><span>rigger 2 org ikut</span></div>
+          <div class="uprice"><span class="p">Rp 4,5jt</span><small>/hari · minimal 2 hari</small></div>
+        </div>
+      </div>
+      <div class="ucard">
+        <div class="uimg"><img src="alatberat-assets/05.jpg" alt="Wheel loader melewati cek mekanik di yard"><span class="ubadge svc">SERVICE 250 JAM</span></div>
+        <div class="ubody">
+          <h3>Wheel Loader</h3>
+          <p class="use">Memuat pasir, split, approval material</p>
+          <div class="specs"><span>1,1 m³ bucket</span><span>kembali Kamis</span><span>ada unit cadangan</span></div>
+          <div class="uprice"><span class="p">Rp 2,2jt</span><small>/hari · tersedia Sabtu</small></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="why">
+  <div class="wrap">
+    <p class="kicker">Kenapa Tunas</p>
+    <h2 style="font-size:clamp(1.9rem,3.2vw,2.6rem)">Unit berhenti = masalah kami, bukan jadwal proyek lu</h2>
+    <div class="wgrid">
+      <div class="wcard"><span class="n">01</span><h3>Operator bersertifikat</h3><p>Sertifikat &amp; sim lengkap, pengalaman site tambang dan perkotaan Balikpapan.</p></div>
+      <div class="wcard"><span class="n">02</span><h3>Unit ganti kalau rusak</h3><p>Kerusakan di tengah kontrak kami ganti unit — bukan nunggu bengkel berhari-hari.</p></div>
+      <div class="wcard"><span class="n">03</span><h3>Mekanik on-call 24 jam</h3><p>Stok filter, hose &amp; undercarriage di yard sendiri, siap turun ke site.</p></div>
+      <div class="wcard"><span class="n">04</span><h3>Lowbed sendiri</h3><p>Mobilisasi unit diatur kami — tanpa rental truk pihak ketiga yang bikin jadwal molor.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="cara">
+  <div class="wrap">
+    <p class="kicker">Cara sewa</p>
+    <h2 style="font-size:clamp(1.9rem,3.4vw,2.7rem)">Tiga langkah, unit jalan</h2>
+    <div class="steps">
+      <div class="step"><b>01 — WA / TELEPON</b><h3>Sebilang lokasi</h3><p>Pin lokasi cukup. Kami cek jalur akses &amp; jenis tanah dari foto, langsung kasih rekomendasi unit.</p></div>
+      <div class="step"><b>02 — SURVEY GRATIS</b><h3>Tim kami turun</h3><p>Untuk kerja di atas 3 hari, surveyor datang hitung volume, durasi, dan kebutuhan unit.</p></div>
+      <div class="step"><b>03 — UNIT DATANG</b><h3>Besok pagi siap</h3><p>Lowbed kami yang antar. Operator ikut, BBM terisi, hour meter dicatat bareng di awal.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="kata">
+  <div class="wrap">
+    <blockquote>“Foundation Cluster B beres 6 hari, <b>tidak ada satu hari pun unit berhenti</b>. Beda dari rental sebelumnya yang sering minta maaf lewat WA.”</blockquote>
+    <p class="who">H. Rusdi — Kontraktor Taman Sapoya, Balikpapan</p>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-head"><div><p class="kicker">Tanya jawab</p><h2>Yang sering ditanyakan</h2></div></div>
+    <details><summary>Kalau hujan deras berhari-hari, hitungannya bagaimana?</summary><p>Hari tidak beroperasi karena cuaca ekstrem dihitung standby setengah tarif, bukan full. Disepakati di kontrak sebelum unit berangkat.</p></details>
+    <details><summary>Operator sudah termasuk? Kalau lembur?</summary><p>Termasuk — 8 jam kerja/hari. Lembur dihitung per jam mesin dengan tarif yang jelas di kontrak.</p></details>
+    <details><summary>BBM siapa yang tanggung?</summary><p>Site Balikpapan &amp; sekitarnya BBM masuk tarif. Di luar itu dihitung jarak lowbed + konsumsi unit.</p></details>
+    <details><summary>Minimum sewa berapa lama?</summary><p>1 hari untuk excavator &amp; loader, 2 hari untuk mobile crane (mobilisasi rigger &amp; izin jalur).</p></details>
+  </div>
+</section>
+
+<section id="lokasi">
+  <div class="lk">
+    <div class="addr">
+      <p class="kicker">Yard &amp; workshop</p>
+      <b>Jl. MT Haryono KM 5, Balikpapan</b>
+      <p>Yard 2.400 m², bengkel sendiri, area parkir unit. Kunjungan sebelum sewa dipersilakan — lihat unit dulu sebelum bayar.</p>
+      <a class="btn btn-s" href="https://wa.me/628134556789">WhatsApp 0813-4556-789</a>
+    </div>
+    <img src="alatberat-assets/02.jpg" alt="Yard Tunas Alat Berat berisi crane dan forklift">
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 TUNAS ALAT BERAT — BALIKPAPAN</span>
+    <span>UNIT SIAP 06.00 · MEKANIK ON-CALL 24 JAM</span>
+  </div>
+</footer>
+<script>
+document.querySelectorAll('.menu a').forEach(function(a){
+  a.addEventListener('click',function(){document.getElementById('nav-toggle').checked=false;});
+});
+</script>
+</body>
+</html>

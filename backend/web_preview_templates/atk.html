@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toko Aneka Karya — ATK, Print &amp; Langganan Kantor · Balikpapan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#faf6ee;--ink:#201d1a;--org:#f26722;--orgd:#d4531a;--ok:#1f9d55;--muted:#7a746c;--line:#e4ddcf}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Work Sans',system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-weight:800;letter-spacing:-.02em;line-height:1.08}
+.wrap{max-width:1180px;margin:0 auto;padding:0 22px}
+a{color:inherit;text-decoration:none}
+.mono{font-family:'Space Mono',monospace}
+nav{position:absolute;top:0;left:0;right:0;z-index:40}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:66px;gap:14px;position:relative}
+.brand{font-weight:800;font-size:20px;color:#fff;line-height:1}
+.brand small{display:block;font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--org);margin-top:5px}
+.menu{display:flex;gap:22px}
+.menu a{font-size:13.5px;font-weight:500;color:#f2f0ea}
+.menu a:hover{color:var(--org)}
+.menu-cta{display:none}
+.nav-cta{background:var(--org);color:#fff;font-weight:700;font-size:13px;padding:11px 18px}
+.nav-cta:hover{filter:brightness(.94)}
+.burger{display:none;background:transparent;border:1px solid rgba(255,255,255,.55);cursor:pointer;padding:10px 11px;margin-left:auto}
+.burger span{display:block;width:20px;height:2px;background:#fff;margin:4px 0}
+#nav-toggle{position:absolute;opacity:0;pointer-events:none}
+a,button{transition:filter .15s ease,transform .15s ease,background .15s ease}
+/* HERO full-bleed */
+.hero{position:relative;min-height:100vh;display:flex;align-items:flex-end;background:linear-gradient(rgba(32,29,26,.42),rgba(32,29,26,.74)),url('atk-assets/06.jpg') center/cover no-repeat;color:#fff}
+.hero-in{position:relative;z-index:2;width:100%;padding:130px 0 54px}
+.hero h1{font-size:clamp(2.6rem,5.4vw,4.6rem);max-width:16ch;color:#fff}
+.hero h1 em{font-style:normal;color:#ffb27a}
+.chips{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+.chip{font-family:'Space Mono',monospace;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;border:1.5px solid rgba(255,255,255,.45);background:rgba(32,29,26,.35);color:#fff;padding:8px 14px}
+.hero-sub{margin-top:16px;font-size:15px;color:#e4ded4;max-width:52ch}
+.cta-row{display:flex;gap:14px;margin-top:30px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;font-weight:700;font-size:14px;padding:14px 22px}
+.btn-s{background:var(--org);color:#fff}
+.btn-s:hover{filter:brightness(.94)}
+.btn-o{border:1.5px solid rgba(255,255,255,.7);color:#fff}
+.btn-o:hover{background:rgba(255,255,255,.12)}
+/* MOBILE NAV */
+@media(max-width:900px){
+  .burger{display:block}
+  .nav-cta{display:none}
+  .nav-in{height:60px}
+  .menu{display:none;position:absolute;top:60px;left:0;right:0;background:var(--ink);flex-direction:column;padding:16px 22px 20px;z-index:41;border-bottom:4px solid var(--org);box-shadow:0 18px 40px rgba(0,0,0,.4)}
+  #nav-toggle:checked ~ .menu{display:flex}
+  .menu a{font-size:15px;font-weight:600;color:#fff;padding:13px 2px;border-bottom:1px solid rgba(255,255,255,.12)}
+  .menu a:last-of-type{border-bottom:none}
+  .menu-cta{display:inline-flex;justify-content:center;background:var(--org);color:#fff;font-weight:700;font-size:14px;padding:13px 18px;margin-top:14px}
+}
+/* TICKER */
+.tick{background:var(--org);color:#fff;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.06em;padding:11px 0;white-space:nowrap;overflow:hidden}
+.tick div{display:inline-block;animation:roll 26s linear infinite}
+@keyframes roll{to{transform:translateX(-50%)}}
+/* RAK FAVORIT bento */
+#rak{padding:64px 0 70px}
+.sec-head{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-bottom:26px}
+.kicker{font-family:'Space Mono',monospace;font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--org)}
+.sec-head h2{font-size:clamp(1.9rem,3.4vw,2.8rem)}
+.sec-head .ref{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:.1em}
+.rak-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.tile{border-radius:4px;padding:20px 18px 18px;min-height:150px;display:flex;flex-direction:column;justify-content:space-between;position:relative}
+.tile .st{font-family:'Space Mono',monospace;font-size:10.5px;font-weight:700;letter-spacing:.06em;display:inline-block;padding:4px 9px;color:#fff;background:var(--ok);width:max-content}
+.tile .st.low{background:#e07b00}
+.tile b{font-size:17px;line-height:1.25;display:block}
+.tile .pr{font-family:'Space Mono',monospace;font-size:16px;font-weight:700;margin-top:10px}
+.tile .pr small{display:block;font-size:10.5px;opacity:.72}
+.tile:hover{transform:translateY(-3px)}
+.t1{background:#fde8d8}.t2{background:#fdf3d0}.t3{background:#e2f0e4}.t4{background:#e3ecf8}
+.t5{background:#f7e2ee}.t6{background:#e8f4ee}.t7{background:#fbe9e0}.t8{background:#f0e9fb}
+/* TABS pricelist */
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.tabbtn{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;letter-spacing:.06em;padding:10px 18px;border:1.5px solid var(--ink);background:transparent;color:var(--ink);cursor:pointer;transition:background .15s ease,color .15s ease}
+.tabbtn:hover{background:#efe9db}
+.tabbtn.on{background:var(--ink);color:#fff}
+/* LANGGANAN */
+#lang{background:var(--ink);color:#fff;padding:62px 0 70px}
+#lang .kicker{color:var(--org)}
+.paks{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}
+.pak{background:#2b2724;border:1px solid #3b3530;padding:26px 24px;position:relative}
+.pak.hot{background:var(--org);border-color:var(--org)}
+.pak h3{font-size:21px;color:#fff}
+.pak .pr{font-family:'Space Mono',monospace;font-size:26px;font-weight:700;margin-top:8px}
+.pak .pr small{font-size:12px;opacity:.75}
+.pak ul{margin-top:14px}
+.pak li{list-style:none;font-size:13.5px;color:#d8d2c8;padding:7px 0;border-bottom:1px dashed rgba(255,255,255,.16)}
+.pak.hot li{color:#fff4ec;border-bottom:1px dashed rgba(255,255,255,.35)}
+.pak .tag{position:absolute;top:-11px;right:16px;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;background:var(--ok);color:#fff;padding:4px 10px}
+/* JASA CETAK */
+#cetak{display:grid;grid-template-columns:1fr 1.05fr}
+#cetak img{width:100%;height:100%;object-fit:cover;min-height:430px}
+#cetak .tx{padding:58px 48px}
+#cetak h2{font-size:clamp(1.9rem,3vw,2.6rem)}
+.crow{display:flex;align-items:baseline;gap:12px;padding:13px 2px;border-bottom:1px dashed var(--line)}
+.crow b{font-size:14.5px}
+.crow .dots{flex:1;border-bottom:2px dotted #cfc7b8;transform:translateY(-4px)}
+.crow .p{font-family:'Space Mono',monospace;font-size:14.5px;font-weight:700;white-space:nowrap}
+.crow .p small{display:block;font-size:10px;color:var(--muted);text-align:right;font-weight:400}
+/* TESTIMONI */
+#kata{padding:0}
+#kata .grid{display:grid;grid-template-columns:.9fr 1.1fr}
+#kata img{width:100%;height:100%;min-height:360px;object-fit:cover}
+#kata .tx{padding:56px 48px;display:flex;flex-direction:column;justify-content:center}
+#kata blockquote{font-size:clamp(1.1rem,1.9vw,1.45rem);font-weight:600}
+#kata blockquote b{background:linear-gradient(to top,transparent 18%,#ffd9c0 18%,#ffd9c0 82%,transparent 82%);padding:0 .1em}
+#kata .who{margin-top:14px;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+/* FAQ */
+#faq{padding:58px 0 66px}
+details{border-bottom:1px solid var(--line);padding:14px 0}
+details summary{cursor:pointer;font-weight:700;font-size:15.5px;list-style:none;display:flex;justify-content:space-between;gap:12px}
+details summary::after{content:'+';font-family:'Space Mono',monospace;color:var(--ink)}
+details[open] summary::after{content:'–'}
+details p{font-size:14px;color:#5f594f;padding:10px 0 4px;max-width:70ch}
+/* LOKASI */
+#lokasi .lk{display:grid;grid-template-columns:1.1fr .9fr}
+#lokasi img{width:100%;height:100%;min-height:380px;object-fit:cover}
+#lokasi .addr{background:var(--org);color:#fff;padding:52px 46px;display:flex;flex-direction:column;justify-content:center;gap:14px}
+#lokasi .addr .kicker{color:#ffe1c9}
+#lokasi .addr b{font-size:26px}
+#lokasi .addr p{font-size:14px;color:#fff0e4}
+footer{background:var(--ink);color:#8f887e;padding:26px 0}
+footer .wrap{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.08em}
+@media(max-width:900px){
+  .rak-grid{grid-template-columns:repeat(2,1fr)}
+  .paks{grid-template-columns:1fr}
+  #cetak{grid-template-columns:1fr}
+  #kata .grid{grid-template-columns:1fr}
+  #lokasi .lk{grid-template-columns:1fr}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<nav>
+  <div class="wrap nav-in">
+    <a class="brand" href="#top">Toko Aneka Karya<small>ATK · Print · Balikpapan</small></a>
+    <input id="nav-toggle" type="checkbox">
+    <label class="burger" for="nav-toggle" aria-label="Menu"><span></span><span></span><span></span></label>
+    <div class="menu">
+      <a href="#rak">Harga</a>
+      <a href="#lang">Langganan</a>
+      <a href="#cetak">Print</a>
+      <a href="#lokasi">Toko</a>
+      <a class="menu-cta" href="https://wa.me/628134556789">WA: Order / Stok</a>
+    </div>
+    <a class="nav-cta" href="https://wa.me/628134556789">WA: Order</a>
+  </div>
+</nav>
+
+<section class="hero" id="top">
+  <div class="hero-in">
+    <div class="wrap">
+      <span class="chip" style="border-color:var(--org);background:var(--org);font-weight:700">BUKA SENIN–SABTU 08.00–20.00</span>
+      <h1>Belanja kantor <em>satu stop</em>, antar besok pagi.</h1>
+      <div class="chips">
+        <span class="chip">Kertas &amp; Rim</span>
+        <span class="chip">Tinta &amp; Toner</span>
+        <span class="chip">ATK Harian</span>
+        <span class="chip">Ordner &amp; Arsip</span>
+        <span class="chip">Print · Fotokopi</span>
+      </div>
+      <p class="hero-sub">Kantor kecil, sekolah, dan kontraktor di Balikpapan ambil stok di sini — harga tertulis, stok bisa dicek WA dulu, bisa lunas tempo untuk korporat.</p>
+      <div class="cta-row">
+        <a class="btn btn-s" href="https://wa.me/628134556789">Tanya stok sekarang</a>
+        <a class="btn btn-o" href="#lang">Lihat paket langganan</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="tick"><div>PRINT A4 Rp 500/LEMBAR × FOTOKOPI Rp 400 × JILID SPIRAL Rp 7.000 × ANTAR GRATIS MIN. BELANJA Rp 300RB × LUNAS TEMPO B2B × HARGA RIM KERTAS TERTULIS ×&nbsp;</div></div>
+
+<section id="rak">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="kicker">Rak favorit</p>
+        <h2>Harga yang paling sering ditanya</h2>
+      </div>
+      <span class="ref">STOK DIPERBARUI TIAP PAGI · SIAP WA TANYA</span>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="tabbtn on" data-g="g-kertas">KERTAS</button>
+      <button class="tabbtn" data-g="g-tinta">TINTA &amp; TONER</button>
+      <button class="tabbtn" data-g="g-atk">ATK HARIAN</button>
+      <button class="tabbtn" data-g="g-arsip">ARSIP &amp; BINDING</button>
+    </div>
+    <div class="tgroup" id="g-kertas">
+      <div class="rak-grid">
+        <div class="tile t1"><span class="st">STOK 42</span><div><b>Kertas A4 Sinar Mas 80gsm</b><span class="pr">Rp 58.000<small>/rim · beli 5 rim lebih murah</small></span></div></div>
+        <div class="tile t2"><span class="st">STOK 30</span><div><b>Kertas A4 70gsm Paperline</b><span class="pr">Rp 48.000<small>/rim · pilihan ekonomis</small></span></div></div>
+        <div class="tile t3"><span class="st">STOK 18</span><div><b>Kertas F4 HVS 80gsm</b><span class="pr">Rp 62.000<small>/rim · favorit sekolah</small></span></div></div>
+        <div class="tile t4"><span class="st low">MENIPIS 4</span><div><b>Kertas A3 80gsm</b><span class="pr">Rp 120.000<small>/rim · bisa pesan hari ini</small></span></div></div>
+        <div class="tile t5"><span class="st">STOK 55</span><div><b>Paper roll kasir 80×80</b><span class="pr">Rp 8.500<small>/roll · grosir 10 roll -10%</small></span></div></div>
+        <div class="tile t6"><span class="st">STOK 64</span><div><b>Kertas karbon biru</b><span class="pr">Rp 3.500<small>/lembar · nota &amp; surat jalan</small></span></div></div>
+      </div>
+    </div>
+    <div class="tgroup" id="g-tinta" style="display:none">
+      <div class="rak-grid">
+        <div class="tile t7"><span class="st">STOK 17</span><div><b>Tinta Epson 003 hitam</b><span class="pr">Rp 92.000<small>/botol · garansi asli</small></span></div></div>
+        <div class="tile t8"><span class="st">STOK 12</span><div><b>Epson 003 paket warna</b><span class="pr">Rp 265.000<small>4 botol CMYK · hemat 15%</small></span></div></div>
+        <div class="tile t1"><span class="st">STOK 9</span><div><b>Canon GI-71 hitam</b><span class="pr">Rp 95.000<small>/botol · utk G2010/G3010</small></span></div></div>
+        <div class="tile t2"><span class="st low">MENIPIS 3</span><div><b>Toner HP 85A</b><span class="pr">Rp 520.000<small>/pcs · original</small></span></div></div>
+        <div class="tile t3"><span class="st">STOK 21</span><div><b>Ribbon printer LX-310</b><span class="pr">Rp 28.000<small>/pcs · hitam</small></span></div></div>
+        <div class="tile t4"><span class="st">STOK 40</span><div><b>Tinta refill 100ml</b><span class="pr">Rp 25.000<small>hitam/warna · bekas botol tinta</small></span></div></div>
+      </div>
+    </div>
+    <div class="tgroup" id="g-atk" style="display:none">
+      <div class="rak-grid">
+        <div class="tile t5"><span class="st">STOK 120</span><div><b>Pulpen gel 0.5 standard</b><span class="pr">Rp 3.500<small>/pcs · promo 1 lusin Rp 36.000</small></span></div></div>
+        <div class="tile t6"><span class="st">STOK 88</span><div><b>Pensil HB Faber-Castell</b><span class="pr">Rp 2.700<small>/pcs · beli lusin -8%</small></span></div></div>
+        <div class="tile t7"><span class="st">STOK 38</span><div><b>Spidol whiteboard hitam</b><span class="pr">Rp 9.000<small>refill tersedia</small></span></div></div>
+        <div class="tile t8"><span class="st">STOK 26</span><div><b>Stipler besar + isi 24</b><span class="pr">Rp 22.000<small>jangkar no. 3 · untuk kantor</small></span></div></div>
+        <div class="tile t1"><span class="st">STOK 74</span><div><b>Lem stick 15gr</b><span class="pr">Rp 6.500<small>/pcs · kenji &amp; joyful</small></span></div></div>
+        <div class="tile t2"><span class="st">STOK 150</span><div><b>Penghapus serabut</b><span class="pr">Rp 2.000<small>/pcs · tidak menggores</small></span></div></div>
+      </div>
+    </div>
+    <div class="tgroup" id="g-arsip" style="display:none">
+      <div class="rak-grid">
+        <div class="tile t3"><span class="st">STOK 66</span><div><b>Ordner Foolscap 2&quot;</b><span class="pr">Rp 24.500<small>6 warna · logo kantor bisa sablon</small></span></div></div>
+        <div class="tile t4"><span class="st">STOK 25</span><div><b>Lakban bening 2&quot; abu</b><span class="pr">Rp 14.000<small>/roll · grosir 12 roll -10%</small></span></div></div>
+        <div class="tile t5"><span class="st">STOK 200</span><div><b>Amplop coklat folio</b><span class="pr">Rp 2.000<small>/pcs · isi 100 -15%</small></span></div></div>
+        <div class="tile t6"><span class="st">STOK 90</span><div><b>Binder clip 32mm</b><span class="pr">Rp 5.000<small>/isi 12 pcs</small></span></div></div>
+        <div class="tile t7"><span class="st">STOK 58</span><div><b>Map snelplastik A4</b><span class="pr">Rp 4.500<small>isi 10 lembar</small></span></div></div>
+        <div class="tile t8"><span class="st">STOK 9</span><div><b>Kalkulator 12 digit</b><span class="pr">Rp 48.000<small>garansi tukar</small></span></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="lang">
+  <div class="wrap">
+    <p class="kicker">Langganan kantor</p>
+    <h2 style="font-size:clamp(1.9rem,3.4vw,2.8rem)">Stok kantor datang rutin, nggak perlu inget-inget</h2>
+    <div class="paks">
+      <div class="pak">
+        <h3>Paket Rumahan</h3>
+        <div class="pr">Rp 150rb<small>/bulan</small></div>
+        <ul>
+          <li>1 rim A4 + 1 tinta hitam</li>
+          <li>ATK harian (pulpen, stipler, lem)</li>
+          <li>Antar 1× sebulan</li>
+          <li>Ganti barang rusak gratis</li>
+        </ul>
+      </div>
+      <div class="pak hot">
+        <span class="tag">PALING DIAMBIL</span>
+        <h3>Kantor Kecil</h3>
+        <div class="pr">Rp 450rb<small>/bulan</small></div>
+        <ul>
+          <li>3 rim A4 + tinta lengkap warna</li>
+          <li>Ordner &amp; arsip sesuai permintaan</li>
+          <li>Print 100 lembar gratis</li>
+          <li>Antar 2× sebulan + jadwal fleksibel</li>
+        </ul>
+      </div>
+      <div class="pak">
+        <h3>Korporat / Sekolah</h3>
+        <div class="pr">Nego<small>/bulan</small></div>
+        <ul>
+          <li>Volume bebas, daftar kebutuhan fix</li>
+          <li>Lunas tempo 30 hari</li>
+          <li>PIC khusus via WA, laporan bulanan</li>
+          <li>Harga khusus print &amp; jilid volume</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="cetak">
+  <img src="atk-assets/03.jpg" alt="Petugas Toko Aneka Karya membantu pelanggan memilih alat tulis">
+  <div class="tx">
+    <p class="kicker">Jasa cetak</p>
+    <h2>Dititip print, jam segitu beres</h2>
+    <div style="margin-top:16px">
+      <div class="crow"><b>Print hitam-putih A4</b><span class="dots"></span><span class="p">Rp 500<small>/lembar</small></span></div>
+      <div class="crow"><b>Print warna A4</b><span class="dots"></span><span class="p">Rp 1.500<small>/lembar</small></span></div>
+      <div class="crow"><b>Fotokopi</b><span class="dots"></span><span class="p">Rp 400<small>/lembar</small></span></div>
+      <div class="crow"><b>Jilid spiral</b><span class="dots"></span><span class="p">Rp 7.000<small>/buku</small></span></div>
+      <div class="crow"><b>Laminasi A4</b><span class="dots"></span><span class="p">Rp 5.000<small>/lembar</small></span></div>
+      <div class="crow"><b>Scan ke PDF</b><span class="dots"></span><span class="p">Rp 1.000<small>/lembar · kirim via WA</small></span></div>
+    </div>
+    <p style="margin-top:16px;font-size:13.5px;color:#5f594f">Kirim file via WA sebelum jam 15.00, ambil/antar di hari yang sama. Undangan &amp; proposal, bisa print dadakan.</p>
+  </div>
+</section>
+
+<section id="kata">
+  <div class="grid">
+    <img src="atk-assets/02.jpg" alt="Meja kerja kantor pelanggan Toko Aneka Karya">
+    <div class="tx">
+      <p class="kicker">Kata pelanggan</p>
+      <blockquote>“Sejak langganan bulanan, <b>kantor nggak pernah kehabisan rim kertas</b> lagi di tengah deadline. Ditagihnya juga rapi, ada laporan.”</blockquote>
+      <p class="who">Bu Rina — Admin CV Tiga Anugerah, Balikpapan</p>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-head"><div><p class="kicker">Tanya jawab</p><h2>Yang sering ditanyakan</h2></div></div>
+    <details><summary>Bisa lunas tempo untuk kantor?</summary><p>Bisa, untuk pelanggan korporat/sekolah dengan PO — tempo 30 hari, laporan belanja dikirim tiap awal bulan.</p></details>
+    <details><summary>Minimal belanja buat diantar?</summary><p>Gratis antar area kota Balikpapan untuk belanja minimal Rp 300rb. Di bawah itu ada ongkir flat Rp 15rb.</p></details>
+    <details><summary>Barangnya asli atau KW?</summary><p>Semua barang branded (Sinar Mas, Epson, standard) ambil dari distributor resmi. Bisa minta nota + garansi tuker.</p></details>
+    <details><summary>Harga bisa turun kalau rutin?</summary><p>Bisa — pelanggan langganan dapat harga khusus per item, terutama rim kertas dan tinta volume.</p></details>
+  </div>
+</section>
+
+<section id="lokasi">
+  <div class="lk">
+    <img src="atk-assets/06.jpg" alt="Kasir Toko Aneka Karya melayani pelanggan">
+    <div class="addr">
+      <p class="kicker">Toko &amp; titik ambil</p>
+      <b>Jl. Jenderal Sudirman No. 42<br>Balikpapan</b>
+      <p>Parkir luas, depan toko. Print dadakan bisa tunggu 10–15 menit. Senin–Sabtu 08.00–20.00.</p>
+      <a class="btn" style="background:var(--ink);color:#fff" href="https://wa.me/628134556789">WhatsApp 0813-4556-789</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 TOKO ANEKA KARYA — BALIKPAPAN</span>
+    <span>ATK · PRINT · LANGGANAN KANTOR</span>
+  </div>
+</footer>
+<script>
+document.querySelectorAll('.menu a').forEach(function(a){
+  a.addEventListener('click',function(){document.getElementById('nav-toggle').checked=false;});
+});
+var tabbtns=document.querySelectorAll('.tabbtn');
+tabbtns.forEach(function(b){
+  b.addEventListener('click',function(){
+    tabbtns.forEach(function(x){x.classList.remove('on');});
+    b.classList.add('on');
+    document.querySelectorAll('.tgroup').forEach(function(g){g.style.display='none';});
+    var t=document.getElementById(b.dataset.g);
+    if(t){t.style.display='';}
+  });
+});
+</script>
+</body>
+</html>
