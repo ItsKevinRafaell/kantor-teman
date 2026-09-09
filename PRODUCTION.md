@@ -272,6 +272,19 @@ nomor = by-design), curl /wp/<slug-lama> 200. Buktinya: openapi 200, ROW slug ko
 select_template_key = skor keyword (bukan urutan): keyword baru HANYA nambah match di niche kosong,
 dua template kena skor sama → entry lama (klinik/bengkel/kontraktor) menang tie-break.
 
+Template bank +2 vertikal (9 Sep 2026, commit `ad01bbe` — DEPLOYED ke prod 9 Sep, ACC Kevin
+"acc atk" di topic 304 merespons caption verdict 16795 yang menawarkan ACC → bundel 21 + deploy):
+REGISTRY 19 → 21 (+`atk` = toko ATK/print/langganan kantor "Toko Aneka Karya", +`alatberat` =
+sewa alat berat/excavator "Tunas Alat Berat"). Source: _refshots/atk-v2.html (file yang "hilang"
+2 Sep ternyata nyasar nama v1 dengan isi v2 lengkap; dikembalikan ke nama atk-v2 8 Sep) dan
+alatberat-v2.html (ACC 8 Sep). Sanitize in-file: garansi spesifik "garansi tukar 7 hari" →
+"garansi tukar" (aturan garansi spesifik → netral). QA staging 2/2 PASS (aset termuat via symlink).
+Deploy: aset 8 jpg dulu (md5 8/8 identik) → template 2 html (md5 match) → service via deploy script
+(md5 match, grep '"title":' = 21) → restart-only → verif: import OK, REGISTRY=21, render test
+in-memory atk+alatberat (select/WA rewrite/asset rewrite OK, sanitize OK) + default kontraktor,
+openapi 200, /wp/<slug lead 163> 200 26KB. Pitfall ulang terdokumentasi: multiline python -c via
+ssh = quote-mangling (SyntaxError diam-diam) → script via base64 → /tmp/ + PYTHONPATH.
+
 
 ## PageSpeed Scoring Lead (kolom + auto-check + endpoint + cron) — feat/raka-pagespeed-leads
 
