@@ -301,6 +301,17 @@ Cron mingguan (crontab hosting, BUKAN APScheduler web) — Senin 09:07 WIB (kano
   Kevin/day-shift; JANGAN anggap "terpasang = jalan" tanpa first-run terverifikasi.
   Backfill manual (`--dry-run` lalu eksekusi) juga belum pernah dilakukan.
 
+FIXER (raka, 9 Sep 2026 — test lokal 13/13 PASS + status live prod 09:19 WIB):
+  `backend/scripts/fix_pagespeed_crontab.sh` — status (read-only, verdict
+  CANONICAL/BUGGY/ABSENT) | fix [GATE: KT_PAGESPEED_FIX_ACK=deploy, backup crontab
+  otomatis ke $HOME/crontab-backup-pagespeed-<ts>.txt, idempotent, verifikasi
+  pasca-fix] | verify. Tanpa ACK → exit 3 zero mutasi (terbukti live). Jalankan:
+    bash backend/scripts/fix_pagespeed_crontab.sh status          # read-only
+    KT_PAGESPEED_FIX_ACK=deploy bash backend/scripts/fix_pagespeed_crontab.sh fix
+    bash backend/scripts/fix_pagespeed_crontab.sh verify
+  First-run Senin berikutnya 09:07 WIB = bukti sesungguhnya (lock mtime baru +
+  log berisi + skor terisi).
+
 Langkah deploy:
 1. Upload: models/lead.py, migrate.py, app/services/pagespeed_service.py, routers/leads.py,
    app/services/lead_service.py, schemas/lead.py, scripts/run_pagespeed_recheck.py
