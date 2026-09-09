@@ -152,7 +152,7 @@ REGISTRY: dict = {
     },
     "salon": {
         "title": "Landing salon/kecantikan",
-        "keywords": ["salon", "kecantikan", "spa", "perawatan", "hair salon", "makeup", "facial"],
+        "keywords": ["salon", "barbershop", "barber", "cukur", "potong rambut", "kecantikan", "spa", "perawatan", "hair salon", "makeup", "facial"],
         "brand_anchor": "Rumah Cantik Sehat",
         "phone_display_anchor": "",  # tidak menampilkan nomor teks
         "wa_anchor": "6281234567890",
@@ -201,7 +201,7 @@ REGISTRY: dict = {
     },
     "properti": {
         "title": "Landing agen properti/developer",
-        "keywords": ["properti", "agen properti", "rumah dijual", "tanah dijual", "developer", "listing"],
+        "keywords": ["properti", "perumahan", "residence", "cluster", "housing", "agen properti", "rumah dijual", "tanah dijual", "developer", "listing"],
         "brand_anchor": "Arunika Properti",
         "phone_display_anchor": "",  # tidak menampilkan nomor teks
         "wa_anchor": "628134556789",
