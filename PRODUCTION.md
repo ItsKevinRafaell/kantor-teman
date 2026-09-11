@@ -336,3 +336,17 @@ key prod (Places) → call PSI = HTTP 403. Tanpa key = 429 quota per-IP. Fix: en
 Insights API" di Google Cloud Console (gratis) — setelah itu fitur langsung hidup (key fallback
 dari settings DB, tanpa env baru). Sebelum enable: semua call fail-open, skor tetap NULL, tidak
 mengganggu scrape/blast/cron.
+
+UPDATE 11 Sep 2026 (raka, tick pagi): **PSI API SUDAH ENABLE** — probe dari server PSI_HTTP=200
+(sebelumnya 403 sejak 6 Sep; dep sisi Kevin selesai). Backfill jalan 2x:
+- 08:34–08:47 WIB (manual, sumber tak tercatat — day-shift?): ~31 lead scored (skor 55–100).
+- 09:13 WIB (raka): FATAL mid-batch — 12 lead dead-site beruntun (PSI 400 ≈10s/lead, tanpa
+  commit = koneksi idle) kena **MySQL wait_timeout=120s** → "server has gone away"; skor
+  lead 285 hilang, 6 lead sisa tak diproses. Sweep ulang 09:2x dengan session-per-lead:
+  lead 285 skor 44 + lead 323 skor 68 + 5 fail-open (dead-site/NO_FCP/timeout), **0 FATAL**.
+  Total scored prod: **34 lead** (dari 0 sebelum 11 Sep).
+- FIX `feat/raka-pagespeed-session-per-lead` (9bbe3cb, test 16/16 PASS): fase eksekusi
+  run_pagespeed_recheck.py pakai session baru per lead + try/except per lead = kebal
+  idle-kill. **BELUM di-deploy** (upload file prod tunggu ACC Kevin). Tanpa fix, cron
+  Senin 09:07 berisiko FATAL lagi kalau dead-site kandidat teratas (fail streak >120s
+  tanpa commit) — sisa lead menunggu minggu berikutnya (fail-open, tidak merusak data).
