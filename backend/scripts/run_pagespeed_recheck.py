@@ -134,7 +134,7 @@ def main() -> int:
     # per lead + try/except per lead = kebal idle-kill, 1 kegagalan DB tak
     # menghentikan batch.
     api_key = resolve_api_key(os.getenv("GOOGLE_API_KEY", ""))
-    checked, failed, skipped = 0, 0, 0
+    checked, failed, skipped, recorded = 0, 0, 0, 0
     for lead_id in candidate_ids:
         s_db = SessionLocal()
         try:
@@ -148,6 +148,19 @@ def main() -> int:
                 print(f"[pagespeed-recheck] lead={lead_id} gagal: {result['error']}", flush=True)
                 if "rate limited" in (result["error"] or ""):
                     time.sleep(10)
+                elif "Lighthouse returned error" in (result["error"] or ""):
+                    # Kevin 11 Sep: website mati tetep masuk data. Error Lighthouse
+                    # (HTTP 400: FAILED_DOCUMENT_REQUEST/NO_FCP) = situs-nya gagal
+                    # diukur, BUKAN masalah key/quota/jaringan → catat skor 0 +
+                    # last_speed_check. Minggu depan stale-days bikin lead ini
+                    # di-retry otomatis (kalau situs hidup lagi → skor asli masuk).
+                    # Timeout/key-error/quota TIDAK dicatat → biarkan NULL, retry
+                    # cron berikutnya, jangan salah label "mati" untuk error sementara.
+                    lead.page_speed_score = 0
+                    lead.last_speed_check = datetime.now(timezone(timedelta(hours=7))).strftime("%Y-%m-%d %H:%M:%S")
+                    s_db.commit()
+                    recorded += 1
+                    print(f"[pagespeed-recheck] lead={lead_id} website mati → skor 0 tercatat", flush=True)
             else:
                 checked += 1
                 print(f"[pagespeed-recheck] lead={lead_id} skor={result['page_speed_score']}", flush=True)
@@ -158,7 +171,7 @@ def main() -> int:
             s_db.close()
         time.sleep(1.5)  # rate limit PSI
 
-    summary = {"checked": checked, "failed": failed, "skipped": skipped}
+    summary = {"checked": checked, "failed": failed, "skipped": skipped, "recorded_dead": recorded}
     print("[pagespeed-recheck] summary " + json.dumps(summary))
     return 0
 
