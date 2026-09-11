@@ -32,6 +32,12 @@ Verifikasi first-run (WAJIB, jangan cuma "crontab terpasang"):
 
 Fail-open: error per-lead di-print, TIDAK menghentikan loop; exit code 0 kecuali
 fatal (DB ga konek). Rate limit: sleep 1.5s antar call PSI.
+
+11 Sep 2026 (raka): eksekusi jadi SESSION-PER-LEAD — MySQL prod wait_timeout=120s,
+koneksinya mati kalau lead gagal PSI beruntun (error = tanpa commit = koneksi idle).
+Bukti insiden: run 09:13 WIB FATAL "MySQL server has gone away" setelah 12 lead
+dead-site beruntun; run pagi 08:34 selamat karena lead pertamanya sukses (commit
+rutin = keep-alive). Fix: koneksi baru per lead + try/except per lead.
 """
 from __future__ import annotations
 
@@ -105,37 +111,56 @@ def main() -> int:
             candidates.append(lead)
         if args.limit and len(candidates) > args.limit:
             candidates = candidates[: args.limit]
+        candidate_ids = [l.id for l in candidates]
 
         plan = {
             "run_at": datetime.now(timezone(timedelta(hours=7))).isoformat(),
             "mode": "dry-run" if args.dry_run else "execute",
             "stale_days": args.stale_days,
             "total_web_leads": len(rows),
-            "to_check": [l.id for l in candidates],
+            "to_check": candidate_ids,
         }
         print(json.dumps(plan, ensure_ascii=False))
-        if args.dry_run:
-            return 0
+    finally:
+        db.close()
 
-        api_key = resolve_api_key(os.getenv("GOOGLE_API_KEY", ""))
-        checked, failed, skipped = 0, 0, 0
-        for lead in candidates:
-            result = run_speed_check(lead, db, api_key=api_key)
+    if args.dry_run:
+        return 0
+
+    # Fase eksekusi: SESSION-PER-LEAD. MySQL prod wait_timeout=120s — 1 koneksi
+    # batch mati kalau lead gagal PSI beruntun (error = tanpa commit = idle).
+    # Insiden 11 Sep 2026: 12 lead dead-site beruntun ≈120s idle → "MySQL server
+    # has gone away" → FATAL mid-batch, 7 lead sisa tak diproses. Koneksi baru
+    # per lead + try/except per lead = kebal idle-kill, 1 kegagalan DB tak
+    # menghentikan batch.
+    api_key = resolve_api_key(os.getenv("GOOGLE_API_KEY", ""))
+    checked, failed, skipped = 0, 0, 0
+    for lead_id in candidate_ids:
+        s_db = SessionLocal()
+        try:
+            lead = s_db.query(Lead).filter(Lead.id == lead_id).first()
+            if lead is None:
+                skipped += 1  # lead terhapus/diarsip antara scan dan eksekusi
+                continue
+            result = run_speed_check(lead, s_db, api_key=api_key)
             if result["error"]:
                 failed += 1
-                print(f"[pagespeed-recheck] lead={lead.id} gagal: {result['error']}", flush=True)
+                print(f"[pagespeed-recheck] lead={lead_id} gagal: {result['error']}", flush=True)
                 if "rate limited" in (result["error"] or ""):
                     time.sleep(10)
             else:
                 checked += 1
-                print(f"[pagespeed-recheck] lead={lead.id} skor={result['page_speed_score']}", flush=True)
-            time.sleep(1.5)  # rate limit PSI
+                print(f"[pagespeed-recheck] lead={lead_id} skor={result['page_speed_score']}", flush=True)
+        except Exception as exc:  # fail-open per-lead: DB drop/gone away 1 lead, batch lanjut
+            failed += 1
+            print(f"[pagespeed-recheck] lead={lead_id} error per-lead: {str(exc)[:200]}", flush=True)
+        finally:
+            s_db.close()
+        time.sleep(1.5)  # rate limit PSI
 
-        summary = {"checked": checked, "failed": failed, "skipped": len(candidates) - checked - failed}
-        print("[pagespeed-recheck] summary " + json.dumps(summary))
-        return 0
-    finally:
-        db.close()
+    summary = {"checked": checked, "failed": failed, "skipped": skipped}
+    print("[pagespeed-recheck] summary " + json.dumps(summary))
+    return 0
 
 
 if __name__ == "__main__":

@@ -261,3 +261,94 @@ class TestBackgroundHook:
         assert fresh.page_speed_score == 55
         assert fresh.last_speed_check
         s2.close()
+
+
+# ── run_pagespeed_recheck: batch kebal "MySQL gone away" (insiden 11 Sep 2026) ──
+# MySQL prod wait_timeout=120s + lead gagal PSI beruntun (tanpa commit) = koneksi
+# idle dibunuh server. Fix: session-per-lead + try/except per lead — 1 koneksi
+# mati TIDAK menghentikan batch.
+
+def test_recheck_batch_survives_db_drop_mid_batch(monkeypatch, capsys, db):
+    """2 koneksi 'gone away' beruntun mid-batch → 2 lead dilaporkan gagal, batch LANJUT, 1 lead sukses."""
+    import sqlalchemy.exc
+    import scripts.run_pagespeed_recheck as recheck
+
+    for name in ("Web A", "Web B", "Web C"):
+        db.add(Lead(
+            business_name=name,
+            phone_number=_unique_phone(),
+            status="Scraped",
+            website_url="https://example.com/",
+        ))
+    db.commit()
+
+    calls = {"n": 0}
+
+    def fake_run_speed_check(lead, db_, api_key=""):
+        calls["n"] += 1
+        if calls["n"] <= 2:
+            # simulasi koneksi DB dibunuh server saat commit lead pertama/kedua
+            raise sqlalchemy.exc.OperationalError(
+                "UPDATE leads ...", {}, Exception("MySQL server has gone away"))
+        lead.page_speed_score = 77
+        lead.last_speed_check = pss._now_wib()
+        db_.commit()
+        return {
+            "lead_id": lead.id,
+            "website_url": lead.website_url,
+            "gating": False,
+            "page_speed_score": 77,
+            "last_speed_check": lead.last_speed_check,
+            "error": None,
+        }
+
+    monkeypatch.setattr(pss, "run_speed_check", fake_run_speed_check)
+    monkeypatch.setattr("sys.argv", ["run_pagespeed_recheck.py", "--stale-days", "7"])
+
+    code = recheck.main()
+    out = capsys.readouterr().out
+
+    assert code == 0
+    assert '"mode": "execute"' in out
+    assert calls["n"] == 3, "batch harus lanjut sampai lead terakhir walau 2 koneksi mati"
+    assert '"checked": 1, "failed": 2, "skipped": 0' in out
+    assert "error per-lead" in out
+    assert "MySQL server has gone away" in out
+
+
+def test_recheck_execute_semua_sukses(monkeypatch, capsys, db):
+    """Path bahagia: semua lead sukses → checked=3, failed=0 (regresi summary)."""
+    import scripts.run_pagespeed_recheck as recheck
+
+    for name in ("Web D", "Web E", "Web F"):
+        db.add(Lead(
+            business_name=name,
+            phone_number=_unique_phone(),
+            status="Scraped",
+            website_url="https://example.com/",
+        ))
+    db.commit()
+
+    def fake_run_speed_check(lead, db_, api_key=""):
+        lead.page_speed_score = 80
+        lead.last_speed_check = pss._now_wib()
+        db_.commit()
+        return {
+            "lead_id": lead.id,
+            "website_url": lead.website_url,
+            "gating": False,
+            "page_speed_score": 80,
+            "last_speed_check": lead.last_speed_check,
+            "error": None,
+        }
+
+    monkeypatch.setattr(pss, "run_speed_check", fake_run_speed_check)
+    monkeypatch.setattr("sys.argv", ["run_pagespeed_recheck.py"])
+
+    code = recheck.main()
+    out = capsys.readouterr().out
+
+    assert code == 0
+    assert '"checked": 3, "failed": 0, "skipped": 0' in out
+    assert "error per-lead" not in out
+    assert "FATAL" not in out
