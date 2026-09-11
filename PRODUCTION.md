@@ -350,3 +350,25 @@ UPDATE 11 Sep 2026 (raka, tick pagi): **PSI API SUDAH ENABLE** — probe dari se
   idle-kill. **BELUM di-deploy** (upload file prod tunggu ACC Kevin). Tanpa fix, cron
   Senin 09:07 berisiko FATAL lagi kalau dead-site kandidat teratas (fail streak >120s
   tanpa commit) — sisa lead menunggu minggu berikutnya (fail-open, tidak merusak data).
+
+UPDATE 11 Sep 2026 ~23:1x WIB (qnight raka, verifikasi live — supersede "BELUM di-deploy" di atas):
+- Script versi session-per-lead + dead-site-policy **SUDAH DI-UPLOAD ke prod 22:01:43 WIB** oleh
+  Kevin — sha256 `6b118fae…` = identik repo `1ccdfa8`. Blocker "tunggu ACC upload" SELESAI.
+- Backfill 22:0x–22:25 WIB (log `logs/pagespeed_recheck_backfill_20260911.log`): summary
+  `{checked: 1, failed: 15, skipped: 0, recorded_dead: 13}` — lead 210 skor 72; 13 dead-site
+  tercatat skor 0; lead 315 + 320 PSI timeout → tetap NULL, retry Senin. ERP verified 23:0x:
+  **48 lead scored** (35 skor>0 + 13 skor=0), `last_check` max 22:08 WIB.
+- Kebijakan dead-site (Kevin 11 Sep, `1ccdfa8`): PSI 400 FAILED_DOCUMENT_REQUEST/NO_FCP = situs
+  gagal diukur → `page_speed_score=0` + `last_speed_check` WIB, commit per lead. Timeout /
+  key-error / quota → tetap NULL + retry cron berikutnya (jangan salah label mati). Kalau situs
+  hidup lagi, skor asli menggantikan 0 (auto-retry via stale-days).
+- Cron Senin 14 Sep 09:07 jalan **versi BARU ini** (crontab kanonis, dibaca langsung 23:05 WIB).
+  First-run verification tetap wajib: lock mtime baru + `logs/pagespeed_recheck.log` terbentuk +
+  skor naik dari 48.
+- GOTCHA transfer file ke hosting KT: **scp manual = SILENT-FAIL** (file tak tertulis, mtime
+  diam-diam). Jalur sah = base64-over-ssh (`deploy_kantorteman.sh` sudah begitu + verifikasi
+  byte/sha pasca-upload — byte-verify inilah yang menutup silent-fail ini).
+- Gotcha ops: watcher `while pgrep -f run_pagespeed_recheck; do sleep 30; done` (PID 902892,
+  live 23:0x) tak pernah selesai — `pgrep -f` match cmdline watcher-nya sendiri, jadi marker
+  "BACKFILL-DONE" tak ke-print walau backfill kelar. Aman (sleep loop); kill PID kalau mau
+  bersih. Pelajaran: cek proses via `pgrep -f` → hindari pattern yang nempel di cmdline watcher.
