@@ -372,3 +372,8 @@ UPDATE 11 Sep 2026 ~23:1x WIB (qnight raka, verifikasi live — supersede "BELUM
   live 23:0x) tak pernah selesai — `pgrep -f` match cmdline watcher-nya sendiri, jadi marker
   "BACKFILL-DONE" tak ke-print walau backfill kelar. Aman (sleep loop); kill PID kalau mau
   bersih. Pelajaran: cek proses via `pgrep -f` → hindari pattern yang nempel di cmdline watcher.
+- UPDATE 12 Sep 2026 (raka, tick pagi): verifikasi first-run Senin 14 Sep jadi 1 perintah —
+  `bash backend/scripts/fix_pagespeed_crontab.sh firstrun` (read-only PASS/FAIL: lock age
+  <86400s + log ada + baris summary). Test lokal 18/18 PASS; smoke prod 12 Sep 09:2x = FAIL
+  dgn alasan tepat (lock age 433304s = fire Senin 7 Sep; log absen — backfill tak lewat cron,
+  output via SSH). Override test: KT_PAGESPEED_FIRSTRUN_LOCK/_LOG/_MAX_AGE.
