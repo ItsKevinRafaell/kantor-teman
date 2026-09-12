@@ -95,6 +95,36 @@ n_canon="$(grep -Fc "$CANON" "$FAKE/crontab.txt")"; n_buggy="$(grep -c "lock cd 
 # T8 perintah tak dikenal → exit 1
 [[ "$(rc ngerjain-prod)" == "1" ]] && ok "T8 perintah asing exit 1" || bad "T8 exit salah"
 
+# firstrun: override path inspect ke sandbox (default = path prod, tak tersentuh)
+fr_env() { KT_PAGESPEED_FIRSTRUN_LOCK="$FAKE/lock" KT_PAGESPEED_FIRSTRUN_LOG="$FAKE/ps.log" PAGESPEED_FIX_SSH_CMD="$TMP/fake_ssh.sh" bash "$SCRIPT" "${@:-firstrun}"; }
+fr_rc()  { KT_PAGESPEED_FIRSTRUN_LOCK="$FAKE/lock" KT_PAGESPEED_FIRSTRUN_LOG="$FAKE/ps.log" PAGESPEED_FIX_SSH_CMD="$TMP/fake_ssh.sh" bash "$SCRIPT" "${@:-firstrun}" >/dev/null 2>&1; echo $?; }
+SUMLINE='[pagespeed-recheck] summary {"checked": 3, "failed": 1, "skipped": 0, "recorded_dead": 1}'
+
+# T9 firstrun: lock & log absen → FAIL exit 1
+rm -f "$FAKE/lock" "$FAKE/ps.log"
+out="$(fr_env)"
+[[ "$(fr_rc)" == "1" && "$out" == *"FIRSTRUN FAIL"* ]] && ok "T9 firstrun kosong → FAIL exit 1" || bad "T9: rc=$(fr_rc) out=$out"
+
+# T10 firstrun: lock segar + log dgn summary → PASS exit 0
+printf '%s\n[pagespeed-recheck] lead=1 skor=88\n%s\n' "start" "$SUMLINE" > "$FAKE/ps.log"
+touch -d '10 minutes ago' "$FAKE/lock"
+out="$(fr_env)"
+[[ "$(fr_rc)" == "0" && "$out" == *"FIRSTRUN PASS"* && "$out" == *'"checked": 3'* ]] && ok "T10 firstrun segar+summary → PASS" || bad "T10: rc=$(fr_rc) out=$out"
+
+# T11 firstrun: lock basi (3 hari) → FAIL walau log oke
+touch -d '3 days ago' "$FAKE/lock"
+[[ "$(fr_rc)" == "1" ]] && ok "T11 lock basi → FAIL" || bad "T11 rc=$(fr_rc)"
+
+# T12 firstrun: lock segar tapi log TANPA summary → FAIL
+touch -d '10 minutes ago' "$FAKE/lock"
+printf 'hanya noise tanpa summary\n' > "$FAKE/ps.log"
+out="$(fr_env)"
+[[ "$(fr_rc)" == "1" && "$out" == *"summary"*"absen"* ]] && ok "T12 log tanpa summary → FAIL" || bad "T12: rc=$(fr_rc) out=$out"
+
+# T13 firstrun default tanpa override = path prod asli, lock /tmp lokal VPS dev — read-only aman
+out="$(PAGESPEED_FIX_SSH_CMD="$TMP/fake_ssh.sh" bash "$SCRIPT" firstrun 2>&1 || true)"
+[[ "$out" == *"FIRSTRUN"* ]] && ok "T13 firstrun default jalan (read-only)" || bad "T13: $out"
+
 echo "=== RESULT: PASS=$PASS FAIL=$FAIL ==="
 rm -rf "$TMP"
 [[ $FAIL -eq 0 ]]

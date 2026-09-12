@@ -13,7 +13,11 @@
 #   fix      [GATE] backup crontab lalu ganti SEMUA baris pagespeed non-kanonis
 #            dengan 1 baris kanonis (idempotent: kanonis yang sudah ada dipelihara,
 #            duplikat dirapikan). Tanpa KT_PAGESPEED_FIX_ACK=deploy → exit 3, zero mutasi.
-#   verify   read-only: baris kanonis ada & buggy absen + tail log.
+#   verify     read-only: baris kanonis ada & buggy absen + tail log.
+#   firstrun   read-only PASS/FAIL: bukti cron pagespeed BARU benar-benar fire —
+#              lock umur < FIRSTRUN_MAX_AGE (default 86400s) + log ada + baris
+#              "[pagespeed-recheck] summary {...}" ketemu. Exit 0 PASS / 1 FAIL.
+#              Jalankan tepat setelah cron Senin 09:07 WIB. Zero mutasi.
 #
 # GATE (anti-eksekusi-kecelakaan, pola scheduler_golive.sh):
 #   'fix' MENOLAK jalan kecuali KT_PAGESPEED_FIX_ACK=deploy — memaksa kata
@@ -36,6 +40,10 @@ LOG="${SERVER_DIR}/logs/pagespeed_recheck.log"
 # Mirror kanonik PRODUCTION.md baris 293 — satu-satunya sumber kebenaran baris ini.
 CANONICAL="7 9 * * 1 flock -n ${LOCK} ${VENV_PY} ${SERVER_DIR}/scripts/run_pagespeed_recheck.py >> ${LOG} 2>&1"
 MARKER="kt-pagespeed.lock"
+# Path yg di-inspect 'firstrun'. Override HANYA untuk test sandbox — default = path prod.
+CHK_LOCK="${KT_PAGESPEED_FIRSTRUN_LOCK:-${LOCK}}"
+CHK_LOG="${KT_PAGESPEED_FIRSTRUN_LOG:-${LOG}}"
+FIRSTRUN_MAX_AGE="${KT_PAGESPEED_FIRSTRUN_MAX_AGE:-86400}"
 
 log() { echo "[PSFIX] $*"; }
 die() { echo "[PSFIX] ERROR: $*" >&2; exit 1; }
@@ -132,10 +140,41 @@ cmd_verify() {
         echo '--- lock ---'; ls -l ${LOCK} 2>/dev/null || echo 'LOCK_BELUM_ADA'"
 }
 
+cmd_firstrun() {
+  # Read-only PASS/FAIL: bukti cron pagespeed baru benar-benar fire.
+  # PASS = log ada & berisi + baris summary ketemu + lock umurnya < FIRSTRUN_MAX_AGE.
+  log "firstrun (read-only): bukti cron pagespeed fire (lock=${CHK_LOCK}, log=${CHK_LOG}, max_age=${FIRSTRUN_MAX_AGE}s)"
+  local out lock_age="" summary="" reasons=()
+  out="$(sshq "now=\$(date +%s); lk=\$(stat -c %Y '${CHK_LOCK}' 2>/dev/null || echo 0); echo LOCK_EPOCH=\$lk; if [ \$lk -eq 0 ]; then echo LOCK=BELUM_ADA; else echo LOCK_AGE=\$((now - lk)); fi; if [ -s '${CHK_LOG}' ]; then echo LOG_OK; grep -oE '\[pagespeed-recheck\] summary \{[^}]*\}' '${CHK_LOG}' | tail -n 1; echo '--- tail ---'; tail -n 3 '${CHK_LOG}'; else echo LOG_KOSONG; fi" 2>&1)" || out=""
+  echo "$out"
+  if grep -q '^LOCK_AGE=' <<<"$out"; then
+    lock_age="$(sed -n 's/^LOCK_AGE=//p' <<<"$out" | head -n 1)"
+  fi
+  summary="$(sed -n 's/^\[pagespeed-recheck\] summary //p' <<<"$out" | tail -n 1)"
+  if ! grep -q '^LOG_OK$' <<<"$out"; then
+    reasons+=("log kosong/absen: ${CHK_LOG}")
+  fi
+  if [[ -z "$summary" ]]; then
+    reasons+=("baris '[pagespeed-recheck] summary {...}' absen di log")
+  fi
+  if [[ -z "$lock_age" ]]; then
+    reasons+=("lock absen: ${CHK_LOCK} (cron belum pernah exec)")
+  elif (( lock_age > FIRSTRUN_MAX_AGE )); then
+    reasons+=("lock basi: age=${lock_age}s > max ${FIRSTRUN_MAX_AGE}s (bukan hasil fire terakhir)")
+  fi
+  if (( ${#reasons[@]} == 0 )); then
+    log "FIRSTRUN PASS ✔ — lock age=${lock_age}s; summary: ${summary}"
+    return 0
+  fi
+  log "FIRSTRUN FAIL ✘ — ${reasons[*]}"
+  return 1
+}
+
 case "${1:-}" in
   status) cmd_status ;;
   fix)    cmd_fix ;;
   verify) cmd_verify ;;
+  firstrun) cmd_firstrun ;;
   ""|-h|--help)
     grep '^#   ' "$0" | sed 's/^#   //'
     ;;
