@@ -1,4 +1,5 @@
 import os
+import json
 
 from models import (
     Board,
@@ -890,5 +891,385 @@ def test_a2_draft_preview_does_not_call_ai(db_session, monkeypatch):
         # generate_ai_recommendations default False
     )
     assert ai_called["n"] == 0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Draft report patching: revisions must stay in the original draft snapshot and
+# must not enter finalization, email, or publication flows.
+# ─────────────────────────────────────────────────────────────────────────────
+def _report_admin_headers(db_session):
+    from app.core.dependencies import create_token
+
+    user = User(name="Report Admin", email="report-admin@example.com", hashed_password="x", role="admin")
+    db_session.add(user)
+    db_session.commit()
+    return {"Authorization": f"Bearer {create_token(user.id, user.email)}"}
+
+
+def _draft_report_for_patch(db_session, monkeypatch):
+    from app.services import client_report_service as svc
+
+    project = _seed_project_workspace(db_session)
+    monkeypatch.setattr(svc, "render_report_pdf_reportlab", lambda payload, brand: b"%PDF-draft-patch")
+    monkeypatch.setattr(svc, "_generate_next_steps_ai", lambda *args, **kwargs: [])
+    return svc.create_report_snapshot(
+        db_session,
+        target_type="project",
+        target_id=project.id,
+        report_type="monthly",
+        month_number=1,
+        period_start=None,
+        period_end=None,
+        manual_metrics={"gsc_clicks": 10},
+        evidence={"items": [{"label": "Bukti lama", "url": "https://example.com/old"}]},
+        narrative={"executive_summary": "Ringkasan lama"},
+        run_pagespeed=False,
+        public_enabled=False,
+        actor="Admin",
+    )
+
+
+def test_patch_draft_report_updates_in_place_without_finalize_or_email(client, db_session, monkeypatch):
+    from app.services import client_report_service as svc
+    from routers import reports as reports_router
+    from models import AuditLog
+
+    snapshot = _draft_report_for_patch(db_session, monkeypatch)
+    original_id = snapshot.id
+    original_document_id = snapshot.generated_document_id
+    original_title = snapshot.title
+    original_target = (snapshot.target_type, snapshot.target_id, snapshot.project_id, snapshot.report_type, snapshot.month_number)
+
+    def _must_not_run(*args, **kwargs):
+        raise AssertionError("draft patch must not call finalize or email")
+
+    monkeypatch.setattr(svc, "finalize_report_and_generate_invoice", _must_not_run)
+    monkeypatch.setattr(reports_router, "finalize_report_and_generate_invoice", _must_not_run)
+    monkeypatch.setattr(reports_router, "send_pdf_email", _must_not_run)
+
+    response = client.patch(
+        f"/api/reports/{snapshot.id}",
+        headers=_report_admin_headers(db_session),
+        json={
+            "reason": "Koreksi data laporan dari catatan tim",
+            "metrics": {"gsc_clicks": 125},
+            "evidence": {"items": [{"label": "Bukti baru", "url": "https://example.com/new"}]},
+            "narrative": {"executive_summary": "Ringkasan revisi"},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["id"] == original_id
+    assert body["title"] == original_title
+    assert body["status"].lower() == "draft"
+    assert body["public_enabled"] is False
+    assert body["public_slug"] is None
+    assert body["generated_invoice_id"] is None
+    assert body["finalized_at"] is None
+    assert body["finalized_by"] is None
+    assert body["metrics"]["manual"]["gsc_clicks"] == 125
+    assert body["evidence"]["items"][0]["label"] == "Bukti baru"
+    assert body["narrative"]["executive_summary"] == "Ringkasan revisi"
+
+    db_session.expire_all()
+    saved = db_session.query(ReportSnapshot).filter(ReportSnapshot.id == original_id).one()
+    assert db_session.query(ReportSnapshot).count() == 1
+    assert saved.generated_document_id == original_document_id
+    assert (saved.target_type, saved.target_id, saved.project_id, saved.report_type, saved.month_number) == original_target
+    from models import GeneratedDocument
+    assert db_session.query(GeneratedDocument).filter(GeneratedDocument.id == original_document_id).one().generated_by == "Admin"
+    audit = db_session.query(AuditLog).filter(AuditLog.table_name == "report_snapshots", AuditLog.record_id == original_id).one()
+    assert audit.action == "UPDATE"
+    assert json.loads(audit.details) == {
+        "reason": "Koreksi data laporan dari catatan tim",
+        "changed_fields": ["metrics", "evidence", "narrative"],
+    }
+
+
+def test_patch_finalized_report_is_rejected(client, db_session, monkeypatch):
+    snapshot = _draft_report_for_patch(db_session, monkeypatch)
+    snapshot.status = "final"
+    snapshot.finalized_at = "2026-09-14T00:00:00+00:00"
+    snapshot.finalized_by = "Admin"
+    db_session.commit()
+
+    response = client.patch(
+        f"/api/reports/{snapshot.id}",
+        headers=_report_admin_headers(db_session),
+        json={"reason": "Tidak boleh mengubah final", "metrics": {"gsc_clicks": 999}},
+    )
+
+    assert response.status_code == 409
+    assert "draft" in response.json()["detail"].lower()
+    db_session.refresh(snapshot)
+    assert snapshot.status == "final"
+    assert snapshot.finalized_by == "Admin"
+
+
+def test_patch_draft_report_requires_nonblank_reason(client, db_session, monkeypatch):
+    snapshot = _draft_report_for_patch(db_session, monkeypatch)
+
+    response = client.patch(
+        f"/api/reports/{snapshot.id}",
+        headers=_report_admin_headers(db_session),
+        json={"reason": "   ", "metrics": {"gsc_clicks": 125}},
+    )
+
+    assert response.status_code == 422
+
+
+def test_patch_draft_report_requires_admin(client, db_session, monkeypatch):
+    from app.core.dependencies import create_token
+
+    snapshot = _draft_report_for_patch(db_session, monkeypatch)
+    editor = User(name="Report Editor", email="report-editor@example.com", hashed_password="x", role="user")
+    db_session.add(editor)
+    db_session.commit()
+
+    response = client.patch(
+        f"/api/reports/{snapshot.id}",
+        headers={"Authorization": f"Bearer {create_token(editor.id, editor.email)}"},
+        json={"reason": "Tidak berwenang", "metrics": {"gsc_clicks": 125}},
+    )
+
+    assert response.status_code == 403
+
+
+def test_patch_missing_report_is_not_found_and_noop_is_unprocessable(client, db_session, monkeypatch):
+    headers = _report_admin_headers(db_session)
+    missing = client.patch(
+        "/api/reports/missing-report",
+        headers=headers,
+        json={"reason": "Mencoba laporan hilang", "metrics": {"gsc_clicks": 125}},
+    )
+    assert missing.status_code == 404
+
+    snapshot = _draft_report_for_patch(db_session, monkeypatch)
+    no_op = client.patch(
+        f"/api/reports/{snapshot.id}",
+        headers=headers,
+        json={"reason": "Tidak ada perubahan", "metrics": {"gsc_clicks": 10}},
+    )
+    assert no_op.status_code == 422
+
+
+def test_patch_updates_archive_url_with_revised_generated_document(client, db_session, monkeypatch):
+    from models import Document, GeneratedDocument
+
+    snapshot = _draft_report_for_patch(db_session, monkeypatch)
+    document = db_session.query(GeneratedDocument).filter(GeneratedDocument.id == snapshot.generated_document_id).one()
+    old_url = document.file_url
+    response = client.patch(
+        f"/api/reports/{snapshot.id}",
+        headers=_report_admin_headers(db_session),
+        json={"reason": "Koreksi metrik", "metrics": {"gsc_clicks": 125}},
+    )
+    assert response.status_code == 200, response.text
+
+    db_session.expire_all()
+    document = db_session.query(GeneratedDocument).filter(GeneratedDocument.id == snapshot.generated_document_id).one()
+    archive = db_session.query(Document).filter(
+        Document.source_type == "generated_document", Document.source_id == document.id
+    ).one()
+    assert document.file_url != old_url
+    assert archive.url == document.file_url
+
+
+def test_patch_commit_failure_keeps_old_file_and_cleans_new_file(db_session, monkeypatch):
+    from app.services import client_report_service as svc
+    from models import GeneratedDocument
+
+    snapshot = _draft_report_for_patch(db_session, monkeypatch)
+    document = db_session.query(GeneratedDocument).filter(GeneratedDocument.id == snapshot.generated_document_id).one()
+    old_url = document.file_url
+    old_path = os.path.join(svc.DOCUMENTS_DIR, os.path.basename(old_url))
+    assert os.path.exists(old_path)
+    filenames_before = set(os.listdir(svc.DOCUMENTS_DIR))
+
+    original_commit = db_session.commit
+    monkeypatch.setattr(db_session, "commit", lambda: (_ for _ in ()).throw(RuntimeError("forced commit failure")))
+    try:
+        svc.patch_draft_report_snapshot(
+            db_session,
+            report_id=snapshot.id,
+            manual_metrics={"gsc_clicks": 125},
+            evidence=None,
+            narrative=None,
+            reason="Memastikan rollback aman",
+            actor="Report Admin",
+        )
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("commit failure must be raised")
+    finally:
+        monkeypatch.setattr(db_session, "commit", original_commit)
+
+    assert os.path.exists(old_path)
+    assert set(os.listdir(svc.DOCUMENTS_DIR)) == filenames_before
+    db_session.rollback()
+    restored = db_session.query(GeneratedDocument).filter(GeneratedDocument.id == document.id).one()
+    assert restored.file_url == old_url
+
+
+def test_patch_uses_persisted_snapshot_not_changed_live_workspace(client, db_session, monkeypatch):
+    from models import GeneratedDocument
+
+    snapshot = _draft_report_for_patch(db_session, monkeypatch)
+    document = db_session.query(GeneratedDocument).filter(GeneratedDocument.id == snapshot.generated_document_id).one()
+    before_payload = json.loads(document.variables_used)
+    assert before_payload["workspace"]["tasks"][0]["task_name"] == "Publish artikel layanan"
+
+    cell = db_session.query(WorkspaceCell).filter(WorkspaceCell.id == "report-cell-task").one()
+    cell.value_text = "DATA LIVE YANG TIDAK BOLEH MASUK REVISI"
+    db_session.commit()
+
+    response = client.patch(
+        f"/api/reports/{snapshot.id}",
+        headers=_report_admin_headers(db_session),
+        json={"reason": "Koreksi metrik saja", "metrics": {"gsc_clicks": 125}},
+    )
+    assert response.status_code == 200, response.text
+
+    db_session.expire_all()
+    revised = db_session.query(GeneratedDocument).filter(GeneratedDocument.id == snapshot.generated_document_id).one()
+    revised_payload = json.loads(revised.variables_used)
+    assert revised_payload["workspace"] == before_payload["workspace"]
+    assert revised_payload["metrics"]["board"] == before_payload["metrics"]["board"]
+
+
+def test_patch_merges_manual_metrics_and_ignores_workspace_evidence_input(client, db_session, monkeypatch):
+    from models import GeneratedDocument
+
+    snapshot = _draft_report_for_patch(db_session, monkeypatch)
+    document = db_session.query(GeneratedDocument).filter(GeneratedDocument.id == snapshot.generated_document_id).one()
+    original_evidence = json.loads(snapshot.evidence_json)
+
+    # A report commonly has several manually-entered metrics. A one-field PATCH
+    # must retain the omitted fields in both persistence locations.
+    metrics = json.loads(snapshot.metrics_json)
+    metrics["manual"]["gsc_impressions"] = 4000
+    metrics["manual"]["gsc_impressions_previous"] = 3000
+    snapshot.metrics_json = json.dumps(metrics)
+    payload = json.loads(document.variables_used)
+    payload["metrics"] = metrics
+    document.variables_used = json.dumps(payload)
+    db_session.commit()
+
+    response = client.patch(
+        f"/api/reports/{snapshot.id}",
+        headers=_report_admin_headers(db_session),
+        json={
+            "reason": "Koreksi clicks tanpa menghapus impressions",
+            "metrics": {"gsc_clicks": 125},
+            # Server-managed evidence must neither change nor make this request
+            # look like a content change by itself.
+            "evidence": {"workspace_evidence": [{"label": "Tidak boleh tersimpan"}]},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["metrics"]["manual"] == {
+        "gsc_clicks": 125,
+        "gsc_impressions": 4000,
+        "gsc_impressions_previous": 3000,
+    }
+    assert response.json()["evidence"]["workspace_evidence"] == original_evidence["workspace_evidence"]
+
+    db_session.expire_all()
+    saved = db_session.query(ReportSnapshot).filter(ReportSnapshot.id == snapshot.id).one()
+    saved_document = db_session.query(GeneratedDocument).filter(GeneratedDocument.id == saved.generated_document_id).one()
+    assert json.loads(saved.metrics_json)["manual"] == {
+        "gsc_clicks": 125,
+        "gsc_impressions": 4000,
+        "gsc_impressions_previous": 3000,
+    }
+    assert json.loads(saved_document.variables_used)["metrics"]["manual"] == {
+        "gsc_clicks": 125,
+        "gsc_impressions": 4000,
+        "gsc_impressions_previous": 3000,
+    }
+    assert json.loads(saved.evidence_json)["workspace_evidence"] == original_evidence["workspace_evidence"]
+
+
+def test_patch_workspace_evidence_only_is_not_an_effective_change(client, db_session, monkeypatch):
+    snapshot = _draft_report_for_patch(db_session, monkeypatch)
+
+    response = client.patch(
+        f"/api/reports/{snapshot.id}",
+        headers=_report_admin_headers(db_session),
+        json={
+            "reason": "Mencoba mengubah evidence server",
+            "evidence": {"workspace_evidence": [{"label": "Tidak boleh tersimpan"}]},
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_patch_partial_pdf_write_failure_cleans_new_file_and_preserves_old_file(db_session, monkeypatch):
+    import builtins
+
+    from app.services import client_report_service as svc
+    from models import GeneratedDocument
+
+    snapshot = _draft_report_for_patch(db_session, monkeypatch)
+    document = db_session.query(GeneratedDocument).filter(GeneratedDocument.id == snapshot.generated_document_id).one()
+    old_url = document.file_url
+    old_path = os.path.join(svc.DOCUMENTS_DIR, os.path.basename(old_url))
+    filenames_before = set(os.listdir(svc.DOCUMENTS_DIR))
+    assert os.path.exists(old_path)
+
+    original_open = builtins.open
+    attempted_paths = []
+
+    class _PartialWriteFile:
+        def __init__(self, handle):
+            self.handle = handle
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            self.handle.close()
+            return False
+
+        def write(self, data):
+            self.handle.write(data[:5])
+            self.handle.flush()
+            raise OSError("forced partial PDF write failure")
+
+    def _partial_open(path, mode="r", *args, **kwargs):
+        handle = original_open(path, mode, *args, **kwargs)
+        if path.startswith(svc.DOCUMENTS_DIR) and mode == "wb":
+            attempted_paths.append(path)
+            return _PartialWriteFile(handle)
+        return handle
+
+    monkeypatch.setattr(builtins, "open", _partial_open)
+
+    try:
+        svc.patch_draft_report_snapshot(
+            db_session,
+            report_id=snapshot.id,
+            manual_metrics={"gsc_clicks": 125},
+            evidence=None,
+            narrative=None,
+            reason="Memastikan kegagalan write aman",
+            actor="Report Admin",
+        )
+    except OSError as exc:
+        assert "forced partial PDF write failure" in str(exc)
+    else:
+        raise AssertionError("partial PDF write failure must be raised")
+
+    assert attempted_paths
+    assert not os.path.exists(attempted_paths[0])
+    assert os.path.exists(old_path)
+    assert set(os.listdir(svc.DOCUMENTS_DIR)) == filenames_before
+    db_session.rollback()
+    restored = db_session.query(GeneratedDocument).filter(GeneratedDocument.id == document.id).one()
+    assert restored.file_url == old_url
 
 

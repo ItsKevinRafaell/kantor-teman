@@ -19,6 +19,10 @@ from app.services.client_report_service import (
     build_report_payload,
     create_report_snapshot,
     finalize_report_and_generate_invoice,
+    patch_draft_report_snapshot,
+    ReportNoChangesError,
+    ReportNotDraftError,
+    ReportNotFoundError,
     public_snapshot_payload,
     snapshot_payload,
     track_public_duration,
@@ -42,6 +46,13 @@ class ReportGenerateIn(BaseModel):
     narrative: dict = Field(default_factory=dict)
     run_pagespeed: bool = True
     public_enabled: bool = True
+
+
+class ReportPatchIn(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=500)
+    metrics: Optional[dict] = None
+    evidence: Optional[dict] = None
+    narrative: Optional[dict] = None
 
 
 class DurationIn(BaseModel):
@@ -165,6 +176,40 @@ def generate_report(body: ReportGenerateIn, current_user: User = Depends(get_cur
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Gagal membuat laporan: {exc}")
+
+
+@router.patch("/api/reports/{report_id}")
+def patch_report(
+    report_id: str,
+    body: ReportPatchIn,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    if not body.reason.strip():
+        raise HTTPException(status_code=422, detail="Alasan audit wajib diisi")
+    try:
+        snapshot = patch_draft_report_snapshot(
+            db,
+            report_id=report_id,
+            manual_metrics=body.metrics,
+            evidence=body.evidence,
+            narrative=body.narrative,
+            reason=body.reason,
+            actor=current_user.name,
+        )
+        return _with_absolute_public_url(snapshot_payload(snapshot), db)
+    except ReportNotFoundError as exc:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ReportNotDraftError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc))
+    except (ReportNoChangesError, ValueError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Gagal memperbarui laporan draft")
 
 
 @router.post("/api/reports/{report_id}/finalize")
