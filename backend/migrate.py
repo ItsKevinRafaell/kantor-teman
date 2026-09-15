@@ -519,6 +519,31 @@ if "mysql" in _db_url:
     else:
         print("= MySQL: skip backfill last_followup_at (tabel belum ada)")
 
+    # Attribution GBP stores internal evidence only; it intentionally seeds no client rows.
+    if not _table_exists("client_attribution_gbp"):
+        if _table_exists("leads"):
+            _cur.execute("""
+                CREATE TABLE client_attribution_gbp (
+                    id VARCHAR(36) PRIMARY KEY,
+                    lead_id INT NOT NULL,
+                    canonical_landing_url VARCHAR(2000) NOT NULL,
+                    ga4_measurement_id VARCHAR(50) NULL,
+                    conversion_event_name VARCHAR(255) NULL,
+                    conversion_event_verified TINYINT(1) NOT NULL DEFAULT 0,
+                    readiness_note TEXT NULL,
+                    created_at VARCHAR(255) NOT NULL,
+                    updated_at VARCHAR(255) NOT NULL,
+                    UNIQUE KEY uniq_client_attribution_gbp_lead_id (lead_id),
+                    CONSTRAINT fk_client_attribution_gbp_lead
+                        FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE
+                )
+            """)
+            print("+ MySQL: tabel client_attribution_gbp dibuat")
+        else:
+            print("= MySQL: client_attribution_gbp skip (leads belum ada)")
+    else:
+        print("= MySQL: client_attribution_gbp sudah ada, skip")
+
     _mc.commit()
     _mc.close()
     print("MySQL migration selesai.")
@@ -2135,6 +2160,25 @@ for _t in ("blast_campaigns", "blast_messages"):
             print(f"= {_t}.whatsapp_number_id sudah ada, skip")
 
 conn.commit()
+
+# Attribution GBP is internal evidence only; migration intentionally seeds no client rows.
+cur.execute("""
+CREATE TABLE IF NOT EXISTS client_attribution_gbp (
+    id TEXT PRIMARY KEY,
+    lead_id INTEGER NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+    canonical_landing_url TEXT NOT NULL,
+    ga4_measurement_id VARCHAR(50),
+    conversion_event_name VARCHAR(255),
+    conversion_event_verified BOOLEAN NOT NULL DEFAULT 0,
+    readiness_note TEXT,
+    created_at VARCHAR(255) NOT NULL,
+    updated_at VARCHAR(255) NOT NULL,
+    UNIQUE(lead_id)
+)
+""")
+cur.execute("CREATE INDEX IF NOT EXISTS ix_client_attribution_gbp_lead_id ON client_attribution_gbp(lead_id)")
+conn.commit()
+print("+ tabel client_attribution_gbp ready")
 
 conn.close()
 print("Migrasi selesai.")

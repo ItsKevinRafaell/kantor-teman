@@ -7,7 +7,7 @@ from .auth import (
     PasswordResetRequest, PasswordResetConfirm,
 )
 from .lead import (
-    Business, LeadOut, ContactOut, ContactUpdate, TemplateIn, TemplateOut,
+    Business, LeadOut, ContactOut, ContactUpdate, ClientAttributionGBPIn, TemplateIn, TemplateOut,
     StatusUpdate, LeadSalesUpdate, ProductUpdate, BlastIn, RatingUpdate,
     LeadCreate, LeadEdit, WaSendIn, ExternalLeadIn,
     ScoreAdjustmentUpdate, ScoringSettingsUpdate,
@@ -76,7 +76,7 @@ __all__ = [
     "LoginIn", "TokenOut", "UserUpdate", "UserCreate", "UserAdminUpdate",
     "PasswordResetRequest", "PasswordResetConfirm",
     # lead
-    "Business", "LeadOut", "ContactOut", "ContactUpdate", "TemplateIn", "TemplateOut",
+    "Business", "LeadOut", "ContactOut", "ContactUpdate", "ClientAttributionGBPIn", "TemplateIn", "TemplateOut",
     "StatusUpdate", "LeadSalesUpdate", "ProductUpdate", "BlastIn", "RatingUpdate",
     "LeadCreate", "LeadEdit", "WaSendIn", "ExternalLeadIn",
     "ScoreAdjustmentUpdate", "ScoringSettingsUpdate",

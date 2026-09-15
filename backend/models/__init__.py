@@ -2,6 +2,7 @@
 from .base import Base, engine, SessionLocal, get_db, log_audit, DATABASE_URL
 
 from .user import User, SystemSettings, PasswordResetToken
+from .attribution import ClientAttributionGBP
 from .ai import AIProxy, ProviderConfig, AIModel
 from .lead import (
     Lead, Contact, MessageTemplate, ScrapeHistory,
@@ -37,6 +38,8 @@ __all__ = [
     "Base", "engine", "SessionLocal", "get_db", "log_audit", "DATABASE_URL",
     # user
     "User", "SystemSettings", "PasswordResetToken",
+    # attribution
+    "ClientAttributionGBP",
     # ai
     "AIProxy", "ProviderConfig", "AIModel",
     # lead

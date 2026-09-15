@@ -1,5 +1,6 @@
 import re, html as html_mod, random, asyncio, uuid, json, csv, io, base64, hmac, time, httpx
 import os
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
@@ -8,11 +9,104 @@ from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse,
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional, List, Any
-from models import get_db, log_audit, User, Lead, Contact, Project, Transaction, ClientNote, Proposal, ProposalAnalytics, AuditLog, LeadActivityLog
+from models import get_db, log_audit, User, Lead, Contact, Project, Transaction, ClientNote, Proposal, ProposalAnalytics, AuditLog, LeadActivityLog, ClientAttributionGBP
 from schemas import *
 from app.core.dependencies import get_current_user, require_admin
 
 router = APIRouter()
+
+
+GBP_UTM_PARAMETERS = (
+    ("utm_source", "google"),
+    ("utm_medium", "organic"),
+    ("utm_campaign", "gbp"),
+    ("utm_content", "website"),
+)
+
+
+def _canonical_gbp_url(url: str) -> tuple[str, str]:
+    """Validate a canonical landing URL and derive the offline GBP UTM URL."""
+    canonical = url.strip()
+    if any(ord(char) < 32 or char.isspace() for char in canonical):
+        raise HTTPException(status_code=400, detail="URL landing kanonik tidak boleh memuat spasi atau karakter kontrol")
+    try:
+        parsed = urlsplit(canonical)
+        # Accessing port forces urllib to reject malformed port numbers.
+        parsed.port
+    except ValueError:
+        raise HTTPException(status_code=400, detail="URL landing kanonik tidak valid")
+    if parsed.scheme.lower() != "https" or not parsed.netloc or not parsed.hostname:
+        raise HTTPException(status_code=400, detail="URL landing kanonik harus menggunakan HTTPS")
+    if parsed.username or parsed.password:
+        raise HTTPException(status_code=400, detail="URL landing kanonik tidak boleh memuat kredensial")
+    if parsed.fragment:
+        raise HTTPException(status_code=400, detail="URL landing kanonik tidak boleh memiliki fragment")
+    try:
+        query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Query URL landing kanonik tidak valid")
+    if any(key.lower().startswith("utm_") for key, _ in query_pairs):
+        raise HTTPException(status_code=400, detail="URL landing kanonik tidak boleh sudah memiliki parameter utm_*")
+    generated = urlunsplit(("https", parsed.netloc, parsed.path, urlencode([*query_pairs, *GBP_UTM_PARAMETERS]), ""))
+    return canonical, generated
+
+
+def _attribution_response(record: ClientAttributionGBP | None, lead_id: int) -> dict:
+    if not record:
+        # Reads never create a record or infer evidence from a client identity.
+        return {"lead_id": lead_id, "canonical_landing_url": None, "generated_url": None,
+                "ga4_measurement_id": None, "conversion_event_name": None,
+                "conversion_event_verified": False, "readiness_note": None,
+                "created_at": None, "updated_at": None}
+    _, generated_url = _canonical_gbp_url(record.canonical_landing_url)
+    return {"lead_id": lead_id, "canonical_landing_url": record.canonical_landing_url,
+            "generated_url": generated_url, "ga4_measurement_id": record.ga4_measurement_id,
+            "conversion_event_name": record.conversion_event_name,
+            "conversion_event_verified": record.conversion_event_verified,
+            "readiness_note": record.readiness_note, "created_at": record.created_at,
+            "updated_at": record.updated_at}
+
+
+def _resolve_client_lead(client_id: int, db: Session) -> Lead:
+    contact = db.query(Contact).filter(Contact.id == client_id).first()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Klien tidak ditemukan")
+    if not contact.lead_id:
+        raise HTTPException(status_code=404, detail="Klien belum memiliki relasi lead")
+    lead = db.query(Lead).filter(Lead.id == contact.lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead klien tidak ditemukan")
+    return lead
+
+
+@router.get("/api/clients/{client_id}/attribution-gbp")
+def get_client_attribution_gbp(client_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    lead = _resolve_client_lead(client_id, db)
+    record = db.query(ClientAttributionGBP).filter(ClientAttributionGBP.lead_id == lead.id).first()
+    return _attribution_response(record, lead.id)
+
+
+@router.put("/api/clients/{client_id}/attribution-gbp")
+def put_client_attribution_gbp(client_id: int, body: ClientAttributionGBPIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    lead = _resolve_client_lead(client_id, db)
+    canonical_url, _ = _canonical_gbp_url(body.canonical_landing_url)
+    measurement_id = body.ga4_measurement_id.strip().upper() if body.ga4_measurement_id else None
+    if measurement_id and not re.fullmatch(r"G-[A-Z0-9]+", measurement_id):
+        raise HTTPException(status_code=400, detail="GA4 measurement ID harus berformat G-XXXXXXXX")
+    record = db.query(ClientAttributionGBP).filter(ClientAttributionGBP.lead_id == lead.id).first()
+    if not record:
+        record = ClientAttributionGBP(lead_id=lead.id, canonical_landing_url=canonical_url)
+        db.add(record)
+    record.canonical_landing_url = canonical_url
+    record.ga4_measurement_id = measurement_id
+    record.conversion_event_name = body.conversion_event_name.strip() if body.conversion_event_name else None
+    record.conversion_event_verified = body.conversion_event_verified
+    record.readiness_note = body.readiness_note.strip() if body.readiness_note else None
+    db.commit()
+    db.refresh(record)
+    # This endpoint only stores evidence and derives URL text; it makes no external calls.
+    return _attribution_response(record, lead.id)
+
 
 @router.get("/api/clients/detail/{client_id}")
 def get_client_detail(client_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

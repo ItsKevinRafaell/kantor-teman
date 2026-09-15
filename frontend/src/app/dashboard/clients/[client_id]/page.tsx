@@ -347,7 +347,7 @@ export default function ClientDetailPage() {
       </div>
 
       {/* Blok C: Tabs */}
-      <ClientTabs leadId={clientLeadId} initialNotes={data.notes} />
+      <ClientTabs clientId={Number(clientId)} leadId={clientLeadId} initialNotes={data.notes} />
 
       {/* Project Modal */}
       <ProjectModal

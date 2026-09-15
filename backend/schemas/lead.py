@@ -69,6 +69,14 @@ class ContactUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+class ClientAttributionGBPIn(BaseModel):
+    canonical_landing_url: str = Field(..., min_length=1, max_length=2000)
+    ga4_measurement_id: Optional[str] = Field(None, max_length=50)
+    conversion_event_name: Optional[str] = Field(None, max_length=255)
+    conversion_event_verified: bool = False
+    readiness_note: Optional[str] = Field(None, max_length=5000)
+
+
 class TemplateIn(BaseModel):
     product_category: str
     variant_name: str

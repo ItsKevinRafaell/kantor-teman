@@ -1,9 +1,10 @@
 "use client";
 import { useState } from "react";
-import { FileText, Key, ExternalLink } from "lucide-react";
+import { FileText, Key, ExternalLink, MapPin } from "lucide-react";
 import NotesTimelineTab from "./NotesTimelineTab";
 import CredentialsTab from "./CredentialsTab";
 import DocumentsTab from "./DocumentsTab";
+import AttributionGBPTab from "./AttributionGBPTab";
 
 interface NoteData {
   id: string;
@@ -13,15 +14,16 @@ interface NoteData {
   timestamp: string;
 }
 
-interface ClientTabsProps { leadId: number | null; initialNotes: NoteData[]; }
+interface ClientTabsProps { clientId: number; leadId: number | null; initialNotes: NoteData[]; }
 
-export default function ClientTabs({ leadId, initialNotes }: ClientTabsProps) {
-  const [activeTab, setActiveTab] = useState<"notes" | "credentials" | "documents">("notes");
+export default function ClientTabs({ clientId, leadId, initialNotes }: ClientTabsProps) {
+  const [activeTab, setActiveTab] = useState<"notes" | "credentials" | "documents" | "attribution-gbp">("notes");
 
   const tabs = [
     { key: "notes" as const, label: "Timeline Notes", icon: <FileText size={14} /> },
     { key: "credentials" as const, label: "Kredensial & Akses", icon: <Key size={14} /> },
     { key: "documents" as const, label: "Hub Dokumen", icon: <ExternalLink size={14} /> },
+    { key: "attribution-gbp" as const, label: "Attribution GBP", icon: <MapPin size={14} /> },
   ];
 
   return (
@@ -38,6 +40,7 @@ export default function ClientTabs({ leadId, initialNotes }: ClientTabsProps) {
       {activeTab === "notes" && <NotesTimelineTab leadId={leadId} initialNotes={initialNotes} />}
       {activeTab === "credentials" && <CredentialsTab leadId={leadId} />}
       {activeTab === "documents" && <DocumentsTab leadId={leadId} />}
+      {activeTab === "attribution-gbp" && <AttributionGBPTab clientId={clientId} leadId={leadId} />}
     </div>
   );
 }

@@ -1,5 +1,21 @@
 # Production Deploy Guide: Kantorteman
 
+## Attribution GBP (internal evidence and URL generator only) — requires explicit Kevin go
+
+Status: implemented locally only. Do not deploy this feature until Kevin gives explicit deployment approval. It does not publish, edit, or otherwise access a Google Business Profile, GA4, or any client site.
+
+Deploy only after Kevin's explicit go:
+
+1. Back up the production MySQL database and current backend/frontend release.
+2. Upload the coordinated backend files, including `models/attribution.py`, model/schema barrels, `routers/clients.py`, and `migrate.py`; upload the client-detail frontend tab files.
+3. From the production backend directory, run `python migrate.py` once. The migration creates only `client_attribution_gbp` if absent; it is idempotent and intentionally creates no client rows or readiness data.
+4. Restart the backend and deploy the frontend through the approved release path.
+5. As an authenticated internal user, open one test client already linked to a Lead. Confirm GET starts empty, save an approved HTTPS canonical URL, and verify the exact generated URL has `utm_source=google&utm_medium=organic&utm_campaign=gbp&utm_content=website`.
+6. Confirm invalid HTTP, fragment, and existing `utm_*` URLs are rejected. Confirm no GBP link, GA4 setting, client site, or production client record was changed outside the single internal evidence entry.
+7. Roll back application code if needed. The table is additive; do not delete evidence rows or drop the table without a separately approved data plan.
+
+No publish CTA or external publishing action is part of this feature. A separate confirmed GBP-manager-access and Kevin-approved landing URL gate remains mandatory for any future GBP website-field change.
+
 ## Sebelum Upload
 
 Backup tiga hal ini dari shared hosting:
