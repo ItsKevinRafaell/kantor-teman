@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import sys
@@ -232,6 +233,55 @@ class HardeningRegressionTests(unittest.TestCase):
         versions = self.db.query(DocumentVersion).filter(DocumentVersion.document_id == document_id).all()
         self.assertEqual(len(versions), 1)
         self.assertEqual(versions[0].version_number, 1)
+
+    def test_invoice_reportlab_keeps_nonstandard_address_and_item_rows(self):
+        from pypdf import PdfReader
+        from app.services.pdf_renderer import _extract_doc_parts, render_pdf_with_reportlab
+
+        from app.services.sales_workflow_service import _items_rows
+        from document_template_library import INVOICE_HTML
+
+        address = "Komplek Pesona Mahakam Ruko 19, Harapan Baru, Loa Janan Ilir, Samarinda, Kaltim 75242"
+        html = routers.documents._render_document_html(INVOICE_HTML, {
+            "nomor_invoice": "INV/202609/050",
+            "tanggal": "1 Oktober 2026",
+            "due_date": "14 Oktober 2026",
+            "brand_name": "Teman UMKM Kita",
+            "alamat_perusahaan": "Indonesia",
+            "phone_perusahaan": "",
+            "email_perusahaan": "",
+            "klien": "PT Mitra Lindung Sarana",
+            "alamat": address,
+            "phone": "08125529025",
+            "payment_info": "BCA",
+            "terms": "Bayar sesuai jatuh tempo.",
+            "catatan": "Draf internal.",
+            "tagline": "",
+            "logo": "",
+            "items_rows": _items_rows([{"name": "SEO Pro", "price": 2500000}]),
+        })
+
+        self.assertEqual(_extract_doc_parts(html, template_type="invoice")["client_address"], address)
+        pdf = render_pdf_with_reportlab(html, template_type="invoice")
+        text = " ".join((page.extract_text() or "") for page in PdfReader(io.BytesIO(pdf)).pages)
+        normalized = " ".join(text.split())
+        self.assertIn("Komplek Pesona Mahakam Ruko 19", normalized)
+        self.assertIn("Samarinda, Kaltim 75242", normalized)
+        self.assertIn("SEO Pro", normalized)
+        self.assertIn("Rp 2.500.000", normalized)
+
+    def test_invoice_reportlab_uses_widest_table_for_single_line_item(self):
+        from app.services.pdf_renderer import _extract_doc_parts
+
+        html = """<html><body>
+        <table><tr><td>Dari</td><td>Teman UMKM Kita</td></tr></table>
+        <table><tr><td>Ditagihkan Kepada</td><td>PT Mitra Lindung Sarana</td></tr></table>
+        <table><tr><th>Layanan</th><th>Jumlah</th><th>Harga</th><th>Total</th></tr><tr><td>SEO Pro</td><td>1</td><td>Rp 2.500.000</td><td>Rp 2.500.000</td></tr></table>
+        </body></html>"""
+
+        rows = _extract_doc_parts(html, template_type="invoice")["items_table"]
+        self.assertEqual(rows[1][0], "SEO Pro")
+        self.assertEqual(rows[1][3], "Rp 2.500.000")
 
     def test_pdf_preview_returns_complete_buffered_response(self):
         request = SimpleNamespace(headers={})

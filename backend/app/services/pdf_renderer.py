@@ -284,11 +284,22 @@ class _TableParser(HTMLParser):
         self._current_cell: list[str] | None = None
         self._current_colspan = 1
 
+    def _flush_current_table(self) -> None:
+        if self._current_table:
+            self.tables.append(self._current_table)
+        self._current_table = None
+
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
         if tag == "table":
+            # Flush a preceding orphan <tr> group before starting this table.
+            self._flush_current_table()
             self._current_table = []
-        elif tag == "tr" and self._current_table is not None:
+        elif tag == "tr":
+            # Legacy invoice templates can inject {{items_rows}} as bare <tr>
+            # fragments. Treat each contiguous group as an implicit table.
+            if self._current_table is None:
+                self._current_table = []
             self._current_row = []
         elif tag in {"td", "th"} and self._current_row is not None:
             self._current_cell = []
@@ -322,9 +333,7 @@ class _TableParser(HTMLParser):
                 self._current_table.append(self._current_row)
             self._current_row = None
         elif tag == "table" and self._current_table is not None:
-            if self._current_table:
-                self.tables.append(self._current_table)
-            self._current_table = None
+            self._flush_current_table()
         elif tag in {"div", "p"} and self._current_cell is not None:
             self._current_cell.append("\n")
 
@@ -420,7 +429,14 @@ def _extract_doc_parts(rendered_html: str, template_type: str | None = None) -> 
     lines = _text_lines_from_html(rendered_html)
     line_text = "\n".join(lines)
     tables = _extract_tables(rendered_html)
-    items_table = _normalize_items_table(max(tables, key=lambda table: len(table), default=[]))
+    def _item_table_score(table: list[list[str]]) -> tuple[int, int, int]:
+        widest = max((len(row) for row in table), default=0)
+        text = " ".join(cell.lower() for row in table for cell in row)
+        semantic = int(any(label in text for label in ("layanan", "item", "produk", "harga", "nilai", "subtotal", "total")))
+        # A semantic invoice table wins over wider party/payment layout tables.
+        return semantic, widest, len(table)
+
+    items_table = _normalize_items_table(max(tables, key=_item_table_score, default=[]))
 
     # Extract logo URL from rendered HTML
     logo_url = ""
@@ -643,10 +659,11 @@ def _extract_doc_parts(rendered_html: str, template_type: str | None = None) -> 
         web_match = re.search(r"(?:www\.[^\s]+|https?://[^\s]+)", detail_clean)
         if web_match and not client_web:
             client_web = web_match.group(0)
-        # Address (remaining text that looks like address)
+        # Client section is bounded by the invoice template headings. Preserve the
+        # first non-contact detail as address even when it lacks Indonesia-specific
+        # street tokens (for example, Komplek/Ruko addresses).
         if not client_address and not phone_match and not email_match and not web_match:
-            if any(x in detail_clean for x in ["Jl", "Jalan", "No", "RT", "RW", "Kota", "Kabupaten"]):
-                client_address = detail_clean
+            client_address = detail_clean
 
     # Brand contact info
     brand_address = ""
