@@ -85,6 +85,10 @@ Urutan eksekusi di server (path: `/home/qqwtlphb/backend`):
 
 Rollback scheduler = hapus 1 baris crontab; `.env` web dan Passenger tidak disentuh.
 
+## Invoice generated-document edit: renderer contract
+
+`_render_document_pdf()` mengembalikan pasangan `(pdf_bytes, renderer)`. Jalur edit variabel dan rollback wajib unpack `pdf_bytes, _` sebelum menulis file; jangan menulis tuple ke file PDF. Setelah deploy patch ini, verifikasi endpoint edit pada draft yang sudah disetujui lewat GET/versions/download: ID dan nomor invoice tetap, status Draft/not-sent tetap, dan file aktual diawali `%PDF-`.
+
 ## Verifikasi Setelah Restart
 
 1. Login dengan akun admin yang sudah ada.

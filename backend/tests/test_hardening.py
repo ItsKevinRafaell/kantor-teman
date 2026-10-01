@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import tempfile
@@ -176,6 +177,61 @@ class HardeningRegressionTests(unittest.TestCase):
         self.assertIsNone(saved.folder_id)
         self.assertIsNone(saved.body)
         self.assertIsNone(saved.url)
+
+    def test_generated_document_variable_edit_writes_pdf_bytes_and_keeps_same_document(self):
+        from models import DocumentTemplate, GeneratedDocument, DocumentVersion
+
+        template = DocumentTemplate(
+            id=str(uuid.uuid4()),
+            name="Invoice",
+            type="invoice",
+            html_template="<html><body>{{alamat}}</body></html>",
+        )
+        document_id = str(uuid.uuid4())
+        document = GeneratedDocument(
+            id=document_id,
+            template_id=template.id,
+            template_name="Invoice",
+            target_type="project",
+            target_id="project-id",
+            variables_used='{"nomor_invoice":"INV/202609/050","alamat":"Bandung"}',
+            file_url=None,
+            display_filename="Invoice",
+            status="Draft",
+            payment_status="Belum Dibayar",
+            generated_by=self.admin.name,
+        )
+        self.db.add_all([template, document])
+        self.db.commit()
+
+        with tempfile.TemporaryDirectory(prefix="generated-document-edit-") as documents_dir, \
+             patch.object(routers.documents, "DOCUMENTS_DIR", documents_dir), \
+             patch.object(routers.documents, "_render_document_pdf", return_value=(b"%PDF-1.4\nupdated", "mock")):
+            result = routers.documents.edit_generated_document(
+                document_id,
+                routers.documents.DocumentEditIn(
+                    variables={"alamat": "Samarinda"},
+                    change_summary="Koreksi alamat penerima",
+                ),
+                current_user=self.admin,
+                db=self.db,
+            )
+
+            self.assertEqual(result["id"], document_id)
+            self.assertTrue(result["file_url"].startswith("/uploads/generated_documents/"))
+            generated_name = os.path.basename(result["file_url"])
+            with open(os.path.join(documents_dir, generated_name), "rb") as pdf_file:
+                self.assertEqual(pdf_file.read(), b"%PDF-1.4\nupdated")
+
+        self.db.expire_all()
+        saved = self.db.query(GeneratedDocument).filter(GeneratedDocument.id == document_id).one()
+        self.assertEqual(json.loads(saved.variables_used)["alamat"], "Samarinda")
+        self.assertEqual(json.loads(saved.variables_used)["nomor_invoice"], "INV/202609/050")
+        self.assertEqual(saved.status, "Draft")
+        self.assertEqual(saved.payment_status, "Belum Dibayar")
+        versions = self.db.query(DocumentVersion).filter(DocumentVersion.document_id == document_id).all()
+        self.assertEqual(len(versions), 1)
+        self.assertEqual(versions[0].version_number, 1)
 
     def test_pdf_preview_returns_complete_buffered_response(self):
         request = SimpleNamespace(headers={})

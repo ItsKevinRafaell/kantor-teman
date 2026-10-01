@@ -1876,7 +1876,7 @@ def edit_generated_document(
             template = db.query(DocumentTemplate).filter(DocumentTemplate.id == doc.template_id).first()
             if template:
                 try:
-                    pdf_bytes = _render_document_pdf(template, current_vars)
+                    pdf_bytes, _ = _render_document_pdf(template, current_vars)
                     pdf_filename = f"{str(uuid.uuid4())}.pdf"
                     pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
                     with open(pdf_path, "wb") as pdf_file:
@@ -2016,7 +2016,7 @@ def rollback_document_version(
             raise HTTPException(status_code=400, detail="Variabel tidak bisa dibaca")
 
         try:
-            pdf_bytes = _render_document_pdf(template, orig_vars)
+            pdf_bytes, _ = _render_document_pdf(template, orig_vars)
             pdf_filename = f"{str(uuid.uuid4())}.pdf"
             pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
             with open(pdf_path, "wb") as pdf_file:
@@ -2067,7 +2067,7 @@ def rollback_document_version(
             if not template:
                 raise HTTPException(status_code=400, detail="Template tidak ditemukan")
             try:
-                pdf_bytes = _render_document_pdf(template, v_vars)
+                pdf_bytes, _ = _render_document_pdf(template, v_vars)
                 pdf_filename = f"{str(uuid.uuid4())}.pdf"
                 pdf_path = os.path.join(DOCUMENTS_DIR, pdf_filename)
                 with open(pdf_path, "wb") as pdf_file:
